@@ -1,0 +1,119 @@
+@import 'tailwindcss';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-border: var(--border);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-overlay: var(--overlay);
+  --color-panel: var(--panel);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --shadow-xs: 0 1px 2px color-mix(in oklab, var(--shadow-color) 8%, transparent);
+  --font-sans: var(--app-font-sans);
+}
+
+:root {
+  --app-font-sans:
+    Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+    'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  --background: oklch(0.975 0.004 255);
+  --border: oklch(0.89 0.009 255);
+  --foreground: oklch(0.22 0.018 258);
+  --muted: oklch(0.95 0.006 255);
+  --muted-foreground: oklch(0.53 0.02 258);
+  --overlay: oklch(0.16 0.02 258);
+  --panel: oklch(0.995 0.002 255);
+  --primary: oklch(0.52 0.2 264);
+  --primary-foreground: oklch(0.99 0.005 255);
+  --ring: oklch(0.6 0.18 264);
+  --shadow-color: oklch(0.2 0.02 258);
+  --sidebar: oklch(0.96 0.006 255);
+  --success: oklch(0.58 0.15 151);
+  --warning: oklch(0.7 0.16 73);
+  color-scheme: light;
+}
+
+.dark {
+  --background: oklch(0.17 0.012 258);
+  --border: oklch(0.3 0.016 258);
+  --foreground: oklch(0.94 0.008 255);
+  --muted: oklch(0.24 0.014 258);
+  --muted-foreground: oklch(0.69 0.018 255);
+  --overlay: oklch(0.08 0.01 258);
+  --panel: oklch(0.205 0.013 258);
+  --primary: oklch(0.68 0.17 263);
+  --primary-foreground: oklch(0.14 0.02 260);
+  --ring: oklch(0.68 0.17 263);
+  --shadow-color: oklch(0.03 0.01 258);
+  --sidebar: oklch(0.19 0.012 258);
+  --success: oklch(0.72 0.15 151);
+  --warning: oklch(0.78 0.15 76);
+  color-scheme: dark;
+}
+
+* {
+  border-color: var(--border);
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  overflow: hidden;
+  background: var(--background);
+  font-family: var(--app-font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button:not(:disabled) {
+  cursor: pointer;
+}
+
+.window-drag {
+  -webkit-app-region: drag;
+}
+
+.window-no-drag,
+.window-no-drag * {
+  -webkit-app-region: no-drag;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
+  background-color: color-mix(in oklab, var(--muted-foreground) 35%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

@@ -5,6 +5,7 @@ release/
 coverage/
 playwright-report/
 test-results/
+output/playwright/
 *.log
 .DS_Store
 .env
@@ -14,4 +15,3 @@ test-results/
 *.db-shm
 *.db-wal
 user-data/
-
