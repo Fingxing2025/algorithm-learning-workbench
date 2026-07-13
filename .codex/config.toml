@@ -1,0 +1,6 @@
+# 本仓库的 Codex 默认配置。安全约束优先于便利性。
+sandbox_mode = "workspace-write"
+approval_policy = "on-request"
+model_reasoning_effort = "xhigh"
+web_search = "live"
+
