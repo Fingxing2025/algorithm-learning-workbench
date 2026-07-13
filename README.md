@@ -4,7 +4,7 @@
 
 ## 当前状态
 
-阶段 0 工程基线已经完成：Electron、React、TypeScript、设计 token、安全 Preload API、单元测试、Electron E2E 和 CI 均已建立。下一步是阶段 1 的首次启动、模板目录只读扫描、模板树与算法卡片纵向切片。
+阶段 1 模板库纵向切片已经完成：应用可从全新数据目录启动，创建或选择模板工作区，只读扫描源码，使用折叠模板树和全局搜索打开算法卡片，并以不覆盖方式创建第一份模板。下一步是阶段 2 的题目卡片与模板多对多关联。
 
 ## 已确定技术方向
 
@@ -26,12 +26,14 @@
 
 ## 本地开发
 
-要求 Node.js 24。依赖安装后可使用：
+要求 Node.js 24。`better-sqlite3` 是原生依赖，首次安装依赖以及升级 Electron 后，需要针对当前 Electron ABI 重建：
 
 ```bash
+npm install
+npm run rebuild:native
 npm run dev
 npm run check
 npm run test:e2e
 ```
 
-阶段 0 的工具链选择记录在 `docs/decisions/0001-stage-0-foundation.md`。
+工程与模板工作区决策分别记录在 `docs/decisions/0001-stage-0-foundation.md` 和 `docs/decisions/0002-template-workspace-and-scan.md`。

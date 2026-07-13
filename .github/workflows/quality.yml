@@ -26,6 +26,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Rebuild SQLite for Electron
+        run: npm run rebuild:native
+
       - name: Static checks and unit tests
         run: npm run check
 

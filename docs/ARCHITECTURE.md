@@ -76,3 +76,8 @@ tests/
 - V2 采用独立首次启动流程，不以旧项目目录、模板或数据库作为运行前提。
 
 重大变更应在本文件追加决策记录，包括背景、备选方案、决定和后果。
+
+当前决策记录：
+
+- `docs/decisions/0001-stage-0-foundation.md`
+- `docs/decisions/0002-template-workspace-and-scan.md`
