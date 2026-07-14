@@ -17,6 +17,17 @@ async function invokeResult<Value>(channel: string, input?: unknown): Promise<Va
 }
 
 const desktopApi: DesktopApi = {
+  aiProviders: {
+    create: request => invokeResult(IPC_CHANNELS.aiProviders.create, request),
+    delete: async request => {
+      await invokeResult<null>(IPC_CHANNELS.aiProviders.delete, request)
+    },
+    list: () => invokeResult(IPC_CHANNELS.aiProviders.list),
+    listRoutes: () => invokeResult(IPC_CHANNELS.aiProviders.listRoutes),
+    testConnection: request => invokeResult(IPC_CHANNELS.aiProviders.testConnection, request),
+    update: request => invokeResult(IPC_CHANNELS.aiProviders.update, request),
+    upsertRoute: request => invokeResult(IPC_CHANNELS.aiProviders.upsertRoute, request),
+  },
   app: {
     getRuntimeInfo: () =>
       ipcRenderer.invoke(IPC_CHANNELS.app.getRuntimeInfo) as Promise<RuntimeInfo>,

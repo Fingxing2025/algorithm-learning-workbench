@@ -63,7 +63,7 @@ tests/
 - SQLite 保存索引、卡片、关系、配置和操作记录。
 - 模板源码保留在用户选择的文件夹，数据库不成为唯一副本。
 - 题目图片存放于应用数据目录，由数据库记录相对路径和校验信息。
-- 密钥进入操作系统安全存储。
+- API Key 由 Electron `safeStorage` 使用操作系统提供的安全能力加密，密文独立存放在应用数据目录；SQLite 只保存不可逆推出密钥的文件引用。
 - schema 通过版本化 migration 演进。
 - 不提供旧版数据格式兼容层或旧项目导入器；schema migration 只负责保护 V2 自身版本升级后的用户数据。
 
@@ -82,3 +82,4 @@ tests/
 - `docs/decisions/0001-stage-0-foundation.md`
 - `docs/decisions/0002-template-workspace-and-scan.md`
 - `docs/decisions/0003-problems-relations-and-images.md`
+- `docs/decisions/0004-ai-provider-platform.md`

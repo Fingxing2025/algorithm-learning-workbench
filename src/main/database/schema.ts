@@ -1,5 +1,35 @@
 import { index, integer, primaryKey, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
+export const aiProviderProfiles = sqliteTable(
+  'ai_provider_profiles',
+  {
+    baseUrl: text('base_url').notNull(),
+    capabilitiesJson: text('capabilities_json').notNull(),
+    createdAt: text('created_at').notNull(),
+    customHeadersJson: text('custom_headers_json').notNull().default('{}'),
+    id: text('id').primaryKey(),
+    model: text('model').notNull(),
+    name: text('name').notNull(),
+    protocol: text('protocol').notNull(),
+    secretRef: text('secret_ref'),
+    timeoutMs: integer('timeout_ms').notNull().default(30_000),
+    updatedAt: text('updated_at').notNull(),
+  },
+  table => [index('ai_provider_profiles_updated_at_index').on(table.updatedAt)],
+)
+
+export const aiTaskRoutes = sqliteTable(
+  'ai_task_routes',
+  {
+    providerId: text('provider_id')
+      .notNull()
+      .references(() => aiProviderProfiles.id, { onDelete: 'cascade' }),
+    task: text('task').primaryKey(),
+    updatedAt: text('updated_at').notNull(),
+  },
+  table => [index('ai_task_routes_provider_id_index').on(table.providerId)],
+)
+
 export const workspaces = sqliteTable(
   'workspaces',
   {
@@ -105,6 +135,8 @@ export const appState = sqliteTable('app_state', {
 })
 
 export const databaseSchema = {
+  aiProviderProfiles,
+  aiTaskRoutes,
   appState,
   problemImages,
   problems,

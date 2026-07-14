@@ -4,13 +4,17 @@ import { isAbsolute, relative, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
 
 import { createAppDatabase, type AppDatabase } from './database/database'
+import { AiProviderRepository } from './database/ai-provider-repository'
 import { ProblemRepository } from './database/problem-repository'
 import { WorkspaceRepository } from './database/workspace-repository'
 import { registerAppIpc } from './ipc/register-app-ipc'
+import { registerAiProviderIpc } from './ipc/register-ai-provider-ipc'
 import { registerProblemIpc } from './ipc/register-problem-ipc'
 import { registerWorkspaceIpc } from './ipc/register-workspace-ipc'
 import { installApplicationSecurityGuards } from './security/window-security'
 import { ProblemService } from './services/problem-service'
+import { AiProviderService } from './services/ai-provider-service'
+import { SecretStore } from './security/secret-store'
 import { WorkspaceService } from './services/workspace-service'
 import { createMainWindow } from './window/create-main-window'
 
@@ -38,11 +42,16 @@ async function bootstrap(): Promise<void> {
   installApplicationSecurityGuards()
   appDatabase = createAppDatabase(app.getPath('userData'))
   const workspaceService = new WorkspaceService(new WorkspaceRepository(appDatabase))
+  const aiProviderService = new AiProviderService(
+    new AiProviderRepository(appDatabase),
+    new SecretStore(app.getPath('userData')),
+  )
   const problemService = new ProblemService(
     new ProblemRepository(appDatabase),
     app.getPath('userData'),
   )
   registerAppIpc()
+  registerAiProviderIpc(aiProviderService)
   registerProblemIpc(problemService, () => mainWindow ?? undefined)
   registerWorkspaceIpc(workspaceService, () => mainWindow ?? undefined)
   mainWindow = createMainWindow()

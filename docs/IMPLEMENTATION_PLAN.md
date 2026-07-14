@@ -34,14 +34,16 @@
 
 完成证据：14 项 Vitest 覆盖契约、Renderer 和既有文件安全边界；8 项真实 Electron E2E 覆盖题目创建、双模板关联、解除关系、图片保存与补偿式清理、模板重扫、双向查看、应用重启持久化，以及阶段 1 数据库原位升级。Playwright 已生成 1440×900 亮暗主题和 1280×720 题目工作区截图。
 
-## 阶段 3：AI Provider 平台
+## 阶段 3：AI Provider 平台（已完成，2026-07-14）
 
 - 实现 Provider Adapter、能力声明、连接测试和任务路由。
 - 接入安全密钥存储。
-- 首先实现 OpenAI-compatible 协议，再逐个增加 Responses、Anthropic、Gemini、Ollama。
-- 统一流式、结构化输出和错误分类。
+- 实现 OpenAI-compatible Chat Completions、OpenAI Responses、Anthropic Messages、Gemini GenerateContent 和 Ollama Chat 协议边界。
+- 统一流式/结构化能力声明和错误分类，为后续任务调用保留类型边界。
 
 验收：至少两个不同协议的 Provider 可配置；错误提示可区分鉴权、模型、网络和能力问题；日志无密钥。
+
+完成证据：18 项 Vitest 覆盖 Adapter 请求契约、错误分类、密钥文件加密/删除和既有模块；11 项真实 Electron E2E 覆盖 OpenAI Chat Completions 与 Anthropic Messages 两种协议、本地 mock 连接测试、404 模型错误、SQLite/密钥文件明文检查、桌面重启后解密、阶段 0–2 回归和阶段 1 数据库增量升级。Playwright 已生成 1440×900、1280×720 和深色 Provider 工作区截图；`npm audit` 报告 0 个漏洞。
 
 ## 阶段 4：题目 AI 分析
 

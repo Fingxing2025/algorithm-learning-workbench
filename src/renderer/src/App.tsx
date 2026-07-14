@@ -22,7 +22,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { motion, useReducedMotion } from 'motion/react'
-import { useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 
 import type { Problem } from '@core/contracts/problem'
 import type {
@@ -47,7 +47,12 @@ import { useRuntimeInfo } from '@/hooks/use-runtime-info'
 import { useTheme } from '@/hooks/use-theme'
 import { cn } from '@/lib/utils'
 
-type AppView = 'dashboard' | 'problems' | 'templates'
+const AiProviderWorkspace = lazy(async () => {
+  const module = await import('@/features/ai/ai-provider-workspace')
+  return { default: module.AiProviderWorkspace }
+})
+
+type AppView = 'ai' | 'dashboard' | 'problems' | 'templates'
 
 interface NavigationItem {
   disabled?: boolean
@@ -60,7 +65,7 @@ const navigationItems: NavigationItem[] = [
   { icon: LayoutDashboard, id: 'dashboard', label: '工作台' },
   { icon: FileCode2, id: 'templates', label: '模板库' },
   { icon: BookOpenText, id: 'problems', label: '题目' },
-  { disabled: true, icon: Sparkles, label: 'AI 管理' },
+  { icon: Sparkles, id: 'ai', label: 'AI 管理' },
 ]
 
 function NavigationButton({
@@ -525,6 +530,23 @@ export default function App() {
   }
 
   const renderContent = () => {
+    if (currentView === 'ai') {
+      return (
+        <Suspense
+          fallback={
+            <main className="grid h-full min-h-0 place-items-center">
+              <div className="text-center">
+                <LoaderCircle className="mx-auto size-6 animate-spin text-primary" />
+                <p className="mt-3 text-sm font-medium">正在打开 AI Provider…</p>
+              </div>
+            </main>
+          }
+        >
+          <AiProviderWorkspace />
+        </Suspense>
+      )
+    }
+
     if (isWorkspaceLoading) {
       return (
         <main className="grid min-h-0 place-items-center">
@@ -626,7 +648,7 @@ export default function App() {
             </span>
             <span className="truncate text-sm font-semibold tracking-tight">算法学习工作台</span>
             <Badge className="hidden sm:inline-flex" tone="accent">
-              V2 · 阶段 2
+              V2 · 阶段 3
             </Badge>
           </div>
 
@@ -688,13 +710,12 @@ export default function App() {
             <Separator.Root className="my-3 h-px bg-border" decorative />
 
             <button
-              className="flex h-9 w-full cursor-not-allowed items-center gap-3 rounded-lg px-3 text-left text-sm font-medium text-muted-foreground opacity-55"
-              disabled
+              className="flex h-9 w-full items-center gap-3 rounded-lg px-3 text-left text-sm font-medium text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+              onClick={() => setCurrentView('ai')}
               type="button"
             >
               <Settings2 aria-hidden="true" className="size-4" strokeWidth={1.8} />
               设置
-              <span className="ml-auto text-[10px] uppercase">稍后</span>
             </button>
 
             <div className="mt-auto rounded-xl border border-border bg-panel p-3 shadow-xs">

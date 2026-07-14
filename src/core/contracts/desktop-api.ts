@@ -1,5 +1,14 @@
 import type { RuntimeInfo } from './runtime'
 import type {
+  AiConnectionResult,
+  AiProviderIdRequest,
+  AiProviderProfile,
+  AiTaskRoute,
+  CreateAiProviderRequest,
+  UpdateAiProviderRequest,
+  UpsertAiTaskRouteRequest,
+} from './ai-provider'
+import type {
   CreateProblemRequest,
   Problem,
   ProblemImageData,
@@ -18,6 +27,15 @@ import type {
 } from './workspace'
 
 export interface DesktopApi {
+  aiProviders: {
+    create: (request: CreateAiProviderRequest) => Promise<AiProviderProfile>
+    delete: (request: AiProviderIdRequest) => Promise<void>
+    list: () => Promise<AiProviderProfile[]>
+    listRoutes: () => Promise<AiTaskRoute[]>
+    testConnection: (request: AiProviderIdRequest) => Promise<AiConnectionResult>
+    update: (request: UpdateAiProviderRequest) => Promise<AiProviderProfile>
+    upsertRoute: (request: UpsertAiTaskRouteRequest) => Promise<AiTaskRoute>
+  }
   app: {
     getRuntimeInfo: () => Promise<RuntimeInfo>
   }

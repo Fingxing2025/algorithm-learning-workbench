@@ -1,0 +1,90 @@
+import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import type { AiProviderProtocol } from '@core/contracts/ai-provider'
+
+import { getAiProviderAdapter } from './ai-provider-adapters'
+
+function profile(protocol: AiProviderProtocol) {
+  return {
+    baseUrl: 'https://provider.example/v1',
+    customHeaders: { 'x-client-name': 'algorithm-workbench-test' },
+    model: 'fixture-model',
+    protocol,
+    timeoutMs: 3_000,
+  }
+}
+
+afterEach(() => {
+  vi.unstubAllGlobals()
+})
+
+describe('AI provider adapters', () => {
+  it('uses the OpenAI Chat Completions contract without leaking the key into the body', async () => {
+    let capturedUrl = ''
+    let capturedInit: RequestInit | undefined
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) => {
+        capturedUrl = url
+        capturedInit = init
+        return new Response(JSON.stringify({ choices: [{ message: { content: 'OK' } }] }), {
+          headers: { 'content-type': 'application/json' },
+          status: 200,
+        })
+      }),
+    )
+
+    const value = await getAiProviderAdapter('openai-chat-completions').completeText(
+      profile('openai-chat-completions'),
+      'test-secret',
+      'Reply with OK only.',
+    )
+
+    expect(value).toBe('OK')
+    expect(capturedUrl).toBe('https://provider.example/v1/chat/completions')
+    expect(JSON.parse(String(capturedInit?.body))).toEqual({
+      messages: [{ content: 'Reply with OK only.', role: 'user' }],
+      model: 'fixture-model',
+    })
+    expect(capturedInit?.headers).toMatchObject({ authorization: 'Bearer test-secret' })
+    expect(String(capturedInit?.body)).not.toContain('test-secret')
+  })
+
+  it('uses the Anthropic Messages contract and classifies rate limiting', async () => {
+    const captured: Array<{ init?: RequestInit; url: string }> = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) => {
+        captured.push({ init, url })
+        if (captured.length === 1) {
+          return new Response(JSON.stringify({ content: [{ text: 'OK', type: 'text' }] }), {
+            headers: { 'content-type': 'application/json' },
+            status: 200,
+          })
+        }
+        return new Response('{}', { status: 429 })
+      }),
+    )
+
+    const adapter = getAiProviderAdapter('anthropic-messages')
+    await expect(
+      adapter.completeText(
+        profile('anthropic-messages'),
+        'anthropic-secret',
+        'Reply with OK only.',
+      ),
+    ).resolves.toBe('OK')
+    expect(captured[0]?.url).toBe('https://provider.example/v1/messages')
+    expect(captured[0]?.init?.headers).toMatchObject({
+      'anthropic-version': '2023-06-01',
+      'x-api-key': 'anthropic-secret',
+    })
+    await expect(
+      adapter.completeText(
+        profile('anthropic-messages'),
+        'anthropic-secret',
+        'Reply with OK only.',
+      ),
+    ).rejects.toMatchObject({ code: 'AI_RATE_LIMITED' })
+  })
+})
