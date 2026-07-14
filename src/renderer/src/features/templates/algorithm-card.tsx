@@ -15,6 +15,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 
 import type { TemplateSourceState } from './use-template-source'
+import { CodeViewer } from './code-viewer'
 import { TemplateMetadataCard } from './template-metadata-card'
 
 interface AlgorithmCardProps {
@@ -67,7 +68,7 @@ export function AlgorithmCard({
   }
 
   return (
-    <section className="flex min-h-0 flex-col bg-background">
+    <section className="flex h-full min-h-0 flex-col bg-background">
       <header className="border-b border-border bg-panel px-5 py-4">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0">
@@ -155,9 +156,7 @@ export function AlgorithmCard({
           </div>
         )}
         {sourceState.status === 'ready' && (
-          <pre className="min-h-40 flex-1 overflow-auto rounded-xl border border-border bg-code p-4 font-mono text-xs leading-5 text-code-foreground shadow-inner">
-            <code>{sourceState.value.content || '// 空模板文件'}</code>
-          </pre>
+          <CodeViewer code={sourceState.value.content} language={sourceState.value.language} />
         )}
 
         <TemplateMetadataCard key={template.id} templateId={template.id} />

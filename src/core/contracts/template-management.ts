@@ -164,6 +164,17 @@ export const modelTemplateClassificationSchema = z
   })
   .strict()
 
+const modelTemplateMetadataPatchSchema = z.object({
+  commonMistakes: z.string().max(10_000).optional(),
+  constraints: z.string().max(10_000).optional(),
+  notes: z.string().max(100_000).optional(),
+  prerequisites: z.string().max(10_000).optional(),
+  solves: z.string().max(10_000).optional(),
+  spaceComplexity: z.string().trim().max(120).nullable().optional(),
+  tags: z.array(z.string().trim().min(1).max(40)).max(20).optional(),
+  timeComplexity: z.string().trim().max(120).nullable().optional(),
+})
+
 export const modelFileChangePlanSchema = z
   .object({
     operations: z
@@ -182,7 +193,7 @@ export const modelFileChangePlanSchema = z
           }),
           z.object({
             kind: z.literal('update-metadata'),
-            metadata: templateMetadataFieldsSchema,
+            metadata: modelTemplateMetadataPatchSchema,
             reason: z.string().max(500),
             templateId: templateIdSchema,
           }),

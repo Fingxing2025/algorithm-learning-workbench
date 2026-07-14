@@ -95,9 +95,8 @@ async function fillProvider(values: {
 }
 
 test('configures and tests two different provider protocols from a zero-data desktop', async () => {
-  await page.getByRole('button', { name: 'AI 管理' }).click()
-  await page.getByRole('button', { name: 'Provider 配置' }).click()
-  await expect(page.getByRole('heading', { level: 1, name: 'AI Provider' })).toBeVisible()
+  await page.getByRole('button', { name: 'AI 设置' }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'AI 设置' })).toBeVisible()
   await expect(page.getByText('还没有 AI Provider')).toBeVisible()
 
   await page.getByRole('button', { name: '使用 DeepSeek 预设' }).click()
@@ -208,8 +207,7 @@ test('shows actionable model errors and captures light, compact, and dark provid
 test('restores provider metadata and decrypts the saved key after a desktop restart', async () => {
   await electronApp.close()
   await launchApplication()
-  await page.getByRole('button', { name: 'AI 管理' }).click()
-  await page.getByRole('button', { name: 'Provider 配置' }).click()
+  await page.getByRole('button', { name: 'AI 设置' }).click()
   await expect(page.getByText('2 个配置')).toBeVisible()
   await page.getByRole('button', { name: /Anthropic 测试服务/ }).click()
   await expect(page.getByText('密钥已保存')).toBeVisible()

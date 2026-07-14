@@ -127,7 +127,7 @@ export class AiProviderService {
     if (!record) {
       throw new PublicError(
         'AI_ROUTE_REQUIRED',
-        '尚未为此任务选择 AI Provider，请先前往 AI 管理设置任务路由。',
+        '尚未为此任务选择 AI Provider，请先前往 AI 设置配置任务路由。',
       )
     }
     const profile = toAdapterProfile(record)

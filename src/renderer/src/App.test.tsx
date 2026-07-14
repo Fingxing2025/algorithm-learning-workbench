@@ -162,7 +162,7 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: /bfs.*基础算法/ }))
 
     expect(await screen.findByRole('heading', { level: 1, name: 'bfs' })).toBeInTheDocument()
-    expect(await screen.findByText('void bfs() {}')).toBeInTheDocument()
+    expect(await screen.findByLabelText('高亮模板源码')).toHaveTextContent('void bfs() {}')
   })
 
   it('opens a problem card from global search', async () => {

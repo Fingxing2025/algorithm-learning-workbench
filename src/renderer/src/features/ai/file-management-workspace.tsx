@@ -6,6 +6,7 @@ import {
   LoaderCircle,
   Play,
   RotateCcw,
+  Settings2,
   Sparkles,
   X,
 } from 'lucide-react'
@@ -34,9 +35,11 @@ function operationLabel(operation: FileChangeOperation): string {
 }
 
 export function FileManagementWorkspace({
+  onOpenSettings,
   onWorkspaceChanged,
   workspace,
 }: {
+  onOpenSettings: () => void
   onWorkspaceChanged: (workspace: WorkspaceSnapshot) => void
   workspace: WorkspaceSnapshot | null
 }) {
@@ -154,6 +157,10 @@ export function FileManagementWorkspace({
           </p>
         </div>
         <div className="ml-auto flex gap-2">
+          <Button onClick={onOpenSettings} size="compact" type="button" variant="ghost">
+            <Settings2 className="size-3.5" />
+            AI 设置
+          </Button>
           <Button
             disabled={Boolean(busyAction)}
             onClick={() => void auditWorkspace()}
@@ -188,7 +195,7 @@ export function FileManagementWorkspace({
         {(error || success) && (
           <div
             className={cn(
-              'mb-4 flex items-center gap-2 rounded-xl border px-3 py-2.5 text-xs',
+              'mb-4 flex flex-wrap items-center gap-2 rounded-xl border px-3 py-2.5 text-xs',
               error
                 ? 'border-red-500/25 bg-red-500/5 text-red-700 dark:text-red-300'
                 : 'border-success/25 bg-success/8',
@@ -212,6 +219,12 @@ export function FileManagementWorkspace({
             >
               <X className="size-3.5" />
             </button>
+            {error && (
+              <p className="ml-6 basis-full text-[11px] leading-5 text-muted-foreground">
+                生成失败不会创建计划或修改文件。若问题与模型、鉴权或格式有关，请前往“AI
+                设置”检查任务路由和模型能力。
+              </p>
+            )}
           </div>
         )}
 

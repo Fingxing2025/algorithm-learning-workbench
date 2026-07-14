@@ -102,6 +102,103 @@ button:not(:disabled) {
   -webkit-app-region: no-drag;
 }
 
+.code-surface {
+  --syntax-background: #ffffff;
+  --syntax-foreground: #1f1f1f;
+  --syntax-comment: #008000;
+  --syntax-keyword: #0000ff;
+  --syntax-string: #a31515;
+  --syntax-number: #098658;
+  --syntax-type: #267f99;
+  --syntax-function: #795e26;
+  --syntax-variable: #001080;
+  margin: 0;
+  background: var(--syntax-background);
+  color: var(--syntax-foreground);
+}
+
+.dark .code-surface[data-code-theme='system'],
+.code-surface[data-code-theme='vscode-dark'] {
+  --syntax-background: #1e1e1e;
+  --syntax-foreground: #d4d4d4;
+  --syntax-comment: #6a9955;
+  --syntax-keyword: #c586c0;
+  --syntax-string: #ce9178;
+  --syntax-number: #b5cea8;
+  --syntax-type: #4ec9b0;
+  --syntax-function: #dcdcaa;
+  --syntax-variable: #9cdcfe;
+}
+
+.code-surface[data-code-theme='vscode-light'] {
+  --syntax-background: #ffffff;
+  --syntax-foreground: #1f1f1f;
+}
+
+.code-surface[data-code-theme='monokai'] {
+  --syntax-background: #272822;
+  --syntax-foreground: #f8f8f2;
+  --syntax-comment: #75715e;
+  --syntax-keyword: #f92672;
+  --syntax-string: #e6db74;
+  --syntax-number: #ae81ff;
+  --syntax-type: #66d9ef;
+  --syntax-function: #a6e22e;
+  --syntax-variable: #fd971f;
+}
+
+.code-surface .hljs-comment,
+.code-surface .hljs-quote {
+  color: var(--syntax-comment);
+}
+
+.code-surface .hljs-keyword,
+.code-surface .hljs-literal,
+.code-surface .hljs-selector-tag,
+.code-surface .hljs-section {
+  color: var(--syntax-keyword);
+}
+
+.code-surface .hljs-string,
+.code-surface .hljs-regexp,
+.code-surface .hljs-addition,
+.code-surface .hljs-attribute {
+  color: var(--syntax-string);
+}
+
+.code-surface .hljs-number,
+.code-surface .hljs-meta,
+.code-surface .hljs-symbol,
+.code-surface .hljs-bullet {
+  color: var(--syntax-number);
+}
+
+.code-surface .hljs-type,
+.code-surface .hljs-built_in,
+.code-surface .hljs-title.class_ {
+  color: var(--syntax-type);
+}
+
+.code-surface .hljs-title,
+.code-surface .hljs-title.function_,
+.code-surface .hljs-name {
+  color: var(--syntax-function);
+}
+
+.code-surface .hljs-variable,
+.code-surface .hljs-params,
+.code-surface .hljs-template-variable {
+  color: var(--syntax-variable);
+}
+
+.code-surface .hljs-emphasis {
+  font-style: italic;
+}
+
+.code-surface .hljs-strong {
+  font-weight: 700;
+}
+
 ::-webkit-scrollbar {
   width: 10px;
 }

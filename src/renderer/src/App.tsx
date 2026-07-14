@@ -48,12 +48,17 @@ import { useRuntimeInfo } from '@/hooks/use-runtime-info'
 import { useTheme } from '@/hooks/use-theme'
 import { cn } from '@/lib/utils'
 
-const AiWorkspace = lazy(async () => {
-  const module = await import('@/features/ai/ai-workspace')
-  return { default: module.AiWorkspace }
+const FileManagementWorkspace = lazy(async () => {
+  const module = await import('@/features/ai/file-management-workspace')
+  return { default: module.FileManagementWorkspace }
 })
 
-type AppView = 'ai' | 'dashboard' | 'problems' | 'providers' | 'templates'
+const AiProviderWorkspace = lazy(async () => {
+  const module = await import('@/features/ai/ai-provider-workspace')
+  return { default: module.AiProviderWorkspace }
+})
+
+type AppView = 'ai' | 'dashboard' | 'problems' | 'settings' | 'templates'
 
 interface NavigationItem {
   disabled?: boolean
@@ -343,7 +348,7 @@ function TemplateLibrary({
   workspace: WorkspaceSnapshot
 }) {
   return (
-    <main className="flex min-h-0 flex-col overflow-hidden">
+    <main className="flex h-full min-h-0 flex-col overflow-hidden">
       <header className="flex min-h-14 flex-wrap items-center gap-3 border-b border-border bg-panel px-4 py-2">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
@@ -555,26 +560,43 @@ export default function App() {
   }
 
   const renderContent = () => {
-    if (currentView === 'ai' || currentView === 'providers') {
+    if (currentView === 'ai') {
       return (
         <Suspense
           fallback={
             <main className="grid h-full min-h-0 place-items-center">
               <div className="text-center">
                 <LoaderCircle className="mx-auto size-6 animate-spin text-primary" />
-                <p className="mt-3 text-sm font-medium">正在打开 AI Provider…</p>
+                <p className="mt-3 text-sm font-medium">正在打开文件 AI 管理…</p>
               </div>
             </main>
           }
         >
-          <AiWorkspace
-            initialTab={currentView === 'providers' ? 'providers' : 'files'}
+          <FileManagementWorkspace
+            onOpenSettings={() => setCurrentView('settings')}
             onWorkspaceChanged={value => {
               replaceWorkspace(value)
               void problemState.reload()
             }}
             workspace={workspace}
           />
+        </Suspense>
+      )
+    }
+
+    if (currentView === 'settings') {
+      return (
+        <Suspense
+          fallback={
+            <main className="grid h-full min-h-0 place-items-center">
+              <div className="text-center">
+                <LoaderCircle className="mx-auto size-6 animate-spin text-primary" />
+                <p className="mt-3 text-sm font-medium">正在打开 AI 设置…</p>
+              </div>
+            </main>
+          }
+        >
+          <AiProviderWorkspace />
         </Suspense>
       )
     }
@@ -744,12 +766,18 @@ export default function App() {
             <Separator.Root className="my-3 h-px bg-border" decorative />
 
             <button
-              className="flex h-9 w-full items-center gap-3 rounded-lg px-3 text-left text-sm font-medium text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
-              onClick={() => setCurrentView('providers')}
+              aria-current={currentView === 'settings' ? 'page' : undefined}
+              className={cn(
+                'flex h-9 w-full items-center gap-3 rounded-lg px-3 text-left text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring',
+                currentView === 'settings'
+                  ? 'bg-primary/10 text-primary'
+                  : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+              )}
+              onClick={() => setCurrentView('settings')}
               type="button"
             >
               <Settings2 aria-hidden="true" className="size-4" strokeWidth={1.8} />
-              设置
+              AI 设置
             </button>
 
             <div className="mt-auto rounded-xl border border-border bg-panel p-3 shadow-xs">
@@ -772,7 +800,7 @@ export default function App() {
 
           <motion.div
             animate={{ opacity: 1, y: 0 }}
-            className="relative min-h-0 overflow-hidden"
+            className="relative h-full min-h-0 overflow-hidden"
             initial={prefersReducedMotion ? false : { opacity: 0, y: 4 }}
             transition={{ duration: 0.2, ease: 'easeOut' }}
           >

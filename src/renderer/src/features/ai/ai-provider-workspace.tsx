@@ -242,7 +242,7 @@ export function AiProviderWorkspace() {
 
   if (providerState.isLoading) {
     return (
-      <main className="grid min-h-0 place-items-center">
+      <main className="grid h-full min-h-0 place-items-center">
         <div className="text-center">
           <LoaderCircle className="mx-auto size-6 animate-spin text-primary" />
           <p className="mt-3 text-sm font-medium">正在读取 AI Provider…</p>
@@ -256,11 +256,11 @@ export function AiProviderWorkspace() {
       <header className="flex min-h-14 items-center gap-3 border-b border-border bg-panel px-4 py-2">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-sm font-semibold">AI Provider</h1>
+            <h1 className="text-sm font-semibold">AI 设置</h1>
             <Badge>{providerState.profiles.length} 个配置</Badge>
           </div>
           <p className="mt-0.5 text-[11px] text-muted-foreground">
-            密钥由系统安全存储保护，连接测试不会发送用户数据
+            只负责供应商、密钥、模型能力与任务路由；不会在此执行 AI 管理任务
           </p>
         </div>
         <Button className="ml-auto" onClick={startCreating} size="compact" type="button">

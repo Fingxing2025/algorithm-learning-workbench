@@ -101,8 +101,7 @@ test.afterAll(async () => {
 test('imports a source file through an AI classification preview without overwriting', async () => {
   await setNextSelection(workspaceRoot)
   await page.getByRole('button', { name: '创建工作区' }).click()
-  await page.getByRole('button', { name: 'AI 管理' }).click()
-  await page.getByRole('button', { name: 'Provider 配置' }).click()
+  await page.getByRole('button', { name: 'AI 设置' }).click()
   await page.getByLabel('Provider 显示名称').fill('模板分类测试')
   await page.getByLabel('Base URL').fill(mockBaseUrl)
   await page.getByLabel('模型名称').fill('fixture-metadata')

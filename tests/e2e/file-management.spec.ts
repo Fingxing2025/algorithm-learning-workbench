@@ -76,48 +76,50 @@ test.beforeAll(async () => {
           choices: [
             {
               message: {
-                content: JSON.stringify({
-                  operations: [
-                    ...(duplicate
-                      ? [
-                          {
-                            kind: 'delete',
-                            reason: '与保留副本内容完全相同。',
-                            templateId: duplicate.id,
-                          },
-                        ]
-                      : []),
-                    ...(named
-                      ? [
-                          {
-                            kind: 'move',
-                            reason: '统一文件命名并归入整理目录。',
-                            targetPath: '整理/old_name.cpp',
-                            templateId: named.id,
-                          },
-                        ]
-                      : []),
-                    ...(metadataTarget
-                      ? [
-                          {
-                            kind: 'update-metadata',
-                            metadata: {
-                              commonMistakes: '注意递归深度。',
-                              constraints: '适用于树或图遍历。',
-                              notes: '',
-                              prerequisites: '递归或显式栈。',
-                              solves: '深度优先遍历。',
-                              spaceComplexity: 'O(n)',
-                              tags: ['搜索', 'DFS'],
-                              timeComplexity: 'O(n + m)',
+                content: `这是整理建议：\n\`\`\`json\n${JSON.stringify({
+                  data: {
+                    operations: [
+                      ...(duplicate
+                        ? [
+                            {
+                              kind: 'delete',
+                              reason: '与保留副本内容完全相同。',
+                              templateId: duplicate.id,
                             },
-                            reason: '补充缺失的算法卡片信息。',
-                            templateId: metadataTarget.id,
-                          },
-                        ]
-                      : []),
-                  ],
-                }),
+                          ]
+                        : []),
+                      ...(named
+                        ? [
+                            {
+                              kind: 'move',
+                              reason: '统一文件命名并归入整理目录。',
+                              targetPath: '整理/old_name.cpp',
+                              templateId: named.id,
+                            },
+                          ]
+                        : []),
+                      ...(metadataTarget
+                        ? [
+                            {
+                              kind: 'update-metadata',
+                              metadata: {
+                                commonMistakes: '注意递归深度。',
+                                constraints: '适用于树或图遍历。',
+                                notes: '',
+                                prerequisites: '递归或显式栈。',
+                                solves: '深度优先遍历。',
+                                spaceComplexity: 'O(n)',
+                                tags: ['搜索', 'DFS'],
+                                timeComplexity: 'O(n + m)',
+                              },
+                              reason: '补充缺失的算法卡片信息。',
+                              templateId: metadataTarget.id,
+                            },
+                          ]
+                        : []),
+                    ],
+                  },
+                })}\n\`\`\`\n请在执行前检查。`,
               },
             },
           ],
@@ -166,15 +168,14 @@ test('creates a problem relation before the AI file move', async () => {
 })
 
 test('cancels a generated plan without changing files', async () => {
-  await page.getByRole('button', { name: 'AI 管理' }).click()
-  await page.getByRole('button', { name: 'Provider 配置' }).click()
+  await page.getByRole('button', { name: 'AI 设置' }).click()
   await page.getByLabel('Provider 显示名称').fill('文件管理测试')
   await page.getByLabel('Base URL').fill(mockBaseUrl)
   await page.getByLabel('模型名称').fill('fixture-workspace')
   await page.getByLabel('API Key').fill('files-e2e-secret')
   await page.getByRole('button', { name: '保存 Provider' }).click()
   await page.getByRole('button', { name: /总体文件 AI 管理/ }).click()
-  await page.getByRole('button', { name: '文件 AI 管理', exact: true }).click()
+  await page.getByRole('button', { name: 'AI 管理', exact: true }).click()
 
   await page.getByRole('button', { name: '只读扫描' }).click()
   await expect(page.getByRole('status').filter({ hasText: '只读扫描完成' })).toBeVisible()
