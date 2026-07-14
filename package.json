@@ -3,6 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "description": "本地优先的桌面算法学习工作台",
+  "author": "Algorithm Learning Workbench contributors",
+  "productName": "算法学习工作台",
   "main": "out/main/index.js",
   "engines": {
     "node": ">=24.0.0"
@@ -19,7 +21,10 @@
     "test:watch": "node ./node_modules/vitest/vitest.mjs",
     "test:e2e": "npm run build && node ./node_modules/@playwright/test/cli.js test",
     "rebuild:native": "node ./node_modules/@electron/rebuild/lib/cli.js -f -w better-sqlite3 -v 43.1.0",
-    "check": "npm run typecheck && npm run lint && npm run format:check && npm run test"
+    "check": "npm run typecheck && npm run lint && npm run format:check && npm run test",
+    "package:dir": "npm run build && node ./node_modules/electron-builder/out/cli/cli.js --dir --publish never",
+    "dist:mac": "npm run build && node ./node_modules/electron-builder/out/cli/cli.js --mac dmg zip --publish never",
+    "dist:win": "npm run build && node ./node_modules/electron-builder/out/cli/cli.js --win nsis --x64 --publish never"
   },
   "dependencies": {
     "@radix-ui/react-context-menu": "^2.3.3",
@@ -53,6 +58,7 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.2.0",
     "electron": "^43.1.0",
+    "electron-builder": "^26.15.3",
     "electron-vite": "^5.0.0",
     "eslint": "^10.7.0",
     "eslint-plugin-react-hooks": "^7.1.1",
@@ -72,6 +78,50 @@
     "esbuild@0.28.1": true,
     "better-sqlite3@12.11.1": true,
     "fsevents@2.3.2": true,
-    "fsevents@2.3.3": true
+    "fsevents@2.3.3": true,
+    "electron-winstaller@5.4.0": true
+  },
+  "build": {
+    "appId": "com.algorithmworkbench.desktop",
+    "productName": "算法学习工作台",
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
+    "asar": true,
+    "asarUnpack": [
+      "node_modules/better-sqlite3/**/*"
+    ],
+    "directories": {
+      "buildResources": "build",
+      "output": "release"
+    },
+    "files": [
+      "out/**/*",
+      "package.json"
+    ],
+    "mac": {
+      "category": "public.app-category.education",
+      "hardenedRuntime": true,
+      "icon": "build/icon.png",
+      "target": [
+        "dmg",
+        "zip"
+      ]
+    },
+    "win": {
+      "icon": "build/icon.png",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "oneClick": false
+    }
   }
 }

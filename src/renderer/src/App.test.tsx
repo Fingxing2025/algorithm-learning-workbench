@@ -104,6 +104,7 @@ function installDesktopMock(currentWorkspace: WorkspaceSnapshot | null, problems
         classify: vi.fn(),
         getMetadata: vi.fn().mockResolvedValue(null),
         importTemplate: vi.fn(),
+        listFilePlans: vi.fn().mockResolvedValue([]),
         updateMetadata: vi.fn(),
       },
       workspace: {

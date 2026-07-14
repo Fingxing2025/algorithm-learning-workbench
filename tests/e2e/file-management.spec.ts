@@ -1,5 +1,5 @@
 import { createServer, type Server } from 'node:http'
-import { mkdtemp, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 
@@ -237,4 +237,5 @@ test('applies a selected plan with backup, relation remap, and rollback', async 
   expect(await pathExists(join(workspaceRoot, '整理', 'old_name.cpp'))).toBe(false)
   expect(await pathExists(join(workspaceRoot, 'copy.cpp'))).toBe(true)
   expect(await pathExists(join(workspaceRoot, 'keep.cpp'))).toBe(true)
+  expect(await readdir(join(userDataDirectory, 'file-plan-backups'))).toEqual([])
 })

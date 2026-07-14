@@ -84,3 +84,12 @@ tests/
 - `docs/decisions/0003-problems-relations-and-images.md`
 - `docs/decisions/0004-ai-provider-platform.md`
 - `docs/decisions/0005-problem-ai-analysis-drafts.md`
+- `docs/decisions/0006-template-intake-and-file-plans.md`
+- `docs/decisions/0007-release-security-and-backup-retention.md`
+
+安全与发布文档：
+
+- `docs/智能算法学习助手-v2-threat-model.md`
+- `docs/SECURITY_REVIEW.md`
+- `docs/RELEASE.md`
+- `docs/USER_GUIDE.md`

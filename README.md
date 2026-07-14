@@ -4,7 +4,9 @@
 
 ## 当前状态
 
-阶段 5 模板入库与总体文件 AI 管理已经完成：用户可以粘贴或上传源码、审查 AI 分类和元数据，再确认创建；全库管理采用只读审计、受限 AI 计划、逐项确认、执行前备份和冲突预检撤销。下一步是阶段 6 的打包与发布质量。
+V2 `0.1.0` 的阶段 0–6 已完成：从全新应用数据目录开始，用户可以建立模板工作区、题目卡片和多对多关联，配置五类 AI 协议，确认题目 AI 草稿，并通过可预览、可撤销的计划整理整个模板库。
+
+macOS arm64 DMG/ZIP 已完成本机打包和真实入口验证，但当前没有 Developer ID 签名或 notarization，只作为开发预览。Windows NSIS 已配置 CI 构建，尚未完成真实 Windows 主机安装验收。详见 [发布说明](docs/RELEASE.md) 和 [用户指南](docs/USER_GUIDE.md)。
 
 ## 已确定技术方向
 
@@ -22,7 +24,7 @@
 1. 阅读 `AGENTS.md`。
 2. 阅读 `docs/V2_PRODUCT_SPEC.md`、`docs/ARCHITECTURE.md`、`docs/IMPLEMENTATION_PLAN.md` 和 `docs/QUALITY_GATES.md`。
 3. 阅读 `docs/CODEX_SETUP.md` 了解工作区和 Skill 配置。
-4. 在第一个实现任务中确认包管理器、Electron 脚手架和数据库驱动，并记录选择理由。
+4. 涉及权限、数据或 AI 协议时阅读 `docs/decisions/` 中的 ADR。
 
 ## 本地开发
 
@@ -36,4 +38,11 @@ npm run check
 npm run test:e2e
 ```
 
-工程、模板工作区、题目关联、AI Provider、题目草稿和文件计划边界记录在 `docs/decisions/` 中的 ADR-0001 至 ADR-0006。
+## 打包
+
+```bash
+npm run dist:mac
+npm run dist:win
+```
+
+工程、模板工作区、题目关联、AI Provider、题目草稿、文件计划和发布安全边界记录在 `docs/decisions/` 中的 ADR-0001 至 ADR-0007。威胁模型见 [安全威胁模型](docs/智能算法学习助手-v2-threat-model.md)，审查结论见 [安全最佳实践审查](docs/SECURITY_REVIEW.md)。

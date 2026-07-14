@@ -160,6 +160,7 @@ function Dashboard({
   onOpenProblems,
   onOpenTemplate,
   onOpenTemplates,
+  pendingPlanCount,
   problems,
   workspace,
 }: {
@@ -168,10 +169,11 @@ function Dashboard({
   onOpenProblems: () => void
   onOpenTemplate: (templateId: string) => void
   onOpenTemplates: () => void
+  pendingPlanCount: number
   problems: Problem[]
   workspace: WorkspaceSnapshot
 }) {
-  const recentTemplates = workspace.templates.slice(0, 5)
+  const templateOverview = workspace.templates.slice(0, 5)
   const recentProblems = problems.slice(0, 5)
 
   return (
@@ -211,22 +213,22 @@ function Dashboard({
             value={String(workspace.summary.templateCount)}
           />
           <SummaryCard icon={BookOpenText} label="题目卡片" value={String(problems.length)} />
-          <SummaryCard icon={Sparkles} label="待确认计划" value="0" />
+          <SummaryCard icon={Sparkles} label="待确认计划" value={String(pendingPlanCount)} />
         </section>
 
         <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1.25fr)_minmax(300px,0.75fr)]">
           <section className="rounded-2xl border border-border bg-panel p-5 shadow-xs">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <h2 className="text-sm font-semibold">最近模板</h2>
-                <p className="mt-1 text-xs text-muted-foreground">从当前索引快速继续工作</p>
+                <h2 className="text-sm font-semibold">模板概览</h2>
+                <p className="mt-1 text-xs text-muted-foreground">从当前索引快速打开模板</p>
               </div>
-              <Badge>{recentTemplates.length} 项</Badge>
+              <Badge>{templateOverview.length} 项</Badge>
             </div>
 
-            {recentTemplates.length > 0 ? (
+            {templateOverview.length > 0 ? (
               <div className="mt-4 space-y-1.5">
-                {recentTemplates.map(template => (
+                {templateOverview.map(template => (
                   <button
                     className="flex w-full items-center gap-3 rounded-xl border border-transparent px-3 py-2.5 text-left outline-none transition-colors hover:border-border hover:bg-muted/55 focus-visible:ring-2 focus-visible:ring-ring"
                     key={template.id}
@@ -410,6 +412,7 @@ export default function App() {
   const [createOpen, setCreateOpen] = useState(false)
   const [currentView, setCurrentView] = useState<AppView>('dashboard')
   const [notice, setNotice] = useState<string | null>(null)
+  const [pendingPlanCount, setPendingPlanCount] = useState(0)
   const [selectedProblemId, setSelectedProblemId] = useState<string | null>(null)
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null)
   const prefersReducedMotion = useReducedMotion()
@@ -470,6 +473,26 @@ export default function App() {
       setSelectedProblemId(problemState.problems[0].id)
     }
   }, [currentView, problemState.problems, selectedProblemId])
+
+  useEffect(() => {
+    let active = true
+    if (!workspace) {
+      setPendingPlanCount(0)
+      return
+    }
+    if (currentView !== 'dashboard') return
+    void window.desktop.templateManagement
+      .listFilePlans()
+      .then(plans => {
+        if (active) setPendingPlanCount(plans.filter(plan => plan.status === 'draft').length)
+      })
+      .catch(() => {
+        if (active) setPendingPlanCount(0)
+      })
+    return () => {
+      active = false
+    }
+  }, [currentView, workspace])
 
   useEffect(() => {
     if (!notice) {
@@ -637,6 +660,7 @@ export default function App() {
         onOpenProblems={() => setCurrentView('problems')}
         onOpenTemplate={openTemplate}
         onOpenTemplates={() => setCurrentView('templates')}
+        pendingPlanCount={pendingPlanCount}
         problems={problemState.problems}
         workspace={workspace}
       />
@@ -658,7 +682,7 @@ export default function App() {
             </span>
             <span className="truncate text-sm font-semibold tracking-tight">算法学习工作台</span>
             <Badge className="hidden sm:inline-flex" tone="accent">
-              V2 · 阶段 5
+              V2 · 0.1.0
             </Badge>
           </div>
 

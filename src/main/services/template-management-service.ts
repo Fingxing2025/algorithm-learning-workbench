@@ -492,6 +492,7 @@ export class TemplateManagementService {
             : [],
         ),
       })
+      await rm(backupAbsolute, { force: true, recursive: true }).catch(() => undefined)
       const execution = this.metadataRepository
         .listExecutions(workspace.id)
         .find(item => item.id === executionId)!
