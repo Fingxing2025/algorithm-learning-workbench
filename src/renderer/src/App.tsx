@@ -605,6 +605,7 @@ export default function App() {
           isBusy={problemState.isBusy}
           isLoading={problemState.isLoading}
           onAddImages={problemState.addImages}
+          onAnalysisCreated={problemState.acceptProblem}
           onClearError={problemState.clearError}
           onCreate={problemState.createProblem}
           onOpenTemplate={openTemplate}
@@ -648,7 +649,7 @@ export default function App() {
             </span>
             <span className="truncate text-sm font-semibold tracking-tight">算法学习工作台</span>
             <Badge className="hidden sm:inline-flex" tone="accent">
-              V2 · 阶段 3
+              V2 · 阶段 4
             </Badge>
           </div>
 

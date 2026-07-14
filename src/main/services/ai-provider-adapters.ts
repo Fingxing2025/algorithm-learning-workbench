@@ -1,16 +1,35 @@
-import type { AiProviderProtocol } from '@core/contracts/ai-provider'
+import type { AiProviderCapabilities, AiProviderProtocol } from '@core/contracts/ai-provider'
 
 import { PublicError } from '../errors/public-error'
 
 export interface AdapterProfile {
   baseUrl: string
+  capabilities: AiProviderCapabilities
   customHeaders: Record<string, string>
   model: string
   protocol: AiProviderProtocol
   timeoutMs: number
 }
 
+export interface AiCompletionImage {
+  base64: string
+  dataUrl: string
+  mediaType: 'image/jpeg' | 'image/png' | 'image/webp'
+}
+
+export interface AiCompletionRequest {
+  images?: AiCompletionImage[]
+  maxOutputTokens: number
+  system?: string
+  text: string
+}
+
 export interface AiProviderAdapter {
+  complete(
+    profile: AdapterProfile,
+    apiKey: string | null,
+    request: AiCompletionRequest,
+  ): Promise<string>
   completeText(profile: AdapterProfile, apiKey: string | null, prompt: string): Promise<string>
 }
 
@@ -39,7 +58,7 @@ async function requestJson(
     })
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {
-      throw new PublicError('AI_TIMEOUT', '连接测试超时，请检查接口地址或增大超时时间。')
+      throw new PublicError('AI_TIMEOUT', 'AI 请求超时，请检查接口地址或增大超时时间。')
     }
     throw new PublicError('AI_NETWORK_ERROR', '无法连接 AI 服务，请检查接口地址和网络。')
   } finally {
@@ -88,23 +107,58 @@ function requireText(value: unknown): string {
   return value.trim()
 }
 
+function withTextMethod(adapter: Omit<AiProviderAdapter, 'completeText'>): AiProviderAdapter {
+  return {
+    ...adapter,
+    completeText: (profile, apiKey, prompt) =>
+      adapter.complete(profile, apiKey, { maxOutputTokens: 32, text: prompt }),
+  }
+}
+
 const adapters: Record<AiProviderProtocol, AiProviderAdapter> = {
-  'openai-chat-completions': {
-    async completeText(profile, apiKey, prompt) {
+  'openai-chat-completions': withTextMethod({
+    async complete(profile, apiKey, request) {
+      const images = request.images ?? []
+      const userContent =
+        images.length === 0
+          ? request.text
+          : [
+              { text: request.text, type: 'text' },
+              ...images.map(image => ({
+                image_url: { url: image.dataUrl },
+                type: 'image_url',
+              })),
+            ]
+      const messages = [
+        ...(request.system ? [{ content: request.system, role: 'system' }] : []),
+        { content: userContent, role: 'user' },
+      ]
       const data = (await requestJson(
         endpoint(profile.baseUrl, 'chat/completions'),
-        { messages: [{ content: prompt, role: 'user' }], model: profile.model },
+        { max_tokens: request.maxOutputTokens, messages, model: profile.model },
         { ...profile.customHeaders, authorization: `Bearer ${requireApiKey(apiKey)}` },
         profile.timeoutMs,
       )) as { choices?: Array<{ message?: { content?: unknown } }> }
       return requireText(data.choices?.[0]?.message?.content)
     },
-  },
-  'openai-responses': {
-    async completeText(profile, apiKey, prompt) {
+  }),
+  'openai-responses': withTextMethod({
+    async complete(profile, apiKey, request) {
+      const content = [
+        { text: request.text, type: 'input_text' },
+        ...(request.images ?? []).map(image => ({
+          image_url: image.dataUrl,
+          type: 'input_image',
+        })),
+      ]
       const data = (await requestJson(
         endpoint(profile.baseUrl, 'responses'),
-        { input: prompt, model: profile.model },
+        {
+          ...(request.system ? { instructions: request.system } : {}),
+          input: [{ content, role: 'user' }],
+          max_output_tokens: request.maxOutputTokens,
+          model: profile.model,
+        },
         { ...profile.customHeaders, authorization: `Bearer ${requireApiKey(apiKey)}` },
         profile.timeoutMs,
       )) as {
@@ -117,15 +171,23 @@ const adapters: Record<AiProviderProtocol, AiProviderAdapter> = {
           ?.text,
       )
     },
-  },
-  'anthropic-messages': {
-    async completeText(profile, apiKey, prompt) {
+  }),
+  'anthropic-messages': withTextMethod({
+    async complete(profile, apiKey, request) {
+      const content = [
+        { text: request.text, type: 'text' },
+        ...(request.images ?? []).map(image => ({
+          source: { data: image.base64, media_type: image.mediaType, type: 'base64' },
+          type: 'image',
+        })),
+      ]
       const data = (await requestJson(
         endpoint(profile.baseUrl, 'messages'),
         {
-          max_tokens: 32,
-          messages: [{ content: prompt, role: 'user' }],
+          max_tokens: request.maxOutputTokens,
+          messages: [{ content, role: 'user' }],
           model: profile.model,
+          ...(request.system ? { system: request.system } : {}),
         },
         {
           ...profile.customHeaders,
@@ -136,30 +198,48 @@ const adapters: Record<AiProviderProtocol, AiProviderAdapter> = {
       )) as { content?: Array<{ text?: unknown; type?: string }> }
       return requireText(data.content?.find(item => item.type === 'text')?.text)
     },
-  },
-  'gemini-generate-content': {
-    async completeText(profile, apiKey, prompt) {
+  }),
+  'gemini-generate-content': withTextMethod({
+    async complete(profile, apiKey, request) {
       const model = profile.model.replace(/^models\//, '')
+      const parts = [
+        { text: request.text },
+        ...(request.images ?? []).map(image => ({
+          inlineData: { data: image.base64, mimeType: image.mediaType },
+        })),
+      ]
       const data = (await requestJson(
         endpoint(profile.baseUrl, `models/${encodeURIComponent(model)}:generateContent`),
-        { contents: [{ parts: [{ text: prompt }], role: 'user' }] },
+        {
+          contents: [{ parts, role: 'user' }],
+          generationConfig: { maxOutputTokens: request.maxOutputTokens },
+          ...(request.system ? { systemInstruction: { parts: [{ text: request.system }] } } : {}),
+        },
         { ...profile.customHeaders, 'x-goog-api-key': requireApiKey(apiKey) },
         profile.timeoutMs,
       )) as { candidates?: Array<{ content?: { parts?: Array<{ text?: unknown }> } }> }
       return requireText(data.candidates?.[0]?.content?.parts?.[0]?.text)
     },
-  },
-  'ollama-chat': {
-    async completeText(profile, _apiKey, prompt) {
+  }),
+  'ollama-chat': withTextMethod({
+    async complete(profile, _apiKey, request) {
+      const messages = [
+        ...(request.system ? [{ content: request.system, role: 'system' }] : []),
+        {
+          content: request.text,
+          ...(request.images?.length ? { images: request.images.map(image => image.base64) } : {}),
+          role: 'user',
+        },
+      ]
       const data = (await requestJson(
         endpoint(profile.baseUrl, 'api/chat'),
-        { messages: [{ content: prompt, role: 'user' }], model: profile.model, stream: false },
+        { messages, model: profile.model, stream: false },
         profile.customHeaders,
         profile.timeoutMs,
       )) as { message?: { content?: unknown } }
       return requireText(data.message?.content)
     },
-  },
+  }),
 }
 
 export function getAiProviderAdapter(protocol: AiProviderProtocol): AiProviderAdapter {

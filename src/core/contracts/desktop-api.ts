@@ -9,6 +9,12 @@ import type {
   UpsertAiTaskRouteRequest,
 } from './ai-provider'
 import type {
+  AnalyzeProblemRequest,
+  CommitProblemAnalysisRequest,
+  ProblemAnalysisDraft,
+  ProblemAnalysisImage,
+} from './problem-analysis'
+import type {
   CreateProblemRequest,
   Problem,
   ProblemImageData,
@@ -35,6 +41,11 @@ export interface DesktopApi {
     testConnection: (request: AiProviderIdRequest) => Promise<AiConnectionResult>
     update: (request: UpdateAiProviderRequest) => Promise<AiProviderProfile>
     upsertRoute: (request: UpsertAiTaskRouteRequest) => Promise<AiTaskRoute>
+  }
+  problemAnalysis: {
+    analyze: (request: AnalyzeProblemRequest) => Promise<ProblemAnalysisDraft>
+    chooseImages: () => Promise<ProblemAnalysisImage[]>
+    commit: (request: CommitProblemAnalysisRequest) => Promise<Problem>
   }
   app: {
     getRuntimeInfo: () => Promise<RuntimeInfo>

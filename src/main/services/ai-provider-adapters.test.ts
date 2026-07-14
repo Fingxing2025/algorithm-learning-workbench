@@ -7,6 +7,7 @@ import { getAiProviderAdapter } from './ai-provider-adapters'
 function profile(protocol: AiProviderProtocol) {
   return {
     baseUrl: 'https://provider.example/v1',
+    capabilities: { streaming: true, structuredOutput: true, vision: true },
     customHeaders: { 'x-client-name': 'algorithm-workbench-test' },
     model: 'fixture-model',
     protocol,
@@ -43,6 +44,7 @@ describe('AI provider adapters', () => {
     expect(value).toBe('OK')
     expect(capturedUrl).toBe('https://provider.example/v1/chat/completions')
     expect(JSON.parse(String(capturedInit?.body))).toEqual({
+      max_tokens: 32,
       messages: [{ content: 'Reply with OK only.', role: 'user' }],
       model: 'fixture-model',
     })

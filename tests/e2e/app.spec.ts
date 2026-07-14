@@ -99,6 +99,7 @@ test('starts from zero through the real desktop entry with a narrow preload API'
       desktop?: {
         app?: { getRuntimeInfo?: unknown }
         problems?: { create?: unknown; list?: unknown }
+        problemAnalysis?: { analyze?: unknown; commit?: unknown }
         templates?: { readSource?: unknown }
         workspace?: { choose?: unknown }
       }
@@ -111,6 +112,7 @@ test('starts from zero through the real desktop entry with a narrow preload API'
       getRuntimeInfo: typeof desktopWindow.desktop?.app?.getRuntimeInfo,
       process: typeof desktopWindow.process,
       problemCreate: typeof desktopWindow.desktop?.problems?.create,
+      problemAnalysis: typeof desktopWindow.desktop?.problemAnalysis?.analyze,
       problemList: typeof desktopWindow.desktop?.problems?.list,
       readSource: typeof desktopWindow.desktop?.templates?.readSource,
       require: typeof desktopWindow.require,
@@ -122,6 +124,7 @@ test('starts from zero through the real desktop entry with a narrow preload API'
     getRuntimeInfo: 'function',
     process: 'undefined',
     problemCreate: 'function',
+    problemAnalysis: 'function',
     problemList: 'function',
     readSource: 'function',
     require: 'undefined',

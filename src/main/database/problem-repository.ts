@@ -15,6 +15,7 @@ import {
   type UpdateProblemRequest,
   type UpsertProblemRelationRequest,
 } from '@core/contracts/problem'
+import type { CommitProblemAnalysisRequest } from '@core/contracts/problem-analysis'
 
 import type { AppDatabase } from './database'
 import { problemImages, problems, templateProblemRelations, templates } from './schema'
@@ -90,6 +91,44 @@ export class ProblemRepository {
         updatedAt: timestamp,
       })
       .run()
+    return this.requireProblem(id)
+  }
+
+  createAnalyzedProblem(
+    id: string,
+    fields: CreateProblemRequest,
+    imageRows: NewProblemImage[],
+    relations: CommitProblemAnalysisRequest['relations'],
+  ): Problem {
+    const timestamp = new Date().toISOString()
+    this.database.orm.transaction(transaction => {
+      transaction
+        .insert(problems)
+        .values({ ...toProblemValues(fields), createdAt: timestamp, id, updatedAt: timestamp })
+        .run()
+      if (imageRows.length > 0) {
+        transaction
+          .insert(problemImages)
+          .values(imageRows.map(image => ({ ...image, createdAt: timestamp, problemId: id })))
+          .run()
+      }
+      if (relations.length > 0) {
+        transaction
+          .insert(templateProblemRelations)
+          .values(
+            relations.map(relation => ({
+              createdAt: timestamp,
+              note: relation.note,
+              problemId: id,
+              relationType: relation.relationType,
+              source: 'ai',
+              templateId: relation.templateId,
+              updatedAt: timestamp,
+            })),
+          )
+          .run()
+      }
+    })
     return this.requireProblem(id)
   }
 

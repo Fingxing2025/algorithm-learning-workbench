@@ -10,9 +10,11 @@ import { WorkspaceRepository } from './database/workspace-repository'
 import { registerAppIpc } from './ipc/register-app-ipc'
 import { registerAiProviderIpc } from './ipc/register-ai-provider-ipc'
 import { registerProblemIpc } from './ipc/register-problem-ipc'
+import { registerProblemAnalysisIpc } from './ipc/register-problem-analysis-ipc'
 import { registerWorkspaceIpc } from './ipc/register-workspace-ipc'
 import { installApplicationSecurityGuards } from './security/window-security'
 import { ProblemService } from './services/problem-service'
+import { ProblemAnalysisService } from './services/problem-analysis-service'
 import { AiProviderService } from './services/ai-provider-service'
 import { SecretStore } from './security/secret-store'
 import { WorkspaceService } from './services/workspace-service'
@@ -50,9 +52,16 @@ async function bootstrap(): Promise<void> {
     new ProblemRepository(appDatabase),
     app.getPath('userData'),
   )
+  const problemAnalysisService = new ProblemAnalysisService(
+    aiProviderService,
+    new ProblemRepository(appDatabase),
+    new WorkspaceRepository(appDatabase),
+    app.getPath('userData'),
+  )
   registerAppIpc()
   registerAiProviderIpc(aiProviderService)
   registerProblemIpc(problemService, () => mainWindow ?? undefined)
+  registerProblemAnalysisIpc(problemAnalysisService, () => mainWindow ?? undefined)
   registerWorkspaceIpc(workspaceService, () => mainWindow ?? undefined)
   mainWindow = createMainWindow()
 

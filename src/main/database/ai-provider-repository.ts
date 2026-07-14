@@ -73,6 +73,15 @@ export class AiProviderRepository {
       .get()
   }
 
+  getProviderForTask(task: AiTaskRoute['task']): AiProviderRecord | undefined {
+    return this.database.orm
+      .select({ provider: aiProviderProfiles })
+      .from(aiTaskRoutes)
+      .innerJoin(aiProviderProfiles, eq(aiTaskRoutes.providerId, aiProviderProfiles.id))
+      .where(eq(aiTaskRoutes.task, task))
+      .get()?.provider
+  }
+
   list(): AiProviderProfile[] {
     return this.database.orm
       .select()

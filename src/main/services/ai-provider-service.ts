@@ -1,4 +1,5 @@
 import {
+  aiProviderCapabilitiesSchema,
   createAiProviderRequestSchema,
   updateAiProviderRequestSchema,
   type AiConnectionResult,
@@ -12,7 +13,7 @@ import {
 import { AiProviderRepository, type AiProviderRecord } from '../database/ai-provider-repository'
 import { PublicError } from '../errors/public-error'
 import { SecretStore } from '../security/secret-store'
-import { getAiProviderAdapter } from './ai-provider-adapters'
+import { getAiProviderAdapter, type AiCompletionRequest } from './ai-provider-adapters'
 
 const RESTRICTED_HEADERS = new Set([
   'authorization',
@@ -76,6 +77,7 @@ function validateHeaders(headers: Record<string, string>): void {
 function toAdapterProfile(record: AiProviderRecord) {
   return {
     baseUrl: record.baseUrl,
+    capabilities: aiProviderCapabilitiesSchema.parse(JSON.parse(record.capabilitiesJson)),
     customHeaders: JSON.parse(record.customHeadersJson) as Record<string, string>,
     model: record.model,
     protocol: record.protocol as AiProviderProfile['protocol'],
@@ -115,6 +117,26 @@ export class AiProviderService {
 
   listRoutes(): AiTaskRoute[] {
     return this.repository.listRoutes()
+  }
+
+  async runTask(
+    task: AiTaskRoute['task'],
+    request: AiCompletionRequest,
+  ): Promise<{ model: string; providerName: string; text: string }> {
+    const record = this.repository.getProviderForTask(task)
+    if (!record) {
+      throw new PublicError(
+        'AI_ROUTE_REQUIRED',
+        '尚未为此任务选择 AI Provider，请先前往 AI 管理设置任务路由。',
+      )
+    }
+    const profile = toAdapterProfile(record)
+    if (request.images?.length && !profile.capabilities.vision) {
+      throw new PublicError('AI_CAPABILITY_UNSUPPORTED', '当前任务模型不支持图片输入。')
+    }
+    const apiKey = await this.secretStore.read(record.secretRef)
+    const text = await getAiProviderAdapter(profile.protocol).complete(profile, apiKey, request)
+    return { model: record.model, providerName: record.name, text }
   }
 
   async testConnection(id: string): Promise<AiConnectionResult> {

@@ -42,6 +42,11 @@ const desktopApi: DesktopApi = {
     update: request => invokeResult(IPC_CHANNELS.problems.update, request),
     upsertRelation: request => invokeResult(IPC_CHANNELS.problems.upsertRelation, request),
   },
+  problemAnalysis: {
+    analyze: request => invokeResult(IPC_CHANNELS.problemAnalysis.analyze, request),
+    chooseImages: () => invokeResult(IPC_CHANNELS.problemAnalysis.chooseImages),
+    commit: request => invokeResult(IPC_CHANNELS.problemAnalysis.commit, request),
+  },
   templates: {
     create: request => invokeResult(IPC_CHANNELS.templates.create, request),
     performAction: async request => {

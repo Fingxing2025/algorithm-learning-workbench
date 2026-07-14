@@ -21,6 +21,11 @@ export const IPC_CHANNELS = {
     update: 'problems:update',
     upsertRelation: 'problems:upsert-relation',
   },
+  problemAnalysis: {
+    analyze: 'problem-analysis:analyze',
+    chooseImages: 'problem-analysis:choose-images',
+    commit: 'problem-analysis:commit',
+  },
   templates: {
     create: 'templates:create',
     performAction: 'templates:perform-action',

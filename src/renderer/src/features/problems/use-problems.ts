@@ -70,6 +70,7 @@ export function useProblems() {
   )
 
   return {
+    acceptProblem: replaceProblem,
     addImages: (problemId: string) =>
       runMutation(() => window.desktop.problems.addImages(problemId)),
     clearError: () => setError(null),

@@ -83,3 +83,4 @@ tests/
 - `docs/decisions/0002-template-workspace-and-scan.md`
 - `docs/decisions/0003-problems-relations-and-images.md`
 - `docs/decisions/0004-ai-provider-platform.md`
+- `docs/decisions/0005-problem-ai-analysis-drafts.md`

@@ -10,10 +10,11 @@ import {
   LoaderCircle,
   Plus,
   Search,
+  Sparkles,
   Trash2,
   X,
 } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { lazy, Suspense, useMemo, useState } from 'react'
 
 import type {
   CreateProblemRequest,
@@ -35,11 +36,17 @@ import { ProblemImageCard } from './problem-image-card'
 import { problemStatusLabels, relationTypeLabels } from './problem-labels'
 import { RelationDialog } from './relation-dialog'
 
+const ProblemAnalysisDialog = lazy(async () => {
+  const module = await import('./problem-analysis-dialog')
+  return { default: module.ProblemAnalysisDialog }
+})
+
 interface ProblemWorkspaceProps {
   error: string | null
   isBusy: boolean
   isLoading: boolean
   onAddImages: (problemId: string) => Promise<Problem | null>
+  onAnalysisCreated: (problem: Problem) => Problem
   onClearError: () => void
   onCreate: (request: CreateProblemRequest) => Promise<Problem | null>
   onOpenTemplate: (templateId: string) => void
@@ -67,6 +74,7 @@ export function ProblemWorkspace({
   isBusy,
   isLoading,
   onAddImages,
+  onAnalysisCreated,
   onClearError,
   onCreate,
   onOpenTemplate,
@@ -80,6 +88,7 @@ export function ProblemWorkspace({
   templates,
 }: ProblemWorkspaceProps) {
   const [confirmRemoveTemplateId, setConfirmRemoveTemplateId] = useState<string | null>(null)
+  const [analysisOpen, setAnalysisOpen] = useState(false)
   const [editorOpen, setEditorOpen] = useState(false)
   const [editingProblem, setEditingProblem] = useState<Problem | null>(null)
   const [query, setQuery] = useState('')
@@ -163,7 +172,17 @@ export function ProblemWorkspace({
           </div>
           <p className="mt-0.5 text-[11px] text-muted-foreground">本地题库与模板关联</p>
         </div>
-        <Button className="ml-auto" onClick={openCreateEditor} size="compact" type="button">
+        <Button
+          className="ml-auto"
+          onClick={() => setAnalysisOpen(true)}
+          size="compact"
+          type="button"
+          variant="outline"
+        >
+          <Sparkles aria-hidden="true" className="size-3.5" />
+          AI 分析题目
+        </Button>
+        <Button onClick={openCreateEditor} size="compact" type="button">
           <Plus aria-hidden="true" className="size-3.5" />
           新建题目
         </Button>
@@ -556,6 +575,18 @@ export function ProblemWorkspace({
           problemId={selectedProblem.id}
           templates={relationTemplates}
         />
+      )}
+      {analysisOpen && (
+        <Suspense fallback={null}>
+          <ProblemAnalysisDialog
+            onCreated={problem => {
+              onAnalysisCreated(problem)
+              onSelect(problem.id)
+            }}
+            onOpenChange={setAnalysisOpen}
+            open={analysisOpen}
+          />
+        </Suspense>
       )}
     </main>
   )
