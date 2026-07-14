@@ -62,6 +62,7 @@
 - 用户可创建多个 Provider 配置并选择默认模型。
 - 支持 base URL、API Key、模型、协议/补全方式、自定义请求头、超时和能力声明。
 - 首批协议：OpenAI-compatible Chat Completions、OpenAI Responses、Anthropic Messages、Gemini GenerateContent、Ollama。
+- 内置 DeepSeek 与阿里云百炼快捷预设；预设只填写公开端点、协议、推荐模型和能力，不包含账号、工作空间或密钥。
 - 支持连接测试和文本/视觉/结构化/流式能力声明。
 - 按任务选择模型：题目视觉分析、文本元数据、全库分析可以分别配置。
 

@@ -682,7 +682,7 @@ export default function App() {
             </span>
             <span className="truncate text-sm font-semibold tracking-tight">算法学习工作台</span>
             <Badge className="hidden sm:inline-flex" tone="accent">
-              V2 · 0.1.0
+              V2 · {runtimeState.status === 'ready' ? runtimeState.value.appVersion : '…'}
             </Badge>
           </div>
 

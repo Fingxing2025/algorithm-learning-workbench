@@ -3,12 +3,14 @@ import {
   Bot,
   CheckCircle2,
   ChevronRight,
+  Cloud,
   KeyRound,
   LoaderCircle,
   Plus,
   ServerCog,
   Trash2,
   Wifi,
+  Zap,
   X,
 } from 'lucide-react'
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
@@ -25,6 +27,12 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
+import {
+  getProviderPreset,
+  providerPresets,
+  type ProviderPreset,
+  type ProviderPresetId,
+} from './provider-presets'
 import { useAiProviders } from './use-ai-providers'
 
 const protocolOptions: Array<{
@@ -117,6 +125,7 @@ export function AiProviderWorkspace() {
   const [form, setForm] = useState<FormState>(emptyForm)
   const [formError, setFormError] = useState<string | null>(null)
   const [isCreating, setIsCreating] = useState(true)
+  const [selectedPresetId, setSelectedPresetId] = useState<ProviderPresetId | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const selectedProfile = useMemo(
@@ -134,6 +143,7 @@ export function AiProviderWorkspace() {
     setSelectedId(profile.id)
     setForm(profileToForm(profile))
     setIsCreating(false)
+    setSelectedPresetId(null)
     setDeletePending(false)
     setFormError(null)
     setSuccess(null)
@@ -144,6 +154,27 @@ export function AiProviderWorkspace() {
     setSelectedId(null)
     setForm(emptyForm)
     setIsCreating(true)
+    setSelectedPresetId(null)
+    setDeletePending(false)
+    setFormError(null)
+    setSuccess(null)
+    providerState.clearError()
+  }
+
+  const applyPreset = (preset: ProviderPreset) => {
+    setSelectedId(null)
+    setForm({
+      apiKey: '',
+      baseUrl: preset.baseUrl,
+      capabilities: { ...preset.capabilities },
+      customHeadersText: '{}',
+      model: preset.model,
+      name: preset.name,
+      protocol: preset.protocol,
+      timeoutSeconds: preset.timeoutSeconds,
+    })
+    setIsCreating(true)
+    setSelectedPresetId(preset.id)
     setDeletePending(false)
     setFormError(null)
     setSuccess(null)
@@ -346,6 +377,66 @@ export function AiProviderWorkspace() {
               </div>
             )}
 
+            {isCreating && (
+              <section aria-label="供应商快捷预设" className="mt-6">
+                <div className="flex flex-wrap items-end justify-between gap-2">
+                  <div>
+                    <h3 className="text-sm font-semibold">供应商快捷预设</h3>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      自动填写官方兼容协议和推荐模型，保存前仍可修改。
+                    </p>
+                  </div>
+                  <Badge tone="neutral">API Key 仍由你填写</Badge>
+                </div>
+                <div className="mt-3 grid gap-3 md:grid-cols-2">
+                  {providerPresets.map(preset => {
+                    const selected = selectedPresetId === preset.id
+                    const Icon = preset.id === 'deepseek' ? Zap : Cloud
+                    return (
+                      <button
+                        aria-label={`使用 ${preset.name} 预设`}
+                        aria-pressed={selected}
+                        className={cn(
+                          'group rounded-2xl border p-4 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring',
+                          selected
+                            ? 'border-primary/40 bg-primary/8'
+                            : 'border-border bg-panel hover:border-primary/25 hover:bg-muted/45',
+                        )}
+                        key={preset.id}
+                        onClick={() => applyPreset(preset)}
+                        type="button"
+                      >
+                        <span className="flex items-start gap-3">
+                          <span
+                            className={cn(
+                              'grid size-9 shrink-0 place-items-center rounded-xl',
+                              selected
+                                ? 'bg-primary text-primary-foreground'
+                                : 'bg-muted text-muted-foreground group-hover:text-foreground',
+                            )}
+                          >
+                            <Icon aria-hidden="true" className="size-4" />
+                          </span>
+                          <span className="min-w-0">
+                            <span className="flex items-center gap-2 text-sm font-semibold">
+                              {preset.name}
+                              {selected && <CheckCircle2 className="size-3.5 text-primary" />}
+                            </span>
+                            <span className="mt-1 block text-xs leading-5 text-muted-foreground">
+                              {preset.description}
+                            </span>
+                            <span className="mt-2 block font-mono text-[11px] text-primary">
+                              {preset.model}
+                            </span>
+                          </span>
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </section>
+            )}
+
             <div className="mt-6 grid gap-5 rounded-2xl border border-border bg-panel p-5 shadow-xs md:grid-cols-2">
               <label className="grid gap-1.5 text-xs font-medium">
                 显示名称
@@ -367,6 +458,7 @@ export function AiProviderWorkspace() {
                   onChange={event => {
                     const protocol = event.target.value as AiProviderProtocol
                     const option = protocolOptions.find(item => item.value === protocol)!
+                    setSelectedPresetId(null)
                     setForm(current => ({ ...current, baseUrl: option.defaultBaseUrl, protocol }))
                   }}
                   value={form.protocol}
@@ -386,12 +478,19 @@ export function AiProviderWorkspace() {
                   onChange={event =>
                     setForm(current => ({ ...current, baseUrl: event.target.value }))
                   }
+                  placeholder={
+                    selectedPresetId
+                      ? getProviderPreset(selectedPresetId).baseUrlPlaceholder
+                      : undefined
+                  }
                   required
                   spellCheck={false}
                   value={form.baseUrl}
                 />
                 <span className="font-normal text-muted-foreground">
-                  云端服务必须使用 HTTPS；Ollama 可连接 localhost。
+                  {selectedPresetId === 'aliyun-bailian'
+                    ? '将 <WorkspaceId> 替换为百炼工作空间 ID；其他地域请使用控制台给出的兼容端点。'
+                    : '云端服务必须使用 HTTPS；Ollama 可连接 localhost。'}
                 </span>
               </label>
               <label className="grid gap-1.5 text-xs font-medium">
@@ -407,6 +506,11 @@ export function AiProviderWorkspace() {
                   required
                   value={form.model}
                 />
+                {selectedPresetId && (
+                  <span className="font-normal text-muted-foreground">
+                    {getProviderPreset(selectedPresetId).modelHint}
+                  </span>
+                )}
               </label>
               <label className="grid gap-1.5 text-xs font-medium">
                 超时时间（秒）

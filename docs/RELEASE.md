@@ -2,7 +2,7 @@
 
 ## 版本与环境
 
-- 当前版本：`0.1.0`
+- 当前版本：`0.1.1`
 - 开发环境：Node.js 24 或更高版本
 - 桌面运行时：Electron 43.1.0
 - 打包器：electron-builder 26.15.3
@@ -28,7 +28,7 @@ macOS DMG 与 ZIP：
 
 ```bash
 npm run dist:mac
-hdiutil verify release/算法学习工作台-0.1.0-mac-arm64.dmg
+hdiutil verify release/算法学习工作台-0.1.1-mac-arm64.dmg
 shasum -a 256 release/*.dmg release/*.zip
 ```
 
@@ -69,11 +69,17 @@ node ./node_modules/@playwright/test/cli.js test tests/e2e/packaged.spec.ts
 
 ## 本地验证记录
 
-2026-07-14 在 macOS arm64、Electron 43.1.0 环境完成最终开发预览构建：
+### 0.1.1（2026-07-15）
+
+- 新增 DeepSeek 官方 OpenAI-compatible 快捷预设，默认使用 `deepseek-v4-flash`。
+- 新增阿里云百炼快捷预设，默认使用 `qwen-plus`，并要求填写当前百炼工作空间兼容端点。
+- Provider 协议、密钥存储和数据库结构没有变化，既有 0.1.0 配置可原位继续使用。
+
+macOS arm64、Electron 43.1.0 开发预览产物：
 
 | 产物                                 |       大小 | SHA-256                                                            |
 | ------------------------------------ | ---------: | ------------------------------------------------------------------ |
-| `算法学习工作台-0.1.0-mac-arm64.dmg` | 约 130 MiB | `7683fcbb05346431dde14c04640f5f00b56be8f329a34c1e98488f23906adfa2` |
-| `算法学习工作台-0.1.0-mac-arm64.zip` | 约 144 MiB | `14e4caf5f40719c879ce86295ef410c04557f20aab563fa58dc2c8859c027c37` |
+| `算法学习工作台-0.1.1-mac-arm64.dmg` | 约 130 MiB | `114a5c45056baac59fd31ca2f8cbb8b120abb1829867117a85b1c9109e9b2816` |
+| `算法学习工作台-0.1.1-mac-arm64.zip` | 约 145 MiB | `c2a7e8c7d6ce25bcfba38be2c3efe199ba51d3a5f197f16bc6c7b233b1d29b7f` |
 
 `hdiutil verify` 返回有效；应用主程序为 Mach-O 64-bit arm64。`codesign` 显示 ad-hoc 签名、无 TeamIdentifier，符合“未签名开发预览”的披露。重新打包后校验值会变化，正式发布必须以同一次发布流程重新生成并记录。

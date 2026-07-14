@@ -132,6 +132,7 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: '创建工作区' })).toBeEnabled()
     expect(screen.getByRole('button', { name: '选择目录' })).toBeEnabled()
     expect(await screen.findByText('Electron 43.1.0 · darwin')).toBeInTheDocument()
+    expect(screen.getByText('V2 · 0.1.0')).toBeInTheDocument()
     expect(screen.getByText('尚未连接工作区')).toBeInTheDocument()
   })
 

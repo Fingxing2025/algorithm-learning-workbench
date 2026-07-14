@@ -21,6 +21,7 @@ V2 需要让用户从零配置不同 AI 服务，并按题目图片分析、模�
 9. Adapter 将失败归一为鉴权、模型不存在、限流、网络、超时、不支持能力和响应格式错误，并返回可操作的中文提示，不回显响应头、请求体、密钥或完整供应商响应。
 10. `ai_task_routes` 保存任务到 Provider 的路由。路由保存前验证 Provider 声明的能力满足任务要求；题图分析必须选择视觉 Provider。
 11. `0002_ai_providers` 是增量 migration，不修改现有模板、题目、图片或关联数据。
+12. DeepSeek 与阿里云百炼作为 Renderer 中的 OpenAI-compatible 配置预设，不增加供应商专属协议或数据库字段。DeepSeek 使用官方 `https://api.deepseek.com`，默认模型跟随当前文档使用 `deepseek-v4-flash`；阿里云百炼中国大陆端点包含用户自己的 `WorkspaceId`，因此只展示北京端点模板并要求用户填写，不能保存虚构或过时的固定地址。
 
 ## 协议基线
 
@@ -31,6 +32,11 @@ V2 需要让用户从零配置不同 AI 服务，并按题目图片分析、模�
 - Ollama Chat：`POST /api/chat`，请求包含 `model`、`messages` 与 `stream: false`。
 
 OpenAI 请求与响应结构以官方 OpenAPI 规范为准：<https://github.com/openai/openai-openapi/blob/master/openapi.yaml>。密钥加密能力以 Electron `safeStorage` 文档为准：<https://www.electronjs.org/docs/latest/api/safe-storage>。
+
+供应商预设以各自官方文档为准：
+
+- DeepSeek：<https://api-docs.deepseek.com/>
+- 阿里云百炼 OpenAI 兼容 Chat：<https://help.aliyun.com/zh/model-studio/compatibility-of-openai-with-dashscope>
 
 ## 后果
 
