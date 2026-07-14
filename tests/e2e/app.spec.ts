@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 
@@ -13,6 +13,8 @@ import {
 let blankWorkspace: string
 let electronApp: ElectronApplication
 let existingWorkspace: string
+let fixtureImagePath: string
+let secondFixtureImagePath: string
 let fixtureSourcePath: string
 let fixtureSourceBeforeScan: string
 let page: Page
@@ -28,6 +30,22 @@ async function setNextDirectorySelection(directoryPath: string) {
   }, directoryPath)
 }
 
+async function launchApplication() {
+  electronApp = await electron.launch({
+    args: [resolve('.')],
+    env: {
+      ...process.env,
+      E2E_USER_DATA_DIR: userDataDirectory,
+      NODE_ENV: 'test',
+    },
+  })
+  page = await electronApp.firstWindow()
+  await page.waitForLoadState('domcontentloaded')
+  await electronApp.evaluate(({ BrowserWindow }) => {
+    BrowserWindow.getAllWindows()[0]?.setSize(1440, 900)
+  })
+}
+
 test.describe.configure({ mode: 'serial' })
 
 test.beforeAll(async () => {
@@ -35,6 +53,8 @@ test.beforeAll(async () => {
   userDataDirectory = join(temporaryRoot, 'user-data')
   blankWorkspace = join(temporaryRoot, 'blank-workspace')
   existingWorkspace = join(temporaryRoot, 'existing-workspace')
+  fixtureImagePath = join(temporaryRoot, 'problem.png')
+  secondFixtureImagePath = join(temporaryRoot, 'problem-2.png')
   fixtureSourcePath = join(existingWorkspace, '基础算法', '搜索', 'BFS', 'bfs.cpp')
 
   await mkdir(userDataDirectory)
@@ -44,23 +64,18 @@ test.beforeAll(async () => {
   await writeFile(join(existingWorkspace, 'dfs.py'), 'def dfs():\n    pass\n', 'utf8')
   await writeFile(join(existingWorkspace, 'README.md'), '# not a template\n', 'utf8')
   await writeFile(join(temporaryRoot, 'outside.cpp'), 'outside\n', 'utf8')
+  await writeFile(
+    fixtureImagePath,
+    Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+      'base64',
+    ),
+  )
+  await writeFile(secondFixtureImagePath, await readFile(fixtureImagePath))
   await symlink(join(temporaryRoot, 'outside.cpp'), join(existingWorkspace, 'linked.cpp'))
   fixtureSourceBeforeScan = await readFile(fixtureSourcePath, 'utf8')
 
-  electronApp = await electron.launch({
-    args: [resolve('.')],
-    env: {
-      ...process.env,
-      E2E_USER_DATA_DIR: userDataDirectory,
-      NODE_ENV: 'test',
-    },
-  })
-
-  page = await electronApp.firstWindow()
-  await page.waitForLoadState('domcontentloaded')
-  await electronApp.evaluate(({ BrowserWindow }) => {
-    BrowserWindow.getAllWindows()[0]?.setSize(1440, 900)
-  })
+  await launchApplication()
 })
 
 test.afterAll(async () => {
@@ -83,6 +98,7 @@ test('starts from zero through the real desktop entry with a narrow preload API'
     const desktopWindow = globalThis as unknown as {
       desktop?: {
         app?: { getRuntimeInfo?: unknown }
+        problems?: { create?: unknown; list?: unknown }
         templates?: { readSource?: unknown }
         workspace?: { choose?: unknown }
       }
@@ -94,6 +110,8 @@ test('starts from zero through the real desktop entry with a narrow preload API'
       chooseWorkspace: typeof desktopWindow.desktop?.workspace?.choose,
       getRuntimeInfo: typeof desktopWindow.desktop?.app?.getRuntimeInfo,
       process: typeof desktopWindow.process,
+      problemCreate: typeof desktopWindow.desktop?.problems?.create,
+      problemList: typeof desktopWindow.desktop?.problems?.list,
       readSource: typeof desktopWindow.desktop?.templates?.readSource,
       require: typeof desktopWindow.require,
     }
@@ -103,6 +121,8 @@ test('starts from zero through the real desktop entry with a narrow preload API'
     chooseWorkspace: 'function',
     getRuntimeInfo: 'function',
     process: 'undefined',
+    problemCreate: 'function',
+    problemList: 'function',
     readSource: 'function',
     require: 'undefined',
   })
@@ -194,4 +214,118 @@ test('captures the template workspace in light, compact, and dark states', async
     animations: 'disabled',
     path: resolve('output/playwright/stage1-dark.png'),
   })
+})
+
+test('creates a problem, associates multiple templates, stores an image, and safely removes one relation', async () => {
+  const root = page.locator('html')
+  if ((await root.getAttribute('class'))?.includes('dark')) {
+    await page.getByRole('button', { name: '切换到浅色主题' }).click()
+  }
+
+  await page.getByRole('button', { name: '题目', exact: true }).click()
+  await expect(page.getByText('还没有题目卡片')).toBeVisible()
+  await page.getByRole('button', { name: '新建题目' }).click()
+  await page.getByLabel('题目标题').fill('单源最短路径')
+  await page.getByLabel('平台').fill('洛谷')
+  await page.getByLabel('题号').fill('P3371')
+  await page.getByLabel('难度').fill('提高')
+  await page.getByLabel('状态').selectOption('attempted')
+  await page.getByLabel('标签').fill('图论, 最短路, Dijkstra')
+  await page.getByLabel('题面摘要').fill('给定一张有向图，求起点到其余顶点的最短距离。')
+  await page.getByLabel('本地备注').fill('注意重边和不可达顶点。')
+  await page.getByRole('button', { name: '创建题目' }).click()
+
+  await expect(page.getByRole('heading', { level: 2, name: '单源最短路径' })).toBeVisible()
+  await expect(page.getByText('给定一张有向图，求起点到其余顶点的最短距离。')).toBeVisible()
+
+  await page.getByRole('button', { name: '添加关联' }).click()
+  await page
+    .getByLabel('算法模板', { exact: true })
+    .selectOption({ label: 'bfs · 基础算法/搜索/BFS/bfs.cpp' })
+  await page.getByLabel('关系类型', { exact: true }).selectOption('used')
+  await page.getByLabel('关联备注', { exact: true }).fill('用于验证模板与题目双向关联。')
+  await page.getByRole('button', { name: '保存关联' }).click()
+
+  await page.getByRole('button', { name: '添加关联' }).click()
+  await page.getByLabel('算法模板', { exact: true }).selectOption({ label: 'dfs · dfs.py' })
+  await page.getByLabel('关系类型', { exact: true }).selectOption('alternative')
+  await page.getByRole('button', { name: '保存关联' }).click()
+  await expect(page.getByText('2 个已确认关联')).toBeVisible()
+
+  await setNextDirectorySelection(fixtureImagePath)
+  await page.getByRole('button', { name: '添加图片' }).click()
+  await expect(page.getByRole('img', { name: 'problem.png' })).toBeVisible()
+
+  await setNextDirectorySelection(secondFixtureImagePath)
+  await page.getByRole('button', { name: '添加图片' }).click()
+  await expect(page.getByRole('img', { name: 'problem-2.png' })).toBeVisible()
+  await page.getByRole('button', { name: '移除图片 problem-2.png' }).click()
+  await page.getByRole('button', { name: '确认' }).click()
+  await expect(page.getByRole('img', { name: 'problem-2.png' })).toHaveCount(0)
+  const storedImages = await readdir(join(userDataDirectory, 'problem-images'), {
+    recursive: true,
+  })
+  expect(storedImages.filter(path => path.endsWith('.png'))).toHaveLength(1)
+
+  await page.getByRole('button', { name: '解除与 dfs 的关联' }).click()
+  await page.getByRole('button', { name: '确认解除' }).click()
+  await expect(page.getByText('1 个已确认关联')).toBeVisible()
+
+  await page.getByRole('button', { name: '模板库' }).click()
+  await expect(page.getByText('dfs.py')).toBeVisible()
+  await page.getByRole('button', { name: '重新扫描工作区' }).click()
+  await expect(page.getByRole('status')).toContainText('扫描完成')
+  await page.getByRole('button', { name: '题目', exact: true }).click()
+  await expect(page.getByText('1 个已确认关联')).toBeVisible()
+  await page.getByRole('button', { name: '关闭提示' }).click()
+  expect(await readFile(fixtureSourcePath, 'utf8')).toBe(fixtureSourceBeforeScan)
+})
+
+test('captures the problem workspace in light, compact, and dark states', async () => {
+  const root = page.locator('html')
+  if ((await root.getAttribute('class'))?.includes('dark')) {
+    await page.getByRole('button', { name: '切换到浅色主题' }).click()
+  }
+
+  await electronApp.evaluate(({ BrowserWindow }) => {
+    BrowserWindow.getAllWindows()[0]?.setSize(1440, 900)
+  })
+  await page.screenshot({
+    animations: 'disabled',
+    path: resolve('output/playwright/stage2-problems-light.png'),
+  })
+
+  await electronApp.evaluate(({ BrowserWindow }) => {
+    BrowserWindow.getAllWindows()[0]?.setSize(1280, 720)
+  })
+  await page.screenshot({
+    animations: 'disabled',
+    path: resolve('output/playwright/stage2-problems-light-1280x720.png'),
+  })
+
+  await electronApp.evaluate(({ BrowserWindow }) => {
+    BrowserWindow.getAllWindows()[0]?.setSize(1440, 900)
+  })
+  await page.getByRole('button', { name: '切换到深色主题' }).click()
+  await page.screenshot({
+    animations: 'disabled',
+    path: resolve('output/playwright/stage2-problems-dark.png'),
+  })
+})
+
+test('persists the problem, image, and surviving relation across a desktop restart', async () => {
+  await electronApp.close()
+  await launchApplication()
+
+  await page.getByRole('button', { name: '题目', exact: true }).click()
+  await expect(page.getByRole('heading', { level: 2, name: '单源最短路径' })).toBeVisible()
+  await expect(page.getByText('1 个已确认关联')).toBeVisible()
+  await expect(page.getByRole('img', { name: 'problem.png' })).toBeVisible()
+
+  await page.keyboard.press(process.platform === 'darwin' ? 'Meta+K' : 'Control+K')
+  const searchInput = page.getByRole('textbox', { name: '搜索模板、题目或操作' })
+  await searchInput.fill('bfs')
+  await searchInput.press('Enter')
+  await expect(page.getByRole('heading', { level: 1, name: 'bfs' })).toBeVisible()
+  await expect(page.getByRole('button', { name: /单源最短路径/ })).toBeVisible()
 })

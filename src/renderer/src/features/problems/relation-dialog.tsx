@@ -1,0 +1,158 @@
+import * as Dialog from '@radix-ui/react-dialog'
+import { AlertCircle, Link2, X } from 'lucide-react'
+import { useEffect, useState, type FormEvent } from 'react'
+
+import type {
+  ProblemTemplateRelation,
+  RelationType,
+  UpsertProblemRelationRequest,
+} from '@core/contracts/problem'
+import type { TemplateSummary } from '@core/contracts/workspace'
+
+import { Button } from '@/components/ui/button'
+
+import { relationTypeLabels } from './problem-labels'
+
+interface RelationDialogProps {
+  error: string | null
+  existing: ProblemTemplateRelation | null
+  isBusy: boolean
+  onOpenChange: (open: boolean) => void
+  onSave: (request: UpsertProblemRelationRequest) => Promise<boolean>
+  open: boolean
+  problemId: string
+  templates: TemplateSummary[]
+}
+
+export function RelationDialog({
+  error,
+  existing,
+  isBusy,
+  onOpenChange,
+  onSave,
+  open,
+  problemId,
+  templates,
+}: RelationDialogProps) {
+  const [note, setNote] = useState('')
+  const [relationType, setRelationType] = useState<RelationType>('used')
+  const [templateId, setTemplateId] = useState('')
+
+  useEffect(() => {
+    if (!open) {
+      return
+    }
+    setNote(existing?.note ?? '')
+    setRelationType(existing?.relationType ?? 'used')
+    setTemplateId(existing?.templateId ?? templates[0]?.id ?? '')
+  }, [existing, open, templates])
+
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault()
+    if (templateId && (await onSave({ note, problemId, relationType, templateId }))) {
+      onOpenChange(false)
+    }
+  }
+
+  const inputClass =
+    'mt-1.5 h-10 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring'
+
+  return (
+    <Dialog.Root onOpenChange={onOpenChange} open={open}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 z-[60] bg-overlay/60 backdrop-blur-[2px]" />
+        <Dialog.Content className="fixed left-1/2 top-1/2 z-[60] w-[min(520px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-2xl border border-border bg-panel shadow-2xl outline-none">
+          <header className="flex items-start border-b border-border px-5 py-4">
+            <span className="mr-3 grid size-9 place-items-center rounded-xl bg-primary/10 text-primary">
+              <Link2 aria-hidden="true" className="size-4" />
+            </span>
+            <div>
+              <Dialog.Title className="text-sm font-semibold">
+                {existing ? '编辑模板关联' : '关联算法模板'}
+              </Dialog.Title>
+              <Dialog.Description className="mt-1 text-xs text-muted-foreground">
+                解除关联不会删除题目、模板或源码。
+              </Dialog.Description>
+            </div>
+            <Dialog.Close asChild>
+              <Button
+                aria-label="关闭关联编辑器"
+                className="ml-auto"
+                size="icon"
+                type="button"
+                variant="ghost"
+              >
+                <X aria-hidden="true" className="size-4" />
+              </Button>
+            </Dialog.Close>
+          </header>
+
+          <form className="p-5" onSubmit={handleSubmit}>
+            {error && (
+              <div
+                className="mb-4 flex items-start gap-2 rounded-xl border border-red-500/25 bg-red-500/8 px-3 py-2.5 text-xs text-red-700 dark:text-red-300"
+                role="alert"
+              >
+                <AlertCircle aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
+            <label className="text-xs font-semibold" htmlFor="relation-template">
+              算法模板
+            </label>
+            <select
+              className={inputClass}
+              disabled={Boolean(existing)}
+              id="relation-template"
+              onChange={event => setTemplateId(event.target.value)}
+              required
+              value={templateId}
+            >
+              {templates.map(template => (
+                <option key={template.id} value={template.id}>
+                  {template.name} · {template.relativePath}
+                </option>
+              ))}
+            </select>
+            <label className="mt-4 block text-xs font-semibold" htmlFor="relation-type">
+              关系类型
+            </label>
+            <select
+              className={inputClass}
+              id="relation-type"
+              onChange={event => setRelationType(event.target.value as RelationType)}
+              value={relationType}
+            >
+              {Object.entries(relationTypeLabels).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+            <label className="mt-4 block text-xs font-semibold" htmlFor="relation-note">
+              关联备注
+            </label>
+            <textarea
+              className="mt-1.5 min-h-24 w-full resize-y rounded-xl border border-border bg-background px-3 py-2.5 text-sm leading-6 outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring"
+              id="relation-note"
+              maxLength={500}
+              onChange={event => setNote(event.target.value)}
+              placeholder="例如：本题实际使用了该模板的堆优化版本。"
+              value={note}
+            />
+            <footer className="mt-5 flex justify-end gap-2 border-t border-border pt-4">
+              <Dialog.Close asChild>
+                <Button type="button" variant="outline">
+                  取消
+                </Button>
+              </Dialog.Close>
+              <Button disabled={isBusy || !templateId} type="submit">
+                保存关联
+              </Button>
+            </footer>
+          </form>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  )
+}

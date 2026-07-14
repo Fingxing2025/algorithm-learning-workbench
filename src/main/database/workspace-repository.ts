@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 
-import { eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 
 import { scanIssueSchema, type ScanSummary, type TemplateSummary } from '@core/contracts/workspace'
 
@@ -54,7 +54,7 @@ export class WorkspaceRepository {
         sizeBytes: templates.sizeBytes,
       })
       .from(templates)
-      .where(eq(templates.workspaceId, workspaceId))
+      .where(and(eq(templates.workspaceId, workspaceId), eq(templates.available, true)))
       .orderBy(templates.relativePath)
       .all()
   }
@@ -84,7 +84,11 @@ export class WorkspaceRepository {
     scannedAt: string,
   ): void {
     this.database.orm.transaction(transaction => {
-      transaction.delete(templates).where(eq(templates.workspaceId, workspaceId)).run()
+      transaction
+        .update(templates)
+        .set({ available: false })
+        .where(eq(templates.workspaceId, workspaceId))
+        .run()
 
       for (let start = 0; start < templateRows.length; start += 100) {
         const rows = templateRows.slice(start, start + 100).map(template => ({
@@ -92,7 +96,24 @@ export class WorkspaceRepository {
           workspaceId,
         }))
         if (rows.length > 0) {
-          transaction.insert(templates).values(rows).run()
+          transaction
+            .insert(templates)
+            .values(rows)
+            .onConflictDoUpdate({
+              set: {
+                available: true,
+                extension: sql`excluded.extension`,
+                fileName: sql`excluded.file_name`,
+                language: sql`excluded.language`,
+                modifiedAt: sql`excluded.modified_at`,
+                name: sql`excluded.name`,
+                relativePath: sql`excluded.relative_path`,
+                sizeBytes: sql`excluded.size_bytes`,
+                workspaceId: sql`excluded.workspace_id`,
+              },
+              target: templates.id,
+            })
+            .run()
         }
       }
 

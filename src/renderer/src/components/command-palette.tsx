@@ -1,7 +1,8 @@
 import * as Dialog from '@radix-ui/react-dialog'
-import { ArrowRight, FileCode2, Search, X } from 'lucide-react'
+import { ArrowRight, BookOpenText, FileCode2, Search, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 
+import type { Problem } from '@core/contracts/problem'
 import type { TemplateSummary } from '@core/contracts/workspace'
 
 import { Badge } from '@/components/ui/badge'
@@ -9,15 +10,22 @@ import { Button } from '@/components/ui/button'
 
 interface CommandPaletteProps {
   onOpenChange: (open: boolean) => void
+  onSelectProblem: (problemId: string) => void
   onSelectTemplate: (templateId: string) => void
   open: boolean
+  problems: Problem[]
   templates: TemplateSummary[]
 }
 
+type SearchResult =
+  { kind: 'problem'; value: Problem } | { kind: 'template'; value: TemplateSummary }
+
 export function CommandPalette({
   onOpenChange,
+  onSelectProblem,
   onSelectTemplate,
   open,
+  problems,
   templates,
 }: CommandPaletteProps) {
   const [query, setQuery] = useState('')
@@ -27,22 +35,37 @@ export function CommandPalette({
     }
   }, [open])
 
-  const results = useMemo(() => {
+  const results = useMemo<SearchResult[]>(() => {
     const normalized = query.trim().toLocaleLowerCase('zh-CN')
-    if (!normalized) {
-      return templates.slice(0, 6)
-    }
-    return templates
-      .filter(template =>
-        `${template.name} ${template.relativePath} ${template.language}`
-          .toLocaleLowerCase('zh-CN')
-          .includes(normalized),
-      )
-      .slice(0, 10)
-  }, [query, templates])
+    const matchedTemplates = templates.filter(template =>
+      `${template.name} ${template.relativePath} ${template.language}`
+        .toLocaleLowerCase('zh-CN')
+        .includes(normalized),
+    )
+    const matchedProblems = problems.filter(problem =>
+      `${problem.title} ${problem.platform ?? ''} ${problem.problemCode ?? ''} ${problem.tags.join(' ')}`
+        .toLocaleLowerCase('zh-CN')
+        .includes(normalized),
+    )
 
-  const selectTemplate = (templateId: string) => {
-    onSelectTemplate(templateId)
+    if (!normalized) {
+      return [
+        ...matchedTemplates.slice(0, 4).map<SearchResult>(value => ({ kind: 'template', value })),
+        ...matchedProblems.slice(0, 4).map<SearchResult>(value => ({ kind: 'problem', value })),
+      ]
+    }
+    return [
+      ...matchedTemplates.map<SearchResult>(value => ({ kind: 'template', value })),
+      ...matchedProblems.map<SearchResult>(value => ({ kind: 'problem', value })),
+    ].slice(0, 12)
+  }, [problems, query, templates])
+
+  const selectResult = (result: SearchResult) => {
+    if (result.kind === 'template') {
+      onSelectTemplate(result.value.id)
+    } else {
+      onSelectProblem(result.value.id)
+    }
     onOpenChange(false)
   }
 
@@ -50,7 +73,7 @@ export function CommandPalette({
     <Dialog.Root onOpenChange={onOpenChange} open={open}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-50 bg-overlay/55 backdrop-blur-[2px]" />
-        <Dialog.Content className="fixed left-1/2 top-[15%] z-50 w-[min(640px,calc(100vw-32px))] -translate-x-1/2 overflow-hidden rounded-2xl border border-border bg-panel shadow-2xl outline-none">
+        <Dialog.Content className="fixed left-1/2 top-[15%] z-50 w-[min(680px,calc(100vw-32px))] -translate-x-1/2 overflow-hidden rounded-2xl border border-border bg-panel shadow-2xl outline-none">
           <div className="flex items-center gap-3 border-b border-border px-4">
             <Search aria-hidden="true" className="size-4 text-muted-foreground" />
             <input
@@ -60,10 +83,10 @@ export function CommandPalette({
               onChange={event => setQuery(event.target.value)}
               onKeyDown={event => {
                 if (event.key === 'Enter' && results[0]) {
-                  selectTemplate(results[0].id)
+                  selectResult(results[0])
                 }
               }}
-              placeholder="搜索模板名称、路径或语言…"
+              placeholder="搜索模板名称、路径、题目或标签…"
               value={query}
             />
             <Dialog.Close asChild>
@@ -73,44 +96,60 @@ export function CommandPalette({
             </Dialog.Close>
           </div>
 
-          <div className="max-h-[360px] min-h-44 overflow-y-auto p-2">
+          <div className="max-h-[400px] min-h-44 overflow-y-auto p-2">
             <Dialog.Title className="sr-only">全局搜索</Dialog.Title>
             <Dialog.Description className="sr-only">
-              搜索并定位当前工作区中的算法模板。
+              搜索并打开算法模板或本地题目卡片。
             </Dialog.Description>
             {results.length > 0 ? (
               <div className="space-y-1">
-                {results.map(template => (
-                  <button
-                    className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left outline-none transition-colors hover:bg-muted focus-visible:bg-muted"
-                    key={template.id}
-                    onClick={() => selectTemplate(template.id)}
-                    type="button"
-                  >
-                    <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground">
-                      <FileCode2 aria-hidden="true" className="size-4" />
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium">{template.name}</span>
-                      <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
-                        {template.relativePath}
+                {results.map(result => {
+                  const isTemplate = result.kind === 'template'
+                  const title = result.kind === 'template' ? result.value.name : result.value.title
+                  const description =
+                    result.kind === 'template'
+                      ? result.value.relativePath
+                      : [result.value.platform, result.value.problemCode]
+                          .filter(Boolean)
+                          .join(' · ') || '本地题目卡片'
+                  return (
+                    <button
+                      className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left outline-none transition-colors hover:bg-muted focus-visible:bg-muted"
+                      key={`${result.kind}:${result.value.id}`}
+                      onClick={() => selectResult(result)}
+                      type="button"
+                    >
+                      <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground">
+                        {isTemplate ? (
+                          <FileCode2 aria-hidden="true" className="size-4" />
+                        ) : (
+                          <BookOpenText aria-hidden="true" className="size-4" />
+                        )}
                       </span>
-                    </span>
-                    <Badge>{template.language}</Badge>
-                    <ArrowRight aria-hidden="true" className="size-3.5 text-muted-foreground" />
-                  </button>
-                ))}
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium">{title}</span>
+                        <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
+                          {description}
+                        </span>
+                      </span>
+                      <Badge>{result.kind === 'template' ? result.value.language : '题目'}</Badge>
+                      <ArrowRight aria-hidden="true" className="size-3.5 text-muted-foreground" />
+                    </button>
+                  )
+                })}
               </div>
             ) : (
               <div className="grid min-h-40 place-items-center rounded-xl border border-dashed border-border bg-muted/30 px-5 text-center">
                 <div>
                   <p className="text-sm font-semibold">
-                    {templates.length === 0 ? '工作区中还没有模板' : `没有找到“${query}”`}
+                    {templates.length + problems.length === 0
+                      ? '本地知识库还是空的'
+                      : `没有找到“${query}”`}
                   </p>
                   <p className="mt-2 text-xs text-muted-foreground">
-                    {templates.length === 0
-                      ? '连接工作区或新建第一份模板后即可搜索。'
-                      : '尝试名称、路径或语言关键词。'}
+                    {templates.length + problems.length === 0
+                      ? '连接模板工作区或创建题目后即可搜索。'
+                      : '尝试模板名称、路径、题号或标签。'}
                   </p>
                 </div>
               </div>
@@ -118,8 +157,10 @@ export function CommandPalette({
           </div>
 
           <div className="flex items-center justify-between border-t border-border bg-muted/35 px-4 py-2.5 text-[11px] text-muted-foreground">
-            <span>{templates.length} 个可搜索模板</span>
-            <span className="inline-flex items-center gap-1">Enter 打开第一个结果</span>
+            <span>
+              {templates.length} 个模板 · {problems.length} 道题目
+            </span>
+            <span>Enter 打开第一个结果</span>
           </div>
         </Dialog.Content>
       </Dialog.Portal>

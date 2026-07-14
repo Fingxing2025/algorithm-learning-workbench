@@ -21,6 +21,16 @@ const desktopApi: DesktopApi = {
     getRuntimeInfo: () =>
       ipcRenderer.invoke(IPC_CHANNELS.app.getRuntimeInfo) as Promise<RuntimeInfo>,
   },
+  problems: {
+    addImages: problemId => invokeResult(IPC_CHANNELS.problems.addImages, { problemId }),
+    create: request => invokeResult(IPC_CHANNELS.problems.create, request),
+    list: () => invokeResult(IPC_CHANNELS.problems.list),
+    readImage: imageId => invokeResult(IPC_CHANNELS.problems.readImage, { imageId }),
+    removeImage: request => invokeResult(IPC_CHANNELS.problems.removeImage, request),
+    removeRelation: request => invokeResult(IPC_CHANNELS.problems.removeRelation, request),
+    update: request => invokeResult(IPC_CHANNELS.problems.update, request),
+    upsertRelation: request => invokeResult(IPC_CHANNELS.problems.upsertRelation, request),
+  },
   templates: {
     create: request => invokeResult(IPC_CHANNELS.templates.create, request),
     performAction: async request => {

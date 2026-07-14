@@ -1,5 +1,14 @@
-import { AlertCircle, Copy, ExternalLink, FileCode2, RefreshCw } from 'lucide-react'
+import {
+  AlertCircle,
+  BookOpenText,
+  ChevronRight,
+  Copy,
+  ExternalLink,
+  FileCode2,
+  RefreshCw,
+} from 'lucide-react'
 
+import type { RelationType } from '@core/contracts/problem'
 import type { TemplateActionRequest, TemplateSummary } from '@core/contracts/workspace'
 
 import { Badge } from '@/components/ui/badge'
@@ -9,9 +18,17 @@ import type { TemplateSourceState } from './use-template-source'
 
 interface AlgorithmCardProps {
   onAction: (request: TemplateActionRequest) => void
+  onOpenProblem: (problemId: string) => void
   onReload: () => void
+  relatedProblems: Array<{ id: string; relationType: RelationType; title: string }>
   sourceState: TemplateSourceState
   template: TemplateSummary | null
+}
+
+const relationLabels: Record<RelationType, string> = {
+  alternative: '备选',
+  recommended: '推荐',
+  used: '实际使用',
 }
 
 function formatBytes(bytes: number): string {
@@ -24,7 +41,14 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MiB`
 }
 
-export function AlgorithmCard({ onAction, onReload, sourceState, template }: AlgorithmCardProps) {
+export function AlgorithmCard({
+  onAction,
+  onOpenProblem,
+  onReload,
+  relatedProblems,
+  sourceState,
+  template,
+}: AlgorithmCardProps) {
   if (!template) {
     return (
       <section className="grid min-h-0 place-items-center bg-background p-8 text-center">
@@ -84,7 +108,7 @@ export function AlgorithmCard({ onAction, onReload, sourceState, template }: Alg
             ['文件类型', template.extension],
             ['文件大小', formatBytes(template.sizeBytes)],
             ['时间复杂度', '待补充'],
-            ['关联题目', '0'],
+            ['关联题目', String(relatedProblems.length)],
           ].map(([label, value]) => (
             <div className="rounded-lg border border-border bg-muted/30 px-3 py-2" key={label}>
               <dt className="text-[10px] text-muted-foreground">{label}</dt>
@@ -94,7 +118,7 @@ export function AlgorithmCard({ onAction, onReload, sourceState, template }: Alg
         </dl>
       </header>
 
-      <div className="flex min-h-0 flex-1 flex-col p-4">
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4">
         <div className="mb-2 flex items-center justify-between px-1">
           <h2 className="text-xs font-semibold">模板源码</h2>
           <Button
@@ -130,10 +154,42 @@ export function AlgorithmCard({ onAction, onReload, sourceState, template }: Alg
           </div>
         )}
         {sourceState.status === 'ready' && (
-          <pre className="min-h-0 flex-1 overflow-auto rounded-xl border border-border bg-code p-4 font-mono text-xs leading-5 text-code-foreground shadow-inner">
+          <pre className="min-h-40 flex-1 overflow-auto rounded-xl border border-border bg-code p-4 font-mono text-xs leading-5 text-code-foreground shadow-inner">
             <code>{sourceState.value.content || '// 空模板文件'}</code>
           </pre>
         )}
+
+        <section className="mt-4 rounded-xl border border-border bg-panel p-4">
+          <div className="flex items-center gap-2">
+            <BookOpenText aria-hidden="true" className="size-4 text-muted-foreground" />
+            <h2 className="text-xs font-semibold">关联题目</h2>
+            <Badge className="ml-auto">{relatedProblems.length}</Badge>
+          </div>
+          {relatedProblems.length === 0 ? (
+            <p className="mt-3 text-[11px] leading-5 text-muted-foreground">
+              还没有题目使用该模板。可在题目卡片中手动建立关联。
+            </p>
+          ) : (
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              {relatedProblems.map(problem => (
+                <button
+                  className="flex items-center gap-3 rounded-lg border border-border bg-background px-3 py-2.5 text-left outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
+                  key={problem.id}
+                  onClick={() => onOpenProblem(problem.id)}
+                  type="button"
+                >
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-xs font-medium">{problem.title}</span>
+                    <span className="mt-0.5 block text-[10px] text-muted-foreground">
+                      {relationLabels[problem.relationType]}
+                    </span>
+                  </span>
+                  <ChevronRight aria-hidden="true" className="size-3.5 text-muted-foreground" />
+                </button>
+              ))}
+            </div>
+          )}
+        </section>
       </div>
     </section>
   )

@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { Problem } from '@core/contracts/problem'
 import type { WorkspaceSnapshot } from '@core/contracts/workspace'
 
 import App from './App'
@@ -36,7 +37,37 @@ const workspaceFixture: WorkspaceSnapshot = {
   ],
 }
 
-function installDesktopMock(currentWorkspace: WorkspaceSnapshot | null) {
+const problemFixture: Problem = {
+  createdAt: '2026-07-14T08:00:00.000Z',
+  difficulty: '提高',
+  id: '50000000-0000-4000-8000-000000000001',
+  images: [],
+  notes: '注意初始化距离。',
+  platform: '洛谷',
+  problemCode: 'P3371',
+  relations: [
+    {
+      available: true,
+      createdAt: '2026-07-14T08:00:00.000Z',
+      language: 'C++',
+      note: '',
+      relationType: 'used',
+      source: 'manual',
+      templateId,
+      templateName: 'bfs',
+      templatePath: '基础算法/搜索/BFS/bfs.cpp',
+      updatedAt: '2026-07-14T08:00:00.000Z',
+    },
+  ],
+  statement: '给定一张图，求最短路。',
+  status: 'attempted',
+  tags: ['图论', '最短路'],
+  title: '单源最短路径',
+  updatedAt: '2026-07-14T08:00:00.000Z',
+  url: null,
+}
+
+function installDesktopMock(currentWorkspace: WorkspaceSnapshot | null, problems: Problem[] = []) {
   Object.defineProperty(window, 'desktop', {
     configurable: true,
     value: {
@@ -47,6 +78,16 @@ function installDesktopMock(currentWorkspace: WorkspaceSnapshot | null) {
           isPackaged: false,
           platform: 'darwin',
         }),
+      },
+      problems: {
+        addImages: vi.fn().mockResolvedValue(null),
+        create: vi.fn(),
+        list: vi.fn().mockResolvedValue(problems),
+        readImage: vi.fn(),
+        removeImage: vi.fn(),
+        removeRelation: vi.fn(),
+        update: vi.fn(),
+        upsertRelation: vi.fn(),
       },
       templates: {
         create: vi.fn(),
@@ -94,7 +135,7 @@ describe('App', () => {
     await screen.findByRole('heading', { name: '连接你的模板工作区' })
     await user.click(screen.getByRole('button', { name: '打开全局搜索' }))
     expect(screen.getByRole('dialog')).toBeInTheDocument()
-    expect(screen.getByText('工作区中还没有模板')).toBeInTheDocument()
+    expect(screen.getByText('本地知识库还是空的')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: '关闭全局搜索' }))
     await user.click(screen.getByRole('button', { name: '切换到深色主题' }))
@@ -113,5 +154,21 @@ describe('App', () => {
 
     expect(await screen.findByRole('heading', { level: 1, name: 'bfs' })).toBeInTheDocument()
     expect(await screen.findByText('void bfs() {}')).toBeInTheDocument()
+  })
+
+  it('opens a problem card from global search', async () => {
+    installDesktopMock(workspaceFixture, [problemFixture])
+    const user = userEvent.setup()
+    render(<App />)
+
+    await screen.findByRole('heading', { level: 1, name: '工作台' })
+    await user.click(screen.getByRole('button', { name: '打开全局搜索' }))
+    await user.type(screen.getByRole('textbox', { name: '搜索模板、题目或操作' }), '单源')
+    await user.click(screen.getByRole('button', { name: /单源最短路径.*洛谷/ }))
+
+    expect(
+      await screen.findByRole('heading', { level: 2, name: '单源最短路径' }),
+    ).toBeInTheDocument()
+    expect(screen.getByText('给定一张图，求最短路。')).toBeInTheDocument()
   })
 })

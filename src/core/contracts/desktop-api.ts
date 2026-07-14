@@ -1,5 +1,14 @@
 import type { RuntimeInfo } from './runtime'
 import type {
+  CreateProblemRequest,
+  Problem,
+  ProblemImageData,
+  RemoveProblemImageRequest,
+  RemoveProblemRelationRequest,
+  UpdateProblemRequest,
+  UpsertProblemRelationRequest,
+} from './problem'
+import type {
   ChooseWorkspaceRequest,
   CreateTemplateRequest,
   CreateTemplateResult,
@@ -11,6 +20,16 @@ import type {
 export interface DesktopApi {
   app: {
     getRuntimeInfo: () => Promise<RuntimeInfo>
+  }
+  problems: {
+    addImages: (problemId: string) => Promise<Problem | null>
+    create: (request: CreateProblemRequest) => Promise<Problem>
+    list: () => Promise<Problem[]>
+    readImage: (imageId: string) => Promise<ProblemImageData>
+    removeImage: (request: RemoveProblemImageRequest) => Promise<Problem>
+    removeRelation: (request: RemoveProblemRelationRequest) => Promise<Problem>
+    update: (request: UpdateProblemRequest) => Promise<Problem>
+    upsertRelation: (request: UpsertProblemRelationRequest) => Promise<Problem>
   }
   templates: {
     create: (request: CreateTemplateRequest) => Promise<CreateTemplateResult>

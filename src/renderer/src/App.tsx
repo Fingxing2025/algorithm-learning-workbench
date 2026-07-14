@@ -24,6 +24,7 @@ import {
 import { motion, useReducedMotion } from 'motion/react'
 import { useEffect, useMemo, useState } from 'react'
 
+import type { Problem } from '@core/contracts/problem'
 import type {
   ChooseWorkspaceRequest,
   TemplateActionRequest,
@@ -34,6 +35,8 @@ import type {
 import { CommandPalette } from '@/components/command-palette'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { ProblemWorkspace } from '@/features/problems/problem-workspace'
+import { useProblems } from '@/features/problems/use-problems'
 import { AlgorithmCard } from '@/features/templates/algorithm-card'
 import { CreateTemplateDialog } from '@/features/templates/create-template-dialog'
 import { TemplateTree } from '@/features/templates/template-tree'
@@ -44,7 +47,7 @@ import { useRuntimeInfo } from '@/hooks/use-runtime-info'
 import { useTheme } from '@/hooks/use-theme'
 import { cn } from '@/lib/utils'
 
-type AppView = 'dashboard' | 'templates'
+type AppView = 'dashboard' | 'problems' | 'templates'
 
 interface NavigationItem {
   disabled?: boolean
@@ -56,7 +59,7 @@ interface NavigationItem {
 const navigationItems: NavigationItem[] = [
   { icon: LayoutDashboard, id: 'dashboard', label: '工作台' },
   { icon: FileCode2, id: 'templates', label: '模板库' },
-  { disabled: true, icon: BookOpenText, label: '题目' },
+  { icon: BookOpenText, id: 'problems', label: '题目' },
   { disabled: true, icon: Sparkles, label: 'AI 管理' },
 ]
 
@@ -147,17 +150,23 @@ function WorkspaceUnavailable({
 
 function Dashboard({
   onCreateTemplate,
+  onOpenProblem,
+  onOpenProblems,
   onOpenTemplate,
   onOpenTemplates,
+  problems,
   workspace,
 }: {
   onCreateTemplate: () => void
+  onOpenProblem: (problemId: string) => void
+  onOpenProblems: () => void
   onOpenTemplate: (templateId: string) => void
   onOpenTemplates: () => void
+  problems: Problem[]
   workspace: WorkspaceSnapshot
 }) {
   const recentTemplates = workspace.templates.slice(0, 5)
-  const scanWarnings = workspace.summary.issues.length + workspace.summary.caseConflictCount
+  const recentProblems = problems.slice(0, 5)
 
   return (
     <main className="min-h-0 overflow-y-auto px-6 py-6 lg:px-8">
@@ -174,6 +183,10 @@ function Dashboard({
             </p>
           </div>
           <div className="flex gap-2">
+            <Button onClick={onOpenProblems} type="button" variant="outline">
+              <BookOpenText aria-hidden="true" className="size-4" />
+              浏览题目
+            </Button>
             <Button onClick={onOpenTemplates} type="button" variant="outline">
               <FolderOpen aria-hidden="true" className="size-4" />
               浏览模板库
@@ -191,7 +204,7 @@ function Dashboard({
             label="算法模板"
             value={String(workspace.summary.templateCount)}
           />
-          <SummaryCard icon={BookOpenText} label="题目卡片" value="0" />
+          <SummaryCard icon={BookOpenText} label="题目卡片" value={String(problems.length)} />
           <SummaryCard icon={Sparkles} label="待确认计划" value="0" />
         </section>
 
@@ -242,41 +255,49 @@ function Dashboard({
 
           <section className="rounded-2xl border border-border bg-panel p-5 shadow-xs">
             <div className="flex items-center justify-between gap-3">
-              <h2 className="text-sm font-semibold">工作区状态</h2>
-              <Badge tone={scanWarnings > 0 ? 'neutral' : 'success'}>
-                {scanWarnings > 0 ? `${scanWarnings} 条提示` : '扫描正常'}
-              </Badge>
-            </div>
-            <dl className="mt-5 space-y-4">
               <div>
-                <dt className="text-[11px] text-muted-foreground">工作区名称</dt>
-                <dd className="mt-1 truncate text-sm font-medium">{workspace.name}</dd>
+                <h2 className="text-sm font-semibold">最近题目</h2>
+                <p className="mt-1 text-xs text-muted-foreground">继续整理题面和模板关联</p>
               </div>
-              <Separator.Root className="h-px bg-border" decorative />
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <dt className="text-[11px] text-muted-foreground">已跳过链接</dt>
-                  <dd className="mt-1 text-sm font-medium">
-                    {workspace.summary.skippedSymlinkCount}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-[11px] text-muted-foreground">非源码文件</dt>
-                  <dd className="mt-1 text-sm font-medium">
-                    {workspace.summary.unsupportedFileCount}
-                  </dd>
-                </div>
-              </div>
-            </dl>
-            <div className="mt-5 rounded-xl border border-success/15 bg-success/7 p-3.5">
-              <div className="flex items-center gap-2 text-xs font-semibold text-success">
-                <ShieldCheck aria-hidden="true" className="size-4" />
-                扫描不会修改源码
-              </div>
-              <p className="mt-2 text-[11px] leading-4 text-muted-foreground">
-                文件仍保留在你的普通目录中；SQLite 只保存可重建的索引。
-              </p>
+              <Badge>{recentProblems.length} 项</Badge>
             </div>
+            {recentProblems.length > 0 ? (
+              <div className="mt-4 space-y-1.5">
+                {recentProblems.map(problem => (
+                  <button
+                    className="flex w-full items-center gap-3 rounded-xl border border-transparent px-3 py-2.5 text-left outline-none transition-colors hover:border-border hover:bg-muted/55 focus-visible:ring-2 focus-visible:ring-ring"
+                    key={problem.id}
+                    onClick={() => onOpenProblem(problem.id)}
+                    type="button"
+                  >
+                    <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground">
+                      <BookOpenText aria-hidden="true" className="size-4" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium">{problem.title}</span>
+                      <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
+                        {[problem.platform, problem.problemCode].filter(Boolean).join(' · ') ||
+                          '本地题目卡片'}
+                      </span>
+                    </span>
+                    <Badge>{problem.relations.length} 个模板</Badge>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="mt-4 grid min-h-52 place-items-center rounded-xl border border-dashed border-border bg-muted/30 p-6 text-center">
+                <div>
+                  <BookOpenText className="mx-auto size-7 text-muted-foreground" />
+                  <p className="mt-3 text-sm font-medium">创建第一张题目卡片</p>
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                    无需 AI，也能手动记录题面并关联模板。
+                  </p>
+                  <Button className="mt-4" onClick={onOpenProblems} size="compact" type="button">
+                    进入题目库
+                  </Button>
+                </div>
+              </div>
+            )}
           </section>
         </div>
       </div>
@@ -289,8 +310,10 @@ function TemplateLibrary({
   onAction,
   onChangeWorkspace,
   onCreateTemplate,
+  onOpenProblem,
   onRescan,
   onSelectTemplate,
+  problems,
   selectedTemplate,
   selectedTemplateId,
   sourceState,
@@ -301,9 +324,11 @@ function TemplateLibrary({
   onAction: (request: TemplateActionRequest) => void
   onChangeWorkspace: () => void
   onCreateTemplate: () => void
+  onOpenProblem: (problemId: string) => void
   onReloadSource: () => void
   onRescan: () => void
   onSelectTemplate: (templateId: string) => void
+  problems: Problem[]
   selectedTemplate: TemplateSummary | null
   selectedTemplateId: string | null
   sourceState: ReturnType<typeof useTemplateSource>['state']
@@ -356,7 +381,16 @@ function TemplateLibrary({
         />
         <AlgorithmCard
           onAction={onAction}
+          onOpenProblem={onOpenProblem}
           onReload={onReloadSource}
+          relatedProblems={problems.flatMap(problem => {
+            const relation = problem.relations.find(
+              item => item.templateId === selectedTemplate?.id,
+            )
+            return relation
+              ? [{ id: problem.id, relationType: relation.relationType, title: problem.title }]
+              : []
+          })}
           sourceState={sourceState}
           template={selectedTemplate}
         />
@@ -370,17 +404,19 @@ export default function App() {
   const [createOpen, setCreateOpen] = useState(false)
   const [currentView, setCurrentView] = useState<AppView>('dashboard')
   const [notice, setNotice] = useState<string | null>(null)
+  const [selectedProblemId, setSelectedProblemId] = useState<string | null>(null)
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null)
   const prefersReducedMotion = useReducedMotion()
   const runtimeState = useRuntimeInfo()
   const { theme, toggleTheme } = useTheme()
+  const problemState = useProblems()
   const {
     chooseWorkspace,
-    clearError,
+    clearError: clearWorkspaceError,
     createTemplate,
-    error,
-    isBusy,
-    isLoading,
+    error: workspaceError,
+    isBusy: isWorkspaceBusy,
+    isLoading: isWorkspaceLoading,
     performTemplateAction,
     rescan,
     workspace,
@@ -412,6 +448,21 @@ export default function App() {
       setSelectedTemplateId(null)
     }
   }, [selectedTemplateId, workspace])
+
+  useEffect(() => {
+    if (
+      selectedProblemId &&
+      !problemState.problems.some(problem => problem.id === selectedProblemId)
+    ) {
+      setSelectedProblemId(null)
+    }
+  }, [problemState.problems, selectedProblemId])
+
+  useEffect(() => {
+    if (currentView === 'problems' && !selectedProblemId && problemState.problems[0]) {
+      setSelectedProblemId(problemState.problems[0].id)
+    }
+  }, [currentView, problemState.problems, selectedProblemId])
 
   useEffect(() => {
     if (!notice) {
@@ -468,8 +519,13 @@ export default function App() {
     setSelectedTemplateId(templateId)
   }
 
+  const openProblem = (problemId: string) => {
+    setCurrentView('problems')
+    setSelectedProblemId(problemId)
+  }
+
   const renderContent = () => {
-    if (isLoading) {
+    if (isWorkspaceLoading) {
       return (
         <main className="grid min-h-0 place-items-center">
           <div className="text-center">
@@ -483,8 +539,8 @@ export default function App() {
     if (!workspace) {
       return (
         <WorkspaceOnboarding
-          error={error}
-          isBusy={isBusy}
+          error={workspaceError}
+          isBusy={isWorkspaceBusy}
           onChoose={request => void handleChooseWorkspace(request)}
         />
       )
@@ -493,7 +549,7 @@ export default function App() {
     if (!workspace.available) {
       return (
         <WorkspaceUnavailable
-          isBusy={isBusy}
+          isBusy={isWorkspaceBusy}
           onChoose={request => void handleChooseWorkspace(request)}
           workspace={workspace}
         />
@@ -503,13 +559,15 @@ export default function App() {
     if (currentView === 'templates') {
       return (
         <TemplateLibrary
-          isBusy={isBusy}
+          isBusy={isWorkspaceBusy}
           onAction={request => void handleTemplateAction(request)}
           onChangeWorkspace={() => void handleChooseWorkspace({ intent: 'open' })}
           onCreateTemplate={() => setCreateOpen(true)}
+          onOpenProblem={openProblem}
           onReloadSource={source.reload}
           onRescan={() => void handleRescan()}
           onSelectTemplate={setSelectedTemplateId}
+          problems={problemState.problems}
           selectedTemplate={selectedTemplate}
           selectedTemplateId={selectedTemplateId}
           sourceState={source.state}
@@ -518,11 +576,36 @@ export default function App() {
       )
     }
 
+    if (currentView === 'problems') {
+      return (
+        <ProblemWorkspace
+          error={problemState.error}
+          isBusy={problemState.isBusy}
+          isLoading={problemState.isLoading}
+          onAddImages={problemState.addImages}
+          onClearError={problemState.clearError}
+          onCreate={problemState.createProblem}
+          onOpenTemplate={openTemplate}
+          onRemoveImage={problemState.removeImage}
+          onRemoveRelation={problemState.removeRelation}
+          onSelect={setSelectedProblemId}
+          onUpdate={problemState.updateProblem}
+          onUpsertRelation={problemState.upsertRelation}
+          problems={problemState.problems}
+          selectedProblemId={selectedProblemId}
+          templates={workspace.templates}
+        />
+      )
+    }
+
     return (
       <Dashboard
         onCreateTemplate={() => setCreateOpen(true)}
+        onOpenProblem={openProblem}
+        onOpenProblems={() => setCurrentView('problems')}
         onOpenTemplate={openTemplate}
         onOpenTemplates={() => setCurrentView('templates')}
+        problems={problemState.problems}
         workspace={workspace}
       />
     )
@@ -543,7 +626,7 @@ export default function App() {
             </span>
             <span className="truncate text-sm font-semibold tracking-tight">算法学习工作台</span>
             <Badge className="hidden sm:inline-flex" tone="accent">
-              V2 · 阶段 1
+              V2 · 阶段 2
             </Badge>
           </div>
 
@@ -555,7 +638,7 @@ export default function App() {
               type="button"
             >
               <Search aria-hidden="true" className="size-3.5" />
-              <span>搜索算法模板</span>
+              <span>搜索模板或题目</span>
               <kbd className="ml-auto rounded border border-border bg-muted px-1.5 py-0.5 font-sans text-[10px]">
                 {shortcutLabel}
               </kbd>
@@ -638,27 +721,27 @@ export default function App() {
             initial={prefersReducedMotion ? false : { opacity: 0, y: 4 }}
             transition={{ duration: 0.2, ease: 'easeOut' }}
           >
-            {(error || notice) && workspace && (
+            {(workspaceError || notice) && workspace && (
               <div
                 className={cn(
                   'absolute left-1/2 top-3 z-40 flex max-w-[min(640px,calc(100%-32px))] -translate-x-1/2 items-center gap-2 rounded-xl border px-3 py-2 text-xs shadow-lg',
-                  error
+                  workspaceError
                     ? 'border-red-500/25 bg-panel text-red-700 dark:text-red-300'
                     : 'border-success/20 bg-panel text-foreground',
                 )}
-                role={error ? 'alert' : 'status'}
+                role={workspaceError ? 'alert' : 'status'}
               >
-                {error ? (
+                {workspaceError ? (
                   <AlertTriangle aria-hidden="true" className="size-4 shrink-0" />
                 ) : (
                   <Check aria-hidden="true" className="size-4 shrink-0 text-success" />
                 )}
-                <span>{error ?? notice}</span>
+                <span>{workspaceError ?? notice}</span>
                 <button
                   aria-label="关闭提示"
                   className="ml-2 rounded p-0.5 text-muted-foreground hover:bg-muted"
                   onClick={() => {
-                    clearError()
+                    clearWorkspaceError()
                     setNotice(null)
                   }}
                   type="button"
@@ -684,25 +767,29 @@ export default function App() {
           </span>
           <span className="ml-auto inline-flex items-center gap-2">
             <ShieldCheck aria-hidden="true" className="size-3" />
-            {workspace ? `${workspace.summary.templateCount} 个本地模板` : '离线功能优先'}
+            {workspace
+              ? `${workspace.summary.templateCount} 个模板 · ${problemState.problems.length} 道题`
+              : '离线功能优先'}
           </span>
         </footer>
       </div>
 
       <CommandPalette
         onOpenChange={setCommandOpen}
+        onSelectProblem={openProblem}
         onSelectTemplate={openTemplate}
         open={commandOpen}
+        problems={problemState.problems}
         templates={workspace?.templates ?? []}
       />
       <CreateTemplateDialog
-        error={error}
-        isBusy={isBusy}
+        error={workspaceError}
+        isBusy={isWorkspaceBusy}
         onCreate={handleCreateTemplate}
         onOpenChange={open => {
           setCreateOpen(open)
           if (!open) {
-            clearError()
+            clearWorkspaceError()
           }
         }}
         open={createOpen}

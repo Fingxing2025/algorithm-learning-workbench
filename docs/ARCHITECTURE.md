@@ -81,3 +81,4 @@ tests/
 
 - `docs/decisions/0001-stage-0-foundation.md`
 - `docs/decisions/0002-template-workspace-and-scan.md`
+- `docs/decisions/0003-problems-relations-and-images.md`
