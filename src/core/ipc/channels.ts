@@ -31,6 +31,13 @@ export const IPC_CHANNELS = {
     performAction: 'templates:perform-action',
     readSource: 'templates:read-source',
   },
+  templateManagement: {
+    chooseImportSource: 'template-management:choose-import-source',
+    classify: 'template-management:classify',
+    getMetadata: 'template-management:get-metadata',
+    importTemplate: 'template-management:import-template',
+    updateMetadata: 'template-management:update-metadata',
+  },
   workspace: {
     choose: 'workspace:choose',
     getCurrent: 'workspace:get-current',

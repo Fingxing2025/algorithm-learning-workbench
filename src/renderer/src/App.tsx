@@ -31,6 +31,7 @@ import type {
   TemplateSummary,
   WorkspaceSnapshot,
 } from '@core/contracts/workspace'
+import type { ImportTemplateRequest } from '@core/contracts/template-management'
 
 import { CommandPalette } from '@/components/command-palette'
 import { Badge } from '@/components/ui/badge'
@@ -418,11 +419,11 @@ export default function App() {
   const {
     chooseWorkspace,
     clearError: clearWorkspaceError,
-    createTemplate,
     error: workspaceError,
     isBusy: isWorkspaceBusy,
     isLoading: isWorkspaceLoading,
     performTemplateAction,
+    importTemplate,
     rescan,
     workspace,
   } = useWorkspace()
@@ -496,14 +497,14 @@ export default function App() {
     }
   }
 
-  const handleCreateTemplate = async (request: { content: string; fileName: string }) => {
-    const result = await createTemplate(request)
+  const handleCreateTemplate = async (request: ImportTemplateRequest) => {
+    const result = await importTemplate(request)
     if (!result) {
       return false
     }
     setCurrentView('templates')
     setSelectedTemplateId(result.templateId)
-    setNotice(`已创建 ${request.fileName}`)
+    setNotice(`已创建 ${request.relativePath}`)
     return true
   }
 

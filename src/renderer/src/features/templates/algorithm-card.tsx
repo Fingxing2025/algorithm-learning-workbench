@@ -15,6 +15,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 
 import type { TemplateSourceState } from './use-template-source'
+import { TemplateMetadataCard } from './template-metadata-card'
 
 interface AlgorithmCardProps {
   onAction: (request: TemplateActionRequest) => void
@@ -158,6 +159,8 @@ export function AlgorithmCard({
             <code>{sourceState.value.content || '// 空模板文件'}</code>
           </pre>
         )}
+
+        <TemplateMetadataCard key={template.id} templateId={template.id} />
 
         <section className="mt-4 rounded-xl border border-border bg-panel p-4">
           <div className="flex items-center gap-2">

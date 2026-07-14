@@ -70,6 +70,54 @@ export const templates = sqliteTable(
   ],
 )
 
+export const templateMetadata = sqliteTable('template_metadata', {
+  commonMistakes: text('common_mistakes').notNull().default(''),
+  constraints: text('constraints_text').notNull().default(''),
+  notes: text('notes').notNull().default(''),
+  prerequisites: text('prerequisites').notNull().default(''),
+  solves: text('solves').notNull().default(''),
+  spaceComplexity: text('space_complexity'),
+  tagsJson: text('tags_json').notNull().default('[]'),
+  templateId: text('template_id')
+    .primaryKey()
+    .references(() => templates.id, { onDelete: 'cascade' }),
+  timeComplexity: text('time_complexity'),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const fileChangePlans = sqliteTable(
+  'file_change_plans',
+  {
+    createdAt: text('created_at').notNull(),
+    id: text('id').primaryKey(),
+    model: text('model').notNull(),
+    operationsJson: text('operations_json').notNull(),
+    providerName: text('provider_name').notNull(),
+    status: text('status').notNull().default('draft'),
+    updatedAt: text('updated_at').notNull(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+  },
+  table => [index('file_change_plans_workspace_id_index').on(table.workspaceId)],
+)
+
+export const fileChangeExecutions = sqliteTable(
+  'file_change_executions',
+  {
+    backupDirectory: text('backup_directory').notNull(),
+    createdAt: text('created_at').notNull(),
+    id: text('id').primaryKey(),
+    operationsJson: text('operations_json').notNull(),
+    planId: text('plan_id')
+      .notNull()
+      .references(() => fileChangePlans.id, { onDelete: 'cascade' }),
+    rolledBackAt: text('rolled_back_at'),
+    status: text('status').notNull().default('applied'),
+  },
+  table => [index('file_change_executions_plan_id_index').on(table.planId)],
+)
+
 export const problems = sqliteTable(
   'problems',
   {
@@ -138,9 +186,12 @@ export const databaseSchema = {
   aiProviderProfiles,
   aiTaskRoutes,
   appState,
+  fileChangeExecutions,
+  fileChangePlans,
   problemImages,
   problems,
   templateProblemRelations,
   templates,
+  templateMetadata,
   workspaces,
 }

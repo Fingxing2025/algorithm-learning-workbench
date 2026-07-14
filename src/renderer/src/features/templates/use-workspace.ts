@@ -6,6 +6,7 @@ import type {
   TemplateActionRequest,
   WorkspaceSnapshot,
 } from '@core/contracts/workspace'
+import type { ImportTemplateRequest } from '@core/contracts/template-management'
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : '操作未完成，请重试。'
@@ -89,6 +90,21 @@ export function useWorkspace() {
     }
   }, [])
 
+  const importTemplate = useCallback(async (request: ImportTemplateRequest) => {
+    setError(null)
+    setIsBusy(true)
+    try {
+      const result = await window.desktop.templateManagement.importTemplate(request)
+      setWorkspace(result.workspace)
+      return result
+    } catch (caughtError) {
+      setError(getErrorMessage(caughtError))
+      return null
+    } finally {
+      setIsBusy(false)
+    }
+  }, [])
+
   const performTemplateAction = useCallback(async (request: TemplateActionRequest) => {
     setError(null)
     try {
@@ -107,6 +123,7 @@ export function useWorkspace() {
     error,
     isBusy,
     isLoading,
+    importTemplate,
     performTemplateAction,
     rescan,
     workspace,

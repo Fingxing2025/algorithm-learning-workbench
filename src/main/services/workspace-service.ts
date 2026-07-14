@@ -1,6 +1,6 @@
 import { clipboard, dialog, shell, type BrowserWindow } from 'electron'
-import { readFile, writeFile } from 'node:fs/promises'
-import { basename, extname, resolve } from 'node:path'
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { basename, dirname, extname, resolve } from 'node:path'
 
 import type {
   ChooseWorkspaceRequest,
@@ -10,7 +10,12 @@ import type {
   TemplateSource,
   WorkspaceSnapshot,
 } from '@core/contracts/workspace'
+import type {
+  ImportTemplateRequest,
+  ImportTemplateResult,
+} from '@core/contracts/template-management'
 
+import { TemplateManagementRepository } from '../database/template-management-repository'
 import { WorkspaceRepository, type WorkspaceRecord } from '../database/workspace-repository'
 import { PublicError } from '../errors/public-error'
 import {
@@ -19,11 +24,15 @@ import {
   resolveAuthorizedRoot,
 } from '../security/path-guard'
 import { getLanguageForExtension, scanTemplateWorkspace } from './template-scanner'
+import { normalizeTemplateRelativePath } from '../security/template-path'
 
 const MAX_SOURCE_BYTES = 2 * 1024 * 1024
 
 export class WorkspaceService {
-  constructor(private readonly repository: WorkspaceRepository) {}
+  constructor(
+    private readonly repository: WorkspaceRepository,
+    private readonly metadataRepository?: TemplateManagementRepository,
+  ) {}
 
   async chooseWorkspace(
     request: ChooseWorkspaceRequest,
@@ -108,6 +117,50 @@ export class WorkspaceService {
       available = false
     }
     return this.toSnapshot(workspace, available)
+  }
+
+  async importTemplate(request: ImportTemplateRequest): Promise<ImportTemplateResult> {
+    const workspace = this.requireWorkspace()
+    const canonicalRoot = await resolveAuthorizedRoot(workspace.rootPath)
+    const relativePath = normalizeTemplateRelativePath(request.relativePath)
+    if (Buffer.byteLength(request.content, 'utf8') > MAX_SOURCE_BYTES) {
+      throw new PublicError('FILE_TOO_LARGE', '模板源码超过 2 MiB，无法创建。')
+    }
+    const targetPath = resolve(canonicalRoot, relativePath)
+    if (!isPathInsideRoot(canonicalRoot, targetPath) || targetPath === canonicalRoot) {
+      throw new PublicError('PATH_NOT_AUTHORIZED', '模板文件必须创建在当前工作区内。')
+    }
+
+    let fileCreated = false
+    try {
+      await mkdir(dirname(targetPath), { recursive: true })
+      await writeFile(targetPath, request.content, { encoding: 'utf8', flag: 'wx', mode: 0o600 })
+      fileCreated = true
+      const snapshot = await this.scanAndSnapshot(workspace)
+      const createdTemplate = snapshot.templates.find(
+        template => template.relativePath.normalize('NFC') === relativePath.normalize('NFC'),
+      )
+      if (!createdTemplate) {
+        throw new PublicError('DATABASE_ERROR', '模板文件已创建，但索引更新失败。')
+      }
+      if (request.metadata) {
+        if (!this.metadataRepository) {
+          throw new PublicError('DATABASE_ERROR', '模板元数据服务未初始化。')
+        }
+        this.metadataRepository.upsertMetadata(createdTemplate.id, request.metadata)
+      }
+      return { templateId: createdTemplate.id, workspace: snapshot }
+    } catch (error) {
+      if (fileCreated) {
+        await rm(targetPath, { force: true }).catch(() => undefined)
+        await this.scanAndSnapshot(workspace).catch(() => undefined)
+      }
+      if ((error as NodeJS.ErrnoException).code === 'EEXIST') {
+        throw new PublicError('FILE_ALREADY_EXISTS', '同名文件已经存在，未覆盖原文件。')
+      }
+      if (error instanceof PublicError) throw error
+      throw new PublicError('FILE_UNAVAILABLE', '无法创建模板文件，请检查目录权限。')
+    }
   }
 
   async performTemplateAction(request: TemplateActionRequest): Promise<void> {

@@ -54,6 +54,16 @@ const desktopApi: DesktopApi = {
     },
     readSource: templateId => invokeResult(IPC_CHANNELS.templates.readSource, { templateId }),
   },
+  templateManagement: {
+    chooseImportSource: () => invokeResult(IPC_CHANNELS.templateManagement.chooseImportSource),
+    classify: request => invokeResult(IPC_CHANNELS.templateManagement.classify, request),
+    getMetadata: templateId =>
+      invokeResult(IPC_CHANNELS.templateManagement.getMetadata, { templateId }),
+    importTemplate: request =>
+      invokeResult(IPC_CHANNELS.templateManagement.importTemplate, request),
+    updateMetadata: request =>
+      invokeResult(IPC_CHANNELS.templateManagement.updateMetadata, request),
+  },
   workspace: {
     choose: request => invokeResult(IPC_CHANNELS.workspace.choose, request),
     getCurrent: () => invokeResult(IPC_CHANNELS.workspace.getCurrent),

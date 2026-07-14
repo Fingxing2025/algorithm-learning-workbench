@@ -99,6 +99,13 @@ function installDesktopMock(currentWorkspace: WorkspaceSnapshot | null, problems
           relativePath: '基础算法/搜索/BFS/bfs.cpp',
         }),
       },
+      templateManagement: {
+        chooseImportSource: vi.fn(),
+        classify: vi.fn(),
+        getMetadata: vi.fn().mockResolvedValue(null),
+        importTemplate: vi.fn(),
+        updateMetadata: vi.fn(),
+      },
       workspace: {
         choose: vi.fn().mockResolvedValue(null),
         getCurrent: vi.fn().mockResolvedValue(currentWorkspace),

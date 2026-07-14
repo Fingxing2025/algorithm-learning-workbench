@@ -7,17 +7,20 @@ import { createAppDatabase, type AppDatabase } from './database/database'
 import { AiProviderRepository } from './database/ai-provider-repository'
 import { ProblemRepository } from './database/problem-repository'
 import { WorkspaceRepository } from './database/workspace-repository'
+import { TemplateManagementRepository } from './database/template-management-repository'
 import { registerAppIpc } from './ipc/register-app-ipc'
 import { registerAiProviderIpc } from './ipc/register-ai-provider-ipc'
 import { registerProblemIpc } from './ipc/register-problem-ipc'
 import { registerProblemAnalysisIpc } from './ipc/register-problem-analysis-ipc'
 import { registerWorkspaceIpc } from './ipc/register-workspace-ipc'
+import { registerTemplateManagementIpc } from './ipc/register-template-management-ipc'
 import { installApplicationSecurityGuards } from './security/window-security'
 import { ProblemService } from './services/problem-service'
 import { ProblemAnalysisService } from './services/problem-analysis-service'
 import { AiProviderService } from './services/ai-provider-service'
 import { SecretStore } from './security/secret-store'
 import { WorkspaceService } from './services/workspace-service'
+import { TemplateManagementService } from './services/template-management-service'
 import { createMainWindow } from './window/create-main-window'
 
 let mainWindow: BrowserWindow | null = null
@@ -43,7 +46,9 @@ async function bootstrap(): Promise<void> {
 
   installApplicationSecurityGuards()
   appDatabase = createAppDatabase(app.getPath('userData'))
-  const workspaceService = new WorkspaceService(new WorkspaceRepository(appDatabase))
+  const templateManagementRepository = new TemplateManagementRepository(appDatabase)
+  const workspaceRepository = new WorkspaceRepository(appDatabase)
+  const workspaceService = new WorkspaceService(workspaceRepository, templateManagementRepository)
   const aiProviderService = new AiProviderService(
     new AiProviderRepository(appDatabase),
     new SecretStore(app.getPath('userData')),
@@ -58,11 +63,18 @@ async function bootstrap(): Promise<void> {
     new WorkspaceRepository(appDatabase),
     app.getPath('userData'),
   )
+  const templateManagementService = new TemplateManagementService(
+    aiProviderService,
+    templateManagementRepository,
+    workspaceRepository,
+    workspaceService,
+  )
   registerAppIpc()
   registerAiProviderIpc(aiProviderService)
   registerProblemIpc(problemService, () => mainWindow ?? undefined)
   registerProblemAnalysisIpc(problemAnalysisService, () => mainWindow ?? undefined)
   registerWorkspaceIpc(workspaceService, () => mainWindow ?? undefined)
+  registerTemplateManagementIpc(templateManagementService, () => mainWindow ?? undefined)
   mainWindow = createMainWindow()
 
   mainWindow.on('closed', () => {

@@ -15,6 +15,15 @@ import type {
   ProblemAnalysisImage,
 } from './problem-analysis'
 import type {
+  ClassifyTemplateRequest,
+  ImportTemplateRequest,
+  ImportTemplateResult,
+  TemplateClassification,
+  TemplateImportSource,
+  TemplateMetadata,
+  UpdateTemplateMetadataRequest,
+} from './template-management'
+import type {
   CreateProblemRequest,
   Problem,
   ProblemImageData,
@@ -64,6 +73,13 @@ export interface DesktopApi {
     create: (request: CreateTemplateRequest) => Promise<CreateTemplateResult>
     performAction: (request: TemplateActionRequest) => Promise<void>
     readSource: (templateId: string) => Promise<TemplateSource>
+  }
+  templateManagement: {
+    chooseImportSource: () => Promise<TemplateImportSource | null>
+    classify: (request: ClassifyTemplateRequest) => Promise<TemplateClassification>
+    getMetadata: (templateId: string) => Promise<TemplateMetadata | null>
+    importTemplate: (request: ImportTemplateRequest) => Promise<ImportTemplateResult>
+    updateMetadata: (request: UpdateTemplateMetadataRequest) => Promise<TemplateMetadata>
   }
   workspace: {
     choose: (request: ChooseWorkspaceRequest) => Promise<WorkspaceSnapshot | null>
