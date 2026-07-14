@@ -40,7 +40,15 @@ export const templateImportSourceSchema = z
   .strict()
 export type TemplateImportSource = z.infer<typeof templateImportSourceSchema>
 
-export const classifyTemplateRequestSchema = templateImportSourceSchema
+export const classifyTemplateRequestSchema = z
+  .object({
+    content: z
+      .string()
+      .min(1)
+      .max(2 * 1024 * 1024),
+    fileName: z.string().max(255),
+  })
+  .strict()
 export type ClassifyTemplateRequest = z.infer<typeof classifyTemplateRequestSchema>
 
 export const templateClassificationSchema = z

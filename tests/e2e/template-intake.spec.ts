@@ -1,5 +1,5 @@
 import { createServer, type Server } from 'node:http'
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 
@@ -15,7 +15,6 @@ let electronApp: ElectronApplication
 let mockBaseUrl: string
 let mockServer: Server
 let page: Page
-let sourcePath: string
 let temporaryRoot: string
 let userDataDirectory: string
 let workspaceRoot: string
@@ -83,10 +82,8 @@ test.beforeAll(async () => {
   temporaryRoot = await mkdtemp(join(tmpdir(), 'algorithm-workbench-intake-e2e-'))
   userDataDirectory = join(temporaryRoot, 'user-data')
   workspaceRoot = join(temporaryRoot, 'workspace')
-  sourcePath = join(temporaryRoot, 'dijkstra.cpp')
   await mkdir(userDataDirectory)
   await mkdir(workspaceRoot)
-  await writeFile(sourcePath, 'void dijkstra() { /* imported */ }\n', 'utf8')
   await launchApplication()
 })
 
@@ -98,7 +95,7 @@ test.afterAll(async () => {
   if (temporaryRoot) await rm(temporaryRoot, { force: true, recursive: true })
 })
 
-test('imports a source file through an AI classification preview without overwriting', async () => {
+test('merges pasted-source AI metadata without overwriting user fields', async () => {
   await setNextSelection(workspaceRoot)
   await page.getByRole('button', { name: '创建工作区' }).click()
   await page.getByRole('button', { name: 'AI 设置' }).click()
@@ -111,18 +108,50 @@ test('imports a source file through an AI classification preview without overwri
 
   await page.getByRole('button', { name: '模板库', exact: true }).click()
   await page.getByRole('button', { name: '新建模板' }).click()
-  await setNextSelection(sourcePath)
-  await page.getByRole('button', { name: '导入源码文件' }).click()
-  await expect(page.getByLabel(/文件名/)).toHaveValue('dijkstra.cpp')
-  await expect(page.getByLabel('模板源码')).toContainText('imported')
-  await page.getByRole('button', { name: 'AI 分类并补全元数据' }).click()
+  await page
+    .getByRole('textbox', { name: '模板源码', exact: true })
+    .fill('void dijkstra() { /* imported */ }\n')
+  await page.getByLabel('模板标签').fill('我的图论, 手工标签')
+  await page.getByLabel('时间复杂度').fill('O(n²)')
+  await page.getByLabel('解决的问题').fill('用户定义的最短路问题。')
+  await expect(page.getByLabel(/文件名/)).toHaveValue('')
+  await expect(page.getByRole('button', { name: '立即补全' })).toBeEnabled()
+  await page.getByRole('button', { name: '立即补全' }).click()
+
+  await expect(page.getByRole('heading', { name: '确认元数据冲突' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '标签 保留我的内容' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  )
+  await expect(page.getByRole('button', { name: '时间复杂度 保留我的内容' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  )
+  await page.screenshot({
+    animations: 'disabled',
+    path: resolve('output/playwright/template-metadata-conflict-light.png'),
+  })
+  await page.locator('html').evaluate(root => root.classList.add('dark'))
+  await page.screenshot({
+    animations: 'disabled',
+    path: resolve('output/playwright/template-metadata-conflict-dark.png'),
+  })
+  await page.locator('html').evaluate(root => root.classList.remove('dark'))
+  await page.getByRole('button', { name: '时间复杂度 使用 AI 建议' }).click()
+  await page.getByRole('button', { name: '确认并应用选择' }).click()
+
   await expect(page.getByLabel(/文件名/)).toHaveValue('图论/最短路/dijkstra.cpp')
+  await expect(page.getByLabel('模板标签')).toHaveValue('我的图论, 手工标签')
+  await expect(page.getByLabel('时间复杂度')).toHaveValue('O((n + m) log n)')
+  await expect(page.getByLabel('解决的问题')).toHaveValue('用户定义的最短路问题。')
   await expect(page.getByText(/模板分类测试.*fixture-metadata/)).toBeVisible()
   await page.getByRole('button', { name: '确认创建' }).click()
 
   await expect(page.getByRole('heading', { level: 1, name: 'dijkstra' })).toBeVisible()
   await expect(page.getByText('O((n + m) log n)')).toBeVisible()
-  await expect(page.getByText('单源非负权最短路径。')).toBeVisible()
+  await expect(page.getByText('用户定义的最短路问题。')).toBeVisible()
+  await expect(page.getByText('我的图论')).toBeVisible()
+  await expect(page.getByText('手工标签')).toBeVisible()
   expect(await readFile(join(workspaceRoot, '图论', '最短路', 'dijkstra.cpp'), 'utf8')).toBe(
     'void dijkstra() { /* imported */ }\n',
   )
