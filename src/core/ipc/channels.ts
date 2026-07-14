@@ -32,10 +32,17 @@ export const IPC_CHANNELS = {
     readSource: 'templates:read-source',
   },
   templateManagement: {
+    applyFilePlan: 'template-management:apply-file-plan',
+    auditWorkspace: 'template-management:audit-workspace',
+    cancelFilePlan: 'template-management:cancel-file-plan',
     chooseImportSource: 'template-management:choose-import-source',
     classify: 'template-management:classify',
     getMetadata: 'template-management:get-metadata',
     importTemplate: 'template-management:import-template',
+    generateFilePlan: 'template-management:generate-file-plan',
+    listFileExecutions: 'template-management:list-file-executions',
+    listFilePlans: 'template-management:list-file-plans',
+    rollbackFileExecution: 'template-management:rollback-file-execution',
     updateMetadata: 'template-management:update-metadata',
   },
   workspace: {

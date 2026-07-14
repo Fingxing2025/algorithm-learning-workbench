@@ -28,6 +28,21 @@ export function useProblems() {
     return problem
   }, [])
 
+  const loadProblems = useCallback(async () => {
+    setIsLoading(true)
+    setError(null)
+    try {
+      const value = await window.desktop.problems.list()
+      setProblems(value)
+      return value
+    } catch (caughtError) {
+      setError(getErrorMessage(caughtError))
+      return null
+    } finally {
+      setIsLoading(false)
+    }
+  }, [])
+
   useEffect(() => {
     let isActive = true
     window.desktop.problems
@@ -80,6 +95,7 @@ export function useProblems() {
     isBusy,
     isLoading,
     problems,
+    reload: loadProblems,
     removeImage: (request: RemoveProblemImageRequest) =>
       runMutation(() => window.desktop.problems.removeImage(request)),
     removeRelation: (request: RemoveProblemRelationRequest) =>

@@ -48,12 +48,12 @@ import { useRuntimeInfo } from '@/hooks/use-runtime-info'
 import { useTheme } from '@/hooks/use-theme'
 import { cn } from '@/lib/utils'
 
-const AiProviderWorkspace = lazy(async () => {
-  const module = await import('@/features/ai/ai-provider-workspace')
-  return { default: module.AiProviderWorkspace }
+const AiWorkspace = lazy(async () => {
+  const module = await import('@/features/ai/ai-workspace')
+  return { default: module.AiWorkspace }
 })
 
-type AppView = 'ai' | 'dashboard' | 'problems' | 'templates'
+type AppView = 'ai' | 'dashboard' | 'problems' | 'providers' | 'templates'
 
 interface NavigationItem {
   disabled?: boolean
@@ -423,6 +423,7 @@ export default function App() {
     isBusy: isWorkspaceBusy,
     isLoading: isWorkspaceLoading,
     performTemplateAction,
+    replaceWorkspace,
     importTemplate,
     rescan,
     workspace,
@@ -531,7 +532,7 @@ export default function App() {
   }
 
   const renderContent = () => {
-    if (currentView === 'ai') {
+    if (currentView === 'ai' || currentView === 'providers') {
       return (
         <Suspense
           fallback={
@@ -543,7 +544,14 @@ export default function App() {
             </main>
           }
         >
-          <AiProviderWorkspace />
+          <AiWorkspace
+            initialTab={currentView === 'providers' ? 'providers' : 'files'}
+            onWorkspaceChanged={value => {
+              replaceWorkspace(value)
+              void problemState.reload()
+            }}
+            workspace={workspace}
+          />
         </Suspense>
       )
     }
@@ -650,7 +658,7 @@ export default function App() {
             </span>
             <span className="truncate text-sm font-semibold tracking-tight">算法学习工作台</span>
             <Badge className="hidden sm:inline-flex" tone="accent">
-              V2 · 阶段 4
+              V2 · 阶段 5
             </Badge>
           </div>
 
@@ -713,7 +721,7 @@ export default function App() {
 
             <button
               className="flex h-9 w-full items-center gap-3 rounded-lg px-3 text-left text-sm font-medium text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
-              onClick={() => setCurrentView('ai')}
+              onClick={() => setCurrentView('providers')}
               type="button"
             >
               <Settings2 aria-hidden="true" className="size-4" strokeWidth={1.8} />

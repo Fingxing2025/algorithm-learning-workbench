@@ -68,6 +68,7 @@ async function bootstrap(): Promise<void> {
     templateManagementRepository,
     workspaceRepository,
     workspaceService,
+    app.getPath('userData'),
   )
   registerAppIpc()
   registerAiProviderIpc(aiProviderService)

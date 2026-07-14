@@ -22,6 +22,10 @@ import type {
   TemplateImportSource,
   TemplateMetadata,
   UpdateTemplateMetadataRequest,
+  FileChangeExecution,
+  FileChangeMutationResult,
+  FileChangePlan,
+  WorkspaceAudit,
 } from './template-management'
 import type {
   CreateProblemRequest,
@@ -75,10 +79,20 @@ export interface DesktopApi {
     readSource: (templateId: string) => Promise<TemplateSource>
   }
   templateManagement: {
+    applyFilePlan: (request: {
+      operationIds: string[]
+      planId: string
+    }) => Promise<FileChangeMutationResult>
+    auditWorkspace: () => Promise<WorkspaceAudit>
+    cancelFilePlan: (planId: string) => Promise<FileChangePlan>
     chooseImportSource: () => Promise<TemplateImportSource | null>
     classify: (request: ClassifyTemplateRequest) => Promise<TemplateClassification>
     getMetadata: (templateId: string) => Promise<TemplateMetadata | null>
     importTemplate: (request: ImportTemplateRequest) => Promise<ImportTemplateResult>
+    generateFilePlan: () => Promise<FileChangePlan>
+    listFileExecutions: () => Promise<FileChangeExecution[]>
+    listFilePlans: () => Promise<FileChangePlan[]>
+    rollbackFileExecution: (executionId: string) => Promise<FileChangeMutationResult>
     updateMetadata: (request: UpdateTemplateMetadataRequest) => Promise<TemplateMetadata>
   }
   workspace: {

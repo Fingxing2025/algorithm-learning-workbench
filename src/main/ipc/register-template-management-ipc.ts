@@ -9,6 +9,14 @@ import {
   templateMetadataRequestSchema,
   templateMetadataSchema,
   updateTemplateMetadataRequestSchema,
+  applyFileChangePlanRequestSchema,
+  fileChangeExecutionListSchema,
+  fileChangeMutationResultSchema,
+  fileChangePlanListSchema,
+  fileChangePlanRequestSchema,
+  fileChangePlanSchema,
+  rollbackFileChangeExecutionRequestSchema,
+  workspaceAuditSchema,
 } from '@core/contracts/template-management'
 import { IPC_CHANNELS } from '@core/ipc/channels'
 
@@ -24,6 +32,48 @@ export function registerTemplateManagementIpc(
     handler: () => service.chooseImportSource(getParentWindow()),
     inputSchema: z.void(),
     outputSchema: templateImportSourceSchema.nullable(),
+  })
+  registerValidatedHandler({
+    channel: IPC_CHANNELS.templateManagement.auditWorkspace,
+    handler: () => service.auditWorkspace(),
+    inputSchema: z.void(),
+    outputSchema: workspaceAuditSchema,
+  })
+  registerValidatedHandler({
+    channel: IPC_CHANNELS.templateManagement.generateFilePlan,
+    handler: () => service.generateFilePlan(),
+    inputSchema: z.void(),
+    outputSchema: fileChangePlanSchema,
+  })
+  registerValidatedHandler({
+    channel: IPC_CHANNELS.templateManagement.listFilePlans,
+    handler: () => service.listFilePlans(),
+    inputSchema: z.void(),
+    outputSchema: fileChangePlanListSchema,
+  })
+  registerValidatedHandler({
+    channel: IPC_CHANNELS.templateManagement.cancelFilePlan,
+    handler: request => service.cancelFilePlan(request.planId),
+    inputSchema: fileChangePlanRequestSchema,
+    outputSchema: fileChangePlanSchema,
+  })
+  registerValidatedHandler({
+    channel: IPC_CHANNELS.templateManagement.applyFilePlan,
+    handler: request => service.applyFilePlan(request),
+    inputSchema: applyFileChangePlanRequestSchema,
+    outputSchema: fileChangeMutationResultSchema,
+  })
+  registerValidatedHandler({
+    channel: IPC_CHANNELS.templateManagement.listFileExecutions,
+    handler: () => service.listFileExecutions(),
+    inputSchema: z.void(),
+    outputSchema: fileChangeExecutionListSchema,
+  })
+  registerValidatedHandler({
+    channel: IPC_CHANNELS.templateManagement.rollbackFileExecution,
+    handler: request => service.rollbackFileExecution(request.executionId),
+    inputSchema: rollbackFileChangeExecutionRequestSchema,
+    outputSchema: fileChangeMutationResultSchema,
   })
   registerValidatedHandler({
     channel: IPC_CHANNELS.templateManagement.classify,

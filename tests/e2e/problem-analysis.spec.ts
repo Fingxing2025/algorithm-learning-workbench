@@ -135,6 +135,7 @@ test('configures a visual route and keeps a cancelled AI draft out of user data'
   await expect(page.getByText('dijkstra.cpp')).toBeVisible()
 
   await page.getByRole('button', { name: 'AI 管理' }).click()
+  await page.getByRole('button', { name: 'Provider 配置' }).click()
   await page.getByLabel('Provider 显示名称').fill('题图分析测试')
   await page.getByLabel('Base URL').fill(mockBaseUrl)
   await page.getByLabel('模型名称').fill('fixture-vision')

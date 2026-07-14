@@ -125,6 +125,7 @@ export function useWorkspace() {
     isLoading,
     importTemplate,
     performTemplateAction,
+    replaceWorkspace: setWorkspace,
     rescan,
     workspace,
   }

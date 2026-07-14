@@ -124,6 +124,7 @@ export const fileChangePlanSchema = z
   })
   .strict()
 export type FileChangePlan = z.infer<typeof fileChangePlanSchema>
+export const fileChangePlanListSchema = z.array(fileChangePlanSchema).max(100)
 
 export const fileChangePlanRequestSchema = z.object({ planId: z.string().uuid() }).strict()
 export const applyFileChangePlanRequestSchema = fileChangePlanRequestSchema
@@ -141,6 +142,14 @@ export const fileChangeExecutionSchema = z
   })
   .strict()
 export type FileChangeExecution = z.infer<typeof fileChangeExecutionSchema>
+export const fileChangeExecutionListSchema = z.array(fileChangeExecutionSchema).max(100)
+export const rollbackFileChangeExecutionRequestSchema = z
+  .object({ executionId: z.string().uuid() })
+  .strict()
+export const fileChangeMutationResultSchema = z
+  .object({ execution: fileChangeExecutionSchema.nullable(), workspace: workspaceSnapshotSchema })
+  .strict()
+export type FileChangeMutationResult = z.infer<typeof fileChangeMutationResultSchema>
 
 export const modelTemplateClassificationSchema = z
   .object({

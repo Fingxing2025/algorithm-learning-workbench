@@ -55,12 +55,21 @@ const desktopApi: DesktopApi = {
     readSource: templateId => invokeResult(IPC_CHANNELS.templates.readSource, { templateId }),
   },
   templateManagement: {
+    applyFilePlan: request => invokeResult(IPC_CHANNELS.templateManagement.applyFilePlan, request),
+    auditWorkspace: () => invokeResult(IPC_CHANNELS.templateManagement.auditWorkspace),
+    cancelFilePlan: planId =>
+      invokeResult(IPC_CHANNELS.templateManagement.cancelFilePlan, { planId }),
     chooseImportSource: () => invokeResult(IPC_CHANNELS.templateManagement.chooseImportSource),
     classify: request => invokeResult(IPC_CHANNELS.templateManagement.classify, request),
     getMetadata: templateId =>
       invokeResult(IPC_CHANNELS.templateManagement.getMetadata, { templateId }),
     importTemplate: request =>
       invokeResult(IPC_CHANNELS.templateManagement.importTemplate, request),
+    generateFilePlan: () => invokeResult(IPC_CHANNELS.templateManagement.generateFilePlan),
+    listFileExecutions: () => invokeResult(IPC_CHANNELS.templateManagement.listFileExecutions),
+    listFilePlans: () => invokeResult(IPC_CHANNELS.templateManagement.listFilePlans),
+    rollbackFileExecution: executionId =>
+      invokeResult(IPC_CHANNELS.templateManagement.rollbackFileExecution, { executionId }),
     updateMetadata: request =>
       invokeResult(IPC_CHANNELS.templateManagement.updateMetadata, request),
   },
