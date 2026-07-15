@@ -71,6 +71,60 @@ function safeProviderErrorDetail(body: string): string | null {
   }
 }
 
+function parseServerSentEvents(text: string): unknown {
+  const payloads = text
+    .split(/\r?\n\r?\n/)
+    .map(block =>
+      block
+        .split(/\r?\n/)
+        .filter(line => line.startsWith('data:'))
+        .map(line => line.slice('data:'.length).trimStart())
+        .join('\n'),
+    )
+    .filter(payload => payload && payload !== '[DONE]')
+
+  let finalPayload: unknown
+  const deltas: string[] = []
+
+  for (const payload of payloads) {
+    try {
+      const event = JSON.parse(payload) as unknown
+      if (isRecord(event)) {
+        if (typeof event.delta === 'string') deltas.push(event.delta)
+        const choice = Array.isArray(event.choices) ? event.choices[0] : undefined
+        if (isRecord(choice) && isRecord(choice.delta)) {
+          deltas.push(extractTextBlocks(choice.delta.content).join('\n'))
+        }
+        finalPayload = isRecord(event.response) ? event.response : event
+      } else {
+        finalPayload = event
+      }
+    } catch {
+      // Ignore malformed keep-alive frames. A valid final payload is still required below.
+    }
+  }
+
+  if (!finalPayload && deltas.length === 0) {
+    throw new PublicError('AI_INVALID_RESPONSE', 'AI 服务返回了无法识别的流式响应。')
+  }
+  if (deltas.length === 0) return finalPayload
+  return {
+    ...(isRecord(finalPayload) ? finalPayload : {}),
+    output_text: deltas.join(''),
+  }
+}
+
+function parseResponsePayload(text: string, contentType: string | null): unknown {
+  if (contentType?.includes('text/event-stream') || /^\s*(?:event:|data:)/m.test(text)) {
+    return parseServerSentEvents(text)
+  }
+  try {
+    return JSON.parse(text) as unknown
+  } catch {
+    throw new PublicError('AI_INVALID_RESPONSE', 'AI 服务返回了无法识别的响应格式。')
+  }
+}
+
 async function requestJson(
   url: string,
   body: unknown,
@@ -122,11 +176,7 @@ async function requestJson(
   }
 
   const text = await readResponseBody(response)
-  try {
-    return JSON.parse(text) as unknown
-  } catch {
-    throw new PublicError('AI_INVALID_RESPONSE', 'AI 服务返回了无法识别的响应格式。')
-  }
+  return parseResponsePayload(text, response.headers.get('content-type'))
 }
 
 function requireApiKey(apiKey: string | null): string {
@@ -226,6 +276,7 @@ const adapters: Record<AiProviderProtocol, AiProviderAdapter> = {
           input,
           max_output_tokens: request.maxOutputTokens,
           model: profile.model,
+          stream: true,
         },
         { ...profile.customHeaders, authorization: `Bearer ${requireApiKey(apiKey)}` },
         profile.timeoutMs,

@@ -130,7 +130,39 @@ describe('AI provider adapters', () => {
       ],
       max_output_tokens: 256,
       model: 'fixture-model',
+      stream: true,
     })
+  })
+
+  it('collects Server-Sent Event text from Responses services that require streaming', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(
+            [
+              'event: response.output_text.delta',
+              'data: {"type":"response.output_text.delta","delta":"流式"}',
+              '',
+              'event: response.output_text.delta',
+              'data: {"type":"response.output_text.delta","delta":"正文"}',
+              '',
+              'event: response.completed',
+              'data: {"response":{"id":"resp_fixture","output":[]}}',
+              '',
+            ].join('\n'),
+            { headers: { 'content-type': 'text/event-stream' }, status: 200 },
+          ),
+      ),
+    )
+
+    await expect(
+      getAiProviderAdapter('openai-responses').completeText(
+        profile('openai-responses'),
+        'test-secret',
+        'Reply',
+      ),
+    ).resolves.toBe('流式正文')
   })
 
   it('shows a safe provider explanation for HTTP 400 parameter errors', async () => {
