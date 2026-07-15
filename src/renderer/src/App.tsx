@@ -39,7 +39,6 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ProblemWorkspace } from '@/features/problems/problem-workspace'
 import { useProblems } from '@/features/problems/use-problems'
-import { AlgorithmCard } from '@/features/templates/algorithm-card'
 import { CreateTemplateDialog } from '@/features/templates/create-template-dialog'
 import { TemplateTree } from '@/features/templates/template-tree'
 import { useTemplateSource } from '@/features/templates/use-template-source'
@@ -57,6 +56,11 @@ const FileManagementWorkspace = lazy(async () => {
 const AiProviderWorkspace = lazy(async () => {
   const module = await import('@/features/ai/ai-provider-workspace')
   return { default: module.AiProviderWorkspace }
+})
+
+const AlgorithmCard = lazy(async () => {
+  const module = await import('@/features/templates/algorithm-card')
+  return { default: module.AlgorithmCard }
 })
 
 type AppView = 'ai' | 'dashboard' | 'problems' | 'settings' | 'templates'
@@ -520,26 +524,37 @@ function TemplateLibrary({
           selectedTemplateId={selectedTemplateId}
           templates={workspace.templates}
         />
-        <AlgorithmCard
-          onAction={onAction}
-          isProblemBusy={isProblemBusy}
-          onClearProblemError={onClearProblemError}
-          onOpenProblem={onOpenProblem}
-          onReload={onReloadSource}
-          onUpsertProblemRelation={onUpsertProblemRelation}
-          problemError={problemError}
-          problems={problems}
-          relatedProblems={problems.flatMap(problem => {
-            const relation = problem.relations.find(
-              item => item.templateId === selectedTemplate?.id,
-            )
-            return relation
-              ? [{ id: problem.id, relationType: relation.relationType, title: problem.title }]
-              : []
-          })}
-          sourceState={sourceState}
-          template={selectedTemplate}
-        />
+        <Suspense
+          fallback={
+            <section className="grid min-h-0 place-items-center bg-background">
+              <div className="text-center">
+                <LoaderCircle className="mx-auto size-5 animate-spin text-primary" />
+                <p className="mt-2 text-xs text-muted-foreground">正在准备源码查看器…</p>
+              </div>
+            </section>
+          }
+        >
+          <AlgorithmCard
+            onAction={onAction}
+            isProblemBusy={isProblemBusy}
+            onClearProblemError={onClearProblemError}
+            onOpenProblem={onOpenProblem}
+            onReload={onReloadSource}
+            onUpsertProblemRelation={onUpsertProblemRelation}
+            problemError={problemError}
+            problems={problems}
+            relatedProblems={problems.flatMap(problem => {
+              const relation = problem.relations.find(
+                item => item.templateId === selectedTemplate?.id,
+              )
+              return relation
+                ? [{ id: problem.id, relationType: relation.relationType, title: problem.title }]
+                : []
+            })}
+            sourceState={sourceState}
+            template={selectedTemplate}
+          />
+        </Suspense>
       </div>
     </main>
   )
