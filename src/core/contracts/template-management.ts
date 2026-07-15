@@ -40,6 +40,9 @@ export const templateImportSourceSchema = z
   .strict()
 export type TemplateImportSource = z.infer<typeof templateImportSourceSchema>
 
+export const templateMetadataLanguageSchema = z.enum(['zh-CN', 'en']).default('zh-CN')
+export type TemplateMetadataLanguage = z.infer<typeof templateMetadataLanguageSchema>
+
 export const classifyTemplateRequestSchema = z
   .object({
     content: z
@@ -47,6 +50,7 @@ export const classifyTemplateRequestSchema = z
       .min(1)
       .max(2 * 1024 * 1024),
     fileName: z.string().max(255),
+    outputLanguage: templateMetadataLanguageSchema,
   })
   .strict()
 export type ClassifyTemplateRequest = z.infer<typeof classifyTemplateRequestSchema>

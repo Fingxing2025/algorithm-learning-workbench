@@ -284,6 +284,53 @@ test('creates a problem, associates multiple templates, stores an image, and saf
   expect(await readFile(fixtureSourcePath, 'utf8')).toBe(fixtureSourceBeforeScan)
 })
 
+test('sets a problem relation directly from the template card', async () => {
+  await page.evaluate(async () => {
+    const renderer = globalThis as unknown as {
+      desktop: {
+        problems: {
+          create: (request: {
+            difficulty: null
+            notes: string
+            platform: string
+            problemCode: string
+            statement: string
+            status: 'unattempted'
+            tags: string[]
+            title: string
+            url: null
+          }) => Promise<unknown>
+        }
+      }
+    }
+    await renderer.desktop.problems.create({
+      difficulty: null,
+      notes: '',
+      platform: '模板卡片测试',
+      problemCode: 'CARD-RELATION',
+      statement: '用于验证模板卡片中的双向关联入口。',
+      status: 'unattempted',
+      tags: ['关联'],
+      title: '从模板卡片建立关联',
+      url: null,
+    })
+  })
+  await page.reload()
+  await page.getByRole('button', { name: '模板库', exact: true }).click()
+  await page.getByText('bfs.cpp').click()
+  await page.getByRole('button', { name: '设置关联' }).click()
+  await expect(page.getByRole('heading', { name: '关联题目' })).toBeVisible()
+  await page.getByLabel('选择题目').selectOption({ label: '从模板卡片建立关联 · CARD-RELATION' })
+  await page.getByLabel('关系类型').selectOption('recommended')
+  await page.getByLabel('关联备注').fill('在模板卡片中建立。')
+  await page.getByRole('button', { name: '保存关联' }).click()
+  await expect(page.getByRole('button', { name: /从模板卡片建立关联.*推荐/ })).toBeVisible()
+
+  await page.getByRole('button', { name: /从模板卡片建立关联.*推荐/ }).click()
+  await expect(page.getByRole('heading', { level: 2, name: '从模板卡片建立关联' })).toBeVisible()
+  await expect(page.getByText('1 个已确认关联')).toBeVisible()
+})
+
 test('captures the problem workspace in light, compact, and dark states', async () => {
   const root = page.locator('html')
   if ((await root.getAttribute('class'))?.includes('dark')) {
@@ -321,6 +368,7 @@ test('persists the problem, image, and surviving relation across a desktop resta
   await launchApplication()
 
   await page.getByRole('button', { name: '题目', exact: true }).click()
+  await page.getByRole('button', { name: /单源最短路径/ }).click()
   await expect(page.getByRole('heading', { level: 2, name: '单源最短路径' })).toBeVisible()
   await expect(page.getByText('1 个已确认关联')).toBeVisible()
   await expect(page.getByRole('img', { name: 'problem.png' })).toBeVisible()

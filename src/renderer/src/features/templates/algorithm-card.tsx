@@ -5,10 +5,12 @@ import {
   Copy,
   ExternalLink,
   FileCode2,
+  Link2,
   RefreshCw,
 } from 'lucide-react'
+import { useState } from 'react'
 
-import type { RelationType } from '@core/contracts/problem'
+import type { Problem, RelationType, UpsertProblemRelationRequest } from '@core/contracts/problem'
 import type { TemplateActionRequest, TemplateSummary } from '@core/contracts/workspace'
 
 import { Badge } from '@/components/ui/badge'
@@ -17,12 +19,18 @@ import { Button } from '@/components/ui/button'
 import type { TemplateSourceState } from './use-template-source'
 import { CodeViewer } from './code-viewer'
 import { TemplateMetadataCard } from './template-metadata-card'
+import { TemplateProblemRelationDialog } from './template-problem-relation-dialog'
 
 interface AlgorithmCardProps {
   onAction: (request: TemplateActionRequest) => void
+  onClearProblemError: () => void
   onOpenProblem: (problemId: string) => void
   onReload: () => void
+  onUpsertProblemRelation: (request: UpsertProblemRelationRequest) => Promise<boolean>
+  problemError: string | null
+  problems: Problem[]
   relatedProblems: Array<{ id: string; relationType: RelationType; title: string }>
+  isProblemBusy: boolean
   sourceState: TemplateSourceState
   template: TemplateSummary | null
 }
@@ -45,12 +53,19 @@ function formatBytes(bytes: number): string {
 
 export function AlgorithmCard({
   onAction,
+  onClearProblemError,
   onOpenProblem,
   onReload,
+  onUpsertProblemRelation,
+  problemError,
+  problems,
   relatedProblems,
+  isProblemBusy,
   sourceState,
   template,
 }: AlgorithmCardProps) {
+  const [relationDialogOpen, setRelationDialogOpen] = useState(false)
+
   if (!template) {
     return (
       <section className="grid min-h-0 place-items-center bg-background p-8 text-center">
@@ -165,10 +180,23 @@ export function AlgorithmCard({
             <BookOpenText aria-hidden="true" className="size-4 text-muted-foreground" />
             <h2 className="text-xs font-semibold">关联题目</h2>
             <Badge className="ml-auto">{relatedProblems.length}</Badge>
+            <Button
+              disabled={isProblemBusy || problems.length === 0}
+              onClick={() => {
+                onClearProblemError()
+                setRelationDialogOpen(true)
+              }}
+              size="compact"
+              type="button"
+              variant="outline"
+            >
+              <Link2 aria-hidden="true" className="size-3.5" />
+              设置关联
+            </Button>
           </div>
           {relatedProblems.length === 0 ? (
             <p className="mt-3 text-[11px] leading-5 text-muted-foreground">
-              还没有题目使用该模板。可在题目卡片中手动建立关联。
+              还没有题目使用该模板。点击“设置关联”即可从题库中添加。
             </p>
           ) : (
             <div className="mt-3 grid gap-2 sm:grid-cols-2">
@@ -192,6 +220,18 @@ export function AlgorithmCard({
           )}
         </section>
       </div>
+      <TemplateProblemRelationDialog
+        error={problemError}
+        isBusy={isProblemBusy}
+        onOpenChange={open => {
+          setRelationDialogOpen(open)
+          if (!open) onClearProblemError()
+        }}
+        onSave={onUpsertProblemRelation}
+        open={relationDialogOpen}
+        problems={problems}
+        template={template}
+      />
     </section>
   )
 }

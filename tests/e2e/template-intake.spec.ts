@@ -18,6 +18,7 @@ let page: Page
 let temporaryRoot: string
 let userDataDirectory: string
 let workspaceRoot: string
+let lastTemplateMetadataSystem = ''
 
 test.describe.configure({ mode: 'serial' })
 
@@ -49,8 +50,21 @@ async function setNextSelection(path: string) {
 
 test.beforeAll(async () => {
   mockServer = createServer((request, response) => {
-    request.resume()
+    const bodyChunks: Buffer[] = []
+    request.on('data', chunk => bodyChunks.push(Buffer.from(chunk)))
     request.on('end', () => {
+      const parsedBody = JSON.parse(Buffer.concat(bodyChunks).toString('utf8')) as {
+        messages?: unknown
+      }
+      const messages = Array.isArray(parsedBody.messages) ? parsedBody.messages : []
+      const systemMessage = messages.find(
+        message =>
+          typeof message === 'object' &&
+          message !== null &&
+          (message as { role?: unknown }).role === 'system',
+      ) as { content?: unknown } | undefined
+      lastTemplateMetadataSystem =
+        typeof systemMessage?.content === 'string' ? systemMessage.content : ''
       response.setHeader('content-type', 'application/json')
       response.end(
         JSON.stringify({
@@ -120,8 +134,13 @@ test('merges pasted-source AI metadata without overwriting user fields', async (
   await page.getByLabel('时间复杂度').fill('O(n²)')
   await page.getByLabel('解决的问题').fill('用户定义的最短路问题。')
   await expect(page.getByLabel(/文件名/)).toHaveValue('')
+  await page.getByLabel('补全语言').selectOption('en')
   await expect(page.getByRole('button', { name: '立即补全' })).toBeEnabled()
   await page.getByRole('button', { name: '立即补全' }).click()
+
+  await expect
+    .poll(() => lastTemplateMetadataSystem)
+    .toContain('Use English for tags and every natural-language metadata field')
 
   await expect(page.getByRole('heading', { name: '确认元数据冲突' })).toBeVisible()
   await expect(page.getByRole('button', { name: '标签 保留我的内容' })).toHaveAttribute(

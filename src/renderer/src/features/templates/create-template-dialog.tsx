@@ -14,6 +14,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import type {
   ImportTemplateRequest,
   TemplateClassification,
+  TemplateMetadataLanguage,
   TemplateMetadataFields,
 } from '@core/contracts/template-management'
 
@@ -190,6 +191,7 @@ export function CreateTemplateDialog({
   const [localBusy, setLocalBusy] = useState(false)
   const [localError, setLocalError] = useState<string | null>(null)
   const [metadata, setMetadata] = useState<TemplateMetadataFields>(emptyTemplateMetadata)
+  const [metadataLanguage, setMetadataLanguage] = useState<TemplateMetadataLanguage>('zh-CN')
   const [pendingClassification, setPendingClassification] = useState<TemplateClassification | null>(
     null,
   )
@@ -204,6 +206,7 @@ export function CreateTemplateDialog({
       setFileName('')
       setLocalError(null)
       setMetadata(emptyTemplateMetadata)
+      setMetadataLanguage('zh-CN')
       setPendingClassification(null)
       setTagsText('')
     }
@@ -262,7 +265,11 @@ export function CreateTemplateDialog({
     setLocalBusy(true)
     setLocalError(null)
     try {
-      const result = await window.desktop.templateManagement.classify({ content, fileName })
+      const result = await window.desktop.templateManagement.classify({
+        content,
+        fileName,
+        outputLanguage: metadataLanguage,
+      })
       const nextConflicts = findTemplateMetadataConflicts(fileName, metadata, result)
       if (nextConflicts.length === 0) {
         applyClassification(result, {})
@@ -384,19 +391,36 @@ export function CreateTemplateDialog({
                         只要已有源码即可使用；冲突内容不会被静默覆盖。
                       </p>
                     </div>
-                    <Button
-                      disabled={isBusy || localBusy || !content.trim()}
-                      onClick={() => void classify()}
-                      size="compact"
-                      type="button"
-                    >
-                      {localBusy ? (
-                        <LoaderCircle className="size-3.5 animate-spin" />
-                      ) : (
-                        <Sparkles className="size-3.5" />
-                      )}
-                      立即补全
-                    </Button>
+                    <div className="flex shrink-0 items-end gap-2">
+                      <label className="grid gap-1 text-[10px] font-medium text-muted-foreground">
+                        补全语言
+                        <select
+                          aria-label="补全语言"
+                          className="h-8 rounded-lg border border-border bg-background px-2 text-xs text-foreground outline-none focus:ring-2 focus:ring-ring"
+                          disabled={isBusy || localBusy}
+                          onChange={event =>
+                            setMetadataLanguage(event.target.value as TemplateMetadataLanguage)
+                          }
+                          value={metadataLanguage}
+                        >
+                          <option value="zh-CN">中文</option>
+                          <option value="en">English</option>
+                        </select>
+                      </label>
+                      <Button
+                        disabled={isBusy || localBusy || !content.trim()}
+                        onClick={() => void classify()}
+                        size="compact"
+                        type="button"
+                      >
+                        {localBusy ? (
+                          <LoaderCircle className="size-3.5 animate-spin" />
+                        ) : (
+                          <Sparkles className="size-3.5" />
+                        )}
+                        立即补全
+                      </Button>
+                    </div>
                   </div>
                   {classification && (
                     <p className="mt-2 text-[10px] text-muted-foreground">
@@ -404,6 +428,9 @@ export function CreateTemplateDialog({
                       的建议，可继续编辑。
                     </p>
                   )}
+                  <p className="mt-2 text-[10px] leading-4 text-muted-foreground">
+                    语言选择只影响标签与说明字段；路径、源码语言和复杂度表达保持不变。
+                  </p>
                 </div>
               </section>
 

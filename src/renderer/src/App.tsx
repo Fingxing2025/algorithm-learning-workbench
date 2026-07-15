@@ -24,7 +24,7 @@ import {
 import { motion, useReducedMotion } from 'motion/react'
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 
-import type { Problem } from '@core/contracts/problem'
+import type { Problem, UpsertProblemRelationRequest } from '@core/contracts/problem'
 import type {
   ChooseWorkspaceRequest,
   TemplateActionRequest,
@@ -320,12 +320,16 @@ function Dashboard({
 
 function TemplateLibrary({
   isBusy,
+  isProblemBusy,
   onAction,
   onChangeWorkspace,
+  onClearProblemError,
   onCreateTemplate,
   onOpenProblem,
   onRescan,
   onSelectTemplate,
+  onUpsertProblemRelation,
+  problemError,
   problems,
   selectedTemplate,
   selectedTemplateId,
@@ -334,13 +338,17 @@ function TemplateLibrary({
   workspace,
 }: {
   isBusy: boolean
+  isProblemBusy: boolean
   onAction: (request: TemplateActionRequest) => void
   onChangeWorkspace: () => void
+  onClearProblemError: () => void
   onCreateTemplate: () => void
   onOpenProblem: (problemId: string) => void
   onReloadSource: () => void
   onRescan: () => void
   onSelectTemplate: (templateId: string) => void
+  onUpsertProblemRelation: (request: UpsertProblemRelationRequest) => Promise<boolean>
+  problemError: string | null
   problems: Problem[]
   selectedTemplate: TemplateSummary | null
   selectedTemplateId: string | null
@@ -394,8 +402,13 @@ function TemplateLibrary({
         />
         <AlgorithmCard
           onAction={onAction}
+          isProblemBusy={isProblemBusy}
+          onClearProblemError={onClearProblemError}
           onOpenProblem={onOpenProblem}
           onReload={onReloadSource}
+          onUpsertProblemRelation={onUpsertProblemRelation}
+          problemError={problemError}
+          problems={problems}
           relatedProblems={problems.flatMap(problem => {
             const relation = problem.relations.find(
               item => item.templateId === selectedTemplate?.id,
@@ -636,13 +649,19 @@ export default function App() {
       return (
         <TemplateLibrary
           isBusy={isWorkspaceBusy}
+          isProblemBusy={problemState.isBusy}
           onAction={request => void handleTemplateAction(request)}
           onChangeWorkspace={() => void handleChooseWorkspace({ intent: 'open' })}
+          onClearProblemError={problemState.clearError}
           onCreateTemplate={() => setCreateOpen(true)}
           onOpenProblem={openProblem}
           onReloadSource={source.reload}
           onRescan={() => void handleRescan()}
           onSelectTemplate={setSelectedTemplateId}
+          onUpsertProblemRelation={async request =>
+            Boolean(await problemState.upsertRelation(request))
+          }
+          problemError={problemState.error}
           problems={problemState.problems}
           selectedTemplate={selectedTemplate}
           selectedTemplateId={selectedTemplateId}
