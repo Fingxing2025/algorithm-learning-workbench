@@ -2,7 +2,8 @@
 
 ## 版本与环境
 
-- 当前版本：`0.1.1`
+- 当前源码版本：`0.1.2` 开发快照
+- 最近已生成并校验的本地开发产物：`0.1.1`
 - 开发环境：Node.js 24 或更高版本
 - 桌面运行时：Electron 43.1.0
 - 打包器：electron-builder 26.15.3
@@ -28,7 +29,7 @@ macOS DMG 与 ZIP：
 
 ```bash
 npm run dist:mac
-hdiutil verify release/算法学习工作台-0.1.1-mac-arm64.dmg
+hdiutil verify release/算法学习工作台-<version>-mac-arm64.dmg
 shasum -a 256 release/*.dmg release/*.zip
 ```
 
@@ -68,6 +69,15 @@ node ./node_modules/@playwright/test/cli.js test tests/e2e/packaged.spec.ts
 - 安装包不应包含数据库、个人模板、题目、Provider、API Key、测试输出或本机绝对路径。
 
 ## 本地验证记录
+
+### 0.1.2 源码快照（2026-07-15）
+
+- 完成题目图片预览、题目/模板安全删除、元数据语言与精细分类、重复/相似文件建议和计划重新草拟。
+- 完成模板卡片直接建立题目关联、CodeMirror/VS Code 风格源码主题，以及最新视觉系统迭代。
+- `npm run check` 通过：16 个测试文件、42 项测试通过。
+- 常规 `npm run test:e2e` 通过 22 项，打包入口测试按条件跳过。
+- `npm audit --audit-level=moderate` 报告 0 个漏洞。
+- 当前尚未为 0.1.2 重新生成、签名或发布安装包；不能沿用 0.1.1 的校验值。
 
 ### 0.1.1（2026-07-15）
 
