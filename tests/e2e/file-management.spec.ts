@@ -65,9 +65,10 @@ test.beforeAll(async () => {
         audit: { issues: Array<{ kind: string; paths: string[] }> }
         templates: Array<{ id: string; path: string }>
       }
-      const duplicatePath = input.audit.issues.find(issue => issue.kind === 'duplicate-content')
-        ?.paths[1]
-      const duplicate = input.templates.find(template => template.path === duplicatePath)
+      const duplicatePaths = input.audit.issues
+        .filter(issue => issue.kind === 'duplicate-content' || issue.kind === 'similar-content')
+        .flatMap(issue => issue.paths.slice(1))
+      const duplicates = input.templates.filter(template => duplicatePaths.includes(template.path))
       const named = input.templates.find(template => template.path === 'Old Name.cpp')
       const metadataTarget = input.templates.find(template => template.path === 'plain.py')
       response.setHeader('content-type', 'application/json')
@@ -79,15 +80,11 @@ test.beforeAll(async () => {
                 content: `这是整理建议：\n\`\`\`json\n${JSON.stringify({
                   data: {
                     operations: [
-                      ...(duplicate
-                        ? [
-                            {
-                              kind: 'delete',
-                              reason: '与保留副本内容完全相同。',
-                              templateId: duplicate.id,
-                            },
-                          ]
-                        : []),
+                      ...duplicates.map(duplicate => ({
+                        kind: 'delete',
+                        reason: '与审计指定的保留文件相同或高度相似。',
+                        templateId: duplicate.id,
+                      })),
                       ...(named
                         ? [
                             {
@@ -141,6 +138,19 @@ test.beforeAll(async () => {
   await writeFile(join(workspaceRoot, 'keep.cpp'), 'duplicate source\n', 'utf8')
   await writeFile(join(workspaceRoot, 'Old Name.cpp'), 'void oldName() {}\n', 'utf8')
   await writeFile(join(workspaceRoot, 'plain.py'), 'def dfs():\n    pass\n', 'utf8')
+  const similarSource = [
+    'long long score(const vector<int>& data) {',
+    '  long long value = 0;',
+    ...Array.from({ length: 40 }, (_, index) => `  value += data[${index}];`),
+    '  return value;',
+    '}',
+  ].join('\n')
+  await writeFile(join(workspaceRoot, 'near_a.cpp'), `${similarSource}\n`, 'utf8')
+  await writeFile(
+    join(workspaceRoot, 'near_b.cpp'),
+    `${similarSource.replace('value += data[39];', 'value += data[38] + 1;')}\n`,
+    'utf8',
+  )
   await launchApplication()
 })
 
@@ -183,12 +193,16 @@ test('cancels a generated plan without changing files', async () => {
   await page.getByRole('button', { name: '生成 AI 计划' }).click()
   await expect(page.getByRole('status').filter({ hasText: '尚未修改文件' })).toBeVisible()
   await expect(page.getByText('移动 / 重命名')).toBeVisible()
-  await expect(page.getByText('删除重复文件')).toBeVisible()
+  await expect(page.getByText('删除重复文件').first()).toBeVisible()
   await page.getByRole('button', { name: '取消计划' }).click()
   await expect(page.getByRole('status').filter({ hasText: '工作区文件未发生变化' })).toBeVisible()
   expect(await pathExists(join(workspaceRoot, 'Old Name.cpp'))).toBe(true)
   expect(await pathExists(join(workspaceRoot, 'copy.cpp'))).toBe(true)
   expect(await pathExists(join(workspaceRoot, 'keep.cpp'))).toBe(true)
+  await page.getByRole('button', { name: '复制为新计划' }).first().click()
+  await expect(page.getByRole('status').filter({ hasText: '重新校验并创建' })).toBeVisible()
+  await expect(page.getByText('移动 / 重命名')).toBeVisible()
+  await page.getByRole('button', { name: '取消计划' }).click()
 })
 
 test('applies a selected plan with backup, relation remap, and rollback', async () => {
@@ -225,6 +239,10 @@ test('applies a selected plan with backup, relation remap, and rollback', async 
     Number(await pathExists(join(workspaceRoot, 'copy.cpp'))) +
     Number(await pathExists(join(workspaceRoot, 'keep.cpp')))
   expect(duplicateCount).toBe(1)
+  const similarCount =
+    Number(await pathExists(join(workspaceRoot, 'near_a.cpp'))) +
+    Number(await pathExists(join(workspaceRoot, 'near_b.cpp')))
+  expect(similarCount).toBe(1)
 
   await page.getByRole('button', { name: '题目', exact: true }).click()
   await expect(page.getByText('1 个已确认关联')).toBeVisible()
@@ -238,5 +256,11 @@ test('applies a selected plan with backup, relation remap, and rollback', async 
   expect(await pathExists(join(workspaceRoot, '整理', 'old_name.cpp'))).toBe(false)
   expect(await pathExists(join(workspaceRoot, 'copy.cpp'))).toBe(true)
   expect(await pathExists(join(workspaceRoot, 'keep.cpp'))).toBe(true)
+  expect(await pathExists(join(workspaceRoot, 'near_a.cpp'))).toBe(true)
+  expect(await pathExists(join(workspaceRoot, 'near_b.cpp'))).toBe(true)
   expect(await readdir(join(userDataDirectory, 'file-plan-backups'))).toEqual([])
+  await page.getByRole('button', { name: '复制为新计划' }).first().click()
+  await expect(page.getByRole('status').filter({ hasText: '重新校验并创建' })).toBeVisible()
+  await expect(page.getByText('移动 / 重命名')).toBeVisible()
+  await page.getByRole('button', { name: '取消计划' }).click()
 })

@@ -82,6 +82,18 @@ export function registerTemplateManagementIpc(
     outputSchema: templateClassificationSchema,
   })
   registerValidatedHandler({
+    channel: IPC_CHANNELS.templateManagement.deleteTemplate,
+    handler: request => service.deleteTemplate(request.templateId),
+    inputSchema: templateMetadataRequestSchema,
+    outputSchema: fileChangeMutationResultSchema,
+  })
+  registerValidatedHandler({
+    channel: IPC_CHANNELS.templateManagement.redraftFilePlan,
+    handler: request => service.redraftFilePlan(request.planId),
+    inputSchema: fileChangePlanRequestSchema,
+    outputSchema: fileChangePlanSchema,
+  })
+  registerValidatedHandler({
     channel: IPC_CHANNELS.templateManagement.importTemplate,
     handler: request => service.importTemplate(request),
     inputSchema: importTemplateRequestSchema,

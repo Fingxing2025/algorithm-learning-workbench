@@ -79,6 +79,7 @@ export const updateProblemRequestSchema = problemFieldsSchema
   .strict()
 
 export const problemRequestSchema = z.object({ problemId: problemIdSchema }).strict()
+export type ProblemRequest = z.infer<typeof problemRequestSchema>
 
 export const upsertProblemRelationRequestSchema = z
   .object({

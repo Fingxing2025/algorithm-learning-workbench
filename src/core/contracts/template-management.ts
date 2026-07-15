@@ -57,6 +57,7 @@ export type ClassifyTemplateRequest = z.infer<typeof classifyTemplateRequestSche
 
 export const templateClassificationSchema = z
   .object({
+    categoryPath: z.array(z.string().trim().min(1).max(80)).min(3).max(4),
     metadata: templateMetadataFieldsSchema,
     model: z.string().min(1).max(160),
     providerName: z.string().min(1).max(80),
@@ -85,6 +86,7 @@ export const workspaceAuditIssueSchema = z
     id: z.string().uuid(),
     kind: z.enum([
       'duplicate-content',
+      'similar-content',
       'empty-file',
       'invalid-name',
       'missing-metadata',
@@ -165,12 +167,13 @@ export type FileChangeMutationResult = z.infer<typeof fileChangeMutationResultSc
 
 export const modelTemplateClassificationSchema = z
   .object({
+    categoryPath: z.array(z.string().trim().min(1).max(80)).min(3).max(4),
     commonMistakes: z.string().max(10_000).optional(),
     constraints: z.string().max(10_000).optional(),
     prerequisites: z.string().max(10_000).optional(),
     solves: z.string().max(10_000).optional(),
     spaceComplexity: z.string().max(120).nullable().optional(),
-    suggestedRelativePath: relativePathSchema,
+    fileName: z.string().trim().min(1).max(255),
     tags: z.array(z.string().trim().min(1).max(40)).max(20).optional(),
     timeComplexity: z.string().max(120).nullable().optional(),
   })

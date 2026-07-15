@@ -318,6 +318,15 @@ test('creates a problem, associates multiple templates, stores an image, and saf
   await setNextDirectorySelection(fixtureImagePath)
   await page.getByRole('button', { name: '添加图片' }).click()
   await expect(page.getByRole('img', { name: 'problem.png' })).toBeVisible()
+  await page.getByRole('button', { name: '预览图片 problem.png' }).click()
+  await expect(page.getByRole('dialog', { name: '预览题目图片：problem.png' })).toBeVisible()
+  await expect(
+    page
+      .getByRole('dialog', { name: '预览题目图片：problem.png' })
+      .getByRole('img', { name: 'problem.png' }),
+  ).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('button', { name: '关闭图片预览' })).toHaveCount(0)
 
   await setNextDirectorySelection(secondFixtureImagePath)
   await page.getByRole('button', { name: '添加图片' }).click()
@@ -428,7 +437,7 @@ test('persists the problem, image, and surviving relation across a desktop resta
   await launchApplication()
 
   await page.getByRole('button', { name: '题目', exact: true }).click()
-  await page.getByRole('button', { name: /单源最短路径/ }).click()
+  await page.getByRole('button', { name: /单源最短路径 洛谷/ }).click()
   await expect(page.getByRole('heading', { level: 2, name: '单源最短路径' })).toBeVisible()
   await expect(page.getByText('1 个已确认关联')).toBeVisible()
   await expect(page.getByRole('img', { name: 'problem.png' })).toBeVisible()
@@ -439,4 +448,21 @@ test('persists the problem, image, and surviving relation across a desktop resta
   await searchInput.press('Enter')
   await expect(page.getByRole('heading', { level: 1, name: 'bfs' })).toBeVisible()
   await expect(page.getByRole('button', { name: /单源最短路径/ })).toBeVisible()
+})
+
+test('deletes a template with backup and removes a problem with its stored images', async () => {
+  await page.getByRole('button', { name: '删除模板 bfs' }).click()
+  await page.getByRole('button', { name: '确认删除' }).click()
+  await expect(page.getByText('模板已备份并删除')).toBeVisible()
+  await expect(readFile(fixtureSourcePath, 'utf8')).rejects.toThrow()
+
+  await page.getByRole('button', { name: '题目', exact: true }).click()
+  await page.getByRole('button', { name: /单源最短路径 洛谷/ }).click()
+  await page.getByRole('button', { name: '删除题目 单源最短路径' }).click()
+  await page.getByRole('button', { name: '确认删除' }).click()
+  await expect(page.getByRole('heading', { level: 2, name: '单源最短路径' })).toHaveCount(0)
+  const remainingImages = await readdir(join(userDataDirectory, 'problem-images'), {
+    recursive: true,
+  })
+  expect(remainingImages.filter(path => path.endsWith('.png'))).toHaveLength(0)
 })

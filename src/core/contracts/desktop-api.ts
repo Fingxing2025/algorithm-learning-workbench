@@ -31,6 +31,7 @@ import type {
   CreateProblemRequest,
   Problem,
   ProblemImageData,
+  ProblemRequest,
   RemoveProblemImageRequest,
   RemoveProblemRelationRequest,
   UpdateProblemRequest,
@@ -66,6 +67,7 @@ export interface DesktopApi {
   problems: {
     addImages: (problemId: string) => Promise<Problem | null>
     create: (request: CreateProblemRequest) => Promise<Problem>
+    delete: (request: ProblemRequest) => Promise<void>
     list: () => Promise<Problem[]>
     readImage: (imageId: string) => Promise<ProblemImageData>
     removeImage: (request: RemoveProblemImageRequest) => Promise<Problem>
@@ -87,11 +89,13 @@ export interface DesktopApi {
     cancelFilePlan: (planId: string) => Promise<FileChangePlan>
     chooseImportSource: () => Promise<TemplateImportSource | null>
     classify: (request: ClassifyTemplateRequest) => Promise<TemplateClassification>
+    deleteTemplate: (templateId: string) => Promise<FileChangeMutationResult>
     getMetadata: (templateId: string) => Promise<TemplateMetadata | null>
     importTemplate: (request: ImportTemplateRequest) => Promise<ImportTemplateResult>
     generateFilePlan: () => Promise<FileChangePlan>
     listFileExecutions: () => Promise<FileChangeExecution[]>
     listFilePlans: () => Promise<FileChangePlan[]>
+    redraftFilePlan: (planId: string) => Promise<FileChangePlan>
     rollbackFileExecution: (executionId: string) => Promise<FileChangeMutationResult>
     updateMetadata: (request: UpdateTemplateMetadataRequest) => Promise<TemplateMetadata>
   }

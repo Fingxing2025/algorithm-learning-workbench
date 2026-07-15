@@ -94,6 +94,17 @@ export class ProblemRepository {
     return this.requireProblem(id)
   }
 
+  deleteProblem(problemId: string): boolean {
+    return this.database.orm.transaction(transaction => {
+      transaction
+        .delete(templateProblemRelations)
+        .where(eq(templateProblemRelations.problemId, problemId))
+        .run()
+      transaction.delete(problemImages).where(eq(problemImages.problemId, problemId)).run()
+      return transaction.delete(problems).where(eq(problems.id, problemId)).run().changes > 0
+    })
+  }
+
   createAnalyzedProblem(
     id: string,
     fields: CreateProblemRequest,

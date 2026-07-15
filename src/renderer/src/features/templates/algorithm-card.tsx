@@ -7,6 +7,7 @@ import {
   FileCode2,
   Link2,
   RefreshCw,
+  Trash2,
 } from 'lucide-react'
 import { useState } from 'react'
 
@@ -24,6 +25,7 @@ import { TemplateProblemRelationDialog } from './template-problem-relation-dialo
 interface AlgorithmCardProps {
   onAction: (request: TemplateActionRequest) => void
   onClearProblemError: () => void
+  onDelete: (templateId: string) => Promise<boolean>
   onOpenProblem: (problemId: string) => void
   onReload: () => void
   onUpsertProblemRelation: (request: UpsertProblemRelationRequest) => Promise<boolean>
@@ -54,6 +56,7 @@ function formatBytes(bytes: number): string {
 export function AlgorithmCard({
   onAction,
   onClearProblemError,
+  onDelete,
   onOpenProblem,
   onReload,
   onUpsertProblemRelation,
@@ -65,6 +68,7 @@ export function AlgorithmCard({
   template,
 }: AlgorithmCardProps) {
   const [relationDialogOpen, setRelationDialogOpen] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
   if (!template) {
     return (
@@ -114,6 +118,41 @@ export function AlgorithmCard({
             </p>
           </div>
           <div className="relative flex gap-2">
+            {confirmDelete ? (
+              <div className="flex items-center gap-2 rounded-xl border border-red-500/20 bg-red-500/5 px-2 py-1">
+                <span className="text-[11px] text-red-600 dark:text-red-300">
+                  源文件将备份后删除
+                </span>
+                <Button
+                  disabled={isProblemBusy}
+                  onClick={() => void onDelete(template.id)}
+                  size="compact"
+                  type="button"
+                  variant="outline"
+                >
+                  确认删除
+                </Button>
+                <Button
+                  onClick={() => setConfirmDelete(false)}
+                  size="compact"
+                  type="button"
+                  variant="ghost"
+                >
+                  取消
+                </Button>
+              </div>
+            ) : (
+              <Button
+                aria-label={`删除模板 ${template.name}`}
+                disabled={isProblemBusy}
+                onClick={() => setConfirmDelete(true)}
+                size="icon"
+                type="button"
+                variant="ghost"
+              >
+                <Trash2 aria-hidden="true" className="size-4 text-red-500" />
+              </Button>
+            )}
             <Button
               onClick={() => onAction({ action: 'copy-source', templateId: template.id })}
               size="compact"

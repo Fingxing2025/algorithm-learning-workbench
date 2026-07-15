@@ -35,6 +35,9 @@ const desktopApi: DesktopApi = {
   problems: {
     addImages: problemId => invokeResult(IPC_CHANNELS.problems.addImages, { problemId }),
     create: request => invokeResult(IPC_CHANNELS.problems.create, request),
+    delete: async request => {
+      await invokeResult<null>(IPC_CHANNELS.problems.delete, request)
+    },
     list: () => invokeResult(IPC_CHANNELS.problems.list),
     readImage: imageId => invokeResult(IPC_CHANNELS.problems.readImage, { imageId }),
     removeImage: request => invokeResult(IPC_CHANNELS.problems.removeImage, request),
@@ -61,6 +64,8 @@ const desktopApi: DesktopApi = {
       invokeResult(IPC_CHANNELS.templateManagement.cancelFilePlan, { planId }),
     chooseImportSource: () => invokeResult(IPC_CHANNELS.templateManagement.chooseImportSource),
     classify: request => invokeResult(IPC_CHANNELS.templateManagement.classify, request),
+    deleteTemplate: templateId =>
+      invokeResult(IPC_CHANNELS.templateManagement.deleteTemplate, { templateId }),
     getMetadata: templateId =>
       invokeResult(IPC_CHANNELS.templateManagement.getMetadata, { templateId }),
     importTemplate: request =>
@@ -68,6 +73,8 @@ const desktopApi: DesktopApi = {
     generateFilePlan: () => invokeResult(IPC_CHANNELS.templateManagement.generateFilePlan),
     listFileExecutions: () => invokeResult(IPC_CHANNELS.templateManagement.listFileExecutions),
     listFilePlans: () => invokeResult(IPC_CHANNELS.templateManagement.listFilePlans),
+    redraftFilePlan: planId =>
+      invokeResult(IPC_CHANNELS.templateManagement.redraftFilePlan, { planId }),
     rollbackFileExecution: executionId =>
       invokeResult(IPC_CHANNELS.templateManagement.rollbackFileExecution, { executionId }),
     updateMetadata: request =>

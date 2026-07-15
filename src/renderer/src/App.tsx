@@ -443,6 +443,7 @@ function TemplateLibrary({
   onChangeWorkspace,
   onClearProblemError,
   onCreateTemplate,
+  onDeleteTemplate,
   onOpenProblem,
   onRescan,
   onSelectTemplate,
@@ -461,6 +462,7 @@ function TemplateLibrary({
   onChangeWorkspace: () => void
   onClearProblemError: () => void
   onCreateTemplate: () => void
+  onDeleteTemplate: (templateId: string) => Promise<boolean>
   onOpenProblem: (problemId: string) => void
   onReloadSource: () => void
   onRescan: () => void
@@ -536,7 +538,8 @@ function TemplateLibrary({
         >
           <AlgorithmCard
             onAction={onAction}
-            isProblemBusy={isProblemBusy}
+            onDelete={onDeleteTemplate}
+            isProblemBusy={isProblemBusy || isBusy}
             onClearProblemError={onClearProblemError}
             onOpenProblem={onOpenProblem}
             onReload={onReloadSource}
@@ -575,6 +578,7 @@ export default function App() {
   const {
     chooseWorkspace,
     clearError: clearWorkspaceError,
+    deleteTemplate,
     error: workspaceError,
     isBusy: isWorkspaceBusy,
     isLoading: isWorkspaceLoading,
@@ -697,6 +701,15 @@ export default function App() {
     }
   }
 
+  const handleDeleteTemplate = async (templateId: string) => {
+    const result = await deleteTemplate(templateId)
+    if (!result) return false
+    setSelectedTemplateId(null)
+    void problemState.reload()
+    setNotice('模板已备份并删除，可在 AI 管理的执行记录中撤销')
+    return true
+  }
+
   const openTemplate = (templateId: string) => {
     setCurrentView('templates')
     setSelectedTemplateId(templateId)
@@ -789,6 +802,7 @@ export default function App() {
           onChangeWorkspace={() => void handleChooseWorkspace({ intent: 'open' })}
           onClearProblemError={problemState.clearError}
           onCreateTemplate={() => setCreateOpen(true)}
+          onDeleteTemplate={handleDeleteTemplate}
           onOpenProblem={openProblem}
           onReloadSource={source.reload}
           onRescan={() => void handleRescan()}
@@ -816,6 +830,7 @@ export default function App() {
           onAnalysisCreated={problemState.acceptProblem}
           onClearError={problemState.clearError}
           onCreate={problemState.createProblem}
+          onDelete={problemState.deleteProblem}
           onOpenTemplate={openTemplate}
           onRemoveImage={problemState.removeImage}
           onRemoveRelation={problemState.removeRelation}

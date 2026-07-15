@@ -37,6 +37,16 @@ export function registerProblemIpc(
   })
 
   registerValidatedHandler({
+    channel: IPC_CHANNELS.problems.delete,
+    handler: async request => {
+      await problemService.deleteProblem(request.problemId)
+      return null
+    },
+    inputSchema: problemRequestSchema,
+    outputSchema: z.null(),
+  })
+
+  registerValidatedHandler({
     channel: IPC_CHANNELS.problems.update,
     handler: request => problemService.updateProblem(request),
     inputSchema: updateProblemRequestSchema,

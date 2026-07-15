@@ -65,6 +65,7 @@ test.beforeAll(async () => {
       ) as { content?: unknown } | undefined
       lastTemplateMetadataSystem =
         typeof systemMessage?.content === 'string' ? systemMessage.content : ''
+      const english = lastTemplateMetadataSystem.includes('Use English for categoryPath')
       response.setHeader('content-type', 'application/json')
       response.end(
         JSON.stringify({
@@ -74,13 +75,24 @@ test.beforeAll(async () => {
                 content: [
                   {
                     text: JSON.stringify({
-                      commonMistakes: '优先队列弹出后忘记判断过期距离。',
-                      constraints: '边权非负。',
-                      prerequisites: '邻接表、优先队列。',
-                      solves: '单源非负权最短路径。',
+                      categoryPath: english
+                        ? ['Graph Theory', 'Shortest Path', 'Dijkstra', 'Heap Optimized']
+                        : ['图论', '最短路', 'Dijkstra', '堆优化'],
+                      commonMistakes: english
+                        ? 'Forgetting to discard stale priority queue entries.'
+                        : '优先队列弹出后忘记判断过期距离。',
+                      constraints: english ? 'Edge weights must be non-negative.' : '边权非负。',
+                      fileName: 'dijkstra.cpp',
+                      prerequisites: english
+                        ? 'Adjacency lists and priority queues.'
+                        : '邻接表、优先队列。',
+                      solves: english
+                        ? 'Single-source shortest paths with non-negative weights.'
+                        : '单源非负权最短路径。',
                       spaceComplexity: 'O(n + m)',
-                      suggestedRelativePath: '图论/最短路/dijkstra.cpp',
-                      tags: ['图论', '最短路', 'Dijkstra'],
+                      tags: english
+                        ? ['Graph Theory', 'Shortest Path', 'Dijkstra']
+                        : ['图论', '最短路', 'Dijkstra'],
                       timeComplexity: 'O((n + m) log n)',
                     }),
                     type: 'text',
@@ -140,7 +152,7 @@ test('merges pasted-source AI metadata without overwriting user fields', async (
 
   await expect
     .poll(() => lastTemplateMetadataSystem)
-    .toContain('Use English for tags and every natural-language metadata field')
+    .toContain('Use English for categoryPath, tags, and every natural-language metadata field')
 
   await expect(page.getByRole('heading', { name: '确认元数据冲突' })).toBeVisible()
   await expect(page.getByRole('button', { name: '标签 保留我的内容' })).toHaveAttribute(
@@ -164,7 +176,9 @@ test('merges pasted-source AI metadata without overwriting user fields', async (
   await page.getByRole('button', { name: '时间复杂度 使用 AI 建议' }).click()
   await page.getByRole('button', { name: '确认并应用选择' }).click()
 
-  await expect(page.getByLabel(/文件名/)).toHaveValue('图论/最短路/dijkstra.cpp')
+  await expect(page.getByLabel(/文件名/)).toHaveValue(
+    'Graph Theory/Shortest Path/Dijkstra/Heap Optimized/dijkstra.cpp',
+  )
   await expect(page.getByLabel('模板标签')).toHaveValue('我的图论, 手工标签')
   await expect(page.getByLabel('时间复杂度')).toHaveValue('O((n + m) log n)')
   await expect(page.getByLabel('解决的问题')).toHaveValue('用户定义的最短路问题。')
@@ -176,9 +190,19 @@ test('merges pasted-source AI metadata without overwriting user fields', async (
   await expect(page.getByText('用户定义的最短路问题。')).toBeVisible()
   await expect(page.getByText('我的图论')).toBeVisible()
   await expect(page.getByText('手工标签')).toBeVisible()
-  expect(await readFile(join(workspaceRoot, '图论', '最短路', 'dijkstra.cpp'), 'utf8')).toBe(
-    'void dijkstra() { /* imported */ }\n',
-  )
+  expect(
+    await readFile(
+      join(
+        workspaceRoot,
+        'Graph Theory',
+        'Shortest Path',
+        'Dijkstra',
+        'Heap Optimized',
+        'dijkstra.cpp',
+      ),
+      'utf8',
+    ),
+  ).toBe('void dijkstra() { /* imported */ }\n')
 })
 
 test('allows manual metadata correction and persists it after restart', async () => {

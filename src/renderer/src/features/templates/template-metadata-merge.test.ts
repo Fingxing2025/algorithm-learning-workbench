@@ -9,6 +9,7 @@ import {
 } from './template-metadata-merge'
 
 const classification: TemplateClassification = {
+  categoryPath: ['图论', '最短路', 'Dijkstra'],
   metadata: {
     ...emptyTemplateMetadata,
     solves: 'AI 识别的问题',

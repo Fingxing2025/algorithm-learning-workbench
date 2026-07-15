@@ -105,6 +105,21 @@ export function useWorkspace() {
     }
   }, [])
 
+  const deleteTemplate = useCallback(async (templateId: string) => {
+    setError(null)
+    setIsBusy(true)
+    try {
+      const result = await window.desktop.templateManagement.deleteTemplate(templateId)
+      setWorkspace(result.workspace)
+      return result
+    } catch (caughtError) {
+      setError(getErrorMessage(caughtError))
+      return null
+    } finally {
+      setIsBusy(false)
+    }
+  }, [])
+
   const performTemplateAction = useCallback(async (request: TemplateActionRequest) => {
     setError(null)
     try {
@@ -120,6 +135,7 @@ export function useWorkspace() {
     chooseWorkspace,
     clearError: () => setError(null),
     createTemplate,
+    deleteTemplate,
     error,
     isBusy,
     isLoading,

@@ -88,6 +88,7 @@ tests/
 - `docs/decisions/0007-release-security-and-backup-retention.md`
 - `docs/decisions/0008-workspace-navigation-code-viewer-and-ai-plan-recovery.md`
 - `docs/decisions/0009-template-metadata-merge-review.md`
+- `docs/decisions/0010-deletion-classification-and-plan-redrafting.md`
 
 安全与发布文档：
 

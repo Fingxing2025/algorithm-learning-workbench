@@ -423,13 +423,18 @@ export function CreateTemplateDialog({
                     </div>
                   </div>
                   {classification && (
-                    <p className="mt-2 text-[10px] text-muted-foreground">
-                      已合并 {classification.providerName} · {classification.model}{' '}
-                      的建议，可继续编辑。
-                    </p>
+                    <div className="mt-2 rounded-lg border border-primary/12 bg-primary/5 px-2.5 py-2 text-[10px] text-muted-foreground">
+                      <p>
+                        已合并 {classification.providerName} · {classification.model}{' '}
+                        的建议，可继续编辑。
+                      </p>
+                      <p className="mt-1 font-medium text-foreground">
+                        精细分类：{classification.categoryPath.join(' / ')}
+                      </p>
+                    </div>
                   )}
                   <p className="mt-2 text-[10px] leading-4 text-muted-foreground">
-                    语言选择只影响标签与说明字段；路径、源码语言和复杂度表达保持不变。
+                    语言选择会约束分类目录、标签与说明字段；源码语言、扩展名和复杂度表达保持不变。
                   </p>
                 </div>
               </section>

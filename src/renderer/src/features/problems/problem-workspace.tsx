@@ -14,7 +14,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react'
-import { lazy, Suspense, useMemo, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 
 import type {
   CreateProblemRequest,
@@ -49,10 +49,11 @@ interface ProblemWorkspaceProps {
   onAnalysisCreated: (problem: Problem) => Problem
   onClearError: () => void
   onCreate: (request: CreateProblemRequest) => Promise<Problem | null>
+  onDelete: (problemId: string) => Promise<boolean>
   onOpenTemplate: (templateId: string) => void
   onRemoveImage: (request: RemoveProblemImageRequest) => Promise<Problem | null>
   onRemoveRelation: (request: RemoveProblemRelationRequest) => Promise<Problem | null>
-  onSelect: (problemId: string) => void
+  onSelect: (problemId: string | null) => void
   onUpdate: (request: UpdateProblemRequest) => Promise<Problem | null>
   onUpsertRelation: (request: UpsertProblemRelationRequest) => Promise<Problem | null>
   problems: Problem[]
@@ -77,6 +78,7 @@ export function ProblemWorkspace({
   onAnalysisCreated,
   onClearError,
   onCreate,
+  onDelete,
   onOpenTemplate,
   onRemoveImage,
   onRemoveRelation,
@@ -88,12 +90,18 @@ export function ProblemWorkspace({
   templates,
 }: ProblemWorkspaceProps) {
   const [confirmRemoveTemplateId, setConfirmRemoveTemplateId] = useState<string | null>(null)
+  const [confirmDeleteProblem, setConfirmDeleteProblem] = useState(false)
   const [analysisOpen, setAnalysisOpen] = useState(false)
   const [editorOpen, setEditorOpen] = useState(false)
   const [editingProblem, setEditingProblem] = useState<Problem | null>(null)
   const [query, setQuery] = useState('')
   const [relationEditorOpen, setRelationEditorOpen] = useState(false)
   const [editingRelation, setEditingRelation] = useState<ProblemTemplateRelation | null>(null)
+
+  useEffect(() => {
+    setConfirmDeleteProblem(false)
+    setConfirmRemoveTemplateId(null)
+  }, [selectedProblemId])
 
   const selectedProblem = problems.find(problem => problem.id === selectedProblemId) ?? null
   const filteredProblems = useMemo(() => {
@@ -349,16 +357,61 @@ export function ProblemWorkspace({
                       .join(' · ') || '尚未补充平台、题号和难度'}
                   </p>
                 </div>
-                <Button
-                  className="relative"
-                  onClick={openEditEditor}
-                  size="compact"
-                  type="button"
-                  variant="outline"
-                >
-                  <Edit3 aria-hidden="true" className="size-3.5" />
-                  编辑
-                </Button>
+                <div className="relative flex items-center gap-2">
+                  {confirmDeleteProblem ? (
+                    <>
+                      <span className="text-[11px] text-red-600 dark:text-red-300">
+                        将删除题目、图片与关联
+                      </span>
+                      <Button
+                        disabled={isBusy}
+                        onClick={() => {
+                          void onDelete(selectedProblem.id).then(deleted => {
+                            if (deleted) {
+                              setConfirmDeleteProblem(false)
+                              onSelect(null)
+                            }
+                          })
+                        }}
+                        size="compact"
+                        type="button"
+                        variant="outline"
+                      >
+                        确认删除
+                      </Button>
+                      <Button
+                        onClick={() => setConfirmDeleteProblem(false)}
+                        size="compact"
+                        type="button"
+                        variant="ghost"
+                      >
+                        取消
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <Button
+                        onClick={openEditEditor}
+                        size="compact"
+                        type="button"
+                        variant="outline"
+                      >
+                        <Edit3 aria-hidden="true" className="size-3.5" />
+                        编辑
+                      </Button>
+                      <Button
+                        aria-label={`删除题目 ${selectedProblem.title}`}
+                        disabled={isBusy}
+                        onClick={() => setConfirmDeleteProblem(true)}
+                        size="icon"
+                        type="button"
+                        variant="ghost"
+                      >
+                        <Trash2 aria-hidden="true" className="size-4 text-red-500" />
+                      </Button>
+                    </>
+                  )}
+                </div>
               </div>
               {selectedProblem.tags.length > 0 && (
                 <div className="mt-4 flex flex-wrap gap-1.5">

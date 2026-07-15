@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { lstat, mkdir, readFile, rename, stat, unlink, writeFile } from 'node:fs/promises'
+import { lstat, mkdir, readFile, rename, rm, stat, unlink, writeFile } from 'node:fs/promises'
 import { basename, join, sep } from 'node:path'
 
 import { dialog, type BrowserWindow } from 'electron'
@@ -150,6 +150,45 @@ export class ProblemService {
 
   createProblem(request: CreateProblemRequest): Problem {
     return this.repository.createProblem(request)
+  }
+
+  async deleteProblem(problemId: string): Promise<void> {
+    this.requireProblem(problemId)
+    const imageRoot = join(this.userDataPath, 'problem-images')
+    const sourceDirectory = join(imageRoot, problemId)
+    const trashDirectory = join(imageRoot, '.trash')
+    const trashPath = join(trashDirectory, `${problemId}-${randomUUID()}`)
+    let movedImages = false
+
+    try {
+      const stats = await lstat(sourceDirectory)
+      if (!stats.isDirectory() || stats.isSymbolicLink()) {
+        throw new PublicError('FILE_UNAVAILABLE', '题目图片目录无效，已停止删除。')
+      }
+      await mkdir(trashDirectory, { recursive: true })
+      await rename(sourceDirectory, trashPath)
+      movedImages = true
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        if (error instanceof PublicError) throw error
+        throw new PublicError('FILE_UNAVAILABLE', '无法隔离题目图片，题目尚未删除。')
+      }
+    }
+
+    try {
+      if (!this.repository.deleteProblem(problemId)) {
+        throw new PublicError('PROBLEM_NOT_FOUND', '题目卡片不存在或已经被移除。')
+      }
+    } catch (error) {
+      if (movedImages) {
+        await rename(trashPath, sourceDirectory).catch(() => undefined)
+      }
+      throw error
+    }
+
+    if (movedImages) {
+      await rm(trashPath, { force: true, recursive: true }).catch(() => undefined)
+    }
   }
 
   getProblems(): Problem[] {

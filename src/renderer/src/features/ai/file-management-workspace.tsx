@@ -53,6 +53,7 @@ export function FileManagementWorkspace({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [success, setSuccess] = useState<string | null>(null)
   const draftPlan = useMemo(() => plans.find(plan => plan.status === 'draft') ?? null, [plans])
+  const cancelledPlans = useMemo(() => plans.filter(plan => plan.status === 'cancelled'), [plans])
 
   const refreshHistory = async () => {
     const [nextPlans, nextExecutions] = await Promise.all([
@@ -128,6 +129,14 @@ export function FileManagementWorkspace({
       await refreshHistory()
       setConfirmRollbackId(null)
       setSuccess('已从备份撤销文件计划。')
+    })
+
+  const redraft = (planId: string) =>
+    run('redraft', async () => {
+      const plan = await window.desktop.templateManagement.redraftFilePlan(planId)
+      setPlans(current => [plan, ...current.filter(item => item.id !== plan.id)])
+      setSelectedIds(new Set(plan.operations.map(operation => operation.id)))
+      setSuccess(`已重新校验并创建 ${plan.operations.length} 项新草稿；旧计划记录保持不变。`)
     })
 
   if (!workspace) {
@@ -463,10 +472,51 @@ export function FileManagementWorkspace({
                               从备份撤销
                             </Button>
                           ))}
+                        {execution.status === 'rolled-back' && (
+                          <Button
+                            className="mt-2"
+                            disabled={Boolean(busyAction) || Boolean(draftPlan)}
+                            onClick={() => void redraft(execution.planId)}
+                            size="compact"
+                            type="button"
+                            variant="ghost"
+                          >
+                            <FileClock className="size-3.5" />
+                            复制为新计划
+                          </Button>
+                        )}
                       </article>
                     ))
                   )}
                 </div>
+                {cancelledPlans.length > 0 && (
+                  <div className="mt-3 border-t border-border pt-3">
+                    <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      已取消计划
+                    </p>
+                    <div className="space-y-2">
+                      {cancelledPlans.slice(0, 4).map(plan => (
+                        <article
+                          className="flex items-center gap-2 rounded-lg border border-border bg-background/60 p-2.5"
+                          key={plan.id}
+                        >
+                          <span className="min-w-0 flex-1 text-[11px]">
+                            {plan.operations.length} 项 · {plan.providerName}
+                          </span>
+                          <Button
+                            disabled={Boolean(busyAction) || Boolean(draftPlan)}
+                            onClick={() => void redraft(plan.id)}
+                            size="compact"
+                            type="button"
+                            variant="ghost"
+                          >
+                            复制为新计划
+                          </Button>
+                        </article>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </section>
             </div>
           </div>

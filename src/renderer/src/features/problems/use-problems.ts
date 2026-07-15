@@ -84,6 +84,21 @@ export function useProblems() {
     [replaceProblem],
   )
 
+  const deleteProblem = useCallback(async (problemId: string) => {
+    setError(null)
+    setIsBusy(true)
+    try {
+      await window.desktop.problems.delete({ problemId })
+      setProblems(current => current.filter(problem => problem.id !== problemId))
+      return true
+    } catch (caughtError) {
+      setError(getErrorMessage(caughtError))
+      return false
+    } finally {
+      setIsBusy(false)
+    }
+  }, [])
+
   return {
     acceptProblem: replaceProblem,
     addImages: (problemId: string) =>
@@ -91,6 +106,7 @@ export function useProblems() {
     clearError: () => setError(null),
     createProblem: (request: CreateProblemRequest) =>
       runMutation(() => window.desktop.problems.create(request)),
+    deleteProblem,
     error,
     isBusy,
     isLoading,
