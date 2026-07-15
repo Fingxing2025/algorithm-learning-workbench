@@ -69,7 +69,7 @@ export function AlgorithmCard({
 
   return (
     <section className="flex h-full min-h-0 flex-col bg-background">
-      <header className="border-b border-border bg-panel px-5 py-4">
+      <header aria-label="模板摘要" className="border-b border-border bg-panel px-5 py-3.5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
@@ -105,16 +105,15 @@ export function AlgorithmCard({
           </div>
         </div>
 
-        <dl className="mt-4 grid gap-2 sm:grid-cols-4">
+        <dl className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px] text-muted-foreground">
           {[
             ['文件类型', template.extension],
             ['文件大小', formatBytes(template.sizeBytes)],
-            ['时间复杂度', '待补充'],
             ['关联题目', String(relatedProblems.length)],
           ].map(([label, value]) => (
-            <div className="rounded-lg border border-border bg-muted/30 px-3 py-2" key={label}>
-              <dt className="text-[10px] text-muted-foreground">{label}</dt>
-              <dd className="mt-0.5 text-xs font-medium">{value}</dd>
+            <div className="flex items-center gap-1.5" key={label}>
+              <dt>{label}</dt>
+              <dd className="font-medium text-foreground">{value}</dd>
             </div>
           ))}
         </dl>

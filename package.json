@@ -27,6 +27,11 @@
     "dist:win": "npm run build && node ./node_modules/electron-builder/out/cli/cli.js --win nsis --x64 --publish never"
   },
   "dependencies": {
+    "@codemirror/lang-cpp": "^6.0.3",
+    "@codemirror/language": "^6.12.4",
+    "@codemirror/state": "^6.7.1",
+    "@codemirror/view": "^6.43.6",
+    "@lezer/highlight": "^1.2.3",
     "@radix-ui/react-context-menu": "^2.3.3",
     "@radix-ui/react-dialog": "^1.1.19",
     "@radix-ui/react-separator": "^1.1.11",

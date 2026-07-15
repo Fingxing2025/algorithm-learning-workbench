@@ -17,8 +17,8 @@ export interface ProviderPreset {
 
 export const providerPresets: readonly ProviderPreset[] = [
   {
-    baseUrl: 'https://api.deepseek.com',
-    baseUrlPlaceholder: 'https://api.deepseek.com',
+    baseUrl: 'https://api.deepseek.com/v1',
+    baseUrlPlaceholder: 'https://api.deepseek.com/v1',
     capabilities: { streaming: true, structuredOutput: true, vision: false },
     description: '官方 OpenAI 兼容接口，适合文本分析、模板元数据和文件计划。',
     id: 'deepseek',

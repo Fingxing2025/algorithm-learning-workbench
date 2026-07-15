@@ -15,7 +15,9 @@ test('scrolls large template and problem lists and switches the code theme', asy
     await mkdir(directory)
     await writeFile(
       join(directory, `template_${String(index).padStart(2, '0')}.cpp`),
-      `int solve_${index}(int value) { return value + ${index}; }\n`,
+      index === 0
+        ? `#include <bits/stdc++.h>\n\nusing namespace std;\n\nint solve(int value) {\n  vector<int> candidates = {1, 2, 3};\n  return value + candidates.front(); // 示例返回值\n}\n`
+        : `int solve_${index}(int value) { return value + ${index}; }\n`,
       'utf8',
     )
   }
@@ -50,14 +52,45 @@ test('scrolls large template and problem lists and switches the code theme', asy
     })
 
     await page.getByText('template_00.cpp').click()
+    const templateSummary = page.getByLabel('模板摘要')
+    await expect(templateSummary).not.toContainText('时间复杂度')
+    const codeViewer = page.getByLabel('模板代码查看器')
+    expect((await codeViewer.boundingBox())?.height).toBeGreaterThanOrEqual(440)
     const highlightedSource = page.getByLabel('高亮模板源码')
-    await expect(highlightedSource.locator('.hljs-type').first()).toBeVisible()
+    const firstCodeLine = highlightedSource.locator('.cm-line').first()
+    await expect(firstCodeLine).toBeVisible()
+    await expect(highlightedSource).toContainText('#include <bits/stdc++.h>')
+    const codeToolbar = page.getByLabel('代码查看器工具栏')
+    const toolbarBounds = await codeToolbar.boundingBox()
+    const firstCodeLineBounds = await firstCodeLine.boundingBox()
+    expect(firstCodeLineBounds?.y).toBeLessThanOrEqual(
+      (toolbarBounds?.y ?? 0) + (toolbarBounds?.height ?? 0) + 3,
+    )
+    const switchToLight = page.getByRole('button', { name: '切换到浅色主题' })
+    if (await switchToLight.count()) await switchToLight.click()
+    await page.getByLabel('代码主题').selectOption('system')
+    await expect(highlightedSource).toHaveAttribute('data-code-theme', 'vscode-light')
+    await expect(codeToolbar).toHaveCSS('background-color', 'rgb(246, 248, 250)')
+    await page.screenshot({
+      animations: 'disabled',
+      path: resolve('output/playwright/code-viewer-system-light-1280x720.png'),
+    })
     await page.getByLabel('代码主题').selectOption('vscode-dark')
     await expect(highlightedSource).toHaveAttribute('data-code-theme', 'vscode-dark')
     await page.screenshot({
       animations: 'disabled',
       path: resolve('output/playwright/code-theme-vscode-dark-1280x720.png'),
     })
+    await page.getByRole('button', { name: '切换到深色主题' }).click()
+    await page.screenshot({
+      animations: 'disabled',
+      path: resolve('output/playwright/code-viewer-dark-1280x720.png'),
+    })
+    await page.getByRole('button', { name: '切换到浅色主题' }).click()
+    await page.getByRole('button', { name: '进入代码专注模式' }).click()
+    await expect(codeViewer).toHaveAttribute('data-expanded', 'true')
+    await page.keyboard.press('Escape')
+    await expect(codeViewer).toHaveAttribute('data-expanded', 'false')
 
     await page.evaluate(async () => {
       const renderer = globalThis as unknown as {

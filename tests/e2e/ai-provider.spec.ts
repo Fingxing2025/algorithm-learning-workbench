@@ -54,6 +54,8 @@ test.beforeAll(async () => {
         response.end(JSON.stringify({ choices: [{ message: { content: 'OK' } }] }))
       } else if (request.url === '/v1/messages') {
         response.end(JSON.stringify({ content: [{ text: 'OK', type: 'text' }] }))
+      } else if (request.url === '/v1/responses') {
+        response.end(JSON.stringify({ output_text: 'OK' }))
       } else {
         response.statusCode = 404
         response.end('{}')
@@ -102,7 +104,7 @@ test('configures and tests two different provider protocols from a zero-data des
   await page.getByRole('button', { name: '使用 DeepSeek 预设' }).click()
   await expect(page.getByLabel('Provider 显示名称')).toHaveValue('DeepSeek')
   await expect(page.getByLabel('Provider 协议')).toHaveValue('openai-chat-completions')
-  await expect(page.getByLabel('Base URL')).toHaveValue('https://api.deepseek.com')
+  await expect(page.getByLabel('Base URL')).toHaveValue('https://api.deepseek.com/v1')
   await expect(page.getByLabel('模型名称')).toHaveValue('deepseek-v4-flash')
 
   await page.getByRole('button', { name: '使用 阿里云百炼 预设' }).click()

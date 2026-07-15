@@ -19,6 +19,7 @@
   --color-success: var(--success);
   --color-warning: var(--warning);
   --shadow-xs: 0 1px 2px color-mix(in oklab, var(--shadow-color) 8%, transparent);
+  --font-mono: var(--app-font-mono);
   --font-sans: var(--app-font-sans);
 }
 
@@ -26,6 +27,9 @@
   --app-font-sans:
     Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
     'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  --app-font-mono:
+    'SFMono-Regular', 'Cascadia Code', 'JetBrains Mono', 'Roboto Mono', Consolas, 'Liberation Mono',
+    monospace;
   --background: oklch(0.975 0.004 255);
   --border: oklch(0.89 0.009 255);
   --code: oklch(0.2 0.018 258);
@@ -111,10 +115,14 @@ button:not(:disabled) {
   --syntax-number: #098658;
   --syntax-type: #267f99;
   --syntax-function: #795e26;
+  --syntax-meta: #800000;
+  --syntax-property: #001080;
   --syntax-variable: #001080;
   margin: 0;
   background: var(--syntax-background);
   color: var(--syntax-foreground);
+  font-variant-ligatures: contextual;
+  tab-size: 2;
 }
 
 .dark .code-surface[data-code-theme='system'],
@@ -127,6 +135,8 @@ button:not(:disabled) {
   --syntax-number: #b5cea8;
   --syntax-type: #4ec9b0;
   --syntax-function: #dcdcaa;
+  --syntax-meta: #569cd6;
+  --syntax-property: #9cdcfe;
   --syntax-variable: #9cdcfe;
 }
 
@@ -144,7 +154,16 @@ button:not(:disabled) {
   --syntax-number: #ae81ff;
   --syntax-type: #66d9ef;
   --syntax-function: #a6e22e;
+  --syntax-meta: #f92672;
+  --syntax-property: #a6e22e;
   --syntax-variable: #fd971f;
+}
+
+.code-surface .hljs {
+  display: block;
+  min-width: max-content;
+  background: transparent;
+  color: inherit;
 }
 
 .code-surface .hljs-comment,
@@ -167,10 +186,14 @@ button:not(:disabled) {
 }
 
 .code-surface .hljs-number,
-.code-surface .hljs-meta,
 .code-surface .hljs-symbol,
 .code-surface .hljs-bullet {
   color: var(--syntax-number);
+}
+
+.code-surface .hljs-meta,
+.code-surface .hljs-meta .hljs-keyword {
+  color: var(--syntax-meta);
 }
 
 .code-surface .hljs-type,
@@ -189,6 +212,13 @@ button:not(:disabled) {
 .code-surface .hljs-params,
 .code-surface .hljs-template-variable {
   color: var(--syntax-variable);
+}
+
+.code-surface .hljs-property,
+.code-surface .hljs-attr,
+.code-surface .hljs-selector-class,
+.code-surface .hljs-selector-id {
+  color: var(--syntax-property);
 }
 
 .code-surface .hljs-emphasis {

@@ -57,16 +57,21 @@ test.beforeAll(async () => {
           choices: [
             {
               message: {
-                content: JSON.stringify({
-                  commonMistakes: '优先队列弹出后忘记判断过期距离。',
-                  constraints: '边权非负。',
-                  prerequisites: '邻接表、优先队列。',
-                  solves: '单源非负权最短路径。',
-                  spaceComplexity: 'O(n + m)',
-                  suggestedRelativePath: '图论/最短路/dijkstra.cpp',
-                  tags: ['图论', '最短路', 'Dijkstra'],
-                  timeComplexity: 'O((n + m) log n)',
-                }),
+                content: [
+                  {
+                    text: JSON.stringify({
+                      commonMistakes: '优先队列弹出后忘记判断过期距离。',
+                      constraints: '边权非负。',
+                      prerequisites: '邻接表、优先队列。',
+                      solves: '单源非负权最短路径。',
+                      spaceComplexity: 'O(n + m)',
+                      suggestedRelativePath: '图论/最短路/dijkstra.cpp',
+                      tags: ['图论', '最短路', 'Dijkstra'],
+                      timeComplexity: 'O((n + m) log n)',
+                    }),
+                    type: 'text',
+                  },
+                ],
               },
             },
           ],
