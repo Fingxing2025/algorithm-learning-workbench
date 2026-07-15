@@ -5,16 +5,18 @@ import { forwardRef, type ButtonHTMLAttributes } from 'react'
 import { cn } from '@/lib/utils'
 
 const buttonVariants = cva(
-  'inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-all duration-150 outline-none active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-45 disabled:active:scale-100',
+  'inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-all duration-200 outline-none active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-45 disabled:active:scale-100',
   {
     variants: {
       variant: {
         default:
-          'bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 hover:shadow-[0_8px_20px_-12px_var(--primary)]',
+          'border border-white/12 bg-gradient-to-br from-primary via-primary to-accent-blue text-primary-foreground shadow-[0_10px_24px_-14px_var(--primary)] hover:-translate-y-0.5 hover:saturate-110 hover:shadow-[0_14px_30px_-14px_var(--primary)]',
         outline:
-          'border border-border bg-background text-foreground shadow-xs hover:bg-muted hover:text-foreground',
-        ghost: 'text-muted-foreground hover:bg-muted hover:text-foreground',
-        subtle: 'bg-primary/10 text-primary hover:bg-primary/15',
+          'border border-border bg-panel/68 text-foreground shadow-xs backdrop-blur-md hover:-translate-y-0.5 hover:border-border-strong hover:bg-muted/85 hover:text-foreground',
+        ghost:
+          'text-muted-foreground hover:-translate-y-0.5 hover:bg-muted/80 hover:text-foreground',
+        subtle:
+          'border border-primary/10 bg-gradient-to-br from-primary/12 to-accent-blue/8 text-primary hover:-translate-y-0.5 hover:from-primary/18 hover:to-accent-blue/12',
       },
       size: {
         default: 'h-9 px-3.5',

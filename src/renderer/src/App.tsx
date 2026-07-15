@@ -70,13 +70,14 @@ interface NavigationItem {
   icon: LucideIcon
   id?: AppView
   label: string
+  tone: 'amber' | 'coral' | 'cyan' | 'indigo'
 }
 
 const navigationItems: NavigationItem[] = [
-  { icon: LayoutDashboard, id: 'dashboard', label: '工作台' },
-  { icon: FileCode2, id: 'templates', label: '模板库' },
-  { icon: BookOpenText, id: 'problems', label: '题目' },
-  { icon: Sparkles, id: 'ai', label: 'AI 管理' },
+  { icon: LayoutDashboard, id: 'dashboard', label: '工作台', tone: 'indigo' },
+  { icon: FileCode2, id: 'templates', label: '模板库', tone: 'cyan' },
+  { icon: BookOpenText, id: 'problems', label: '题目', tone: 'coral' },
+  { icon: Sparkles, id: 'ai', label: 'AI 管理', tone: 'amber' },
 ]
 
 function NavigationButton({
@@ -89,12 +90,34 @@ function NavigationButton({
   onSelect: (view: AppView) => void
 }) {
   const Icon = item.icon
+  const toneClasses = {
+    amber: {
+      active: 'bg-warning/13 text-warning shadow-xs ring-1 ring-warning/12',
+      icon: 'bg-warning/12 text-warning',
+      indicator: 'bg-warning',
+    },
+    coral: {
+      active: 'bg-accent-coral/12 text-accent-coral shadow-xs ring-1 ring-accent-coral/12',
+      icon: 'bg-accent-coral/11 text-accent-coral',
+      indicator: 'bg-accent-coral',
+    },
+    cyan: {
+      active: 'bg-accent-cyan/12 text-accent-cyan shadow-xs ring-1 ring-accent-cyan/12',
+      icon: 'bg-accent-cyan/11 text-accent-cyan',
+      indicator: 'bg-accent-cyan',
+    },
+    indigo: {
+      active: 'bg-primary/12 text-primary shadow-xs ring-1 ring-primary/12',
+      icon: 'bg-primary/11 text-primary',
+      indicator: 'bg-primary',
+    },
+  }[item.tone]
   return (
     <button
       aria-current={active ? 'page' : undefined}
       className={cn(
         'group relative flex h-10 w-full items-center gap-3 rounded-xl px-3 text-left text-[13px] font-medium outline-none transition-all duration-150 focus-visible:ring-2 focus-visible:ring-ring',
-        active && 'bg-primary/11 text-primary shadow-xs',
+        active && toneClasses.active,
         !active && !item.disabled && 'text-muted-foreground hover:bg-panel hover:text-foreground',
         item.disabled && 'cursor-not-allowed text-muted-foreground opacity-55',
       )}
@@ -105,15 +128,23 @@ function NavigationButton({
       <span
         aria-hidden="true"
         className={cn(
-          'absolute inset-y-2 left-0 w-0.5 rounded-full bg-primary opacity-0 transition-opacity',
+          'absolute inset-y-2 left-0 w-0.5 rounded-full opacity-0 transition-all duration-200',
+          toneClasses.indicator,
           active && 'opacity-100',
         )}
       />
-      <Icon
-        aria-hidden="true"
-        className="size-4 transition-transform duration-150 group-hover:scale-105"
-        strokeWidth={1.8}
-      />
+      <span
+        className={cn(
+          'grid size-7 shrink-0 place-items-center rounded-lg transition-all duration-200',
+          active ? toneClasses.icon : 'bg-transparent',
+        )}
+      >
+        <Icon
+          aria-hidden="true"
+          className="size-4 transition-transform duration-200 group-hover:scale-110 group-hover:-rotate-3"
+          strokeWidth={1.8}
+        />
+      </span>
       <span>{item.label}</span>
       {item.disabled && <span className="ml-auto text-[10px] font-medium uppercase">稍后</span>}
     </button>
@@ -140,7 +171,10 @@ function SummaryCard({
   }
 
   return (
-    <article className="interactive-lift rounded-2xl border border-border bg-panel p-4 shadow-panel hover:border-border-strong">
+    <article
+      className="summary-card interactive-lift rounded-2xl border p-4 shadow-panel hover:border-border-strong"
+      data-tone={tone}
+    >
       <div className="flex items-center justify-between">
         <span className="text-[11px] font-semibold uppercase tracking-[0.09em] text-muted-foreground">
           {label}
@@ -223,10 +257,14 @@ function Dashboard({
     <main className="relative min-h-0 overflow-y-auto px-5 py-5 lg:px-8 lg:py-7">
       <div
         aria-hidden="true"
-        className="app-grid-texture pointer-events-none absolute inset-x-0 top-0 h-72 opacity-60"
+        className="app-grid-texture pointer-events-none absolute inset-x-0 top-0 h-72 opacity-45"
       />
       <div className="relative mx-auto max-w-[1120px]">
-        <section className="relative overflow-hidden rounded-[22px] border border-primary/15 bg-panel px-5 py-5 shadow-focus lg:px-6">
+        <section
+          className="dashboard-hero relative overflow-hidden rounded-[24px] border px-5 py-6 lg:px-7 lg:py-7"
+          data-ui="dashboard-hero"
+        >
+          <span aria-hidden="true" className="orbital-rings" />
           <div
             aria-hidden="true"
             className="absolute -right-16 -top-24 size-72 rounded-full bg-primary/10 blur-3xl"
@@ -241,23 +279,47 @@ function Dashboard({
                 <CircleDot aria-hidden="true" className="size-3.5 fill-success/15 text-success" />
                 {workspace.name} · 本地工作区
               </div>
-              <h1 className="mt-3 text-2xl font-semibold tracking-[-0.035em] lg:text-[28px]">
-                工作台
+              <h1
+                aria-label="工作台"
+                className="mt-3 text-[28px] font-semibold tracking-[-0.045em] lg:text-[34px]"
+              >
+                让算法知识有清晰的节奏
               </h1>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
                 把算法源码、题目记录与 AI 整理集中在一个本地知识库中。
               </p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <span className="dashboard-hero-chip">
+                  <span className="size-1.5 rounded-full bg-cyan-300" /> 本地优先
+                </span>
+                <span className="dashboard-hero-chip">模板与题目双向关联</span>
+                <span className="dashboard-hero-chip">AI 变更先预览</span>
+              </div>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Button onClick={onOpenProblems} type="button" variant="outline">
+              <Button
+                className="dashboard-hero-action"
+                onClick={onOpenProblems}
+                type="button"
+                variant="outline"
+              >
                 <BookOpenText aria-hidden="true" className="size-4" />
                 浏览题目
               </Button>
-              <Button onClick={onOpenTemplates} type="button" variant="outline">
+              <Button
+                className="dashboard-hero-action"
+                onClick={onOpenTemplates}
+                type="button"
+                variant="outline"
+              >
                 <FolderOpen aria-hidden="true" className="size-4" />
                 浏览模板库
               </Button>
-              <Button onClick={onCreateTemplate} type="button">
+              <Button
+                className="border border-white/18 bg-white text-indigo-700 shadow-lg hover:bg-white/90"
+                onClick={onCreateTemplate}
+                type="button"
+              >
                 <Plus aria-hidden="true" className="size-4" />
                 新建模板
               </Button>
@@ -290,7 +352,10 @@ function Dashboard({
         </section>
 
         <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1.18fr)_minmax(320px,0.82fr)]">
-          <section className="rounded-2xl border border-border bg-panel p-5 shadow-panel">
+          <section
+            className="content-card rounded-2xl border border-border p-5 shadow-panel"
+            data-tone="primary"
+          >
             <div className="flex items-center justify-between gap-3">
               <div>
                 <h2 className="text-sm font-semibold">模板概览</h2>
@@ -342,7 +407,10 @@ function Dashboard({
           </section>
 
           <div className="grid gap-4">
-            <section className="rounded-2xl border border-border bg-panel p-5 shadow-panel">
+            <section
+              className="content-card rounded-2xl border border-border p-5 shadow-panel"
+              data-tone="coral"
+            >
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <h2 className="text-sm font-semibold">最近题目</h2>
@@ -395,7 +463,7 @@ function Dashboard({
                 </div>
               )}
             </section>
-            <section className="relative overflow-hidden rounded-2xl border border-warning/20 bg-warning/7 p-5 shadow-panel">
+            <section className="ai-spotlight relative overflow-hidden rounded-2xl border p-5 shadow-panel">
               <div
                 aria-hidden="true"
                 className="absolute -right-10 -top-12 size-32 rounded-full bg-warning/12 blur-2xl"
@@ -476,9 +544,9 @@ function TemplateLibrary({
   workspace: WorkspaceSnapshot
 }) {
   return (
-    <main className="flex h-full min-h-0 flex-col overflow-hidden bg-background/70">
-      <header className="flex min-h-[62px] flex-wrap items-center gap-3 border-b border-border bg-panel/92 px-5 py-2.5 shadow-xs">
-        <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary ring-1 ring-primary/10">
+    <main className="workspace-stage flex h-full min-h-0 flex-col overflow-hidden">
+      <header className="glass-section-header flex min-h-[62px] flex-wrap items-center gap-3 border-b px-5 py-2.5">
+        <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-accent-cyan/12 text-accent-cyan ring-1 ring-accent-cyan/14">
           <FileCode2 aria-hidden="true" className="size-4.5" />
         </span>
         <div className="min-w-0">
@@ -861,15 +929,15 @@ export default function App() {
 
   return (
     <Tooltip.Provider delayDuration={300}>
-      <div className="grid h-screen min-h-[640px] grid-rows-[60px_minmax(0,1fr)_30px] overflow-hidden bg-background/92 text-foreground">
+      <div className="app-shell grid h-screen min-h-[640px] grid-rows-[60px_minmax(0,1fr)_30px] overflow-hidden text-foreground">
         <header
           className={cn(
-            'window-drag relative flex items-center border-b border-border bg-panel/92 pr-4 shadow-xs backdrop-blur-xl',
+            'glass-toolbar window-drag relative flex items-center border-b pr-4',
             platform === 'darwin' ? 'pl-[86px]' : 'pl-4',
           )}
         >
           <div className="flex min-w-0 items-center gap-2.5">
-            <span className="grid size-8 shrink-0 place-items-center rounded-xl bg-primary text-primary-foreground shadow-[0_8px_20px_-10px_var(--primary)] ring-1 ring-white/15">
+            <span className="brand-mark grid size-8 shrink-0 place-items-center rounded-xl text-white ring-1 ring-white/15">
               <Boxes aria-hidden="true" className="size-4" strokeWidth={2} />
             </span>
             <span className="truncate text-[14px] font-semibold tracking-[-0.02em]">
@@ -883,7 +951,7 @@ export default function App() {
           <div className="window-no-drag ml-auto flex items-center gap-2">
             <button
               aria-label="打开全局搜索"
-              className="hidden h-9 min-w-60 items-center gap-2 rounded-xl border border-border bg-surface-subtle/80 px-3 text-xs text-muted-foreground shadow-xs outline-none transition-all hover:border-border-strong hover:bg-panel focus-visible:ring-2 focus-visible:ring-ring md:flex"
+              className="glass-search hidden h-9 min-w-60 items-center gap-2 rounded-xl border px-3 text-xs text-muted-foreground shadow-xs outline-none transition-all hover:-translate-y-0.5 hover:border-primary/30 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring md:flex"
               onClick={() => setCommandOpen(true)}
               type="button"
             >
@@ -923,7 +991,7 @@ export default function App() {
         </header>
 
         <div className="grid min-h-0 grid-cols-[224px_minmax(0,1fr)]">
-          <aside className="flex min-h-0 flex-col border-r border-border bg-sidebar/88 px-3 py-4">
+          <aside className="glass-sidebar flex min-h-0 flex-col border-r px-3 py-4">
             <div className="mb-2 px-3 text-[9px] font-semibold uppercase tracking-[0.13em] text-muted-foreground/75">
               知识工作台
             </div>
@@ -949,17 +1017,19 @@ export default function App() {
               className={cn(
                 'relative flex h-10 w-full items-center gap-3 rounded-xl px-3 text-left text-[13px] font-medium outline-none transition-all focus-visible:ring-2 focus-visible:ring-ring',
                 currentView === 'settings'
-                  ? 'bg-primary/11 text-primary shadow-xs'
+                  ? 'bg-accent-blue/12 text-accent-blue shadow-xs ring-1 ring-accent-blue/12'
                   : 'text-muted-foreground hover:bg-panel hover:text-foreground',
               )}
               onClick={() => setCurrentView('settings')}
               type="button"
             >
-              <Settings2 aria-hidden="true" className="size-4" strokeWidth={1.8} />
+              <span className="grid size-7 place-items-center rounded-lg bg-accent-blue/10 text-accent-blue">
+                <Settings2 aria-hidden="true" className="size-4" strokeWidth={1.8} />
+              </span>
               AI 设置
             </button>
 
-            <div className="mt-auto overflow-hidden rounded-2xl border border-border bg-panel shadow-panel">
+            <div className="glass-floating mt-auto overflow-hidden rounded-2xl border shadow-panel">
               <div className="border-b border-border bg-surface-subtle/70 px-3.5 py-2.5 text-[9px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
                 当前工作区
               </div>
@@ -1000,7 +1070,7 @@ export default function App() {
                   <motion.div
                     animate={{ y: 0 }}
                     className={cn(
-                      'flex items-center gap-2 rounded-xl border bg-panel/96 px-3 py-2 text-xs shadow-panel backdrop-blur-xl',
+                      'glass-floating flex items-center gap-2 rounded-xl border px-3 py-2 text-xs shadow-panel',
                       workspaceError
                         ? 'border-red-500/25 text-red-700 dark:text-red-300'
                         : 'border-success/20 text-foreground',
@@ -1035,7 +1105,7 @@ export default function App() {
           </motion.div>
         </div>
 
-        <footer className="flex items-center border-t border-border bg-panel/95 px-3 text-[10px] text-muted-foreground">
+        <footer className="glass-toolbar flex items-center border-t px-3 text-[10px] text-muted-foreground">
           <span className="inline-flex items-center gap-1.5">
             <span className="size-1.5 rounded-full bg-success" />
             桌面运行时

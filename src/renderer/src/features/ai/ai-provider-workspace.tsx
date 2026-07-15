@@ -252,8 +252,8 @@ export function AiProviderWorkspace() {
   }
 
   return (
-    <main className="flex h-full min-h-0 flex-col overflow-hidden bg-background/75">
-      <header className="flex min-h-[62px] items-center gap-3 border-b border-primary/12 bg-panel/92 px-5 py-2.5 shadow-xs">
+    <main className="workspace-stage flex h-full min-h-0 flex-col overflow-hidden">
+      <header className="glass-section-header flex min-h-[62px] items-center gap-3 border-b border-primary/16 px-5 py-2.5">
         <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-primary/11 text-primary ring-1 ring-primary/12">
           <ServerCog aria-hidden="true" className="size-4.5" />
         </span>

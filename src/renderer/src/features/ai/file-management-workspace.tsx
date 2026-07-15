@@ -154,8 +154,8 @@ export function FileManagementWorkspace({
   }
 
   return (
-    <main className="flex h-full min-h-0 flex-col overflow-hidden bg-background/75">
-      <header className="flex min-h-[62px] items-center gap-3 border-b border-warning/12 bg-panel/92 px-5 py-2.5 shadow-xs">
+    <main className="workspace-stage flex h-full min-h-0 flex-col overflow-hidden">
+      <header className="glass-section-header flex min-h-[62px] items-center gap-3 border-b border-warning/16 px-5 py-2.5">
         <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-warning/12 text-warning ring-1 ring-warning/15">
           <Sparkles aria-hidden="true" className="size-4.5" />
         </span>

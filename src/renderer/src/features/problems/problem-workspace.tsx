@@ -171,8 +171,8 @@ export function ProblemWorkspace({
     Boolean(await onUpsertRelation(request))
 
   return (
-    <main className="flex h-full min-h-0 flex-col overflow-hidden bg-background/75">
-      <header className="flex min-h-[62px] items-center gap-3 border-b border-border bg-panel/92 px-5 py-2.5 shadow-xs">
+    <main className="workspace-stage flex h-full min-h-0 flex-col overflow-hidden">
+      <header className="glass-section-header flex min-h-[62px] items-center gap-3 border-b px-5 py-2.5">
         <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-success/11 text-success ring-1 ring-success/12">
           <BookOpenText aria-hidden="true" className="size-4.5" />
         </span>
