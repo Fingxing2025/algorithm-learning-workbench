@@ -74,7 +74,7 @@ node ./node_modules/@playwright/test/cli.js test tests/e2e/packaged.spec.ts
 
 - 完成题目图片预览、题目/模板安全删除、元数据语言与精细分类、重复/相似文件建议和计划重新草拟。
 - 完成模板卡片直接建立题目关联、CodeMirror/VS Code 风格源码主题，以及最新视觉系统迭代。
-- `npm run check` 通过：16 个测试文件、42 项测试通过。
+- `npm run check` 通过：16 个测试文件、43 项测试通过。
 - 常规 `npm run test:e2e` 通过 22 项，打包入口测试按条件跳过。
 - `npm audit --audit-level=moderate` 报告 0 个漏洞。
 - 当前尚未为 0.1.2 重新生成、签名或发布安装包；不能沿用 0.1.1 的校验值。

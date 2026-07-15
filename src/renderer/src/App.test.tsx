@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -179,5 +179,20 @@ describe('App', () => {
       await screen.findByRole('heading', { level: 2, name: '单源最短路径' }),
     ).toBeInTheDocument()
     expect(screen.getByText('给定一张图，求最短路。')).toBeInTheDocument()
+  })
+
+  it('supports desktop navigation shortcuts without replacing command search', async () => {
+    installDesktopMock(workspaceFixture, [problemFixture])
+    render(<App />)
+
+    await screen.findByRole('heading', { level: 1, name: '工作台' })
+    expect(screen.getByRole('button', { name: '搜索知识库' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: '打开模板创建窗口' })).toBeEnabled()
+
+    fireEvent.keyDown(window, { key: '2', metaKey: true })
+    expect(await screen.findByRole('heading', { level: 1, name: '模板库' })).toBeInTheDocument()
+
+    fireEvent.keyDown(window, { key: '1', metaKey: true })
+    expect(await screen.findByRole('heading', { level: 1, name: '工作台' })).toBeInTheDocument()
   })
 })

@@ -6,9 +6,12 @@ import {
   BookOpenText,
   Boxes,
   Check,
+  ChevronRight,
   CircleDot,
+  Command,
   FileCode2,
   FolderOpen,
+  GitBranch,
   LayoutDashboard,
   LoaderCircle,
   Moon,
@@ -70,24 +73,27 @@ interface NavigationItem {
   icon: LucideIcon
   id?: AppView
   label: string
+  shortcut?: string
   tone: 'amber' | 'coral' | 'cyan' | 'indigo'
 }
 
 const navigationItems: NavigationItem[] = [
-  { icon: LayoutDashboard, id: 'dashboard', label: '工作台', tone: 'indigo' },
-  { icon: FileCode2, id: 'templates', label: '模板库', tone: 'cyan' },
-  { icon: BookOpenText, id: 'problems', label: '题目', tone: 'coral' },
-  { icon: Sparkles, id: 'ai', label: 'AI 管理', tone: 'amber' },
+  { icon: LayoutDashboard, id: 'dashboard', label: '工作台', shortcut: '1', tone: 'indigo' },
+  { icon: FileCode2, id: 'templates', label: '模板库', shortcut: '2', tone: 'cyan' },
+  { icon: BookOpenText, id: 'problems', label: '题目', shortcut: '3', tone: 'coral' },
+  { icon: Sparkles, id: 'ai', label: 'AI 管理', shortcut: '4', tone: 'amber' },
 ]
 
 function NavigationButton({
   active,
   item,
   onSelect,
+  shortcutLabel,
 }: {
   active: boolean
   item: NavigationItem
   onSelect: (view: AppView) => void
+  shortcutLabel?: string
 }) {
   const Icon = item.icon
   const toneClasses = {
@@ -115,6 +121,7 @@ function NavigationButton({
   return (
     <button
       aria-current={active ? 'page' : undefined}
+      aria-label={item.label}
       className={cn(
         'group relative flex h-10 w-full items-center gap-3 rounded-xl px-3 text-left text-[13px] font-medium outline-none transition-all duration-150 focus-visible:ring-2 focus-visible:ring-ring',
         active && toneClasses.active,
@@ -147,6 +154,9 @@ function NavigationButton({
       </span>
       <span>{item.label}</span>
       {item.disabled && <span className="ml-auto text-[10px] font-medium uppercase">稍后</span>}
+      {!item.disabled && shortcutLabel && (
+        <kbd className="nav-shortcut ml-auto font-sans text-[9px] font-medium">{shortcutLabel}</kbd>
+      )}
     </button>
   )
 }
@@ -252,6 +262,7 @@ function Dashboard({
 }) {
   const templateOverview = workspace.templates.slice(0, 5)
   const recentProblems = problems.slice(0, 5)
+  const relationCount = problems.reduce((total, problem) => total + problem.relations.length, 0)
 
   return (
     <main className="relative min-h-0 overflow-y-auto px-5 py-5 lg:px-8 lg:py-7">
@@ -273,8 +284,8 @@ function Dashboard({
             aria-hidden="true"
             className="absolute -bottom-24 right-1/3 size-56 rounded-full bg-success/8 blur-3xl"
           />
-          <div className="relative flex flex-wrap items-start justify-between gap-5">
-            <div className="max-w-xl">
+          <div className="dashboard-hero-layout relative grid items-stretch gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
+            <div className="flex min-w-0 flex-col justify-center">
               <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.09em] text-muted-foreground">
                 <CircleDot aria-hidden="true" className="size-3.5 fill-success/15 text-success" />
                 {workspace.name} · 本地工作区
@@ -295,35 +306,75 @@ function Dashboard({
                 <span className="dashboard-hero-chip">模板与题目双向关联</span>
                 <span className="dashboard-hero-chip">AI 变更先预览</span>
               </div>
+              <div className="mt-5 flex flex-wrap gap-2">
+                <Button
+                  className="dashboard-hero-action"
+                  onClick={onOpenProblems}
+                  size="compact"
+                  type="button"
+                  variant="outline"
+                >
+                  <BookOpenText aria-hidden="true" className="size-3.5" />
+                  浏览题目
+                </Button>
+                <Button
+                  className="dashboard-hero-action"
+                  onClick={onOpenTemplates}
+                  size="compact"
+                  type="button"
+                  variant="outline"
+                >
+                  <FolderOpen aria-hidden="true" className="size-3.5" />
+                  浏览模板库
+                </Button>
+                <Button
+                  className="border border-white/18 bg-white text-indigo-700 shadow-lg hover:bg-white/90"
+                  onClick={onCreateTemplate}
+                  size="compact"
+                  type="button"
+                >
+                  <Plus aria-hidden="true" className="size-3.5" />
+                  新建模板
+                </Button>
+              </div>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                className="dashboard-hero-action"
-                onClick={onOpenProblems}
-                type="button"
-                variant="outline"
-              >
-                <BookOpenText aria-hidden="true" className="size-4" />
-                浏览题目
-              </Button>
-              <Button
-                className="dashboard-hero-action"
-                onClick={onOpenTemplates}
-                type="button"
-                variant="outline"
-              >
-                <FolderOpen aria-hidden="true" className="size-4" />
-                浏览模板库
-              </Button>
-              <Button
-                className="border border-white/18 bg-white text-indigo-700 shadow-lg hover:bg-white/90"
-                onClick={onCreateTemplate}
-                type="button"
-              >
-                <Plus aria-hidden="true" className="size-4" />
-                新建模板
-              </Button>
-            </div>
+
+            <aside aria-label="知识脉络概览" className="hero-knowledge-map">
+              <div className="relative flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.11em] text-white/55">
+                    Knowledge graph
+                  </p>
+                  <h2 className="mt-1 text-sm font-semibold text-white">知识脉络</h2>
+                </div>
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/8 px-2 py-1 text-[9px] font-medium text-white/70">
+                  <span className="size-1.5 rounded-full bg-emerald-300 shadow-[0_0_10px_rgb(110_231_183/0.8)]" />
+                  当前索引
+                </span>
+              </div>
+              <div className="knowledge-flow relative mt-4 flex items-center justify-between">
+                <div className="knowledge-flow-node" data-tone="cyan">
+                  <FileCode2 aria-hidden="true" className="size-4" />
+                  <strong>{workspace.summary.templateCount}</strong>
+                  <span>模板</span>
+                </div>
+                <span aria-hidden="true" className="knowledge-flow-line" />
+                <div className="knowledge-flow-node" data-tone="amber">
+                  <GitBranch aria-hidden="true" className="size-4" />
+                  <strong>{relationCount}</strong>
+                  <span>关联</span>
+                </div>
+                <span aria-hidden="true" className="knowledge-flow-line" />
+                <div className="knowledge-flow-node" data-tone="coral">
+                  <BookOpenText aria-hidden="true" className="size-4" />
+                  <strong>{problems.length}</strong>
+                  <span>题目</span>
+                </div>
+              </div>
+              <p className="relative mt-3 border-t border-white/10 pt-3 text-[10px] leading-4 text-white/58">
+                关系双向可见，源码与学习记录始终保存在本地。
+              </p>
+            </aside>
           </div>
         </section>
 
@@ -375,7 +426,7 @@ function Dashboard({
               <div className="mt-4 space-y-1.5">
                 {templateOverview.map(template => (
                   <button
-                    className="group flex w-full items-center gap-3 rounded-xl border border-transparent px-3 py-2.5 text-left outline-none transition-all hover:translate-x-0.5 hover:border-border hover:bg-surface-subtle focus-visible:ring-2 focus-visible:ring-ring"
+                    className="dashboard-list-row group flex w-full items-center gap-3 rounded-xl border border-transparent px-3 py-2.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     key={template.id}
                     onClick={() => onOpenTemplate(template.id)}
                     type="button"
@@ -390,6 +441,10 @@ function Dashboard({
                       </span>
                     </span>
                     <Badge>{template.language}</Badge>
+                    <ChevronRight
+                      aria-hidden="true"
+                      className="dashboard-list-arrow size-3.5 text-muted-foreground"
+                    />
                   </button>
                 ))}
               </div>
@@ -429,7 +484,7 @@ function Dashboard({
                 <div className="mt-4 space-y-1.5">
                   {recentProblems.map(problem => (
                     <button
-                      className="group flex w-full items-center gap-3 rounded-xl border border-transparent px-3 py-2.5 text-left outline-none transition-all hover:translate-x-0.5 hover:border-border hover:bg-surface-subtle focus-visible:ring-2 focus-visible:ring-ring"
+                      className="dashboard-list-row group flex w-full items-center gap-3 rounded-xl border border-transparent px-3 py-2.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       key={problem.id}
                       onClick={() => onOpenProblem(problem.id)}
                       type="button"
@@ -445,6 +500,10 @@ function Dashboard({
                         </span>
                       </span>
                       <Badge>{problem.relations.length} 个模板</Badge>
+                      <ChevronRight
+                        aria-hidden="true"
+                        className="dashboard-list-arrow size-3.5 text-muted-foreground"
+                      />
                     </button>
                   ))}
                 </div>
@@ -668,11 +727,39 @@ export default function App() {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
         event.preventDefault()
         setCommandOpen(true)
+        return
+      }
+
+      if (!(event.metaKey || event.ctrlKey) || event.altKey) return
+      const target = event.target
+      const isEditing =
+        target instanceof HTMLElement &&
+        (target.isContentEditable || ['INPUT', 'SELECT', 'TEXTAREA'].includes(target.tagName))
+      if (isEditing) return
+
+      const key = event.key.toLowerCase()
+      if (event.shiftKey && key === 'n' && workspace?.available) {
+        event.preventDefault()
+        setCreateOpen(true)
+        return
+      }
+
+      const viewByShortcut: Partial<Record<string, AppView>> = {
+        '1': 'dashboard',
+        '2': 'templates',
+        '3': 'problems',
+        '4': 'ai',
+        ',': 'settings',
+      }
+      const nextView = viewByShortcut[key]
+      if (nextView) {
+        event.preventDefault()
+        setCurrentView(nextView)
       }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [])
+  }, [workspace?.available])
 
   useEffect(() => {
     if (
@@ -729,6 +816,8 @@ export default function App() {
 
   const platform = runtimeState.status === 'ready' ? runtimeState.value.platform : undefined
   const shortcutLabel = platform === 'darwin' ? '⌘K' : 'Ctrl K'
+  const shortcutPrefix = platform === 'darwin' ? '⌘' : 'Ctrl '
+  const createShortcutLabel = platform === 'darwin' ? '⌘⇧N' : 'Ctrl Shift N'
 
   const handleChooseWorkspace = async (request: ChooseWorkspaceRequest) => {
     const value = await chooseWorkspace(request)
@@ -1002,6 +1091,7 @@ export default function App() {
                   item={item}
                   key={item.label}
                   onSelect={setCurrentView}
+                  shortcutLabel={item.shortcut ? `${shortcutPrefix}${item.shortcut}` : undefined}
                 />
               ))}
             </nav>
@@ -1014,6 +1104,7 @@ export default function App() {
 
             <button
               aria-current={currentView === 'settings' ? 'page' : undefined}
+              aria-label="AI 设置"
               className={cn(
                 'relative flex h-10 w-full items-center gap-3 rounded-xl px-3 text-left text-[13px] font-medium outline-none transition-all focus-visible:ring-2 focus-visible:ring-ring',
                 currentView === 'settings'
@@ -1027,7 +1118,45 @@ export default function App() {
                 <Settings2 aria-hidden="true" className="size-4" strokeWidth={1.8} />
               </span>
               AI 设置
+              <kbd className="nav-shortcut ml-auto font-sans text-[9px] font-medium">
+                {shortcutPrefix},
+              </kbd>
             </button>
+
+            <section
+              aria-label="快捷操作"
+              className="quick-action-panel mt-4 rounded-2xl border p-2"
+            >
+              <div className="flex items-center gap-2 px-2 pb-1.5 pt-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-muted-foreground/75">
+                <Command aria-hidden="true" className="size-3" />
+                快捷操作
+              </div>
+              <button
+                aria-label="搜索知识库"
+                className="quick-action-row group"
+                onClick={() => setCommandOpen(true)}
+                type="button"
+              >
+                <Search aria-hidden="true" className="size-3.5 text-primary" />
+                <span>搜索知识库</span>
+                <kbd className="ml-auto font-sans text-[9px] text-muted-foreground">
+                  {shortcutLabel}
+                </kbd>
+              </button>
+              <button
+                aria-label="打开模板创建窗口"
+                className="quick-action-row group"
+                disabled={!workspace?.available}
+                onClick={() => setCreateOpen(true)}
+                type="button"
+              >
+                <Plus aria-hidden="true" className="size-3.5 text-accent-cyan" />
+                <span>新建模板</span>
+                <kbd className="ml-auto font-sans text-[9px] text-muted-foreground">
+                  {createShortcutLabel}
+                </kbd>
+              </button>
+            </section>
 
             <div className="glass-floating mt-auto overflow-hidden rounded-2xl border shadow-panel">
               <div className="border-b border-border bg-surface-subtle/70 px-3.5 py-2.5 text-[9px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
