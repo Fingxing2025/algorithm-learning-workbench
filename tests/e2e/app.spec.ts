@@ -184,7 +184,7 @@ test('scans an existing directory read-only and opens a folded tree result by ke
   await page.getByRole('button', { name: '关闭提示' }).click()
 })
 
-test('captures the template workspace in light, compact, and dark states', async () => {
+test('captures the dashboard and template workspace in light, compact, and dark states', async () => {
   const themeButton = page.getByRole('button', { name: /切换到(深色|浅色)主题/ })
   const root = page.locator('html')
 
@@ -192,6 +192,36 @@ test('captures the template workspace in light, compact, and dark states', async
     await themeButton.click()
   }
 
+  await page.getByRole('button', { exact: true, name: '工作台' }).click()
+  await expect(page.getByRole('heading', { level: 1, name: '工作台' })).toBeVisible()
+  await electronApp.evaluate(({ BrowserWindow }) => {
+    BrowserWindow.getAllWindows()[0]?.setSize(1440, 900)
+  })
+  await page.screenshot({
+    animations: 'disabled',
+    path: resolve('output/playwright/dashboard-light.png'),
+  })
+
+  await electronApp.evaluate(({ BrowserWindow }) => {
+    BrowserWindow.getAllWindows()[0]?.setSize(1280, 720)
+  })
+  await page.screenshot({
+    animations: 'disabled',
+    path: resolve('output/playwright/dashboard-light-1280x720.png'),
+  })
+
+  await electronApp.evaluate(({ BrowserWindow }) => {
+    BrowserWindow.getAllWindows()[0]?.setSize(1440, 900)
+  })
+  await page.getByRole('button', { name: '切换到深色主题' }).click()
+  await expect(root).toHaveClass(/dark/)
+  await page.screenshot({
+    animations: 'disabled',
+    path: resolve('output/playwright/dashboard-dark.png'),
+  })
+
+  await page.getByRole('button', { exact: true, name: '模板库' }).click()
+  await page.getByRole('button', { name: '切换到浅色主题' }).click()
   await electronApp.evaluate(({ BrowserWindow }) => {
     BrowserWindow.getAllWindows()[0]?.setSize(1440, 900)
   })

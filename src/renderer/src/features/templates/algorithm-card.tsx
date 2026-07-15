@@ -68,9 +68,13 @@ export function AlgorithmCard({
 
   if (!template) {
     return (
-      <section className="grid min-h-0 place-items-center bg-background p-8 text-center">
-        <div className="max-w-sm">
-          <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-muted text-muted-foreground">
+      <section className="relative grid min-h-0 place-items-center overflow-hidden bg-background p-8 text-center">
+        <div
+          aria-hidden="true"
+          className="app-grid-texture pointer-events-none absolute inset-0 opacity-55"
+        />
+        <div className="relative max-w-sm rounded-3xl border border-border bg-panel/90 px-8 py-9 shadow-panel">
+          <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-primary/10 text-primary ring-1 ring-primary/10">
             <FileCode2 aria-hidden="true" className="size-6" />
           </span>
           <h2 className="mt-4 text-sm font-semibold">选择一份算法模板</h2>
@@ -83,12 +87,23 @@ export function AlgorithmCard({
   }
 
   return (
-    <section className="flex h-full min-h-0 flex-col bg-background">
-      <header aria-label="模板摘要" className="border-b border-border bg-panel px-5 py-3.5">
+    <section className="flex h-full min-h-0 flex-col bg-background/75">
+      <header
+        aria-label="模板摘要"
+        className="relative overflow-hidden border-b border-primary/12 bg-panel px-5 py-4 shadow-xs"
+      >
+        <div aria-hidden="true" className="absolute inset-y-0 left-0 w-1 bg-primary" />
+        <div
+          aria-hidden="true"
+          className="absolute -right-12 -top-20 size-52 rounded-full bg-primary/8 blur-3xl"
+        />
         <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <h1 className="truncate text-lg font-semibold tracking-tight">{template.name}</h1>
+          <div className="relative min-w-0">
+            <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.11em] text-primary">
+              当前模板
+            </div>
+            <div className="flex items-center gap-2.5">
+              <h1 className="truncate text-xl font-semibold tracking-[-0.03em]">{template.name}</h1>
               <Badge tone="accent">{template.language}</Badge>
             </div>
             <p
@@ -98,7 +113,7 @@ export function AlgorithmCard({
               {template.relativePath}
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="relative flex gap-2">
             <Button
               onClick={() => onAction({ action: 'copy-source', templateId: template.id })}
               size="compact"
@@ -120,7 +135,7 @@ export function AlgorithmCard({
           </div>
         </div>
 
-        <dl className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px] text-muted-foreground">
+        <dl className="relative mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px] text-muted-foreground">
           {[
             ['文件类型', template.extension],
             ['文件大小', formatBytes(template.sizeBytes)],
@@ -134,9 +149,14 @@ export function AlgorithmCard({
         </dl>
       </header>
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4">
-        <div className="mb-2 flex items-center justify-between px-1">
-          <h2 className="text-xs font-semibold">模板源码</h2>
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4 lg:p-5">
+        <div className="mb-2.5 flex items-center justify-between px-1">
+          <div>
+            <h2 className="text-xs font-semibold">模板源码</h2>
+            <p className="mt-0.5 text-[10px] text-muted-foreground">
+              只读查看 · 可切换 VS Code 主题
+            </p>
+          </div>
           <Button
             aria-label="重新读取源码"
             onClick={onReload}
@@ -175,7 +195,7 @@ export function AlgorithmCard({
 
         <TemplateMetadataCard key={template.id} templateId={template.id} />
 
-        <section className="mt-4 rounded-xl border border-border bg-panel p-4">
+        <section className="mt-4 rounded-2xl border border-border bg-panel p-4 shadow-panel">
           <div className="flex items-center gap-2">
             <BookOpenText aria-hidden="true" className="size-4 text-muted-foreground" />
             <h2 className="text-xs font-semibold">关联题目</h2>
@@ -202,7 +222,7 @@ export function AlgorithmCard({
             <div className="mt-3 grid gap-2 sm:grid-cols-2">
               {relatedProblems.map(problem => (
                 <button
-                  className="flex items-center gap-3 rounded-lg border border-border bg-background px-3 py-2.5 text-left outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
+                  className="interactive-lift flex items-center gap-3 rounded-xl border border-border bg-background px-3 py-2.5 text-left outline-none hover:border-primary/25 hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-ring"
                   key={problem.id}
                   onClick={() => onOpenProblem(problem.id)}
                   type="button"

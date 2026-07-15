@@ -2,6 +2,7 @@ import * as Separator from '@radix-ui/react-separator'
 import * as Tooltip from '@radix-ui/react-tooltip'
 import {
   AlertTriangle,
+  ArrowRight,
   BookOpenText,
   Boxes,
   Check,
@@ -88,16 +89,27 @@ function NavigationButton({
     <button
       aria-current={active ? 'page' : undefined}
       className={cn(
-        'flex h-9 w-full items-center gap-3 rounded-lg px-3 text-left text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring',
-        active && 'bg-primary/10 text-primary',
-        !active && !item.disabled && 'text-muted-foreground hover:bg-muted hover:text-foreground',
+        'group relative flex h-10 w-full items-center gap-3 rounded-xl px-3 text-left text-[13px] font-medium outline-none transition-all duration-150 focus-visible:ring-2 focus-visible:ring-ring',
+        active && 'bg-primary/11 text-primary shadow-xs',
+        !active && !item.disabled && 'text-muted-foreground hover:bg-panel hover:text-foreground',
         item.disabled && 'cursor-not-allowed text-muted-foreground opacity-55',
       )}
       disabled={item.disabled}
       onClick={() => item.id && onSelect(item.id)}
       type="button"
     >
-      <Icon aria-hidden="true" className="size-4" strokeWidth={1.8} />
+      <span
+        aria-hidden="true"
+        className={cn(
+          'absolute inset-y-2 left-0 w-0.5 rounded-full bg-primary opacity-0 transition-opacity',
+          active && 'opacity-100',
+        )}
+      />
+      <Icon
+        aria-hidden="true"
+        className="size-4 transition-transform duration-150 group-hover:scale-105"
+        strokeWidth={1.8}
+      />
       <span>{item.label}</span>
       {item.disabled && <span className="ml-auto text-[10px] font-medium uppercase">稍后</span>}
     </button>
@@ -107,21 +119,41 @@ function NavigationButton({
 function SummaryCard({
   icon: Icon,
   label,
+  note,
+  tone,
   value,
 }: {
   icon: LucideIcon
   label: string
+  note: string
+  tone: 'amber' | 'indigo' | 'teal'
   value: string
 }) {
+  const toneClasses = {
+    amber: 'bg-warning/12 text-warning ring-warning/15',
+    indigo: 'bg-primary/11 text-primary ring-primary/15',
+    teal: 'bg-success/12 text-success ring-success/15',
+  }
+
   return (
-    <article className="rounded-xl border border-border bg-panel p-4 shadow-xs">
+    <article className="interactive-lift rounded-2xl border border-border bg-panel p-4 shadow-panel hover:border-border-strong">
       <div className="flex items-center justify-between">
-        <span className="text-xs font-medium text-muted-foreground">{label}</span>
-        <span className="grid size-8 place-items-center rounded-lg bg-muted text-muted-foreground">
+        <span className="text-[11px] font-semibold uppercase tracking-[0.09em] text-muted-foreground">
+          {label}
+        </span>
+        <span
+          className={cn(
+            'grid size-9 place-items-center rounded-xl ring-1 ring-inset',
+            toneClasses[tone],
+          )}
+        >
           <Icon aria-hidden="true" className="size-4" strokeWidth={1.8} />
         </span>
       </div>
-      <p className="mt-4 text-2xl font-semibold tracking-tight text-foreground">{value}</p>
+      <p className="mt-3 text-[28px] font-semibold leading-none tracking-[-0.035em] text-foreground">
+        {value}
+      </p>
+      <p className="mt-2 text-[11px] text-muted-foreground">{note}</p>
     </article>
   )
 }
@@ -161,6 +193,7 @@ function WorkspaceUnavailable({
 
 function Dashboard({
   onCreateTemplate,
+  onOpenAi,
   onOpenProblem,
   onOpenProblems,
   onOpenTemplate,
@@ -170,6 +203,7 @@ function Dashboard({
   workspace,
 }: {
   onCreateTemplate: () => void
+  onOpenAi: () => void
   onOpenProblem: (problemId: string) => void
   onOpenProblems: () => void
   onOpenTemplate: (templateId: string) => void
@@ -182,65 +216,102 @@ function Dashboard({
   const recentProblems = problems.slice(0, 5)
 
   return (
-    <main className="min-h-0 overflow-y-auto px-6 py-6 lg:px-8">
-      <div className="mx-auto max-w-5xl">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-              <CircleDot aria-hidden="true" className="size-3.5 text-success" />
-              {workspace.name} · 本地工作区
+    <main className="relative min-h-0 overflow-y-auto px-5 py-5 lg:px-8 lg:py-7">
+      <div
+        aria-hidden="true"
+        className="app-grid-texture pointer-events-none absolute inset-x-0 top-0 h-72 opacity-60"
+      />
+      <div className="relative mx-auto max-w-[1120px]">
+        <section className="relative overflow-hidden rounded-[22px] border border-primary/15 bg-panel px-5 py-5 shadow-focus lg:px-6">
+          <div
+            aria-hidden="true"
+            className="absolute -right-16 -top-24 size-72 rounded-full bg-primary/10 blur-3xl"
+          />
+          <div
+            aria-hidden="true"
+            className="absolute -bottom-24 right-1/3 size-56 rounded-full bg-success/8 blur-3xl"
+          />
+          <div className="relative flex flex-wrap items-start justify-between gap-5">
+            <div className="max-w-xl">
+              <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.09em] text-muted-foreground">
+                <CircleDot aria-hidden="true" className="size-3.5 fill-success/15 text-success" />
+                {workspace.name} · 本地工作区
+              </div>
+              <h1 className="mt-3 text-2xl font-semibold tracking-[-0.035em] lg:text-[28px]">
+                工作台
+              </h1>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                把算法源码、题目记录与 AI 整理集中在一个本地知识库中。
+              </p>
             </div>
-            <h1 className="mt-2 text-2xl font-semibold tracking-tight">工作台</h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              管理算法源码，并逐步建立模板与题目的联系。
-            </p>
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={onOpenProblems} type="button" variant="outline">
+                <BookOpenText aria-hidden="true" className="size-4" />
+                浏览题目
+              </Button>
+              <Button onClick={onOpenTemplates} type="button" variant="outline">
+                <FolderOpen aria-hidden="true" className="size-4" />
+                浏览模板库
+              </Button>
+              <Button onClick={onCreateTemplate} type="button">
+                <Plus aria-hidden="true" className="size-4" />
+                新建模板
+              </Button>
+            </div>
           </div>
-          <div className="flex gap-2">
-            <Button onClick={onOpenProblems} type="button" variant="outline">
-              <BookOpenText aria-hidden="true" className="size-4" />
-              浏览题目
-            </Button>
-            <Button onClick={onOpenTemplates} type="button" variant="outline">
-              <FolderOpen aria-hidden="true" className="size-4" />
-              浏览模板库
-            </Button>
-            <Button onClick={onCreateTemplate} type="button">
-              <Plus aria-hidden="true" className="size-4" />
-              新建模板
-            </Button>
-          </div>
-        </div>
+        </section>
 
         <section aria-label="知识库概览" className="mt-6 grid gap-3 sm:grid-cols-3">
           <SummaryCard
             icon={FileCode2}
             label="算法模板"
+            note="已索引的本地源码"
+            tone="indigo"
             value={String(workspace.summary.templateCount)}
           />
-          <SummaryCard icon={BookOpenText} label="题目卡片" value={String(problems.length)} />
-          <SummaryCard icon={Sparkles} label="待确认计划" value={String(pendingPlanCount)} />
+          <SummaryCard
+            icon={BookOpenText}
+            label="题目卡片"
+            note="沉淀题面与模板关联"
+            tone="teal"
+            value={String(problems.length)}
+          />
+          <SummaryCard
+            icon={Sparkles}
+            label="待确认计划"
+            note={pendingPlanCount > 0 ? '需要你审查后才会执行' : '当前没有待处理变更'}
+            tone="amber"
+            value={String(pendingPlanCount)}
+          />
         </section>
 
-        <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1.25fr)_minmax(300px,0.75fr)]">
-          <section className="rounded-2xl border border-border bg-panel p-5 shadow-xs">
+        <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1.18fr)_minmax(320px,0.82fr)]">
+          <section className="rounded-2xl border border-border bg-panel p-5 shadow-panel">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <h2 className="text-sm font-semibold">模板概览</h2>
                 <p className="mt-1 text-xs text-muted-foreground">从当前索引快速打开模板</p>
               </div>
-              <Badge>{templateOverview.length} 项</Badge>
+              <button
+                className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+                onClick={onOpenTemplates}
+                type="button"
+              >
+                查看全部
+                <ArrowRight aria-hidden="true" className="size-3" />
+              </button>
             </div>
 
             {templateOverview.length > 0 ? (
               <div className="mt-4 space-y-1.5">
                 {templateOverview.map(template => (
                   <button
-                    className="flex w-full items-center gap-3 rounded-xl border border-transparent px-3 py-2.5 text-left outline-none transition-colors hover:border-border hover:bg-muted/55 focus-visible:ring-2 focus-visible:ring-ring"
+                    className="group flex w-full items-center gap-3 rounded-xl border border-transparent px-3 py-2.5 text-left outline-none transition-all hover:translate-x-0.5 hover:border-border hover:bg-surface-subtle focus-visible:ring-2 focus-visible:ring-ring"
                     key={template.id}
                     onClick={() => onOpenTemplate(template.id)}
                     type="button"
                   >
-                    <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground">
+                    <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-primary/9 text-primary ring-1 ring-primary/10">
                       <FileCode2 aria-hidden="true" className="size-4" />
                     </span>
                     <span className="min-w-0 flex-1">
@@ -266,52 +337,95 @@ function Dashboard({
             )}
           </section>
 
-          <section className="rounded-2xl border border-border bg-panel p-5 shadow-xs">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <h2 className="text-sm font-semibold">最近题目</h2>
-                <p className="mt-1 text-xs text-muted-foreground">继续整理题面和模板关联</p>
-              </div>
-              <Badge>{recentProblems.length} 项</Badge>
-            </div>
-            {recentProblems.length > 0 ? (
-              <div className="mt-4 space-y-1.5">
-                {recentProblems.map(problem => (
-                  <button
-                    className="flex w-full items-center gap-3 rounded-xl border border-transparent px-3 py-2.5 text-left outline-none transition-colors hover:border-border hover:bg-muted/55 focus-visible:ring-2 focus-visible:ring-ring"
-                    key={problem.id}
-                    onClick={() => onOpenProblem(problem.id)}
-                    type="button"
-                  >
-                    <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground">
-                      <BookOpenText aria-hidden="true" className="size-4" />
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium">{problem.title}</span>
-                      <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
-                        {[problem.platform, problem.problemCode].filter(Boolean).join(' · ') ||
-                          '本地题目卡片'}
-                      </span>
-                    </span>
-                    <Badge>{problem.relations.length} 个模板</Badge>
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <div className="mt-4 grid min-h-52 place-items-center rounded-xl border border-dashed border-border bg-muted/30 p-6 text-center">
+          <div className="grid gap-4">
+            <section className="rounded-2xl border border-border bg-panel p-5 shadow-panel">
+              <div className="flex items-center justify-between gap-3">
                 <div>
-                  <BookOpenText className="mx-auto size-7 text-muted-foreground" />
-                  <p className="mt-3 text-sm font-medium">创建第一张题目卡片</p>
-                  <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                    无需 AI，也能手动记录题面并关联模板。
+                  <h2 className="text-sm font-semibold">最近题目</h2>
+                  <p className="mt-1 text-xs text-muted-foreground">继续整理题面和模板关联</p>
+                </div>
+                <button
+                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-success outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+                  onClick={onOpenProblems}
+                  type="button"
+                >
+                  查看全部
+                  <ArrowRight aria-hidden="true" className="size-3" />
+                </button>
+              </div>
+              {recentProblems.length > 0 ? (
+                <div className="mt-4 space-y-1.5">
+                  {recentProblems.map(problem => (
+                    <button
+                      className="group flex w-full items-center gap-3 rounded-xl border border-transparent px-3 py-2.5 text-left outline-none transition-all hover:translate-x-0.5 hover:border-border hover:bg-surface-subtle focus-visible:ring-2 focus-visible:ring-ring"
+                      key={problem.id}
+                      onClick={() => onOpenProblem(problem.id)}
+                      type="button"
+                    >
+                      <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-success/10 text-success ring-1 ring-success/10">
+                        <BookOpenText aria-hidden="true" className="size-4" />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium">{problem.title}</span>
+                        <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
+                          {[problem.platform, problem.problemCode].filter(Boolean).join(' · ') ||
+                            '本地题目卡片'}
+                        </span>
+                      </span>
+                      <Badge>{problem.relations.length} 个模板</Badge>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="mt-4 grid min-h-40 place-items-center rounded-xl border border-dashed border-border bg-muted/30 p-5 text-center">
+                  <div>
+                    <BookOpenText className="mx-auto size-7 text-muted-foreground" />
+                    <p className="mt-3 text-sm font-medium">创建第一张题目卡片</p>
+                    <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                      无需 AI，也能手动记录题面并关联模板。
+                    </p>
+                    <Button className="mt-4" onClick={onOpenProblems} size="compact" type="button">
+                      进入题目库
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </section>
+            <section className="relative overflow-hidden rounded-2xl border border-warning/20 bg-warning/7 p-5 shadow-panel">
+              <div
+                aria-hidden="true"
+                className="absolute -right-10 -top-12 size-32 rounded-full bg-warning/12 blur-2xl"
+              />
+              <div className="relative flex items-start gap-3">
+                <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-warning/14 text-warning ring-1 ring-warning/15">
+                  <Sparkles aria-hidden="true" className="size-4" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <h2 className="text-sm font-semibold">AI 整理中心</h2>
+                    {pendingPlanCount > 0 && (
+                      <Badge tone="warning">{pendingPlanCount} 项待审</Badge>
+                    )}
+                  </div>
+                  <p className="mt-1.5 text-xs leading-5 text-muted-foreground">
+                    {pendingPlanCount > 0
+                      ? '有新的文件整理建议等待确认；执行前可逐项查看 Diff。'
+                      : '扫描重复模板、命名异常和缺失元数据，AI 只会先生成可审查计划。'}
                   </p>
-                  <Button className="mt-4" onClick={onOpenProblems} size="compact" type="button">
-                    进入题目库
+                  <Button
+                    className="mt-3"
+                    onClick={onOpenAi}
+                    size="compact"
+                    type="button"
+                    variant="outline"
+                  >
+                    打开 AI 管理
+                    <ArrowRight aria-hidden="true" className="size-3.5" />
                   </Button>
                 </div>
               </div>
-            )}
-          </section>
+            </section>
+          </div>
         </div>
       </div>
     </main>
@@ -356,14 +470,20 @@ function TemplateLibrary({
   workspace: WorkspaceSnapshot
 }) {
   return (
-    <main className="flex h-full min-h-0 flex-col overflow-hidden">
-      <header className="flex min-h-14 flex-wrap items-center gap-3 border-b border-border bg-panel px-4 py-2">
+    <main className="flex h-full min-h-0 flex-col overflow-hidden bg-background/70">
+      <header className="flex min-h-[62px] flex-wrap items-center gap-3 border-b border-border bg-panel/92 px-5 py-2.5 shadow-xs">
+        <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary ring-1 ring-primary/10">
+          <FileCode2 aria-hidden="true" className="size-4.5" />
+        </span>
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <h1 className="truncate text-sm font-semibold">模板库</h1>
-            <Badge>{workspace.summary.templateCount} 个模板</Badge>
+            <h1 className="truncate text-[15px] font-semibold tracking-tight">模板库</h1>
+            <Badge tone="accent">{workspace.summary.templateCount} 个模板</Badge>
           </div>
-          <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{workspace.name}</p>
+          <p className="mt-0.5 flex items-center gap-1.5 truncate text-[11px] text-muted-foreground">
+            <span className="size-1.5 rounded-full bg-success" />
+            {workspace.name} · 本地索引
+          </p>
         </div>
         <div className="ml-auto flex items-center gap-2">
           <Button
@@ -393,7 +513,7 @@ function TemplateLibrary({
         </div>
       </header>
 
-      <div className="grid min-h-0 flex-1 grid-cols-[minmax(250px,320px)_minmax(0,1fr)]">
+      <div className="grid min-h-0 flex-1 grid-cols-[minmax(260px,310px)_minmax(0,1fr)]">
         <TemplateTree
           onAction={onAction}
           onSelect={onSelectTemplate}
@@ -697,6 +817,7 @@ export default function App() {
     return (
       <Dashboard
         onCreateTemplate={() => setCreateOpen(true)}
+        onOpenAi={() => setCurrentView('ai')}
         onOpenProblem={openProblem}
         onOpenProblems={() => setCurrentView('problems')}
         onOpenTemplate={openTemplate}
@@ -710,18 +831,20 @@ export default function App() {
 
   return (
     <Tooltip.Provider delayDuration={300}>
-      <div className="grid h-screen min-h-[640px] grid-rows-[56px_minmax(0,1fr)_30px] overflow-hidden bg-background text-foreground">
+      <div className="grid h-screen min-h-[640px] grid-rows-[60px_minmax(0,1fr)_30px] overflow-hidden bg-background/92 text-foreground">
         <header
           className={cn(
-            'window-drag flex items-center border-b border-border bg-panel/95 pr-4',
+            'window-drag relative flex items-center border-b border-border bg-panel/92 pr-4 shadow-xs backdrop-blur-xl',
             platform === 'darwin' ? 'pl-[86px]' : 'pl-4',
           )}
         >
           <div className="flex min-w-0 items-center gap-2.5">
-            <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-primary text-primary-foreground shadow-sm">
+            <span className="grid size-8 shrink-0 place-items-center rounded-xl bg-primary text-primary-foreground shadow-[0_8px_20px_-10px_var(--primary)] ring-1 ring-white/15">
               <Boxes aria-hidden="true" className="size-4" strokeWidth={2} />
             </span>
-            <span className="truncate text-sm font-semibold tracking-tight">算法学习工作台</span>
+            <span className="truncate text-[14px] font-semibold tracking-[-0.02em]">
+              算法学习工作台
+            </span>
             <Badge className="hidden sm:inline-flex" tone="accent">
               V2 · {runtimeState.status === 'ready' ? runtimeState.value.appVersion : '…'}
             </Badge>
@@ -730,13 +853,13 @@ export default function App() {
           <div className="window-no-drag ml-auto flex items-center gap-2">
             <button
               aria-label="打开全局搜索"
-              className="hidden h-8 min-w-52 items-center gap-2 rounded-lg border border-border bg-background px-3 text-xs text-muted-foreground shadow-xs outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring md:flex"
+              className="hidden h-9 min-w-60 items-center gap-2 rounded-xl border border-border bg-surface-subtle/80 px-3 text-xs text-muted-foreground shadow-xs outline-none transition-all hover:border-border-strong hover:bg-panel focus-visible:ring-2 focus-visible:ring-ring md:flex"
               onClick={() => setCommandOpen(true)}
               type="button"
             >
               <Search aria-hidden="true" className="size-3.5" />
               <span>搜索模板或题目</span>
-              <kbd className="ml-auto rounded border border-border bg-muted px-1.5 py-0.5 font-sans text-[10px]">
+              <kbd className="ml-auto rounded-md border border-border bg-panel px-1.5 py-0.5 font-sans text-[9px] font-semibold shadow-xs">
                 {shortcutLabel}
               </kbd>
             </button>
@@ -769,8 +892,11 @@ export default function App() {
           </div>
         </header>
 
-        <div className="grid min-h-0 grid-cols-[210px_minmax(0,1fr)]">
-          <aside className="flex min-h-0 flex-col border-r border-border bg-sidebar p-3">
+        <div className="grid min-h-0 grid-cols-[224px_minmax(0,1fr)]">
+          <aside className="flex min-h-0 flex-col border-r border-border bg-sidebar/88 px-3 py-4">
+            <div className="mb-2 px-3 text-[9px] font-semibold uppercase tracking-[0.13em] text-muted-foreground/75">
+              知识工作台
+            </div>
             <nav aria-label="主导航" className="space-y-1">
               {navigationItems.map(item => (
                 <NavigationButton
@@ -782,15 +908,19 @@ export default function App() {
               ))}
             </nav>
 
-            <Separator.Root className="my-3 h-px bg-border" decorative />
+            <Separator.Root className="my-4 h-px bg-border" decorative />
+
+            <div className="mb-2 px-3 text-[9px] font-semibold uppercase tracking-[0.13em] text-muted-foreground/75">
+              模型与服务
+            </div>
 
             <button
               aria-current={currentView === 'settings' ? 'page' : undefined}
               className={cn(
-                'flex h-9 w-full items-center gap-3 rounded-lg px-3 text-left text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring',
+                'relative flex h-10 w-full items-center gap-3 rounded-xl px-3 text-left text-[13px] font-medium outline-none transition-all focus-visible:ring-2 focus-visible:ring-ring',
                 currentView === 'settings'
-                  ? 'bg-primary/10 text-primary'
-                  : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                  ? 'bg-primary/11 text-primary shadow-xs'
+                  : 'text-muted-foreground hover:bg-panel hover:text-foreground',
               )}
               onClick={() => setCurrentView('settings')}
               type="button"
@@ -799,29 +929,35 @@ export default function App() {
               AI 设置
             </button>
 
-            <div className="mt-auto rounded-xl border border-border bg-panel p-3 shadow-xs">
-              <div className="flex items-center gap-2 text-xs font-semibold text-foreground">
-                <span
-                  className={cn(
-                    'size-2 rounded-full',
-                    workspace?.available ? 'bg-success' : 'bg-warning',
-                  )}
-                />
-                <span className="truncate">{workspace?.name ?? '尚未连接工作区'}</span>
+            <div className="mt-auto overflow-hidden rounded-2xl border border-border bg-panel shadow-panel">
+              <div className="border-b border-border bg-surface-subtle/70 px-3.5 py-2.5 text-[9px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+                当前工作区
               </div>
-              <p className="mt-2 text-[11px] leading-4 text-muted-foreground">
-                {workspace
-                  ? `${workspace.summary.templateCount} 个模板 · 本地索引`
-                  : '创建或选择一个普通文件夹即可开始。'}
-              </p>
+              <div className="px-3.5 py-3">
+                <div className="flex items-center gap-2 text-xs font-semibold text-foreground">
+                  <span
+                    className={cn(
+                      'size-2 rounded-full',
+                      workspace?.available ? 'bg-success' : 'bg-warning',
+                    )}
+                  />
+                  <span className="truncate">{workspace?.name ?? '尚未连接工作区'}</span>
+                </div>
+                <p className="mt-2 text-[11px] leading-4 text-muted-foreground">
+                  {workspace
+                    ? `${workspace.summary.templateCount} 个模板 · 本地索引`
+                    : '创建或选择一个普通文件夹即可开始。'}
+                </p>
+              </div>
             </div>
           </aside>
 
           <motion.div
             animate={{ opacity: 1, y: 0 }}
             className="relative h-full min-h-0 overflow-hidden"
-            initial={prefersReducedMotion ? false : { opacity: 0, y: 4 }}
-            transition={{ duration: 0.2, ease: 'easeOut' }}
+            initial={prefersReducedMotion ? false : { opacity: 0, y: 8 }}
+            key={currentView}
+            transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
           >
             {(workspaceError || notice) && workspace && (
               <div
@@ -856,7 +992,7 @@ export default function App() {
           </motion.div>
         </div>
 
-        <footer className="flex items-center border-t border-border bg-panel px-3 text-[10px] text-muted-foreground">
+        <footer className="flex items-center border-t border-border bg-panel/95 px-3 text-[10px] text-muted-foreground">
           <span className="inline-flex items-center gap-1.5">
             <span className="size-1.5 rounded-full bg-success" />
             桌面运行时

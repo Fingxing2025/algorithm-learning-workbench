@@ -155,9 +155,17 @@ export function TemplateTree({
   }
 
   return (
-    <section className="flex min-h-0 flex-col border-r border-border bg-sidebar/65">
-      <div className="border-b border-border p-3">
-        <div className="flex h-9 items-center gap-2 rounded-lg border border-border bg-background px-3 shadow-xs focus-within:ring-2 focus-within:ring-ring">
+    <section className="flex min-h-0 flex-col border-r border-border bg-sidebar/75">
+      <div className="border-b border-border px-3 py-3.5">
+        <div className="mb-2.5 flex items-center justify-between px-1">
+          <span className="text-[10px] font-semibold uppercase tracking-[0.11em] text-muted-foreground">
+            工作区文件
+          </span>
+          <span className="rounded-md bg-panel px-1.5 py-0.5 text-[9px] font-semibold text-muted-foreground ring-1 ring-border">
+            {templates.length}
+          </span>
+        </div>
+        <div className="flex h-9 items-center gap-2 rounded-xl border border-border bg-panel px-3 shadow-xs transition-colors focus-within:border-primary/35 focus-within:ring-2 focus-within:ring-ring">
           <Search aria-hidden="true" className="size-3.5 text-muted-foreground" />
           <input
             aria-label="筛选模板树"
@@ -167,7 +175,7 @@ export function TemplateTree({
             value={query}
           />
         </div>
-        <p className="mt-2 px-1 text-[10px] text-muted-foreground">
+        <p className="mt-2.5 px-1 text-[10px] text-muted-foreground">
           {query ? `${rows.length} 个匹配结果` : `${templates.length} 个模板`}
         </p>
       </div>
@@ -188,7 +196,7 @@ export function TemplateTree({
             rows[focusedIndex] ? `tree-row-${rows[focusedIndex].id}` : undefined
           }
           aria-label="模板树"
-          className="min-h-0 flex-1 overflow-auto outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+          className="min-h-0 flex-1 overflow-auto py-1.5 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
           onKeyDown={handleTreeKeyDown}
           ref={scrollRef}
           role="tree"
@@ -209,12 +217,12 @@ export function TemplateTree({
                   aria-level={row.depth + 1}
                   aria-selected={row.kind === 'template' ? isSelected : undefined}
                   className={cn(
-                    'absolute left-0 top-0 flex h-9 w-full items-center gap-2 pr-3 text-left text-xs outline-none transition-colors',
+                    'absolute left-1.5 top-0 flex h-9 w-[calc(100%-12px)] items-center gap-2 rounded-lg pr-3 text-left text-xs outline-none transition-all duration-150',
                     isSelected
-                      ? 'bg-primary/12 text-primary'
+                      ? 'bg-primary/12 font-medium text-primary shadow-xs ring-1 ring-primary/10'
                       : isFocused
-                        ? 'bg-muted text-foreground'
-                        : 'text-muted-foreground hover:bg-muted/70 hover:text-foreground',
+                        ? 'bg-panel text-foreground'
+                        : 'text-muted-foreground hover:translate-x-0.5 hover:bg-panel/85 hover:text-foreground',
                   )}
                   id={`tree-row-${row.id}`}
                   onClick={() => {
@@ -223,7 +231,7 @@ export function TemplateTree({
                   }}
                   role="treeitem"
                   style={{
-                    paddingLeft: 12 + row.depth * 16,
+                    paddingLeft: 10 + row.depth * 16,
                     transform: `translateY(${virtualRow.start}px)`,
                   }}
                   tabIndex={-1}

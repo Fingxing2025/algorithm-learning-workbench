@@ -5,6 +5,7 @@
 @theme inline {
   --color-background: var(--background);
   --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
   --color-code: var(--code);
   --color-code-foreground: var(--code-foreground);
   --color-foreground: var(--foreground);
@@ -12,13 +13,22 @@
   --color-muted-foreground: var(--muted-foreground);
   --color-overlay: var(--overlay);
   --color-panel: var(--panel);
+  --color-surface-elevated: var(--surface-elevated);
+  --color-surface-subtle: var(--surface-subtle);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
   --color-ring: var(--ring);
   --color-sidebar: var(--sidebar);
   --color-success: var(--success);
   --color-warning: var(--warning);
+  --color-accent-pink: var(--accent-pink);
   --shadow-xs: 0 1px 2px color-mix(in oklab, var(--shadow-color) 8%, transparent);
+  --shadow-panel:
+    0 1px 2px color-mix(in oklab, var(--shadow-color) 8%, transparent),
+    0 14px 36px -24px color-mix(in oklab, var(--shadow-color) 24%, transparent);
+  --shadow-focus:
+    0 1px 2px color-mix(in oklab, var(--shadow-color) 10%, transparent),
+    0 20px 48px -28px color-mix(in oklab, var(--primary) 34%, transparent);
   --font-mono: var(--app-font-mono);
   --font-sans: var(--app-font-sans);
 }
@@ -30,42 +40,50 @@
   --app-font-mono:
     'SFMono-Regular', 'Cascadia Code', 'JetBrains Mono', 'Roboto Mono', Consolas, 'Liberation Mono',
     monospace;
-  --background: oklch(0.975 0.004 255);
-  --border: oklch(0.89 0.009 255);
+  --background: oklch(0.972 0.008 274);
+  --border: oklch(0.894 0.015 273);
+  --border-strong: oklch(0.82 0.026 272);
   --code: oklch(0.2 0.018 258);
   --code-foreground: oklch(0.92 0.012 250);
-  --foreground: oklch(0.22 0.018 258);
-  --muted: oklch(0.95 0.006 255);
-  --muted-foreground: oklch(0.53 0.02 258);
+  --foreground: oklch(0.22 0.025 276);
+  --muted: oklch(0.948 0.013 275);
+  --muted-foreground: oklch(0.5 0.029 274);
   --overlay: oklch(0.16 0.02 258);
-  --panel: oklch(0.995 0.002 255);
-  --primary: oklch(0.52 0.2 264);
+  --panel: oklch(0.995 0.004 274);
+  --surface-elevated: oklch(1 0 0);
+  --surface-subtle: oklch(0.957 0.015 273);
+  --primary: oklch(0.55 0.21 282);
   --primary-foreground: oklch(0.99 0.005 255);
-  --ring: oklch(0.6 0.18 264);
+  --ring: oklch(0.61 0.19 282);
   --shadow-color: oklch(0.2 0.02 258);
-  --sidebar: oklch(0.96 0.006 255);
-  --success: oklch(0.58 0.15 151);
-  --warning: oklch(0.7 0.16 73);
+  --sidebar: oklch(0.955 0.016 274);
+  --success: oklch(0.59 0.13 171);
+  --warning: oklch(0.7 0.14 66);
+  --accent-pink: oklch(0.68 0.15 343);
   color-scheme: light;
 }
 
 .dark {
-  --background: oklch(0.17 0.012 258);
-  --border: oklch(0.3 0.016 258);
+  --background: oklch(0.165 0.019 276);
+  --border: oklch(0.292 0.026 275);
+  --border-strong: oklch(0.37 0.035 274);
   --code: oklch(0.125 0.012 258);
   --code-foreground: oklch(0.9 0.012 250);
-  --foreground: oklch(0.94 0.008 255);
-  --muted: oklch(0.24 0.014 258);
-  --muted-foreground: oklch(0.69 0.018 255);
+  --foreground: oklch(0.94 0.012 275);
+  --muted: oklch(0.235 0.023 275);
+  --muted-foreground: oklch(0.69 0.025 274);
   --overlay: oklch(0.08 0.01 258);
-  --panel: oklch(0.205 0.013 258);
-  --primary: oklch(0.68 0.17 263);
+  --panel: oklch(0.202 0.022 275);
+  --surface-elevated: oklch(0.224 0.026 275);
+  --surface-subtle: oklch(0.19 0.021 275);
+  --primary: oklch(0.7 0.17 282);
   --primary-foreground: oklch(0.14 0.02 260);
-  --ring: oklch(0.68 0.17 263);
+  --ring: oklch(0.7 0.17 282);
   --shadow-color: oklch(0.03 0.01 258);
-  --sidebar: oklch(0.19 0.012 258);
-  --success: oklch(0.72 0.15 151);
-  --warning: oklch(0.78 0.15 76);
+  --sidebar: oklch(0.182 0.023 276);
+  --success: oklch(0.73 0.13 171);
+  --warning: oklch(0.78 0.13 72);
+  --accent-pink: oklch(0.76 0.14 343);
   color-scheme: dark;
 }
 
@@ -83,9 +101,40 @@ body {
   margin: 0;
   overflow: hidden;
   background: var(--background);
+  background-image:
+    radial-gradient(
+      circle at 78% -8%,
+      color-mix(in oklab, var(--primary) 9%, transparent),
+      transparent 34rem
+    ),
+    radial-gradient(
+      circle at 16% 105%,
+      color-mix(in oklab, var(--success) 6%, transparent),
+      transparent 30rem
+    );
   font-family: var(--app-font-sans);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+}
+
+.app-grid-texture {
+  background-image:
+    linear-gradient(color-mix(in oklab, var(--border) 34%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in oklab, var(--border) 34%, transparent) 1px, transparent 1px);
+  background-size: 28px 28px;
+  mask-image: linear-gradient(to bottom, black, transparent 78%);
+}
+
+.interactive-lift {
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    background-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.interactive-lift:hover {
+  transform: translateY(-2px);
 }
 
 button,

@@ -3,7 +3,7 @@ import type { HTMLAttributes } from 'react'
 import { cn } from '@/lib/utils'
 
 interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
-  tone?: 'accent' | 'neutral' | 'success'
+  tone?: 'accent' | 'neutral' | 'success' | 'warning'
 }
 
 export function Badge({ className, tone = 'neutral', ...props }: BadgeProps) {
@@ -14,6 +14,7 @@ export function Badge({ className, tone = 'neutral', ...props }: BadgeProps) {
         tone === 'accent' && 'border-primary/20 bg-primary/10 text-primary',
         tone === 'neutral' && 'border-border bg-muted text-muted-foreground',
         tone === 'success' && 'border-success/20 bg-success/10 text-success',
+        tone === 'warning' && 'border-warning/25 bg-warning/12 text-warning',
         className,
       )}
       {...props}
