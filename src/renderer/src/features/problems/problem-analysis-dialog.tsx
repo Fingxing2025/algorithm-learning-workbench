@@ -184,10 +184,10 @@ export function ProblemAnalysisDialog({
   return (
     <Dialog.Root onOpenChange={openValue => !isBusy && onOpenChange(openValue)} open={open}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-50 bg-overlay/60 backdrop-blur-[2px]" />
+        <Dialog.Overlay className="dialog-overlay fixed inset-0 z-50 bg-overlay/60 backdrop-blur-[3px]" />
         <Dialog.Content
           aria-describedby="problem-analysis-description"
-          className="fixed left-1/2 top-1/2 z-50 flex h-[min(850px,calc(100vh-24px))] w-[min(980px,calc(100vw-24px))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-border bg-panel shadow-2xl outline-none"
+          className="dialog-surface fixed left-1/2 top-1/2 z-50 flex h-[min(850px,calc(100vh-24px))] w-[min(980px,calc(100vw-24px))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-3xl border border-primary/18 bg-panel shadow-2xl outline-none ring-1 ring-white/8"
           onInteractOutside={event => isBusy && event.preventDefault()}
         >
           <header className="flex items-start border-b border-border px-5 py-4">

@@ -55,15 +55,15 @@ export function RelationDialog({
   }
 
   const inputClass =
-    'mt-1.5 h-10 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring'
+    'mt-1.5 h-10 w-full rounded-xl border border-border bg-background px-3 text-sm outline-none transition-colors focus:border-success/40 focus:ring-2 focus:ring-success'
 
   return (
     <Dialog.Root onOpenChange={onOpenChange} open={open}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-[60] bg-overlay/60 backdrop-blur-[2px]" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-[60] w-[min(520px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-2xl border border-border bg-panel shadow-2xl outline-none">
+        <Dialog.Overlay className="dialog-overlay fixed inset-0 z-[60] bg-overlay/60 backdrop-blur-[3px]" />
+        <Dialog.Content className="dialog-surface fixed left-1/2 top-1/2 z-[60] w-[min(520px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-3xl border border-success/18 bg-panel shadow-2xl outline-none ring-1 ring-white/8">
           <header className="flex items-start border-b border-border px-5 py-4">
-            <span className="mr-3 grid size-9 place-items-center rounded-xl bg-primary/10 text-primary">
+            <span className="mr-3 grid size-9 place-items-center rounded-xl bg-success/11 text-success ring-1 ring-success/12">
               <Link2 aria-hidden="true" className="size-4" />
             </span>
             <div>

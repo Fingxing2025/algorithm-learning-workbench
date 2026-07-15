@@ -22,7 +22,7 @@ import {
   X,
   type LucideIcon,
 } from 'lucide-react'
-import { motion, useReducedMotion } from 'motion/react'
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 
 import type { Problem, UpsertProblemRelationRequest } from '@core/contracts/problem'
@@ -974,35 +974,48 @@ export default function App() {
             key={currentView}
             transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
           >
-            {(workspaceError || notice) && workspace && (
-              <div
-                className={cn(
-                  'absolute left-1/2 top-3 z-40 flex max-w-[min(640px,calc(100%-32px))] -translate-x-1/2 items-center gap-2 rounded-xl border px-3 py-2 text-xs shadow-lg',
-                  workspaceError
-                    ? 'border-red-500/25 bg-panel text-red-700 dark:text-red-300'
-                    : 'border-success/20 bg-panel text-foreground',
-                )}
-                role={workspaceError ? 'alert' : 'status'}
-              >
-                {workspaceError ? (
-                  <AlertTriangle aria-hidden="true" className="size-4 shrink-0" />
-                ) : (
-                  <Check aria-hidden="true" className="size-4 shrink-0 text-success" />
-                )}
-                <span>{workspaceError ?? notice}</span>
-                <button
-                  aria-label="关闭提示"
-                  className="ml-2 rounded p-0.5 text-muted-foreground hover:bg-muted"
-                  onClick={() => {
-                    clearWorkspaceError()
-                    setNotice(null)
-                  }}
-                  type="button"
+            <AnimatePresence>
+              {(workspaceError || notice) && workspace && (
+                <motion.div
+                  animate={{ opacity: 1 }}
+                  className="absolute left-1/2 top-3 z-40 w-max max-w-[min(640px,calc(100%-32px))] -translate-x-1/2"
+                  exit={prefersReducedMotion ? undefined : { opacity: 0 }}
+                  initial={prefersReducedMotion ? false : { opacity: 0 }}
                 >
-                  <X aria-hidden="true" className="size-3.5" />
-                </button>
-              </div>
-            )}
+                  <motion.div
+                    animate={{ y: 0 }}
+                    className={cn(
+                      'flex items-center gap-2 rounded-xl border bg-panel/96 px-3 py-2 text-xs shadow-panel backdrop-blur-xl',
+                      workspaceError
+                        ? 'border-red-500/25 text-red-700 dark:text-red-300'
+                        : 'border-success/20 text-foreground',
+                    )}
+                    exit={prefersReducedMotion ? undefined : { y: -6 }}
+                    initial={prefersReducedMotion ? false : { y: -8 }}
+                    role={workspaceError ? 'alert' : 'status'}
+                    transition={{ duration: 0.18, ease: 'easeOut' }}
+                  >
+                    {workspaceError ? (
+                      <AlertTriangle aria-hidden="true" className="size-4 shrink-0" />
+                    ) : (
+                      <Check aria-hidden="true" className="size-4 shrink-0 text-success" />
+                    )}
+                    <span>{workspaceError ?? notice}</span>
+                    <button
+                      aria-label="关闭提示"
+                      className="ml-2 rounded p-0.5 text-muted-foreground hover:bg-muted"
+                      onClick={() => {
+                        clearWorkspaceError()
+                        setNotice(null)
+                      }}
+                      type="button"
+                    >
+                      <X aria-hidden="true" className="size-3.5" />
+                    </button>
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>
             {renderContent()}
           </motion.div>
         </div>

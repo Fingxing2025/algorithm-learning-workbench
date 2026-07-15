@@ -94,6 +94,36 @@ test('starts from zero through the real desktop entry with a narrow preload API'
     path: resolve('output/playwright/stage1-onboarding-light.png'),
   })
 
+  await page.getByRole('button', { name: '切换到深色主题' }).click()
+  await page.screenshot({
+    animations: 'disabled',
+    path: resolve('output/playwright/stage1-onboarding-dark.png'),
+  })
+  await page.getByRole('button', { name: '切换到浅色主题' }).click()
+
+  await page.getByRole('button', { name: '打开全局搜索' }).click()
+  await expect(page.getByRole('dialog')).toBeVisible()
+  await page.screenshot({
+    animations: 'disabled',
+    path: resolve('output/playwright/command-palette-light.png'),
+  })
+  await page.getByRole('button', { name: '关闭全局搜索' }).click()
+
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.getByRole('button', { name: '打开全局搜索' }).click()
+  const reducedMotionDurationMs = await page.getByRole('dialog').evaluate(element => {
+    const browser = globalThis as unknown as {
+      getComputedStyle: (target: unknown) => { animationDuration: string }
+    }
+    const duration = browser.getComputedStyle(element).animationDuration
+    return duration.endsWith('ms')
+      ? Number.parseFloat(duration)
+      : Number.parseFloat(duration) * 1000
+  })
+  expect(reducedMotionDurationMs).toBeLessThanOrEqual(0.01)
+  await page.getByRole('button', { name: '关闭全局搜索' }).click()
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+
   const exposedGlobals = await page.evaluate(() => {
     const desktopWindow = globalThis as unknown as {
       desktop?: {

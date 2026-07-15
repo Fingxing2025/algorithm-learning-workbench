@@ -59,8 +59,8 @@ function MetadataConflictDialog({
   return (
     <Dialog.Root onOpenChange={nextOpen => !nextOpen && onCancel()} open>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-[70] bg-overlay/70 backdrop-blur-[3px]" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-[71] flex h-[min(720px,calc(100vh-32px))] w-[min(880px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-border bg-panel shadow-2xl outline-none">
+        <Dialog.Overlay className="dialog-overlay fixed inset-0 z-[70] bg-overlay/70 backdrop-blur-[3px]" />
+        <Dialog.Content className="dialog-surface fixed left-1/2 top-1/2 z-[71] flex h-[min(720px,calc(100vh-32px))] w-[min(880px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-3xl border border-warning/20 bg-panel shadow-2xl outline-none ring-1 ring-white/8">
           <header className="flex items-start gap-3 border-b border-border px-5 py-4">
             <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-warning/12 text-warning">
               <GitCompareArrows className="size-4" />
@@ -290,13 +290,13 @@ export function CreateTemplateDialog({
   }
 
   const inputClass =
-    'mt-1.5 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring'
+    'mt-1.5 w-full rounded-xl border border-border bg-background px-3 text-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-primary/40 focus:ring-2 focus:ring-ring'
 
   return (
     <Dialog.Root onOpenChange={onOpenChange} open={open}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-50 bg-overlay/60 backdrop-blur-[2px]" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 flex h-[min(820px,calc(100vh-32px))] w-[min(1120px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-border bg-panel shadow-2xl outline-none">
+        <Dialog.Overlay className="dialog-overlay fixed inset-0 z-50 bg-overlay/60 backdrop-blur-[3px]" />
+        <Dialog.Content className="dialog-surface fixed left-1/2 top-1/2 z-50 flex h-[min(820px,calc(100vh-32px))] w-[min(1120px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-3xl border border-primary/18 bg-panel shadow-2xl outline-none ring-1 ring-white/8">
           <header className="flex items-start border-b border-border px-5 py-4">
             <span className="mr-3 grid size-9 place-items-center rounded-xl bg-primary/10 text-primary">
               <FilePlus2 aria-hidden="true" className="size-4" />
@@ -332,7 +332,7 @@ export function CreateTemplateDialog({
             )}
 
             <div className="grid min-h-0 flex-1 gap-4 p-5 lg:grid-cols-[minmax(0,1.15fr)_minmax(340px,0.85fr)]">
-              <section className="flex min-h-0 flex-col rounded-2xl border border-border bg-background/55 p-4">
+              <section className="flex min-h-0 flex-col rounded-2xl border border-border bg-background/55 p-4 shadow-xs">
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <h2 className="text-xs font-semibold">源码与保存路径</h2>
@@ -434,7 +434,7 @@ export function CreateTemplateDialog({
                 </div>
               </section>
 
-              <section className="min-h-0 overflow-y-auto rounded-2xl border border-border bg-muted/20 p-4">
+              <section className="min-h-0 overflow-y-auto rounded-2xl border border-border bg-surface-subtle/45 p-4 shadow-xs">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <h2 className="text-xs font-semibold">算法元数据</h2>

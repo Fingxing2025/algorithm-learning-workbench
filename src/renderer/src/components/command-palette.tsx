@@ -72,14 +72,16 @@ export function CommandPalette({
   return (
     <Dialog.Root onOpenChange={onOpenChange} open={open}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-50 bg-overlay/55 backdrop-blur-[2px]" />
-        <Dialog.Content className="fixed left-1/2 top-[15%] z-50 w-[min(680px,calc(100vw-32px))] -translate-x-1/2 overflow-hidden rounded-2xl border border-border bg-panel shadow-2xl outline-none">
-          <div className="flex items-center gap-3 border-b border-border px-4">
-            <Search aria-hidden="true" className="size-4 text-muted-foreground" />
+        <Dialog.Overlay className="dialog-overlay fixed inset-0 z-50 bg-overlay/58 backdrop-blur-[3px]" />
+        <Dialog.Content className="dialog-surface fixed left-1/2 top-[13%] z-50 w-[min(700px,calc(100vw-32px))] -translate-x-1/2 overflow-hidden rounded-3xl border border-primary/18 bg-panel shadow-[0_32px_80px_-32px_var(--shadow-color)] outline-none ring-1 ring-white/8">
+          <div className="flex items-center gap-3 border-b border-border bg-surface-subtle/55 px-4">
+            <span className="grid size-8 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary ring-1 ring-primary/10">
+              <Search aria-hidden="true" className="size-4" />
+            </span>
             <input
               aria-label="搜索模板、题目或操作"
               autoFocus
-              className="h-14 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
+              className="h-16 flex-1 bg-transparent text-[15px] text-foreground outline-none placeholder:text-muted-foreground"
               onChange={event => setQuery(event.target.value)}
               onKeyDown={event => {
                 if (event.key === 'Enter' && results[0]) {
@@ -96,7 +98,7 @@ export function CommandPalette({
             </Dialog.Close>
           </div>
 
-          <div className="max-h-[400px] min-h-44 overflow-y-auto p-2">
+          <div className="max-h-[420px] min-h-44 overflow-y-auto p-2.5">
             <Dialog.Title className="sr-only">全局搜索</Dialog.Title>
             <Dialog.Description className="sr-only">
               搜索并打开算法模板或本地题目卡片。
@@ -114,12 +116,18 @@ export function CommandPalette({
                           .join(' · ') || '本地题目卡片'
                   return (
                     <button
-                      className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left outline-none transition-colors hover:bg-muted focus-visible:bg-muted"
+                      className="group flex w-full items-center gap-3 rounded-xl border border-transparent px-3 py-2.5 text-left outline-none transition-all hover:translate-x-0.5 hover:border-border hover:bg-surface-subtle focus-visible:bg-muted"
                       key={`${result.kind}:${result.value.id}`}
                       onClick={() => selectResult(result)}
                       type="button"
                     >
-                      <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground">
+                      <span
+                        className={
+                          isTemplate
+                            ? 'grid size-9 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary'
+                            : 'grid size-9 shrink-0 place-items-center rounded-xl bg-success/10 text-success'
+                        }
+                      >
                         {isTemplate ? (
                           <FileCode2 aria-hidden="true" className="size-4" />
                         ) : (
@@ -156,7 +164,7 @@ export function CommandPalette({
             )}
           </div>
 
-          <div className="flex items-center justify-between border-t border-border bg-muted/35 px-4 py-2.5 text-[11px] text-muted-foreground">
+          <div className="flex items-center justify-between border-t border-border bg-surface-subtle/65 px-4 py-2.5 text-[11px] text-muted-foreground">
             <span>
               {templates.length} 个模板 · {problems.length} 道题目
             </span>
