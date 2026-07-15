@@ -18,6 +18,19 @@
         --pink: #e979a8;
         --shadow: 0 20px 55px rgba(29, 39, 70, 0.1);
       }
+      body.dark {
+        --canvas: #11131b;
+        --panel: rgba(25, 29, 41, 0.9);
+        --line: #2c3343;
+        --ink: #eef1f8;
+        --muted: #9ba6ba;
+        --primary: #948cff;
+        --primary-soft: #292650;
+        --teal: #4bd0b1;
+        --orange: #ffb36b;
+        --pink: #f49ac0;
+        --shadow: 0 22px 65px rgba(0, 0, 0, 0.3);
+      }
 
       * {
         box-sizing: border-box;
@@ -624,6 +637,65 @@
         display: block;
         animation: toast 0.32s ease both;
       }
+      body.dark .sidebar {
+        border-right-color: rgba(67, 76, 97, 0.7);
+        background: rgba(17, 19, 27, 0.78);
+      }
+      body.dark .nav-item:hover {
+        background: #202534;
+      }
+      body.dark .nav-item.active {
+        color: #c7c2ff;
+        background: linear-gradient(90deg, #2a2753, #1d2035);
+      }
+      body.dark .workspace-card,
+      body.dark .search,
+      body.dark .theme-toggle {
+        border-color: var(--line);
+        background: rgba(30, 35, 48, 0.92);
+      }
+      body.dark kbd {
+        border-color: #3b4458;
+        color: #acb5c7;
+        background: #252b3a;
+      }
+      body.dark .metric {
+        border-color: #303849;
+        box-shadow: 0 12px 28px rgba(0, 0, 0, 0.16);
+      }
+      body.dark .tree-row:hover {
+        background: #242a38;
+      }
+      body.dark .tree-row.selected {
+        color: #c5c1ff;
+        background: #2a2851;
+      }
+      body.dark .tree-tag {
+        color: #aab4c7;
+        background: #272e3d;
+      }
+      body.dark .relation-strip {
+        border-color: #32384e;
+        background: #202536;
+      }
+      body.dark .ai-card {
+        color: #d9f8ef;
+        background: linear-gradient(145deg, #153d3b, #1c3c4c);
+      }
+      body.dark .ai-card p {
+        color: #a2d6ca;
+      }
+      body.dark .task {
+        border-bottom-color: #303747;
+      }
+      body.dark .idea {
+        border-color: #4b457e;
+        color: #c5c1ff;
+        background: #1e2034;
+      }
+      body.dark .section-label {
+        color: #7f8ba0;
+      }
       @keyframes rise {
         from {
           opacity: 0;
@@ -691,6 +763,7 @@
           <div class="crumb">工作空间 / <b>今日概览</b></div>
           <div class="actions">
             <div class="search">⌕&nbsp; 搜索模板、题目或命令 <kbd>⌘ K</kbd></div>
+            <button class="theme-toggle" id="theme-toggle">☾ 暗色方案</button>
             <button class="theme-toggle" id="preview-action">✦ 探索动效</button>
             <div class="avatar"></div>
           </div>
@@ -818,12 +891,22 @@
     <div class="toast" id="toast">已触发轻量交互预览 · 不改变任何数据</div>
     <script>
       const toast = document.getElementById('toast')
+      const themeToggle = document.getElementById('theme-toggle')
       const showToast = () => {
         toast.classList.add('show')
         window.setTimeout(() => toast.classList.remove('show'), 2200)
       }
       document.getElementById('preview-action').addEventListener('click', showToast)
       document.getElementById('new-template').addEventListener('click', showToast)
+      const setTheme = dark => {
+        document.body.classList.toggle('dark', dark)
+        themeToggle.textContent = dark ? '☀ 亮色方案' : '☾ 暗色方案'
+        history.replaceState(null, '', dark ? '#dark' : '#light')
+      }
+      setTheme(location.hash === '#dark')
+      themeToggle.addEventListener('click', () =>
+        setTheme(!document.body.classList.contains('dark')),
+      )
     </script>
   </body>
 </html>

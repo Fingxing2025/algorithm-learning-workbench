@@ -74,7 +74,7 @@
 
 ## 本次预览
 
-独立预览页：[ui-refresh-exploration.html](../prototypes/ui-refresh-exploration.html)。
+独立预览页：[亮色方案](../prototypes/ui-refresh-exploration.html) 与 [暗色方案](../prototypes/ui-refresh-exploration-dark.html)。两者共享同一份页面结构与设计 token，避免把暗色主题做成另一套不一致的产品。
 
 它演示了：多语义色、焦点模板卡片、低干扰模板树、AI 扫描状态、信息卡层级、悬停反馈和减少动效兼容。它不读取用户数据、不接入 Electron API，也不改动当前正式界面。
 
