@@ -22,7 +22,7 @@ test('launches the packaged desktop app with a clean user-data directory', async
     const page = await app.firstWindow()
     await expect(page).toHaveTitle('智能算法学习助手 V2')
     await expect(page.getByRole('heading', { level: 1, name: '连接你的模板工作区' })).toBeVisible()
-    await expect(page.getByText('V2 · 0.1.1')).toBeVisible()
+    await expect(page.getByText('V2 · 0.1.2')).toBeVisible()
     await expect(page.getByText(/Electron 43\.1\.0 · (darwin|linux|win32)/)).toBeVisible()
     const boundary = await page.evaluate(() => {
       const scope = globalThis as unknown as {
