@@ -252,12 +252,15 @@ export function AiProviderWorkspace() {
   }
 
   return (
-    <main className="flex h-full min-h-0 flex-col overflow-hidden">
-      <header className="flex min-h-14 items-center gap-3 border-b border-border bg-panel px-4 py-2">
+    <main className="flex h-full min-h-0 flex-col overflow-hidden bg-background/75">
+      <header className="flex min-h-[62px] items-center gap-3 border-b border-primary/12 bg-panel/92 px-5 py-2.5 shadow-xs">
+        <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-primary/11 text-primary ring-1 ring-primary/12">
+          <ServerCog aria-hidden="true" className="size-4.5" />
+        </span>
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-sm font-semibold">AI 设置</h1>
-            <Badge>{providerState.profiles.length} 个配置</Badge>
+            <h1 className="text-[15px] font-semibold tracking-tight">AI 设置</h1>
+            <Badge tone="accent">{providerState.profiles.length} 个配置</Badge>
           </div>
           <p className="mt-0.5 text-[11px] text-muted-foreground">
             只负责供应商、密钥、模型能力与任务路由；不会在此执行 AI 管理任务
@@ -269,8 +272,16 @@ export function AiProviderWorkspace() {
         </Button>
       </header>
 
-      <div className="grid min-h-0 flex-1 grid-cols-[minmax(250px,310px)_minmax(0,1fr)]">
-        <aside className="min-h-0 overflow-y-auto border-r border-border bg-sidebar p-3">
+      <div className="grid min-h-0 flex-1 grid-cols-[minmax(260px,310px)_minmax(0,1fr)]">
+        <aside className="min-h-0 overflow-y-auto border-r border-border bg-sidebar/75 p-3">
+          <div className="mb-3 flex items-center justify-between px-1">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.11em] text-muted-foreground">
+              Provider 配置
+            </span>
+            <span className="rounded-md bg-panel px-1.5 py-0.5 text-[9px] font-semibold text-muted-foreground ring-1 ring-border">
+              {providerState.profiles.length}
+            </span>
+          </div>
           {providerState.profiles.length === 0 ? (
             <div className="grid min-h-52 place-items-center rounded-xl border border-dashed border-border bg-panel/50 p-5 text-center">
               <div>
@@ -287,16 +298,23 @@ export function AiProviderWorkspace() {
                 <button
                   aria-current={selectedId === profile.id ? 'true' : undefined}
                   className={cn(
-                    'flex w-full items-center gap-3 rounded-xl border px-3 py-3 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring',
+                    'interactive-lift flex w-full items-center gap-3 rounded-xl border px-3 py-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring',
                     selectedId === profile.id
-                      ? 'border-primary/30 bg-primary/8'
+                      ? 'border-primary/20 bg-primary/10 shadow-xs'
                       : 'border-transparent hover:border-border hover:bg-panel',
                   )}
                   key={profile.id}
                   onClick={() => selectProfile(profile)}
                   type="button"
                 >
-                  <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground">
+                  <span
+                    className={cn(
+                      'grid size-9 shrink-0 place-items-center rounded-xl ring-1 ring-inset',
+                      selectedId === profile.id
+                        ? 'bg-primary/12 text-primary ring-primary/12'
+                        : 'bg-muted text-muted-foreground ring-border',
+                    )}
+                  >
                     <ServerCog className="size-4" />
                   </span>
                   <span className="min-w-0 flex-1">
@@ -312,10 +330,18 @@ export function AiProviderWorkspace() {
           )}
         </aside>
 
-        <section className="min-h-0 overflow-y-auto bg-background">
-          <form className="mx-auto max-w-4xl p-6" onSubmit={event => void submit(event)}>
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div>
+        <section className="relative min-h-0 overflow-y-auto bg-background/75">
+          <div
+            aria-hidden="true"
+            className="app-grid-texture pointer-events-none absolute inset-x-0 top-0 h-72 opacity-35"
+          />
+          <form className="relative mx-auto max-w-4xl p-6" onSubmit={event => void submit(event)}>
+            <div className="relative flex flex-wrap items-start justify-between gap-4 overflow-hidden rounded-2xl border border-primary/15 bg-panel p-5 shadow-focus">
+              <div
+                aria-hidden="true"
+                className="absolute -right-16 -top-20 size-56 rounded-full bg-primary/9 blur-3xl"
+              />
+              <div className="relative">
                 <p className="text-xs font-medium text-primary">
                   {isCreating ? '新配置' : '配置详情'}
                 </p>
@@ -327,7 +353,7 @@ export function AiProviderWorkspace() {
                 </p>
               </div>
               {!isCreating && selectedProfile && (
-                <div className="flex items-center gap-2">
+                <div className="relative flex items-center gap-2">
                   <Badge tone={selectedProfile.hasSecret ? 'success' : 'neutral'}>
                     <KeyRound className="size-3" />
                     {selectedProfile.hasSecret ? '密钥已保存' : '无密钥'}
@@ -397,10 +423,10 @@ export function AiProviderWorkspace() {
                         aria-label={`使用 ${preset.name} 预设`}
                         aria-pressed={selected}
                         className={cn(
-                          'group rounded-2xl border p-4 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring',
+                          'interactive-lift group rounded-2xl border p-4 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring',
                           selected
-                            ? 'border-primary/40 bg-primary/8'
-                            : 'border-border bg-panel hover:border-primary/25 hover:bg-muted/45',
+                            ? 'border-primary/35 bg-primary/9 shadow-panel'
+                            : 'border-border bg-panel shadow-xs hover:border-primary/25 hover:bg-surface-subtle',
                         )}
                         key={preset.id}
                         onClick={() => applyPreset(preset)}
@@ -437,12 +463,12 @@ export function AiProviderWorkspace() {
               </section>
             )}
 
-            <div className="mt-6 grid gap-5 rounded-2xl border border-border bg-panel p-5 shadow-xs md:grid-cols-2">
+            <div className="mt-6 grid gap-5 rounded-2xl border border-border bg-panel p-5 shadow-panel md:grid-cols-2">
               <label className="grid gap-1.5 text-xs font-medium">
                 显示名称
                 <input
                   aria-label="Provider 显示名称"
-                  className="h-10 rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
+                  className="h-10 rounded-xl border border-input bg-background px-3 text-sm outline-none transition-colors focus:border-primary/40 focus:ring-2 focus:ring-ring"
                   maxLength={80}
                   onChange={event => setForm(current => ({ ...current, name: event.target.value }))}
                   placeholder="例如：我的 OpenAI"
@@ -454,7 +480,7 @@ export function AiProviderWorkspace() {
                 协议
                 <select
                   aria-label="Provider 协议"
-                  className="h-10 rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
+                  className="h-10 rounded-xl border border-input bg-background px-3 text-sm outline-none transition-colors focus:border-primary/40 focus:ring-2 focus:ring-ring"
                   onChange={event => {
                     const protocol = event.target.value as AiProviderProtocol
                     const option = protocolOptions.find(item => item.value === protocol)!
@@ -474,7 +500,7 @@ export function AiProviderWorkspace() {
                 Base URL
                 <input
                   aria-label="Base URL"
-                  className="h-10 rounded-lg border border-input bg-background px-3 font-mono text-xs outline-none focus:ring-2 focus:ring-ring"
+                  className="h-10 rounded-xl border border-input bg-background px-3 font-mono text-xs outline-none transition-colors focus:border-primary/40 focus:ring-2 focus:ring-ring"
                   onChange={event =>
                     setForm(current => ({ ...current, baseUrl: event.target.value }))
                   }
@@ -497,7 +523,7 @@ export function AiProviderWorkspace() {
                 模型名称
                 <input
                   aria-label="模型名称"
-                  className="h-10 rounded-lg border border-input bg-background px-3 font-mono text-xs outline-none focus:ring-2 focus:ring-ring"
+                  className="h-10 rounded-xl border border-input bg-background px-3 font-mono text-xs outline-none transition-colors focus:border-primary/40 focus:ring-2 focus:ring-ring"
                   maxLength={160}
                   onChange={event =>
                     setForm(current => ({ ...current, model: event.target.value }))
@@ -516,7 +542,7 @@ export function AiProviderWorkspace() {
                 超时时间（秒）
                 <input
                   aria-label="超时时间"
-                  className="h-10 rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
+                  className="h-10 rounded-xl border border-input bg-background px-3 text-sm outline-none transition-colors focus:border-primary/40 focus:ring-2 focus:ring-ring"
                   max="120"
                   min="3"
                   onChange={event =>
@@ -532,7 +558,7 @@ export function AiProviderWorkspace() {
                 <input
                   aria-label="API Key"
                   autoComplete="off"
-                  className="h-10 rounded-lg border border-input bg-background px-3 font-mono text-xs outline-none focus:ring-2 focus:ring-ring"
+                  className="h-10 rounded-xl border border-input bg-background px-3 font-mono text-xs outline-none transition-colors focus:border-primary/40 focus:ring-2 focus:ring-ring"
                   onChange={event =>
                     setForm(current => ({ ...current, apiKey: event.target.value }))
                   }
@@ -548,7 +574,7 @@ export function AiProviderWorkspace() {
             </div>
 
             <div className="mt-5 grid gap-5 lg:grid-cols-2">
-              <section className="rounded-2xl border border-border bg-panel p-5 shadow-xs">
+              <section className="rounded-2xl border border-border bg-panel p-5 shadow-panel">
                 <h3 className="text-sm font-semibold">模型能力</h3>
                 <p className="mt-1 text-xs leading-5 text-muted-foreground">
                   按实际模型能力声明，任务路由会在调用前检查。
@@ -574,14 +600,14 @@ export function AiProviderWorkspace() {
                 </div>
               </section>
 
-              <section className="rounded-2xl border border-border bg-panel p-5 shadow-xs">
+              <section className="rounded-2xl border border-border bg-panel p-5 shadow-panel">
                 <h3 className="text-sm font-semibold">自定义请求头</h3>
                 <p className="mt-1 text-xs leading-5 text-muted-foreground">
                   使用 JSON 对象；鉴权与传输敏感头由应用管理，不能覆盖。
                 </p>
                 <textarea
                   aria-label="自定义请求头"
-                  className="mt-3 min-h-28 w-full resize-y rounded-lg border border-input bg-background p-3 font-mono text-xs outline-none focus:ring-2 focus:ring-ring"
+                  className="mt-3 min-h-28 w-full resize-y rounded-xl border border-input bg-background p-3 font-mono text-xs outline-none transition-colors focus:border-primary/40 focus:ring-2 focus:ring-ring"
                   onChange={event =>
                     setForm(current => ({ ...current, customHeadersText: event.target.value }))
                   }
@@ -592,7 +618,7 @@ export function AiProviderWorkspace() {
             </div>
 
             {!isCreating && selectedProfile && (
-              <section className="mt-5 rounded-2xl border border-border bg-panel p-5 shadow-xs">
+              <section className="mt-5 rounded-2xl border border-primary/15 bg-panel p-5 shadow-panel">
                 <h3 className="text-sm font-semibold">任务路由</h3>
                 <p className="mt-1 text-xs leading-5 text-muted-foreground">
                   将工作台任务指向此 Provider；题图分析只接受视觉模型。

@@ -163,12 +163,15 @@ export function ProblemWorkspace({
     Boolean(await onUpsertRelation(request))
 
   return (
-    <main className="flex h-full min-h-0 flex-col overflow-hidden">
-      <header className="flex min-h-14 items-center gap-3 border-b border-border bg-panel px-4 py-2">
+    <main className="flex h-full min-h-0 flex-col overflow-hidden bg-background/75">
+      <header className="flex min-h-[62px] items-center gap-3 border-b border-border bg-panel/92 px-5 py-2.5 shadow-xs">
+        <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-success/11 text-success ring-1 ring-success/12">
+          <BookOpenText aria-hidden="true" className="size-4.5" />
+        </span>
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-sm font-semibold">题目卡片</h1>
-            <Badge>{problems.length} 道题</Badge>
+            <h1 className="text-[15px] font-semibold tracking-tight">题目卡片</h1>
+            <Badge tone="success">{problems.length} 道题</Badge>
           </div>
           <p className="mt-0.5 text-[11px] text-muted-foreground">本地题库与模板关联</p>
         </div>
@@ -206,10 +209,18 @@ export function ProblemWorkspace({
         </div>
       )}
 
-      <div className="grid min-h-0 flex-1 grid-cols-[minmax(280px,340px)_minmax(0,1fr)]">
-        <section className="flex min-h-0 flex-col border-r border-border bg-sidebar/65">
-          <div className="border-b border-border p-3">
-            <div className="flex h-9 items-center gap-2 rounded-lg border border-border bg-background px-3 shadow-xs focus-within:ring-2 focus-within:ring-ring">
+      <div className="grid min-h-0 flex-1 grid-cols-[minmax(280px,330px)_minmax(0,1fr)]">
+        <section className="flex min-h-0 flex-col border-r border-border bg-sidebar/75">
+          <div className="border-b border-border px-3 py-3.5">
+            <div className="mb-2.5 flex items-center justify-between px-1">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.11em] text-muted-foreground">
+                题目索引
+              </span>
+              <span className="rounded-md bg-panel px-1.5 py-0.5 text-[9px] font-semibold text-muted-foreground ring-1 ring-border">
+                {filteredProblems.length}
+              </span>
+            </div>
+            <div className="flex h-9 items-center gap-2 rounded-xl border border-border bg-panel px-3 shadow-xs transition-colors focus-within:border-success/35 focus-within:ring-2 focus-within:ring-success">
               <Search aria-hidden="true" className="size-3.5 text-muted-foreground" />
               <input
                 aria-label="筛选题目卡片"
@@ -219,7 +230,7 @@ export function ProblemWorkspace({
                 value={query}
               />
             </div>
-            <p className="mt-2 px-1 text-[10px] text-muted-foreground">
+            <p className="mt-2.5 px-1 text-[10px] text-muted-foreground">
               {query ? `${filteredProblems.length} 个匹配结果` : '按最近修改排序'}
             </p>
           </div>
@@ -246,15 +257,17 @@ export function ProblemWorkspace({
               </div>
             </div>
           ) : (
-            <div aria-label="题目列表" className="min-h-0 flex-1 overflow-y-auto p-2">
+            <div aria-label="题目列表" className="min-h-0 flex-1 overflow-y-auto p-2.5">
               {filteredProblems.map(problem => {
                 const selected = problem.id === selectedProblemId
                 return (
                   <button
                     aria-current={selected ? 'true' : undefined}
                     className={cn(
-                      'mb-1 flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring',
-                      selected ? 'bg-primary/12 text-primary' : 'text-foreground hover:bg-muted',
+                      'mb-1 flex w-full items-start gap-3 rounded-xl border px-3 py-3 text-left outline-none transition-all focus-visible:ring-2 focus-visible:ring-success',
+                      selected
+                        ? 'border-success/15 bg-success/10 text-foreground shadow-xs'
+                        : 'border-transparent text-foreground hover:translate-x-0.5 hover:border-border hover:bg-panel',
                     )}
                     key={problem.id}
                     onClick={() => onSelect(problem.id)}
@@ -263,7 +276,9 @@ export function ProblemWorkspace({
                     <span
                       className={cn(
                         'mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg',
-                        selected ? 'bg-primary/12' : 'bg-muted text-muted-foreground',
+                        selected
+                          ? 'bg-success/13 text-success ring-1 ring-success/12'
+                          : 'bg-muted text-muted-foreground',
                       )}
                     >
                       <BookOpenText aria-hidden="true" className="size-4" />
@@ -288,9 +303,13 @@ export function ProblemWorkspace({
         </section>
 
         {!selectedProblem ? (
-          <section className="grid min-h-0 place-items-center bg-background p-8 text-center">
-            <div className="max-w-sm">
-              <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-muted text-muted-foreground">
+          <section className="relative grid min-h-0 place-items-center overflow-hidden bg-background p-8 text-center">
+            <div
+              aria-hidden="true"
+              className="app-grid-texture pointer-events-none absolute inset-0 opacity-50"
+            />
+            <div className="relative max-w-sm rounded-3xl border border-border bg-panel/90 px-8 py-9 shadow-panel">
+              <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-success/11 text-success ring-1 ring-success/12">
                 <BookOpenText aria-hidden="true" className="size-6" />
               </span>
               <h2 className="mt-4 text-sm font-semibold">选择一道题目</h2>
@@ -300,10 +319,18 @@ export function ProblemWorkspace({
             </div>
           </section>
         ) : (
-          <section className="min-h-0 overflow-y-auto bg-background">
-            <header className="border-b border-border bg-panel px-6 py-5">
+          <section className="min-h-0 overflow-y-auto bg-background/75">
+            <header className="relative overflow-hidden border-b border-success/12 bg-panel px-6 py-5 shadow-xs">
+              <div aria-hidden="true" className="absolute inset-y-0 left-0 w-1 bg-success" />
+              <div
+                aria-hidden="true"
+                className="absolute -right-16 -top-20 size-56 rounded-full bg-success/8 blur-3xl"
+              />
               <div className="flex items-start gap-4">
-                <div className="min-w-0 flex-1">
+                <div className="relative min-w-0 flex-1">
+                  <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.11em] text-success">
+                    当前题目
+                  </p>
                   <div className="flex flex-wrap items-center gap-2">
                     <h2 className="text-xl font-semibold tracking-tight">
                       {selectedProblem.title}
@@ -322,7 +349,13 @@ export function ProblemWorkspace({
                       .join(' · ') || '尚未补充平台、题号和难度'}
                   </p>
                 </div>
-                <Button onClick={openEditEditor} size="compact" type="button" variant="outline">
+                <Button
+                  className="relative"
+                  onClick={openEditEditor}
+                  size="compact"
+                  type="button"
+                  variant="outline"
+                >
                   <Edit3 aria-hidden="true" className="size-3.5" />
                   编辑
                 </Button>
@@ -337,13 +370,13 @@ export function ProblemWorkspace({
             </header>
 
             <div className="space-y-4 p-5 lg:p-6">
-              <section className="rounded-2xl border border-border bg-panel p-5 shadow-xs">
+              <section className="rounded-2xl border border-border bg-panel p-5 shadow-panel">
                 <div className="flex items-center gap-2">
                   <FileText aria-hidden="true" className="size-4 text-muted-foreground" />
                   <h3 className="text-sm font-semibold">题面与备注</h3>
                 </div>
                 <div className="mt-4 grid gap-4 xl:grid-cols-2">
-                  <div className="rounded-xl border border-border bg-muted/25 p-4">
+                  <div className="rounded-xl border border-border bg-surface-subtle/65 p-4">
                     <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                       题面摘要
                     </p>
@@ -351,7 +384,7 @@ export function ProblemWorkspace({
                       {selectedProblem.statement || '尚未记录题面摘要。'}
                     </p>
                   </div>
-                  <div className="rounded-xl border border-border bg-muted/25 p-4">
+                  <div className="rounded-xl border border-border bg-surface-subtle/65 p-4">
                     <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                       本地备注
                     </p>
@@ -370,9 +403,9 @@ export function ProblemWorkspace({
                 )}
               </section>
 
-              <section className="rounded-2xl border border-border bg-panel p-5 shadow-xs">
+              <section className="rounded-2xl border border-border bg-panel p-5 shadow-panel">
                 <div className="flex items-center gap-3">
-                  <span className="grid size-8 place-items-center rounded-lg bg-primary/10 text-primary">
+                  <span className="grid size-9 place-items-center rounded-xl bg-success/11 text-success ring-1 ring-success/12">
                     <Link2 aria-hidden="true" className="size-4" />
                   </span>
                   <div>
@@ -402,7 +435,7 @@ export function ProblemWorkspace({
                   <div className="mt-4 space-y-2">
                     {selectedProblem.relations.map(relation => (
                       <article
-                        className="flex items-center gap-3 rounded-xl border border-border bg-background/70 px-3 py-3"
+                        className="interactive-lift flex items-center gap-3 rounded-xl border border-border bg-background/70 px-3 py-3 hover:border-success/25"
                         key={relation.templateId}
                       >
                         <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground">
@@ -493,9 +526,9 @@ export function ProblemWorkspace({
                 )}
               </section>
 
-              <section className="rounded-2xl border border-border bg-panel p-5 shadow-xs">
+              <section className="rounded-2xl border border-border bg-panel p-5 shadow-panel">
                 <div className="flex items-center gap-3">
-                  <span className="grid size-8 place-items-center rounded-lg bg-muted text-muted-foreground">
+                  <span className="grid size-9 place-items-center rounded-xl bg-accent-pink/10 text-accent-pink ring-1 ring-accent-pink/12">
                     <FileImage aria-hidden="true" className="size-4" />
                   </span>
                   <div>
