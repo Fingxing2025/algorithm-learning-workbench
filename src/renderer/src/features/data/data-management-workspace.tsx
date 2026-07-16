@@ -9,6 +9,7 @@ import {
   LoaderCircle,
   RotateCcw,
   ShieldCheck,
+  Trash2,
   TriangleAlert,
   Undo2,
 } from 'lucide-react'
@@ -20,6 +21,8 @@ import type {
   BackupVerification,
   CleanupPreview,
   DataDiagnostics,
+  InterruptedRecoveryPreview,
+  QuarantineReleasePreview,
   RestoreBackupResult,
   RestorePreview,
 } from '@core/contracts/data-management'
@@ -32,8 +35,12 @@ type Operation =
   | 'cleanup-preview'
   | 'diagnose'
   | 'export'
+  | 'interrupted-preview'
   | 'lifecycle'
   | 'quarantine'
+  | 'quarantine-release'
+  | 'quarantine-release-preview'
+  | 'recover-interrupted'
   | 'preview'
   | 'restore'
   | 'undo-cleanup'
@@ -62,6 +69,13 @@ export function DataManagementWorkspace() {
   const [selectedCandidateIds, setSelectedCandidateIds] = useState<string[]>([])
   const [cleanupPreview, setCleanupPreview] = useState<CleanupPreview | null>(null)
   const [confirmQuarantine, setConfirmQuarantine] = useState(false)
+  const [interruptedPreview, setInterruptedPreview] = useState<InterruptedRecoveryPreview | null>(
+    null,
+  )
+  const [confirmInterruptedRecovery, setConfirmInterruptedRecovery] = useState(false)
+  const [quarantineReleasePreview, setQuarantineReleasePreview] =
+    useState<QuarantineReleasePreview | null>(null)
+  const [confirmQuarantineRelease, setConfirmQuarantineRelease] = useState(false)
   const [exportResult, setExportResult] = useState<BackupExportResult | null>(null)
   const [verification, setVerification] = useState<BackupVerification | null>(null)
   const [restorePreview, setRestorePreview] = useState<RestorePreview | null>(null)
@@ -91,9 +105,13 @@ export function DataManagementWorkspace() {
       ])
       setDiagnostics(nextDiagnostics)
       setLifecycle(nextLifecycle)
-      setSelectedCandidateIds(current =>
-        current.filter(id => nextLifecycle.candidates.some(candidate => candidate.id === id)),
-      )
+      setSelectedCandidateIds([])
+      setCleanupPreview(null)
+      setConfirmQuarantine(false)
+      setInterruptedPreview(null)
+      setConfirmInterruptedRecovery(false)
+      setQuarantineReleasePreview(null)
+      setConfirmQuarantineRelease(false)
     })
   }
 
@@ -105,6 +123,10 @@ export function DataManagementWorkspace() {
       setSelectedCandidateIds([])
       setCleanupPreview(null)
       setConfirmQuarantine(false)
+      setInterruptedPreview(null)
+      setConfirmInterruptedRecovery(false)
+      setQuarantineReleasePreview(null)
+      setConfirmQuarantineRelease(false)
     })
   }
 
@@ -184,6 +206,61 @@ export function DataManagementWorkspace() {
         return t('没有对应执行记录，需要你判断')
       case 'within-retention-window':
         return t('仍在所选保留期内')
+    }
+  }
+
+  const interruptedKindLabel = (
+    kind: BackupLifecycleInventory['interruptedOperations'][number]['kind'],
+  ) => {
+    switch (kind) {
+      case 'cleanup-operation':
+        return t('中断的隔离操作')
+      case 'restore-marker':
+        return t('恢复提交标记')
+      case 'restore-operation':
+        return t('中断的恢复操作')
+      case 'unknown':
+        return t('未知临时残留')
+    }
+  }
+
+  const interruptedActionLabel = (
+    action: BackupLifecycleInventory['interruptedOperations'][number]['action'],
+  ) => {
+    switch (action) {
+      case 'clear-restore-marker':
+        return t('清理已完成恢复标记')
+      case 'complete-restore':
+        return t('完成已提交恢复的收尾')
+      case 'none':
+        return t('仅保护，不执行')
+      case 'restore-preflight':
+        return t('恢复到操作前状态')
+      case 'rollback-cleanup':
+        return t('退回中断隔离项目')
+    }
+  }
+
+  const interruptedReasonLabel = (
+    reason: BackupLifecycleInventory['interruptedOperations'][number]['reason'],
+  ) => {
+    switch (reason) {
+      case 'cleanup-journal-ready':
+        return t('隔离日志有效，可安全退回')
+      case 'committed-restore-ready':
+        return t('数据库已提交，可安全完成收尾')
+      case 'journal-invalid':
+        return t('日志缺失或损坏，保持只读保护')
+      case 'preflight-invalid':
+        return t('恢复预备份无效，保持只读保护')
+      case 'restore-marker-only':
+        return t('恢复已完成，仅剩提交标记')
+      case 'restore-preflight-ready':
+        return t('提交前中断，可安全恢复旧状态')
+      case 'state-conflict':
+        return t('文件状态已变化，保持只读保护')
+      case 'unknown-temporary-item':
+        return t('来源无法证明，保持只读保护')
     }
   }
 
@@ -406,8 +483,117 @@ export function DataManagementWorkspace() {
                       {t('发现异常中断残留')}
                     </p>
                     <p className="mt-2 leading-5 text-muted-foreground">
-                      {t('这些目录可能包含恢复前原始数据，当前只报告并保护，不会从清理入口移动。')}
+                      {t(
+                        '只有日志、提交标记和文件指纹都一致的操作才能手动恢复；其余残留继续只读保护。',
+                      )}
                     </p>
+                    <div className="mt-3 grid gap-2">
+                      {lifecycle.interruptedOperations.map(item => (
+                        <div
+                          className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-warning/20 bg-background/65 p-3"
+                          key={item.id}
+                        >
+                          <div className="min-w-0">
+                            <p className="flex flex-wrap items-center gap-2 font-medium text-foreground">
+                              {interruptedKindLabel(item.kind)}
+                              <Badge tone={item.canRecover ? 'success' : 'warning'}>
+                                {item.canRecover ? t('可安全恢复') : t('受保护')}
+                              </Badge>
+                            </p>
+                            <p className="mt-1 leading-5 text-muted-foreground">
+                              {interruptedReasonLabel(item.reason)} · {formatBytes(item.bytes)} · #
+                              {item.id.slice(0, 8)}
+                            </p>
+                          </div>
+                          {item.canRecover && (
+                            <Button
+                              disabled={operation !== null}
+                              onClick={() =>
+                                void run('interrupted-preview', async () => {
+                                  const preview =
+                                    await window.desktop.dataManagement.previewInterruptedRecovery({
+                                      operationId: item.id,
+                                    })
+                                  setInterruptedPreview(preview)
+                                  setConfirmInterruptedRecovery(false)
+                                })
+                              }
+                              size="compact"
+                              type="button"
+                              variant="outline"
+                            >
+                              <RotateCcw aria-hidden="true" className="size-3.5" />
+                              {t('预览异常恢复')}
+                            </Button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {interruptedPreview && (
+                  <div className="mt-4 rounded-xl border border-warning/25 bg-warning/8 p-4 text-xs">
+                    <p className="font-semibold text-warning">
+                      {interruptedPreview.canExecute
+                        ? t('异常恢复预览可继续')
+                        : t('异常恢复预览已阻止')}
+                    </p>
+                    {interruptedPreview.operation && (
+                      <p className="mt-2 leading-5 text-muted-foreground">
+                        {t('将执行：{action}。', {
+                          action: interruptedActionLabel(interruptedPreview.operation.action),
+                        })}
+                      </p>
+                    )}
+                    {interruptedPreview.errors.length > 0 && (
+                      <p className="mt-2 text-warning">
+                        {t('操作状态或恢复预备份已变化，请重新诊断。')}
+                      </p>
+                    )}
+                    {interruptedPreview.canExecute && interruptedPreview.operation && (
+                      <>
+                        <label className="mt-3 flex items-start gap-2 text-muted-foreground">
+                          <input
+                            checked={confirmInterruptedRecovery}
+                            className="mt-0.5 size-4 accent-[hsl(var(--warning))]"
+                            onChange={event =>
+                              setConfirmInterruptedRecovery(event.currentTarget.checked)
+                            }
+                            type="checkbox"
+                          />
+                          <span>{t('我已核对异常恢复预览，并允许应用执行所示安全恢复操作。')}</span>
+                        </label>
+                        <Button
+                          className="mt-3"
+                          disabled={operation !== null || !confirmInterruptedRecovery}
+                          onClick={() =>
+                            void run('recover-interrupted', async () => {
+                              if (!interruptedPreview.operation) return
+                              const result =
+                                await window.desktop.dataManagement.recoverInterruptedOperation({
+                                  confirmRecovery: true,
+                                  operationId: interruptedPreview.operation.id,
+                                  retentionPolicy,
+                                })
+                              setLifecycle(result.inventory)
+                              setDiagnostics(await window.desktop.dataManagement.diagnose())
+                              setInterruptedPreview(null)
+                              setConfirmInterruptedRecovery(false)
+                              setMessage(t('异常操作已按预览安全处理。'))
+                            })
+                          }
+                          type="button"
+                        >
+                          {operation === 'recover-interrupted' ? (
+                            <LoaderCircle aria-hidden="true" className="size-4 animate-spin" />
+                          ) : (
+                            <RotateCcw aria-hidden="true" className="size-4" />
+                          )}
+                          {t('确认异常恢复')}
+                        </Button>
+                      </>
+                    )}
                   </div>
                 )}
 
@@ -598,34 +784,120 @@ export function DataManagementWorkspace() {
                             {new Date(item.createdAt).toLocaleString(locale)} · {item.itemCount}{' '}
                             {t('项')} · {formatBytes(item.bytes)} · #{item.id.slice(0, 8)}
                           </p>
-                          <Button
-                            disabled={!item.canUndo || operation !== null}
-                            onClick={() =>
-                              void run('undo-cleanup', async () => {
-                                const result = await window.desktop.dataManagement.undoCleanup({
-                                  confirmUndo: true,
-                                  operationId: item.id,
-                                  retentionPolicy,
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              disabled={!item.canUndo || operation !== null}
+                              onClick={() =>
+                                void run('undo-cleanup', async () => {
+                                  const result = await window.desktop.dataManagement.undoCleanup({
+                                    confirmUndo: true,
+                                    operationId: item.id,
+                                    retentionPolicy,
+                                  })
+                                  setLifecycle(result.inventory)
+                                  setDiagnostics(await window.desktop.dataManagement.diagnose())
+                                  setMessage(
+                                    t('已从隔离区恢复 {count} 项；未覆盖任何后续文件。', {
+                                      count: result.restoredCount,
+                                    }),
+                                  )
                                 })
-                                setLifecycle(result.inventory)
-                                setDiagnostics(await window.desktop.dataManagement.diagnose())
-                                setMessage(
-                                  t('已从隔离区恢复 {count} 项；未覆盖任何后续文件。', {
-                                    count: result.restoredCount,
-                                  }),
-                                )
-                              })
-                            }
-                            size="compact"
-                            type="button"
-                            variant="outline"
-                          >
-                            <Undo2 aria-hidden="true" className="size-3.5" />
-                            {t('撤销隔离')}
-                          </Button>
+                              }
+                              size="compact"
+                              type="button"
+                              variant="outline"
+                            >
+                              <Undo2 aria-hidden="true" className="size-3.5" />
+                              {t('撤销隔离')}
+                            </Button>
+                            <Button
+                              disabled={operation !== null}
+                              onClick={() =>
+                                void run('quarantine-release-preview', async () => {
+                                  const preview =
+                                    await window.desktop.dataManagement.previewQuarantineRelease({
+                                      operationId: item.id,
+                                    })
+                                  setQuarantineReleasePreview(preview)
+                                  setConfirmQuarantineRelease(false)
+                                })
+                              }
+                              size="compact"
+                              type="button"
+                              variant="outline"
+                            >
+                              <Trash2 aria-hidden="true" className="size-3.5" />
+                              {t('移入系统废纸篓')}
+                            </Button>
+                          </div>
                         </div>
                       ))}
                     </div>
+                  </div>
+                )}
+
+                {quarantineReleasePreview && (
+                  <div className="mt-4 rounded-xl border border-warning/25 bg-warning/8 p-4 text-xs">
+                    <p className="font-semibold text-warning">
+                      {quarantineReleasePreview.canRelease
+                        ? t('废纸篓移交预览可继续')
+                        : t('废纸篓移交预览已阻止')}
+                    </p>
+                    {quarantineReleasePreview.operation && (
+                      <p className="mt-2 leading-5 text-muted-foreground">
+                        {t('将把 {count} 项、共 {bytes} 移交系统废纸篓；应用不会直接永久删除。', {
+                          bytes: formatBytes(quarantineReleasePreview.operation.bytes),
+                          count: quarantineReleasePreview.operation.itemCount,
+                        })}
+                      </p>
+                    )}
+                    {quarantineReleasePreview.errors.length > 0 && (
+                      <p className="mt-2 text-warning">{t('隔离记录或内容已变化，请重新诊断。')}</p>
+                    )}
+                    {quarantineReleasePreview.canRelease && quarantineReleasePreview.operation && (
+                      <>
+                        <label className="mt-3 flex items-start gap-2 text-muted-foreground">
+                          <input
+                            checked={confirmQuarantineRelease}
+                            className="mt-0.5 size-4 accent-[hsl(var(--warning))]"
+                            onChange={event =>
+                              setConfirmQuarantineRelease(event.currentTarget.checked)
+                            }
+                            type="checkbox"
+                          />
+                          <span>{t('我已核对隔离记录，并允许应用将其移交系统废纸篓。')}</span>
+                        </label>
+                        <Button
+                          className="mt-3"
+                          disabled={operation !== null || !confirmQuarantineRelease}
+                          onClick={() =>
+                            void run('quarantine-release', async () => {
+                              if (!quarantineReleasePreview.operation) return
+                              const result = await window.desktop.dataManagement.releaseQuarantine({
+                                confirmMoveToTrash: true,
+                                operationId: quarantineReleasePreview.operation.id,
+                                retentionPolicy,
+                              })
+                              setLifecycle(result.inventory)
+                              setDiagnostics(await window.desktop.dataManagement.diagnose())
+                              setQuarantineReleasePreview(null)
+                              setConfirmQuarantineRelease(false)
+                              setMessage(
+                                t('隔离记录已移交系统废纸篓；永久清空仍由操作系统和你决定。'),
+                              )
+                            })
+                          }
+                          type="button"
+                        >
+                          {operation === 'quarantine-release' ? (
+                            <LoaderCircle aria-hidden="true" className="size-4 animate-spin" />
+                          ) : (
+                            <Trash2 aria-hidden="true" className="size-4" />
+                          )}
+                          {t('确认移入系统废纸篓')}
+                        </Button>
+                      </>
+                    )}
                   </div>
                 )}
               </>
@@ -732,7 +1004,7 @@ export function DataManagementWorkspace() {
                 {verification.errors.length > 0 && (
                   <div className="mt-3 space-y-1 text-warning">
                     {verification.errors.map(error => (
-                      <p key={error}>{error}</p>
+                      <p key={error}>{t(error)}</p>
                     ))}
                   </div>
                 )}
@@ -751,7 +1023,7 @@ export function DataManagementWorkspace() {
                 {restorePreview.conflicts.length > 0 && (
                   <div className="mt-3 space-y-1 text-warning">
                     {restorePreview.conflicts.map(conflict => (
-                      <p key={conflict}>{conflict}</p>
+                      <p key={conflict}>{t(conflict)}</p>
                     ))}
                   </div>
                 )}

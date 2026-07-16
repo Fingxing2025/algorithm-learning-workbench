@@ -15,7 +15,7 @@ import {
 import { basename, dirname, join, relative, resolve, sep } from 'node:path'
 
 import BetterSqlite3 from 'better-sqlite3'
-import { dialog, type BrowserWindow } from 'electron'
+import { dialog, shell, type BrowserWindow } from 'electron'
 
 import {
   backupManifestSchema,
@@ -37,6 +37,15 @@ import {
   type RestorePreview,
   type QuarantineCleanupRequest,
   type QuarantineCleanupResult,
+  type InterruptedRecoveryPreview,
+  type InterruptedRecoveryPreviewRequest,
+  type QuarantineReleasePreview,
+  type QuarantineReleasePreviewRequest,
+  type RecoverInterruptedOperationRequest,
+  type RecoverInterruptedOperationResult,
+  type ReleaseQuarantineRequest,
+  type ReleaseQuarantineResult,
+  type RestoreOperationJournal,
   type UndoCleanupRequest,
   type UndoCleanupResult,
 } from '@core/contracts/data-management'
@@ -49,7 +58,7 @@ import {
   resolveAuthorizedFile,
   resolveAuthorizedRoot,
 } from '../security/path-guard'
-import { DataLifecycleService } from './data-lifecycle-service'
+import { DataLifecycleService, RESTORE_COMMIT_MARKER_PREFIX } from './data-lifecycle-service'
 
 const DATABASE_FILE = 'algorithm-workbench.sqlite'
 const BACKUP_EXTENSION = '.awb-backup'
@@ -112,8 +121,11 @@ export class DataManagementService {
     private readonly database: AppDatabase,
     private readonly userDataPath: string,
   ) {
-    this.lifecycleService = new DataLifecycleService(database, userDataPath, packagePath =>
-      this.verifyBackupPath(packagePath),
+    this.lifecycleService = new DataLifecycleService(
+      database,
+      userDataPath,
+      packagePath => this.verifyBackupPath(packagePath),
+      path => shell.trashItem(path),
     )
   }
 
@@ -220,15 +232,38 @@ export class DataManagementService {
     const restoreId = randomUUID()
     const stagingRoot = join(this.userDataPath, `.restore-${restoreId}.tmp`)
     const swaps: DirectorySwap[] = []
+    let databaseCommitted = false
+    let preserveInterruptedState = false
     try {
       await mkdir(stagingRoot, { recursive: false })
       await this.prepareRestoredDirectories(backupPath, stagingRoot)
+      const journal = await this.createRestoreJournal(
+        stagingRoot,
+        restoreId,
+        basename(preflightBackupPath),
+      )
+      await this.lifecycleService.writeRestoreJournal(stagingRoot, journal)
       await this.applyRestoredDirectories(stagingRoot, swaps)
       if (process.env.E2E_RESTORE_FAIL_STAGE === 'after-file-swap') {
         throw new PublicError('UNKNOWN', '模拟恢复失败，已回滚到操作前状态。')
       }
-      await this.restoreDatabaseFromSnapshot(join(backupPath, SQLITE_SNAPSHOT_PATH))
+      if (process.env.E2E_RESTORE_INTERRUPT_STAGE === 'after-file-swap') {
+        preserveInterruptedState = true
+        throw new PublicError('UNKNOWN', '模拟恢复异常中断，已保留恢复日志。')
+      }
+      await this.restoreDatabaseFromSnapshot(join(backupPath, SQLITE_SNAPSHOT_PATH), {
+        committedAt: new Date().toISOString(),
+        formatVersion: 'v1',
+        restoreId,
+        rollbackBackupName: basename(preflightBackupPath),
+      })
+      databaseCommitted = true
+      if (process.env.E2E_RESTORE_INTERRUPT_STAGE === 'after-database-commit') {
+        preserveInterruptedState = true
+        throw new PublicError('UNKNOWN', '模拟恢复已提交但收尾中断，已保留恢复日志。')
+      }
       await rm(stagingRoot, { force: true, recursive: true })
+      this.lifecycleService.clearCommittedRestoreMarker(restoreId)
       const diagnostics = await this.diagnose()
       return {
         preflightBackupPath,
@@ -237,7 +272,20 @@ export class DataManagementService {
         skippedTemplateSources: verification.manifest.includeTemplateSources,
       }
     } catch (error) {
-      await this.rollbackRestoredDirectories(swaps)
+      databaseCommitted ||= this.lifecycleService.hasCommittedRestoreMarker(restoreId)
+      if (databaseCommitted || preserveInterruptedState) {
+        if (error instanceof PublicError) throw error
+        throw new PublicError(
+          'UNKNOWN',
+          databaseCommitted
+            ? '恢复已提交，但收尾未完成，请在数据管理页处理异常操作。'
+            : '恢复异常中断，已保留可验证恢复日志。',
+        )
+      }
+      const rollbackOk = await this.rollbackRestoredDirectories(swaps)
+      if (!rollbackOk) {
+        throw new PublicError('UNKNOWN', '恢复失败且自动回滚未完成，请在数据管理页处理异常操作。')
+      }
       await rm(stagingRoot, { force: true, recursive: true }).catch(() => undefined)
       if (error instanceof PublicError) throw error
       throw new PublicError('UNKNOWN', '恢复失败，当前数据已回滚到操作前状态。')
@@ -258,6 +306,28 @@ export class DataManagementService {
 
   undoCleanup(request: UndoCleanupRequest): Promise<UndoCleanupResult> {
     return this.lifecycleService.undo(request)
+  }
+
+  previewInterruptedRecovery(
+    request: InterruptedRecoveryPreviewRequest,
+  ): Promise<InterruptedRecoveryPreview> {
+    return this.lifecycleService.previewInterruptedRecovery(request)
+  }
+
+  recoverInterruptedOperation(
+    request: RecoverInterruptedOperationRequest,
+  ): Promise<RecoverInterruptedOperationResult> {
+    return this.lifecycleService.recoverInterruptedOperation(request)
+  }
+
+  previewQuarantineRelease(
+    request: QuarantineReleasePreviewRequest,
+  ): Promise<QuarantineReleasePreview> {
+    return this.lifecycleService.previewQuarantineRelease(request)
+  }
+
+  releaseQuarantine(request: ReleaseQuarantineRequest): Promise<ReleaseQuarantineResult> {
+    return this.lifecycleService.releaseQuarantine(request)
   }
 
   private exportDialogOptions(): Electron.SaveDialogOptions {
@@ -401,6 +471,43 @@ export class DataManagementService {
     }
   }
 
+  private async createRestoreJournal(
+    stagingRoot: string,
+    restoreId: string,
+    rollbackBackupName: string,
+  ): Promise<RestoreOperationJournal> {
+    const swaps: RestoreOperationJournal['swaps'] = []
+    for (const directoryName of RESTORABLE_USER_DATA_DIRECTORIES) {
+      const originalPath = join(this.userDataPath, directoryName)
+      const restoredPath = join(stagingRoot, 'restored', directoryName)
+      const hadOriginal = await this.pathExists(originalPath)
+      const hadRestoredCopy = await this.pathExists(restoredPath)
+      const originalInspection = hadOriginal
+        ? await this.lifecycleService.inspectPathForJournal(originalPath)
+        : null
+      const restoredInspection = hadRestoredCopy
+        ? await this.lifecycleService.inspectPathForJournal(restoredPath)
+        : null
+      if (originalInspection?.hasSymbolicLink || restoredInspection?.hasSymbolicLink) {
+        throw new PublicError('INVALID_REQUEST', '恢复目录包含符号链接，操作已取消。')
+      }
+      swaps.push({
+        directoryName,
+        hadOriginal,
+        hadRestoredCopy,
+        originalFingerprint: originalInspection?.fingerprint ?? null,
+        restoredFingerprint: restoredInspection?.fingerprint ?? null,
+      })
+    }
+    return {
+      createdAt: new Date().toISOString(),
+      formatVersion: 'v1',
+      restoreId,
+      rollbackBackupName,
+      swaps,
+    }
+  }
+
   private async applyRestoredDirectories(
     stagingRoot: string,
     swaps: DirectorySwap[],
@@ -421,16 +528,35 @@ export class DataManagementService {
     }
   }
 
-  private async rollbackRestoredDirectories(swaps: DirectorySwap[]): Promise<void> {
+  private async rollbackRestoredDirectories(swaps: DirectorySwap[]): Promise<boolean> {
     for (const swap of [...swaps].reverse()) {
-      await rm(swap.targetPath, { force: true, recursive: true }).catch(() => undefined)
-      if (await this.pathExists(swap.originalPath)) {
-        await rename(swap.originalPath, swap.targetPath).catch(() => undefined)
+      try {
+        if (await this.pathExists(swap.originalPath)) {
+          if (await this.pathExists(swap.targetPath)) {
+            if (await this.pathExists(swap.restoredPath)) return false
+            await rename(swap.targetPath, swap.restoredPath)
+          }
+          await rename(swap.originalPath, swap.targetPath)
+        } else if (await this.pathExists(swap.targetPath)) {
+          if (await this.pathExists(swap.restoredPath)) return false
+          await rename(swap.targetPath, swap.restoredPath)
+        }
+      } catch {
+        return false
       }
     }
+    return true
   }
 
-  private async restoreDatabaseFromSnapshot(snapshotPath: string): Promise<void> {
+  private async restoreDatabaseFromSnapshot(
+    snapshotPath: string,
+    marker: {
+      committedAt: string
+      formatVersion: 'v1'
+      restoreId: string
+      rollbackBackupName: string
+    },
+  ): Promise<void> {
     const snapshot = new BetterSqlite3(snapshotPath, { readonly: true })
     try {
       const snapshotCheck = this.checkDatabase(snapshot)
@@ -480,6 +606,9 @@ export class DataManagementService {
         if (restoredCheck.quickCheck !== 'ok' || !restoredCheck.foreignKeyOk) {
           throw new PublicError('UNKNOWN', '恢复后的 SQLite 校验失败，当前数据已回滚。')
         }
+        this.database.client
+          .prepare('INSERT INTO app_state (key, value) VALUES (?, ?)')
+          .run(`${RESTORE_COMMIT_MARKER_PREFIX}${marker.restoreId}`, JSON.stringify(marker))
       })
       restoreTransaction()
     } catch (error) {
@@ -513,6 +642,9 @@ export class DataManagementService {
     try {
       snapshot.pragma('foreign_keys = ON')
       snapshot.prepare('UPDATE ai_provider_profiles SET secret_ref = NULL').run()
+      snapshot
+        .prepare('DELETE FROM app_state WHERE key LIKE ?')
+        .run(`${RESTORE_COMMIT_MARKER_PREFIX}%`)
       snapshot.pragma('wal_checkpoint(TRUNCATE)')
       const check = this.checkDatabase(snapshot)
       if (check.quickCheck !== 'ok' || !check.foreignKeyOk) {
@@ -786,6 +918,11 @@ export class DataManagementService {
             .pluck()
             .get() as number
           if (secretRefs > 0) errors.push('备份快照包含 Provider 密钥引用。')
+          const restoreMarkers = snapshot
+            .prepare('SELECT count(*) FROM app_state WHERE key LIKE ?')
+            .pluck()
+            .get(`${RESTORE_COMMIT_MARKER_PREFIX}%`) as number
+          if (restoreMarkers > 0) errors.push('备份快照包含恢复事务临时标记。')
         } finally {
           snapshot.close()
         }

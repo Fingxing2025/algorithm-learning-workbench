@@ -145,6 +145,7 @@ test('exports and verifies a blank user data backup, then rejects tampering', as
     BrowserWindow.getAllWindows()[0]?.setSize(1440, 900),
   )
   await page.locator('html').evaluate(root => root.classList.add('dark'))
+  await page.waitForTimeout(400)
   await page.screenshot({
     fullPage: true,
     path: resolve('output/playwright/data-management-dark-1440x900.png'),
@@ -159,6 +160,7 @@ test('exports and verifies a blank user data backup, then rejects tampering', as
   await electronApp.evaluate(({ BrowserWindow }) =>
     BrowserWindow.getAllWindows()[0]?.setSize(1440, 900),
   )
+  await page.waitForTimeout(250)
   await page.locator('html').evaluate(root => root.classList.remove('dark'))
 
   const backupPath = join(temporaryRoot, 'blank-export.awb-backup')
@@ -223,6 +225,18 @@ test('restores a verified backup with a preflight backup and skips external temp
       workspaces: number
     }
   }
+  const populatedSnapshotPath = join(
+    populatedBackupPath,
+    'data',
+    'sqlite',
+    'algorithm-workbench.sqlite',
+  )
+  expect(
+    (await readFile(populatedSnapshotPath)).includes(Buffer.from('restore-e2e-secret-key')),
+  ).toBe(false)
+  expect(
+    (await readFile(populatedSnapshotPath)).includes(Buffer.from('data_restore_commit:')),
+  ).toBe(false)
 
   await page.evaluate(() =>
     window.desktop.problems.create({
@@ -378,6 +392,17 @@ test('previews, quarantines, and undoes user-selected lifecycle items', async ()
   await expect(page.getByRole('alert')).toContainText('已从隔离区恢复 2 项')
   await expect(stat(batchBackup)).resolves.toBeTruthy()
   await expect(stat(imageTrash)).resolves.toBeTruthy()
+
+  await page.getByRole('button', { name: '选择全部可隔离项' }).click()
+  await page.getByRole('button', { name: '预览隔离操作' }).click()
+  await page.getByLabel('我已核对清单，并允许应用把所选项目移入隔离区。').check()
+  await page.getByRole('button', { name: '确认移入隔离区' }).click()
+  await page.getByRole('button', { name: '移入系统废纸篓' }).click()
+  await expect(page.getByText('废纸篓移交预览可继续')).toBeVisible()
+  await page.getByLabel('我已核对隔离记录，并允许应用将其移交系统废纸篓。').check()
+  await page.getByRole('button', { name: '确认移入系统废纸篓' }).click()
+  await expect(page.getByRole('alert')).toContainText('隔离记录已移交系统废纸篓')
+  expect(await readdir(join(userDataDirectory, 'data-management-quarantine'))).toHaveLength(0)
 })
 
 test('rolls back current data when restore fails after file swap', async () => {
@@ -449,4 +474,168 @@ test('rolls back every lifecycle item when quarantine fails after the first move
   )
   expect(inventory.quarantineOperations).toHaveLength(0)
   expect(inventory.interruptedOperationCount).toBe(0)
+})
+
+test('recovers an interrupted cleanup from the real Data Management entry', async () => {
+  await electronApp.close()
+  userDataDirectory = join(temporaryRoot, 'cleanup-interrupted-user-data')
+  const first = join(userDataDirectory, 'batch-import-backups', 'first')
+  const second = join(userDataDirectory, 'batch-import-backups', 'second')
+  await mkdir(first, { recursive: true })
+  await mkdir(second, { recursive: true })
+  await writeFile(join(first, 'backup.bin'), 'first interrupted cleanup fixture')
+  await writeFile(join(second, 'backup.bin'), 'second interrupted cleanup fixture')
+  await launchApplication({ E2E_CLEANUP_INTERRUPT_AFTER_MOVES: '1' })
+  await page.getByRole('button', { name: '数据管理' }).click()
+  await page.getByRole('button', { name: '选择全部可隔离项' }).click()
+  await page.getByRole('button', { name: '预览隔离操作' }).click()
+  await page.getByLabel('我已核对清单，并允许应用把所选项目移入隔离区。').check()
+  await page.getByRole('button', { name: '确认移入隔离区' }).click()
+  await expect(page.getByRole('alert')).toContainText('模拟清理异常中断')
+  await page.getByRole('button', { name: '重新诊断' }).click()
+  await expect(page.getByText('隔离日志有效，可安全退回')).toBeVisible()
+
+  const forgedPreview = await page.evaluate(() =>
+    window.desktop.dataManagement.previewInterruptedRecovery({ operationId: 'a'.repeat(64) }),
+  )
+  expect(forgedPreview).toMatchObject({ canExecute: false, errors: ['operation-not-found'] })
+
+  await page.getByRole('button', { name: '预览异常恢复' }).click()
+  await expect(page.getByText('异常恢复预览可继续')).toBeVisible()
+  await electronApp.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0]?.setSize(1440, 900),
+  )
+  await page.screenshot({
+    fullPage: true,
+    path: resolve('output/playwright/data-management-interrupted-recovery-light-1440x900.png'),
+  })
+  await electronApp.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0]?.setSize(1280, 720),
+  )
+  await page.screenshot({
+    fullPage: true,
+    path: resolve('output/playwright/data-management-interrupted-recovery-light-1280x720.png'),
+  })
+  await page.locator('html').evaluate(root => root.classList.add('dark'))
+  await page.waitForTimeout(400)
+  await page.screenshot({
+    fullPage: true,
+    path: resolve('output/playwright/data-management-interrupted-recovery-dark-1280x720.png'),
+  })
+  await electronApp.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0]?.setSize(1440, 900),
+  )
+  await page.waitForTimeout(250)
+  await page.screenshot({
+    fullPage: true,
+    path: resolve('output/playwright/data-management-interrupted-recovery-dark-1440x900.png'),
+  })
+  await page.locator('html').evaluate(root => root.classList.remove('dark'))
+
+  await page.getByLabel('我已核对异常恢复预览，并允许应用执行所示安全恢复操作。').check()
+  await page.getByRole('button', { name: '确认异常恢复' }).click()
+  await expect(page.getByRole('alert')).toContainText('异常操作已按预览安全处理')
+  await expect(stat(first)).resolves.toBeTruthy()
+  await expect(stat(second)).resolves.toBeTruthy()
+  const inventory = await page.evaluate(() =>
+    window.desktop.dataManagement.inspectBackupLifecycle({ retentionPolicy: 'forever' }),
+  )
+  expect(inventory.interruptedOperationCount).toBe(0)
+})
+
+test('recovers old data after a restore interruption before SQLite commit', async () => {
+  await electronApp.close()
+  userDataDirectory = join(temporaryRoot, 'restore-interrupted-user-data')
+  await mkdir(userDataDirectory)
+  await launchApplication({ E2E_RESTORE_INTERRUPT_STAGE: 'after-file-swap' })
+  await page.getByRole('button', { name: '数据管理' }).click()
+
+  const blankBackupPath = join(temporaryRoot, 'interrupted-restore-blank.awb-backup')
+  await setNextSavePath(blankBackupPath)
+  await page.getByRole('button', { name: '导出备份' }).click()
+  await expect(page.getByRole('alert')).toContainText('备份已导出并通过校验')
+
+  const workspacePath = join(temporaryRoot, 'interrupted-restore-workspace')
+  const imagePath = join(temporaryRoot, 'interrupted-restore-image.png')
+  await mkdir(workspacePath)
+  await writeFile(join(workspacePath, 'template.cpp'), 'void interrupted_restore_fixture() {}\n')
+  await writeFile(
+    imagePath,
+    Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+      'base64',
+    ),
+  )
+  await seedV2Data(workspacePath, imagePath)
+  await page.getByRole('button', { name: '数据管理' }).click()
+  const before = await page.evaluate(() => window.desktop.dataManagement.diagnose())
+
+  await setNextSelection(blankBackupPath)
+  await page.getByRole('button', { name: '恢复预览' }).click()
+  await page.getByLabel('我已确认恢复预览，并允许应用恢复 userData 中的数据副本。').check()
+  await page.getByRole('button', { name: '确认恢复' }).click()
+  await expect(page.getByRole('alert')).toContainText('模拟恢复异常中断')
+  await page.getByRole('button', { name: '重新诊断' }).click()
+  await expect(page.getByText('提交前中断，可安全恢复旧状态')).toBeVisible()
+  await page.getByRole('button', { name: '预览异常恢复' }).click()
+  await page.getByLabel('我已核对异常恢复预览，并允许应用执行所示安全恢复操作。').check()
+  await page.getByRole('button', { name: '确认异常恢复' }).click()
+  await expect(page.getByRole('alert')).toContainText('异常操作已按预览安全处理')
+
+  const after = await page.evaluate(() => window.desktop.dataManagement.diagnose())
+  expect(after.counts.problems).toBe(before.counts.problems)
+  expect(after.counts.templates).toBe(before.counts.templates)
+  expect(after.counts.problemImages).toBe(before.counts.problemImages)
+  expect(after.counts.aiProviderProfiles).toBe(before.counts.aiProviderProfiles)
+  expect(await readFile(join(workspacePath, 'template.cpp'), 'utf8')).toBe(
+    'void interrupted_restore_fixture() {}\n',
+  )
+})
+
+test('finishes cleanup after a restore interruption following SQLite commit', async () => {
+  await electronApp.close()
+  userDataDirectory = join(temporaryRoot, 'restore-committed-user-data')
+  await mkdir(userDataDirectory)
+  await launchApplication({ E2E_RESTORE_INTERRUPT_STAGE: 'after-database-commit' })
+  await page.getByRole('button', { name: '数据管理' }).click()
+
+  const blankBackupPath = join(temporaryRoot, 'committed-restore-blank.awb-backup')
+  await setNextSavePath(blankBackupPath)
+  await page.getByRole('button', { name: '导出备份' }).click()
+  const workspacePath = join(temporaryRoot, 'committed-restore-workspace')
+  const imagePath = join(temporaryRoot, 'committed-restore-image.png')
+  await mkdir(workspacePath)
+  await writeFile(join(workspacePath, 'template.cpp'), 'void committed_restore_fixture() {}\n')
+  await writeFile(
+    imagePath,
+    Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+      'base64',
+    ),
+  )
+  await seedV2Data(workspacePath, imagePath)
+  await page.getByRole('button', { name: '数据管理' }).click()
+  await setNextSelection(blankBackupPath)
+  await page.getByRole('button', { name: '恢复预览' }).click()
+  await page.getByLabel('我已确认恢复预览，并允许应用恢复 userData 中的数据副本。').check()
+  await page.getByRole('button', { name: '确认恢复' }).click()
+  await expect(page.getByRole('alert')).toContainText('模拟恢复已提交但收尾中断')
+
+  const committedDiagnostics = await page.evaluate(() => window.desktop.dataManagement.diagnose())
+  expect(committedDiagnostics.counts.problems).toBe(0)
+  expect(committedDiagnostics.counts.templates).toBe(0)
+  await page.getByRole('button', { name: '重新诊断' }).click()
+  await expect(page.getByText('数据库已提交，可安全完成收尾')).toBeVisible()
+  await page.getByRole('button', { name: '预览异常恢复' }).click()
+  await expect(page.getByText(/完成已提交恢复的收尾/)).toBeVisible()
+  await page.getByLabel('我已核对异常恢复预览，并允许应用执行所示安全恢复操作。').check()
+  await page.getByRole('button', { name: '确认异常恢复' }).click()
+  await expect(page.getByRole('alert')).toContainText('异常操作已按预览安全处理')
+  const inventory = await page.evaluate(() =>
+    window.desktop.dataManagement.inspectBackupLifecycle({ retentionPolicy: 'forever' }),
+  )
+  expect(inventory.interruptedOperationCount).toBe(0)
+  expect(await readFile(join(workspacePath, 'template.cpp'), 'utf8')).toBe(
+    'void committed_restore_fixture() {}\n',
+  )
 })

@@ -41,9 +41,17 @@ const desktopApi: DesktopApi = {
     inspectBackupLifecycle: request =>
       invokeResult(IPC_CHANNELS.dataManagement.inspectBackupLifecycle, request),
     previewCleanup: request => invokeResult(IPC_CHANNELS.dataManagement.previewCleanup, request),
+    previewInterruptedRecovery: request =>
+      invokeResult(IPC_CHANNELS.dataManagement.previewInterruptedRecovery, request),
+    previewQuarantineRelease: request =>
+      invokeResult(IPC_CHANNELS.dataManagement.previewQuarantineRelease, request),
     previewRestore: () => invokeResult(IPC_CHANNELS.dataManagement.previewRestore),
     quarantineCleanup: request =>
       invokeResult(IPC_CHANNELS.dataManagement.quarantineCleanup, request),
+    recoverInterruptedOperation: request =>
+      invokeResult(IPC_CHANNELS.dataManagement.recoverInterruptedOperation, request),
+    releaseQuarantine: request =>
+      invokeResult(IPC_CHANNELS.dataManagement.releaseQuarantine, request),
     restoreBackup: request => invokeResult(IPC_CHANNELS.dataManagement.restoreBackup, request),
     undoCleanup: request => invokeResult(IPC_CHANNELS.dataManagement.undoCleanup, request),
     verifyBackup: () => invokeResult(IPC_CHANNELS.dataManagement.verifyBackup),

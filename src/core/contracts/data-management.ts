@@ -251,6 +251,36 @@ export const backupLifecycleInventorySchema = z
     candidates: z.array(cleanupCandidateSchema).max(2_000),
     checkedAt: z.string().datetime(),
     interruptedOperationCount: z.number().int().nonnegative(),
+    interruptedOperations: z
+      .array(
+        z
+          .object({
+            action: z.enum([
+              'clear-restore-marker',
+              'complete-restore',
+              'none',
+              'restore-preflight',
+              'rollback-cleanup',
+            ]),
+            bytes: z.number().int().nonnegative(),
+            canRecover: z.boolean(),
+            createdAt: z.string().datetime(),
+            id: z.string().regex(/^[a-f0-9]{64}$/),
+            kind: z.enum(['cleanup-operation', 'restore-marker', 'restore-operation', 'unknown']),
+            reason: z.enum([
+              'cleanup-journal-ready',
+              'committed-restore-ready',
+              'journal-invalid',
+              'preflight-invalid',
+              'restore-marker-only',
+              'restore-preflight-ready',
+              'state-conflict',
+              'unknown-temporary-item',
+            ]),
+          })
+          .strict(),
+      )
+      .max(100),
     quarantineOperations: z.array(cleanupQuarantineOperationSchema).max(100),
     quarantinableBytes: z.number().int().nonnegative(),
     retentionPolicy: backupRetentionPolicySchema,
@@ -259,6 +289,7 @@ export const backupLifecycleInventorySchema = z
   })
   .strict()
 export type BackupLifecycleInventory = z.infer<typeof backupLifecycleInventorySchema>
+export type InterruptedDataOperation = BackupLifecycleInventory['interruptedOperations'][number]
 
 export const cleanupPreviewRequestSchema = z
   .object({
@@ -340,3 +371,135 @@ export const cleanupQuarantineManifestSchema = z
   })
   .strict()
 export type CleanupQuarantineManifest = z.infer<typeof cleanupQuarantineManifestSchema>
+
+const controlledBackupNameSchema = z
+  .string()
+  .min(1)
+  .max(255)
+  .regex(/^[^/\\]+\.awb-backup$/)
+
+export const restoreOperationJournalSchema = z
+  .object({
+    createdAt: z.string().datetime(),
+    formatVersion: z.literal('v1'),
+    restoreId: z.string().uuid(),
+    rollbackBackupName: controlledBackupNameSchema,
+    swaps: z
+      .array(
+        z
+          .object({
+            directoryName: z.enum(['batch-import-backups', 'file-plan-backups', 'problem-images']),
+            hadOriginal: z.boolean(),
+            hadRestoredCopy: z.boolean(),
+            originalFingerprint: z
+              .string()
+              .regex(/^[a-f0-9]{64}$/)
+              .nullable(),
+            restoredFingerprint: z
+              .string()
+              .regex(/^[a-f0-9]{64}$/)
+              .nullable(),
+          })
+          .strict(),
+      )
+      .max(3),
+  })
+  .strict()
+export type RestoreOperationJournal = z.infer<typeof restoreOperationJournalSchema>
+
+export const cleanupOperationJournalSchema = z
+  .object({
+    createdAt: z.string().datetime(),
+    formatVersion: z.literal('v1'),
+    items: cleanupQuarantineManifestSchema.shape.items,
+    operationId: z.string().uuid(),
+  })
+  .strict()
+export type CleanupOperationJournal = z.infer<typeof cleanupOperationJournalSchema>
+
+export const restoreCommitMarkerSchema = z
+  .object({
+    committedAt: z.string().datetime(),
+    formatVersion: z.literal('v1'),
+    restoreId: z.string().uuid(),
+    rollbackBackupName: controlledBackupNameSchema,
+  })
+  .strict()
+export type RestoreCommitMarker = z.infer<typeof restoreCommitMarkerSchema>
+
+export const interruptedRecoveryPreviewRequestSchema = z
+  .object({ operationId: z.string().regex(/^[a-f0-9]{64}$/) })
+  .strict()
+export type InterruptedRecoveryPreviewRequest = z.infer<
+  typeof interruptedRecoveryPreviewRequestSchema
+>
+
+export const interruptedRecoveryPreviewSchema = z
+  .object({
+    canExecute: z.boolean(),
+    checkedAt: z.string().datetime(),
+    errors: z
+      .array(
+        z.enum(['backup-invalid', 'operation-not-found', 'operation-protected', 'state-changed']),
+      )
+      .max(20),
+    operation: backupLifecycleInventorySchema.shape.interruptedOperations.element.nullable(),
+  })
+  .strict()
+export type InterruptedRecoveryPreview = z.infer<typeof interruptedRecoveryPreviewSchema>
+
+export const recoverInterruptedOperationRequestSchema = interruptedRecoveryPreviewRequestSchema
+  .extend({
+    confirmRecovery: z.literal(true),
+    retentionPolicy: backupRetentionPolicySchema,
+  })
+  .strict()
+export type RecoverInterruptedOperationRequest = z.infer<
+  typeof recoverInterruptedOperationRequestSchema
+>
+
+export const recoverInterruptedOperationResultSchema = z
+  .object({
+    action: backupLifecycleInventorySchema.shape.interruptedOperations.element.shape.action,
+    inventory: backupLifecycleInventorySchema,
+    operationId: z.string().regex(/^[a-f0-9]{64}$/),
+  })
+  .strict()
+export type RecoverInterruptedOperationResult = z.infer<
+  typeof recoverInterruptedOperationResultSchema
+>
+
+export const quarantineReleasePreviewRequestSchema = z
+  .object({ operationId: z.string().uuid() })
+  .strict()
+export type QuarantineReleasePreviewRequest = z.infer<typeof quarantineReleasePreviewRequestSchema>
+
+export const quarantineReleasePreviewSchema = z
+  .object({
+    canRelease: z.boolean(),
+    checkedAt: z.string().datetime(),
+    errors: z
+      .array(z.enum(['operation-changed', 'operation-not-found', 'operation-not-releasable']))
+      .max(20),
+    operation: cleanupQuarantineOperationSchema.nullable(),
+  })
+  .strict()
+export type QuarantineReleasePreview = z.infer<typeof quarantineReleasePreviewSchema>
+
+export const releaseQuarantineRequestSchema = quarantineReleasePreviewRequestSchema
+  .extend({
+    confirmMoveToTrash: z.literal(true),
+    retentionPolicy: backupRetentionPolicySchema,
+  })
+  .strict()
+export type ReleaseQuarantineRequest = z.infer<typeof releaseQuarantineRequestSchema>
+
+export const releaseQuarantineResultSchema = z
+  .object({
+    inventory: backupLifecycleInventorySchema,
+    operationId: z.string().uuid(),
+    releasedBytes: z.number().int().nonnegative(),
+    releasedItemCount: z.number().int().positive(),
+  })
+  .strict()
+export type ReleaseQuarantineResult = z.infer<typeof releaseQuarantineResultSchema>

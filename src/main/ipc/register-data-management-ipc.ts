@@ -9,6 +9,14 @@ import {
   cleanupPreviewSchema,
   dataDiagnosticsSchema,
   exportBackupRequestSchema,
+  interruptedRecoveryPreviewRequestSchema,
+  interruptedRecoveryPreviewSchema,
+  quarantineReleasePreviewRequestSchema,
+  quarantineReleasePreviewSchema,
+  recoverInterruptedOperationRequestSchema,
+  recoverInterruptedOperationResultSchema,
+  releaseQuarantineRequestSchema,
+  releaseQuarantineResultSchema,
   restoreBackupRequestSchema,
   restoreBackupResultSchema,
   restorePreviewSchema,
@@ -61,6 +69,30 @@ export function registerDataManagementIpc(
     handler: () => service.previewRestore(getParentWindow()),
     inputSchema: z.void(),
     outputSchema: restorePreviewSchema.nullable(),
+  })
+  registerValidatedHandler({
+    channel: IPC_CHANNELS.dataManagement.previewInterruptedRecovery,
+    handler: request => service.previewInterruptedRecovery(request),
+    inputSchema: interruptedRecoveryPreviewRequestSchema,
+    outputSchema: interruptedRecoveryPreviewSchema,
+  })
+  registerValidatedHandler({
+    channel: IPC_CHANNELS.dataManagement.recoverInterruptedOperation,
+    handler: request => service.recoverInterruptedOperation(request),
+    inputSchema: recoverInterruptedOperationRequestSchema,
+    outputSchema: recoverInterruptedOperationResultSchema,
+  })
+  registerValidatedHandler({
+    channel: IPC_CHANNELS.dataManagement.previewQuarantineRelease,
+    handler: request => service.previewQuarantineRelease(request),
+    inputSchema: quarantineReleasePreviewRequestSchema,
+    outputSchema: quarantineReleasePreviewSchema,
+  })
+  registerValidatedHandler({
+    channel: IPC_CHANNELS.dataManagement.releaseQuarantine,
+    handler: request => service.releaseQuarantine(request),
+    inputSchema: releaseQuarantineRequestSchema,
+    outputSchema: releaseQuarantineResultSchema,
   })
   registerValidatedHandler({
     channel: IPC_CHANNELS.dataManagement.quarantineCleanup,

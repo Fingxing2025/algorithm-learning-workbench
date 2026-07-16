@@ -1102,6 +1102,92 @@ Object.assign(english, {
   '隔离记录路径无效。': 'The quarantine record path is invalid.',
   '隔离目标路径无效。': 'The quarantine destination path is invalid.',
   '隔离目标已存在，请重新诊断。': 'The quarantine destination exists. Diagnose again.',
+  中断的隔离操作: 'Interrupted quarantine operation',
+  恢复提交标记: 'Restore commit marker',
+  中断的恢复操作: 'Interrupted restore operation',
+  未知临时残留: 'Unknown temporary residue',
+  可安全恢复: 'Safely recoverable',
+  清理已完成恢复标记: 'Clear completed restore marker',
+  完成已提交恢复的收尾: 'Finish committed restore cleanup',
+  '仅保护，不执行': 'Protect only; take no action',
+  恢复到操作前状态: 'Return to the pre-operation state',
+  退回中断隔离项目: 'Return interrupted quarantine items',
+  '隔离日志有效，可安全退回': 'The quarantine journal is valid and can be safely rolled back',
+  '数据库已提交，可安全完成收尾': 'The database is committed and restore cleanup can safely finish',
+  '日志缺失或损坏，保持只读保护': 'The journal is missing or invalid; keep read-only protection',
+  '恢复预备份无效，保持只读保护':
+    'The restore preflight backup is invalid; keep read-only protection',
+  '恢复已完成，仅剩提交标记': 'Restore is complete; only its commit marker remains',
+  '提交前中断，可安全恢复旧状态':
+    'Interrupted before commit; the previous state can be safely restored',
+  '文件状态已变化，保持只读保护': 'File state changed; keep read-only protection',
+  '来源无法证明，保持只读保护': 'The source cannot be proven; keep read-only protection',
+  '只有日志、提交标记和文件指纹都一致的操作才能手动恢复；其余残留继续只读保护。':
+    'Manual recovery is available only when the journal, commit marker, and file fingerprints all agree. Other residue stays read-only and protected.',
+  预览异常恢复: 'Preview interrupted recovery',
+  异常恢复预览可继续: 'Interrupted recovery preview can continue',
+  异常恢复预览已阻止: 'Interrupted recovery preview is blocked',
+  '将执行：{action}。': 'Action: {action}.',
+  '操作状态或恢复预备份已变化，请重新诊断。':
+    'The operation state or restore preflight backup changed. Diagnose again.',
+  '我已核对异常恢复预览，并允许应用执行所示安全恢复操作。':
+    'I reviewed the interrupted recovery preview and allow the app to perform the shown safe recovery action.',
+  确认异常恢复: 'Confirm interrupted recovery',
+  '异常操作已按预览安全处理。': 'The interrupted operation was safely handled as previewed.',
+  移入系统废纸篓: 'Move to system Trash',
+  废纸篓移交预览可继续: 'Trash handoff preview can continue',
+  废纸篓移交预览已阻止: 'Trash handoff preview is blocked',
+  '将把 {count} 项、共 {bytes} 移交系统废纸篓；应用不会直接永久删除。':
+    'Move {count} items totaling {bytes} to system Trash. The app will not permanently delete them directly.',
+  '隔离记录或内容已变化，请重新诊断。':
+    'The quarantine record or its contents changed. Diagnose again.',
+  '我已核对隔离记录，并允许应用将其移交系统废纸篓。':
+    'I reviewed the quarantine record and allow the app to hand it off to system Trash.',
+  确认移入系统废纸篓: 'Confirm move to system Trash',
+  '隔离记录已移交系统废纸篓；永久清空仍由操作系统和你决定。':
+    "The quarantine record was handed off to system Trash. Permanent emptying remains under your and the operating system's control.",
+  '系统废纸篓当前不可用。': 'System Trash is currently unavailable.',
+  '异常操作已变化或当前不可恢复，请重新诊断。':
+    'The interrupted operation changed or is not currently recoverable. Diagnose again.',
+  '隔离记录已变化或当前不能移入系统废纸篓。':
+    'The quarantine record changed or cannot currently be moved to system Trash.',
+  '隔离记录已变化，请重新预览。': 'The quarantine record changed. Preview it again.',
+  '系统废纸篓未接收隔离记录，原数据仍保留。':
+    'System Trash did not accept the quarantine record. The original data remains.',
+  '恢复目录包含符号链接，操作已取消。':
+    'A restore directory contains a symbolic link. The operation was cancelled.',
+  '模拟恢复异常中断，已保留恢复日志。':
+    'Simulated restore interruption. The recovery journal was preserved.',
+  '模拟恢复已提交但收尾中断，已保留恢复日志。':
+    'Simulated interruption after restore commit. The recovery journal was preserved.',
+  '恢复已提交，但收尾未完成，请在数据管理页处理异常操作。':
+    'Restore was committed, but cleanup did not finish. Handle the interrupted operation in Data Management.',
+  '恢复异常中断，已保留可验证恢复日志。':
+    'Restore was interrupted. A verifiable recovery journal was preserved.',
+  '恢复失败且自动回滚未完成，请在数据管理页处理异常操作。':
+    'Restore failed and automatic rollback did not finish. Handle the interrupted operation in Data Management.',
+  '备份快照包含恢复事务临时标记。':
+    'The backup snapshot contains a temporary restore transaction marker.',
+  '模拟清理异常中断，已保留恢复日志。':
+    'Simulated cleanup interruption. The recovery journal was preserved.',
+  '异常操作当前没有可执行的恢复策略。':
+    'The interrupted operation does not currently have an executable recovery strategy.',
+  '恢复日志目录不在受控 userData 内。':
+    'The restore journal directory is outside the controlled userData location.',
+  '清理恢复日志不可用。': 'The cleanup recovery journal is unavailable.',
+  '清理中断状态已变化，恢复已取消。':
+    'The interrupted cleanup state changed. Recovery was cancelled.',
+  '模拟异常恢复失败，已保持中断前状态。':
+    'Simulated interrupted recovery failure. The prior interrupted state was preserved.',
+  '异常恢复失败且回滚未完成，请停止操作并保留现场。':
+    'Interrupted recovery failed and rollback did not finish. Stop operations and preserve the current state.',
+  '异常恢复失败，已保持中断前状态。':
+    'Interrupted recovery failed. The prior interrupted state was preserved.',
+  '恢复日志不可用。': 'The restore recovery journal is unavailable.',
+  '恢复中断状态已变化，操作已取消。':
+    'The interrupted restore state changed. The operation was cancelled.',
+  '已提交恢复记录不完整。': 'The committed restore record is incomplete.',
+  '恢复提交标记当前不能清理。': 'The restore commit marker cannot currently be cleared.',
 })
 
 const englishPatterns: Array<{

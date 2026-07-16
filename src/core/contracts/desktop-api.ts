@@ -9,8 +9,16 @@ import type {
   CleanupPreviewRequest,
   DataDiagnostics,
   ExportBackupRequest,
+  InterruptedRecoveryPreview,
+  InterruptedRecoveryPreviewRequest,
   QuarantineCleanupRequest,
   QuarantineCleanupResult,
+  QuarantineReleasePreview,
+  QuarantineReleasePreviewRequest,
+  RecoverInterruptedOperationRequest,
+  RecoverInterruptedOperationResult,
+  ReleaseQuarantineRequest,
+  ReleaseQuarantineResult,
   RestoreBackupRequest,
   RestoreBackupResult,
   RestorePreview,
@@ -95,8 +103,18 @@ export interface DesktopApi {
     exportBackup: (request: ExportBackupRequest) => Promise<BackupExportResult | null>
     inspectBackupLifecycle: (request: BackupLifecycleRequest) => Promise<BackupLifecycleInventory>
     previewCleanup: (request: CleanupPreviewRequest) => Promise<CleanupPreview>
+    previewInterruptedRecovery: (
+      request: InterruptedRecoveryPreviewRequest,
+    ) => Promise<InterruptedRecoveryPreview>
+    previewQuarantineRelease: (
+      request: QuarantineReleasePreviewRequest,
+    ) => Promise<QuarantineReleasePreview>
     previewRestore: () => Promise<RestorePreview | null>
     quarantineCleanup: (request: QuarantineCleanupRequest) => Promise<QuarantineCleanupResult>
+    recoverInterruptedOperation: (
+      request: RecoverInterruptedOperationRequest,
+    ) => Promise<RecoverInterruptedOperationResult>
+    releaseQuarantine: (request: ReleaseQuarantineRequest) => Promise<ReleaseQuarantineResult>
     restoreBackup: (request: RestoreBackupRequest) => Promise<RestoreBackupResult>
     undoCleanup: (request: UndoCleanupRequest) => Promise<UndoCleanupResult>
     verifyBackup: () => Promise<BackupVerification | null>

@@ -1,4 +1,15 @@
-import { mkdir, mkdtemp, readFile, rm, stat, symlink, utimes, writeFile } from 'node:fs/promises'
+import { randomUUID } from 'node:crypto'
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  rename,
+  rm,
+  stat,
+  symlink,
+  utimes,
+  writeFile,
+} from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -12,6 +23,7 @@ import { DataLifecycleService } from './data-lifecycle-service'
 describe('DataLifecycleService', () => {
   let database: AppDatabase
   let executionRecords: Array<{ backupDirectory: string; status: string }>
+  let restoreStateRows: Array<{ key: string; value: string }>
   let temporaryRoot: string
   let userDataPath: string
   let service: DataLifecycleService
@@ -21,9 +33,23 @@ describe('DataLifecycleService', () => {
     userDataPath = join(temporaryRoot, 'user-data')
     await mkdir(userDataPath)
     executionRecords = []
+    restoreStateRows = []
     database = {
       client: {
-        prepare: () => ({ all: () => executionRecords }),
+        prepare: (sql: string) => {
+          if (sql.includes('file_change_executions')) return { all: () => executionRecords }
+          if (sql.includes('SELECT key, value FROM app_state')) {
+            return { all: () => restoreStateRows }
+          }
+          if (sql.includes('DELETE FROM app_state')) {
+            return {
+              run: (key: string) => {
+                restoreStateRows = restoreStateRows.filter(row => row.key !== key)
+              },
+            }
+          }
+          throw new Error(`Unexpected test SQL: ${sql}`)
+        },
       },
     } as unknown as AppDatabase
     service = new DataLifecycleService(database, userDataPath, async packagePath =>
@@ -34,6 +60,8 @@ describe('DataLifecycleService', () => {
   afterEach(async () => {
     delete process.env.E2E_CLEANUP_FAIL_AFTER_MOVES
     delete process.env.E2E_CLEANUP_FAIL_AFTER_UNDO_MOVES
+    delete process.env.E2E_CLEANUP_INTERRUPT_AFTER_MOVES
+    delete process.env.E2E_RECOVERY_FAIL_AFTER_MOVES
     await rm(temporaryRoot, { force: true, recursive: true })
   })
 
@@ -46,6 +74,56 @@ describe('DataLifecycleService', () => {
 
   function insertAppliedExecution(backupDirectory: string) {
     executionRecords.push({ backupDirectory, status: 'applied' })
+  }
+
+  function insertRestoreMarker(restoreId: string, rollbackBackupName: string) {
+    restoreStateRows.push({
+      key: `data_restore_commit:${restoreId}`,
+      value: JSON.stringify({
+        committedAt: new Date().toISOString(),
+        formatVersion: 'v1',
+        restoreId,
+        rollbackBackupName,
+      }),
+    })
+  }
+
+  async function createInterruptedRestore(
+    options: { committed?: boolean; validBackup?: boolean } = {},
+  ) {
+    const restoreId = randomUUID()
+    const rollbackBackupName =
+      options.validBackup === false ? 'broken-preflight.awb-backup' : 'valid-preflight.awb-backup'
+    await createManagedDirectory(`restore-preflight-backups/${rollbackBackupName}`)
+    const targetRoot = join(userDataPath, 'batch-import-backups')
+    await createManagedDirectory('batch-import-backups/original', 'original-state')
+    const stagingRoot = join(userDataPath, `.restore-${restoreId}.tmp`)
+    const restoredRoot = join(stagingRoot, 'restored', 'batch-import-backups')
+    await mkdir(join(restoredRoot, 'restored'), { recursive: true })
+    await writeFile(join(restoredRoot, 'restored', 'payload.bin'), 'restored-state')
+    const originalInspection = await service.inspectPathForJournal(targetRoot)
+    const restoredInspection = await service.inspectPathForJournal(restoredRoot)
+    await service.writeRestoreJournal(stagingRoot, {
+      createdAt: new Date().toISOString(),
+      formatVersion: 'v1',
+      restoreId,
+      rollbackBackupName,
+      swaps: [
+        {
+          directoryName: 'batch-import-backups',
+          hadOriginal: true,
+          hadRestoredCopy: true,
+          originalFingerprint: originalInspection.fingerprint,
+          restoredFingerprint: restoredInspection.fingerprint,
+        },
+      ],
+    })
+    const originalStagingRoot = join(stagingRoot, 'original')
+    await mkdir(originalStagingRoot, { recursive: true })
+    await rename(targetRoot, join(originalStagingRoot, 'batch-import-backups'))
+    await rename(restoredRoot, targetRoot)
+    if (options.committed) insertRestoreMarker(restoreId, rollbackBackupName)
+    return { restoreId, rollbackBackupName, stagingRoot, targetRoot }
   }
 
   it('classifies retention, protected rollback backups, review items, and symlinks', async () => {
@@ -208,6 +286,215 @@ describe('DataLifecycleService', () => {
     await expect(
       stat(join(userDataPath, 'data-management-quarantine', result.operation.id)),
     ).resolves.toBeTruthy()
+  })
+
+  it('recovers an interrupted cleanup from its journal', async () => {
+    const first = await createManagedDirectory('batch-import-backups/first')
+    const second = await createManagedDirectory('batch-import-backups/second')
+    const candidateIds = (await service.inspect({ retentionPolicy: 'forever' })).candidates.map(
+      candidate => candidate.id,
+    )
+    process.env.E2E_CLEANUP_INTERRUPT_AFTER_MOVES = '1'
+
+    await expect(
+      service.quarantine({
+        candidateIds,
+        confirmQuarantine: true,
+        retentionPolicy: 'forever',
+      }),
+    ).rejects.toThrow('模拟清理异常中断')
+    const interrupted = (await service.inspect({ retentionPolicy: 'forever' }))
+      .interruptedOperations[0]!
+    expect(interrupted).toMatchObject({
+      action: 'rollback-cleanup',
+      canRecover: true,
+      reason: 'cleanup-journal-ready',
+    })
+    await expect(
+      service.previewInterruptedRecovery({ operationId: interrupted.id }),
+    ).resolves.toMatchObject({ canExecute: true, errors: [] })
+
+    const recovered = await service.recoverInterruptedOperation({
+      confirmRecovery: true,
+      operationId: interrupted.id,
+      retentionPolicy: 'forever',
+    })
+    expect(recovered.action).toBe('rollback-cleanup')
+    expect(recovered.inventory.interruptedOperationCount).toBe(0)
+    await expect(stat(first)).resolves.toBeTruthy()
+    await expect(stat(second)).resolves.toBeTruthy()
+  })
+
+  it('returns to a recoverable interrupted state when journal recovery fails', async () => {
+    await createManagedDirectory('batch-import-backups/first')
+    await createManagedDirectory('batch-import-backups/second')
+    const candidateIds = (await service.inspect({ retentionPolicy: 'forever' })).candidates.map(
+      candidate => candidate.id,
+    )
+    process.env.E2E_CLEANUP_INTERRUPT_AFTER_MOVES = '2'
+    await expect(
+      service.quarantine({
+        candidateIds,
+        confirmQuarantine: true,
+        retentionPolicy: 'forever',
+      }),
+    ).rejects.toThrow('模拟清理异常中断')
+    const before = (await service.inspect({ retentionPolicy: 'forever' })).interruptedOperations[0]!
+    process.env.E2E_RECOVERY_FAIL_AFTER_MOVES = '1'
+
+    await expect(
+      service.recoverInterruptedOperation({
+        confirmRecovery: true,
+        operationId: before.id,
+        retentionPolicy: 'forever',
+      }),
+    ).rejects.toThrow('模拟异常恢复失败')
+    const after = await service.inspect({ retentionPolicy: 'forever' })
+    expect(after.interruptedOperations).toHaveLength(1)
+    expect(after.interruptedOperations[0]).toMatchObject({
+      action: 'rollback-cleanup',
+      canRecover: true,
+    })
+  })
+
+  it('rolls an uncommitted restore back and completes a committed restore without mixing states', async () => {
+    const uncommitted = await createInterruptedRestore()
+    const interrupted = (
+      await service.inspect({ retentionPolicy: 'forever' })
+    ).interruptedOperations.find(item => item.kind === 'restore-operation')!
+    expect(interrupted).toMatchObject({
+      action: 'restore-preflight',
+      canRecover: true,
+      reason: 'restore-preflight-ready',
+    })
+    await service.recoverInterruptedOperation({
+      confirmRecovery: true,
+      operationId: interrupted.id,
+      retentionPolicy: 'forever',
+    })
+    await expect(
+      readFile(join(uncommitted.targetRoot, 'original', 'payload.bin'), 'utf8'),
+    ).resolves.toBe('original-state')
+    await expect(stat(uncommitted.stagingRoot)).rejects.toThrow()
+
+    await rm(join(userDataPath, 'batch-import-backups'), { force: true, recursive: true })
+    const committed = await createInterruptedRestore({ committed: true })
+    const committedOperation = (
+      await service.inspect({ retentionPolicy: 'forever' })
+    ).interruptedOperations.find(item => item.kind === 'restore-operation')!
+    expect(committedOperation).toMatchObject({
+      action: 'complete-restore',
+      canRecover: true,
+      reason: 'committed-restore-ready',
+    })
+    await service.recoverInterruptedOperation({
+      confirmRecovery: true,
+      operationId: committedOperation.id,
+      retentionPolicy: 'forever',
+    })
+    await expect(
+      readFile(join(committed.targetRoot, 'restored', 'payload.bin'), 'utf8'),
+    ).resolves.toBe('restored-state')
+    await expect(stat(committed.stagingRoot)).rejects.toThrow()
+    expect(restoreStateRows).toHaveLength(0)
+  })
+
+  it('classifies marker-only cleanup and protects invalid restore journals or preflight backups', async () => {
+    const markerRestoreId = randomUUID()
+    insertRestoreMarker(markerRestoreId, 'missing-preflight.awb-backup')
+    const markerOperation = (
+      await service.inspect({ retentionPolicy: 'forever' })
+    ).interruptedOperations.find(item => item.kind === 'restore-marker')!
+    expect(markerOperation).toMatchObject({
+      action: 'clear-restore-marker',
+      canRecover: true,
+      reason: 'restore-marker-only',
+    })
+    await service.recoverInterruptedOperation({
+      confirmRecovery: true,
+      operationId: markerOperation.id,
+      retentionPolicy: 'forever',
+    })
+    expect(restoreStateRows).toHaveLength(0)
+
+    const invalidJournalId = randomUUID()
+    const invalidJournalRoot = join(userDataPath, `.restore-${invalidJournalId}.tmp`)
+    await mkdir(invalidJournalRoot)
+    await writeFile(join(invalidJournalRoot, 'restore-journal.json'), '{invalid')
+    const invalidJournal = (
+      await service.inspect({ retentionPolicy: 'forever' })
+    ).interruptedOperations.find(item => item.reason === 'journal-invalid')!
+    expect(invalidJournal).toMatchObject({ action: 'none', canRecover: false })
+
+    await rm(invalidJournalRoot, { force: true, recursive: true })
+    const invalidPreflight = await createInterruptedRestore({ validBackup: false })
+    const protectedOperation = (
+      await service.inspect({ retentionPolicy: 'forever' })
+    ).interruptedOperations.find(item => item.kind === 'restore-operation')!
+    expect(protectedOperation).toMatchObject({
+      action: 'restore-preflight',
+      canRecover: false,
+      reason: 'preflight-invalid',
+    })
+    await expect(
+      service.previewInterruptedRecovery({ operationId: protectedOperation.id }),
+    ).resolves.toMatchObject({ canExecute: false, errors: ['backup-invalid'] })
+    await expect(stat(invalidPreflight.stagingRoot)).resolves.toBeTruthy()
+  })
+
+  it('rejects changed quarantine contents and releases a revalidated operation through the callback', async () => {
+    const releasedPaths: string[] = []
+    service = new DataLifecycleService(
+      database,
+      userDataPath,
+      async packagePath => fakeVerification(packagePath, packagePath.includes('valid')),
+      async path => {
+        releasedPaths.push(path)
+        await rm(path, { force: true, recursive: true })
+      },
+    )
+    await createManagedDirectory('batch-import-backups/changed', 'fixture')
+    let candidate = (await service.inspect({ retentionPolicy: 'forever' })).candidates[0]!
+    const changedRecord = await service.quarantine({
+      candidateIds: [candidate.id],
+      confirmQuarantine: true,
+      retentionPolicy: 'forever',
+    })
+    const changedPayload = join(
+      userDataPath,
+      'data-management-quarantine',
+      changedRecord.operation.id,
+      'items',
+      'batch-import-backups',
+      'changed',
+      'payload.bin',
+    )
+    const originalStats = await stat(changedPayload)
+    await writeFile(changedPayload, 'changed')
+    await utimes(changedPayload, originalStats.atime, originalStats.mtime)
+    await expect(
+      service.previewQuarantineRelease({ operationId: changedRecord.operation.id }),
+    ).resolves.toMatchObject({ canRelease: false, errors: ['operation-not-releasable'] })
+    expect(releasedPaths).toHaveLength(0)
+
+    await createManagedDirectory('batch-import-backups/releasable', 'safe')
+    candidate = (await service.inspect({ retentionPolicy: 'forever' })).candidates[0]!
+    const releasable = await service.quarantine({
+      candidateIds: [candidate.id],
+      confirmQuarantine: true,
+      retentionPolicy: 'forever',
+    })
+    await expect(
+      service.previewQuarantineRelease({ operationId: releasable.operation.id }),
+    ).resolves.toMatchObject({ canRelease: true, errors: [] })
+    const released = await service.releaseQuarantine({
+      confirmMoveToTrash: true,
+      operationId: releasable.operation.id,
+      retentionPolicy: 'forever',
+    })
+    expect(released).toMatchObject({ releasedItemCount: 1 })
+    expect(releasedPaths).toHaveLength(1)
+    expect(JSON.stringify(released)).not.toContain(userDataPath)
   })
 })
 
