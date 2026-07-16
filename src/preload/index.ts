@@ -35,6 +35,12 @@ const desktopApi: DesktopApi = {
     getRuntimeInfo: () =>
       ipcRenderer.invoke(IPC_CHANNELS.app.getRuntimeInfo) as Promise<RuntimeInfo>,
   },
+  dataManagement: {
+    diagnose: () => invokeResult(IPC_CHANNELS.dataManagement.diagnose),
+    exportBackup: request => invokeResult(IPC_CHANNELS.dataManagement.exportBackup, request),
+    previewRestore: () => invokeResult(IPC_CHANNELS.dataManagement.previewRestore),
+    verifyBackup: () => invokeResult(IPC_CHANNELS.dataManagement.verifyBackup),
+  },
   problems: {
     addImages: problemId => invokeResult(IPC_CHANNELS.problems.addImages, { problemId }),
     create: request => invokeResult(IPC_CHANNELS.problems.create, request),

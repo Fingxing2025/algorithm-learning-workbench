@@ -63,12 +63,17 @@ const AiProviderWorkspace = lazy(async () => {
   return { default: module.AiProviderWorkspace }
 })
 
+const DataManagementWorkspace = lazy(async () => {
+  const module = await import('@/features/data/data-management-workspace')
+  return { default: module.DataManagementWorkspace }
+})
+
 const AlgorithmCard = lazy(async () => {
   const module = await import('@/features/templates/algorithm-card')
   return { default: module.AlgorithmCard }
 })
 
-type AppView = 'ai' | 'dashboard' | 'problems' | 'settings' | 'templates'
+type AppView = 'ai' | 'dashboard' | 'data' | 'problems' | 'settings' | 'templates'
 
 interface NavigationItem {
   disabled?: boolean
@@ -84,6 +89,7 @@ const navigationItems: NavigationItem[] = [
   { icon: FileCode2, id: 'templates', label: '模板库', shortcut: '2', tone: 'cyan' },
   { icon: BookOpenText, id: 'problems', label: '题目', shortcut: '3', tone: 'coral' },
   { icon: Sparkles, id: 'ai', label: 'AI 管理', shortcut: '4', tone: 'amber' },
+  { icon: ShieldCheck, id: 'data', label: '数据管理', shortcut: '5', tone: 'indigo' },
 ]
 
 function NavigationButton({
@@ -807,6 +813,7 @@ function AppContent() {
         '2': 'templates',
         '3': 'problems',
         '4': 'ai',
+        '5': 'data',
         ',': 'settings',
       }
       const nextView = viewByShortcut[key]
@@ -973,6 +980,23 @@ function AppContent() {
           }
         >
           <AiProviderWorkspace />
+        </Suspense>
+      )
+    }
+
+    if (currentView === 'data') {
+      return (
+        <Suspense
+          fallback={
+            <main className="grid h-full min-h-0 place-items-center">
+              <div className="text-center">
+                <LoaderCircle className="mx-auto size-6 animate-spin text-primary" />
+                <p className="mt-3 text-sm font-medium">{t('正在打开数据管理…')}</p>
+              </div>
+            </main>
+          }
+        >
+          <DataManagementWorkspace />
         </Suspense>
       )
     }

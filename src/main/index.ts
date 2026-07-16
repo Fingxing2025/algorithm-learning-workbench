@@ -10,6 +10,7 @@ import { WorkspaceRepository } from './database/workspace-repository'
 import { TemplateManagementRepository } from './database/template-management-repository'
 import { registerAppIpc } from './ipc/register-app-ipc'
 import { registerAiProviderIpc } from './ipc/register-ai-provider-ipc'
+import { registerDataManagementIpc } from './ipc/register-data-management-ipc'
 import { registerProblemIpc } from './ipc/register-problem-ipc'
 import { registerProblemAnalysisIpc } from './ipc/register-problem-analysis-ipc'
 import { registerWorkspaceIpc } from './ipc/register-workspace-ipc'
@@ -22,6 +23,7 @@ import { SecretStore } from './security/secret-store'
 import { WorkspaceService } from './services/workspace-service'
 import { TemplateManagementService } from './services/template-management-service'
 import { WorkspaceAiContextService } from './services/workspace-ai-context-service'
+import { DataManagementService } from './services/data-management-service'
 import { createMainWindow } from './window/create-main-window'
 
 let mainWindow: BrowserWindow | null = null
@@ -79,8 +81,10 @@ async function bootstrap(): Promise<void> {
     app.getPath('userData'),
     workspaceAiContextService,
   )
+  const dataManagementService = new DataManagementService(appDatabase, app.getPath('userData'))
   registerAppIpc()
   registerAiProviderIpc(aiProviderService)
+  registerDataManagementIpc(dataManagementService, () => mainWindow ?? undefined)
   registerProblemIpc(problemService, () => mainWindow ?? undefined)
   registerProblemAnalysisIpc(problemAnalysisService, () => mainWindow ?? undefined)
   registerWorkspaceIpc(workspaceService, () => mainWindow ?? undefined)

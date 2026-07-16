@@ -12,13 +12,15 @@
 
 当前激活阶段：**Session A：数据可靠性与恢复**。
 
+Session A 已交付第一条可运行纵向切片：新增备份 ADR、版本化数据管理契约、只读一致性诊断、`.awb-backup` 目录备份包导出、全包 SHA-256 验证、损坏包拒绝和只读恢复预览。真实桌面入口位于侧边栏“数据管理”。恢复执行入口仍保持关闭，当前只提供预览；原子恢复、恢复前自动备份和失败回滚需要在下一条切片完成故障注入验证后再开放。
+
 第一个纵向切片按以下顺序执行：
 
-1. 新增 ADR，确定备份包版本、清单、校验和、密钥排除、临时文件和原子替换策略。
-2. 实现只读数据清单与一致性校验，覆盖 SQLite、WAL、题目图片、文件计划备份、批量覆盖备份和 Provider 非密钥配置。
-3. 实现导出到用户明确选择的位置；完成校验前不发布最终备份包。
-4. 在导出和校验稳定后，再实现恢复预览、恢复前自动备份和失败回滚。
-5. 用全新 userData、已有 V2 userData、损坏包和中途失败四类场景验收。
+1. 已完成：新增 ADR，确定备份包版本、清单、校验和、密钥排除、临时文件和原子替换策略。
+2. 已完成：实现只读数据清单与一致性校验，覆盖 SQLite、WAL、题目图片、文件计划备份、批量覆盖备份和 Provider 非密钥配置。
+3. 已完成：实现导出到用户明确选择的位置；完成校验前不发布最终备份包。
+4. 已完成只读部分：选择备份包后执行恢复预览和完整校验；执行恢复、恢复前自动备份和失败回滚仍待下一切片。
+5. 已验证：全新 userData 空白导出、篡改包拒绝、真实 Electron 入口、完整 E2E、macOS arm64 目录包 smoke。
 
 本阶段红线：
 
@@ -27,6 +29,15 @@
 - 恢复不得直接覆盖当前数据；必须先预览、校验并备份现状。
 - 不提供旧项目迁移，不修改 `../智能算法学习助手`。
 - 不把 `.codex/config.toml` 与 `问题反馈.txt` 纳入提交。
+
+Session A 第一切片新增事实：
+
+- 备份格式：`v1` `.awb-backup` 目录包，包含 `manifest.json`、`checksums.sha256`、`COMPLETED` 和 `data/`。
+- SQLite 导出：Main 进程执行在线备份快照，快照内 `ai_provider_profiles.secret_ref` 清空，并重新运行 `quick_check` 与外键校验。
+- 文件范围：默认包含 SQLite 快照、题目图片、`file-plan-backups/`、`batch-import-backups/`；默认排除 `secrets/`、Electron 缓存、Local/Session Storage、Cookies 和模板源码。
+- 模板源码：必须由用户在数据管理页显式勾选才会复制；恢复预览会把包含模板源码的包标为需要额外策略。
+- 恢复：当前只读预览，不修改当前 userData 或外部模板工作区。
+- 新测试：`tests/e2e/data-management.spec.ts` 覆盖全新 userData 导出空白包、manifest 隐私声明、密钥目录排除和篡改后校验失败。
 
 本次阶段交付的 macOS arm64 开发预览位于 `release/mac-arm64/算法学习工作台.app`。`release/` 已被 Git 忽略，产物不属于源码提交；该 App 未签名、公证，仅用于本机测试。
 
@@ -169,19 +180,20 @@ Main
 
 2026-07-16 在当前工作区重新执行：
 
-| 检查                               | 结果                                                              |
-| ---------------------------------- | ----------------------------------------------------------------- |
-| `npm run check`                    | 通过                                                              |
-| TypeScript                         | 通过                                                              |
-| ESLint（0 warnings）               | 通过                                                              |
-| Prettier check                     | 通过                                                              |
-| Vitest                             | 22 个文件，81 项通过                                              |
-| 模板入库 Electron E2E              | 6 项通过；覆盖默认全选、无 AI、跳过、改名、覆盖备份与 AI 批量导入 |
-| `npm run test:e2e`                 | 29 项通过，1 项打包入口测试按条件跳过                             |
-| 打包入口 smoke test                | macOS arm64 `.app` 以全新 userData 启动，1 项通过                 |
-| `npm audit --audit-level=moderate` | 0 个漏洞                                                          |
-| Renderer 生产构建                  | 通过；主入口约 288 kB，CodeMirror 延迟块约 386 kB                 |
-| 亮暗/紧凑截图                      | 已由 E2E 重新生成并抽查                                           |
+| 检查                               | 结果                                                                      |
+| ---------------------------------- | ------------------------------------------------------------------------- |
+| `npm run check`                    | 通过                                                                      |
+| TypeScript                         | 通过                                                                      |
+| ESLint（0 warnings）               | 通过                                                                      |
+| Prettier check                     | 通过                                                                      |
+| Vitest                             | 22 个文件，81 项通过                                                      |
+| 模板入库 Electron E2E              | 6 项通过；覆盖默认全选、无 AI、跳过、改名、覆盖备份与 AI 批量导入         |
+| `npm run test:e2e`                 | 30 项通过，1 项打包入口测试按条件跳过                                     |
+| 数据管理 Electron E2E              | 1 项通过；覆盖空白导出、全包验证和篡改拒绝                                |
+| 打包入口 smoke test                | macOS arm64 `.app` 可执行文件以全新 userData 启动，1 项通过               |
+| `npm audit --audit-level=moderate` | 0 个漏洞                                                                  |
+| Renderer 生产构建                  | 通过；主入口约 288 kB，CodeMirror 延迟块约 386 kB                         |
+| 亮暗/紧凑截图                      | 已由 E2E 重新生成并抽查；新增数据管理页 1440×900 亮/暗、1280×720 亮色截图 |
 
 说明：打包入口 smoke test 需要先生成 `release/mac-arm64` 目录包并设置 `PACKAGED_APP_PATH`，因此常规 E2E 中跳过是预期行为。本次已对当前 `.app` 单独执行并通过；任何新发布候选仍必须重新运行。
 

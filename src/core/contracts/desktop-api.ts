@@ -1,6 +1,13 @@
 import type { RuntimeInfo } from './runtime'
 import type { AiRequestPreview } from './ai-request'
 import type {
+  BackupExportResult,
+  BackupVerification,
+  DataDiagnostics,
+  ExportBackupRequest,
+  RestorePreview,
+} from './data-management'
+import type {
   AiConnectionResult,
   AiProviderIdRequest,
   AiProviderProfile,
@@ -72,6 +79,12 @@ export interface DesktopApi {
   }
   app: {
     getRuntimeInfo: () => Promise<RuntimeInfo>
+  }
+  dataManagement: {
+    diagnose: () => Promise<DataDiagnostics>
+    exportBackup: (request: ExportBackupRequest) => Promise<BackupExportResult | null>
+    previewRestore: () => Promise<RestorePreview | null>
+    verifyBackup: () => Promise<BackupVerification | null>
   }
   problems: {
     addImages: (problemId: string) => Promise<Problem | null>

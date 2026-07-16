@@ -11,6 +11,12 @@ export const IPC_CHANNELS = {
   app: {
     getRuntimeInfo: 'app:get-runtime-info',
   },
+  dataManagement: {
+    diagnose: 'data-management:diagnose',
+    exportBackup: 'data-management:export-backup',
+    previewRestore: 'data-management:preview-restore',
+    verifyBackup: 'data-management:verify-backup',
+  },
   problems: {
     addImages: 'problems:add-images',
     create: 'problems:create',
