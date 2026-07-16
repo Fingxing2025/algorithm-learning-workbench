@@ -5,6 +5,7 @@ import type { TemplateMetadataFields } from '@core/contracts/template-management
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { useI18n } from '@/lib/i18n'
 
 import { useTemplateMetadata } from './use-template-metadata'
 
@@ -20,6 +21,7 @@ const emptyFields: TemplateMetadataFields = {
 }
 
 export function TemplateMetadataCard({ templateId }: { templateId: string }) {
+  const { t } = useI18n()
   const state = useTemplateMetadata(templateId)
   const [editing, setEditing] = useState(false)
   const [fields, setFields] = useState<TemplateMetadataFields>(emptyFields)
@@ -68,8 +70,8 @@ export function TemplateMetadataCard({ templateId }: { templateId: string }) {
     <section className="mt-4 rounded-xl border border-border bg-panel p-4">
       <div className="flex items-center gap-2">
         <Info className="size-4 text-muted-foreground" />
-        <h2 className="text-xs font-semibold">算法信息</h2>
-        {state.metadata && <Badge className="ml-1">已维护</Badge>}
+        <h2 className="text-xs font-semibold">{t('算法信息')}</h2>
+        {state.metadata && <Badge className="ml-1">{t('已维护')}</Badge>}
         <Button
           className="ml-auto"
           onClick={() => setEditing(value => !value)}
@@ -78,23 +80,23 @@ export function TemplateMetadataCard({ templateId }: { templateId: string }) {
           variant="ghost"
         >
           {editing ? <X className="size-3.5" /> : <Edit3 className="size-3.5" />}
-          {editing ? '取消编辑' : state.metadata ? '编辑' : '补充元数据'}
+          {t(editing ? '取消编辑' : state.metadata ? '编辑' : '补充元数据')}
         </Button>
       </div>
 
       {state.error && (
         <div className="mt-3 flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/5 p-2 text-xs text-red-700 dark:text-red-300">
           <AlertCircle className="size-3.5" />
-          {state.error}
+          {t(state.error)}
         </div>
       )}
 
       {editing ? (
         <form className="mt-4 grid gap-3 sm:grid-cols-2" onSubmit={event => void submit(event)}>
           <label className="text-[11px] font-medium">
-            时间复杂度
+            {t('时间复杂度')}
             <input
-              aria-label="模板时间复杂度"
+              aria-label={t('模板时间复杂度')}
               className={inputClass}
               onChange={event =>
                 setFields(current => ({
@@ -106,9 +108,9 @@ export function TemplateMetadataCard({ templateId }: { templateId: string }) {
             />
           </label>
           <label className="text-[11px] font-medium">
-            空间复杂度
+            {t('空间复杂度')}
             <input
-              aria-label="模板空间复杂度"
+              aria-label={t('模板空间复杂度')}
               className={inputClass}
               onChange={event =>
                 setFields(current => ({
@@ -120,9 +122,9 @@ export function TemplateMetadataCard({ templateId }: { templateId: string }) {
             />
           </label>
           <label className="text-[11px] font-medium sm:col-span-2">
-            标签
+            {t('标签')}
             <input
-              aria-label="模板标签"
+              aria-label={t('模板标签')}
               className={inputClass}
               onChange={event => setTagsText(event.target.value)}
               value={tagsText}
@@ -138,9 +140,9 @@ export function TemplateMetadataCard({ templateId }: { templateId: string }) {
             ] as const
           ).map(([key, label]) => (
             <label className="text-[11px] font-medium sm:col-span-2" key={key}>
-              {label}
+              {t(label)}
               <textarea
-                aria-label={`模板${label}`}
+                aria-label={`${t('模板')}${t(label)}`}
                 className="mt-1.5 min-h-16 w-full resize-y rounded-lg border border-border bg-background px-3 py-2 text-xs leading-5 outline-none focus:ring-2 focus:ring-ring"
                 onChange={event =>
                   setFields(current => ({ ...current, [key]: event.target.value }))
@@ -160,48 +162,50 @@ export function TemplateMetadataCard({ templateId }: { templateId: string }) {
             ) : (
               <Save className="size-3.5" />
             )}
-            保存元数据
+            {t('保存元数据')}
           </Button>
         </form>
       ) : state.metadata ? (
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           <div className="rounded-lg border border-border bg-muted/25 p-3">
-            <p className="text-[10px] text-muted-foreground">复杂度</p>
+            <p className="text-[10px] text-muted-foreground">{t('复杂度')}</p>
             <p className="mt-1 text-xs font-medium">
-              {state.metadata.timeComplexity ?? '未填写'} ·{' '}
-              {state.metadata.spaceComplexity ?? '未填写'}
+              {state.metadata.timeComplexity ?? t('未填写')} ·{' '}
+              {state.metadata.spaceComplexity ?? t('未填写')}
             </p>
           </div>
           <div className="rounded-lg border border-border bg-muted/25 p-3">
-            <p className="text-[10px] text-muted-foreground">标签</p>
+            <p className="text-[10px] text-muted-foreground">{t('标签')}</p>
             <div className="mt-1 flex flex-wrap gap-1">
               {state.metadata.tags.length ? (
                 state.metadata.tags.map(tag => <Badge key={tag}>{tag}</Badge>)
               ) : (
-                <span className="text-xs">未填写</span>
+                <span className="text-xs">{t('未填写')}</span>
               )}
             </div>
           </div>
-          {[
-            ['解决的问题', state.metadata.solves],
-            ['适用约束', state.metadata.constraints],
-            ['前置条件', state.metadata.prerequisites],
-            ['常见错误', state.metadata.commonMistakes],
-            ['用户笔记', state.metadata.notes],
-          ].map(([label, value]) => (
+          {(
+            [
+              ['解决的问题', state.metadata.solves],
+              ['适用约束', state.metadata.constraints],
+              ['前置条件', state.metadata.prerequisites],
+              ['常见错误', state.metadata.commonMistakes],
+              ['用户笔记', state.metadata.notes],
+            ] satisfies Array<[string, string | null | undefined]>
+          ).map(([label, value]) => (
             <div
               className="rounded-lg border border-border bg-muted/25 p-3 sm:col-span-2"
               key={label}
             >
-              <p className="text-[10px] text-muted-foreground">{label}</p>
-              <p className="mt-1 whitespace-pre-wrap text-xs leading-5">{value || '未填写'}</p>
+              <p className="text-[10px] text-muted-foreground">{t(label)}</p>
+              <p className="mt-1 whitespace-pre-wrap text-xs leading-5">{value || t('未填写')}</p>
             </div>
           ))}
         </div>
       ) : (
         <p className="mt-3 inline-flex items-center gap-2 text-[11px] text-muted-foreground">
           <Check className="size-3.5" />
-          源码可直接使用；元数据是可选增强，不影响离线查询。
+          {t('源码可直接使用；元数据是可选增强，不影响离线查询。')}
         </p>
       )}
     </section>

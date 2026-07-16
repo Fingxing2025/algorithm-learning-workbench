@@ -7,7 +7,7 @@ import { getAiProviderAdapter } from './ai-provider-adapters'
 function profile(protocol: AiProviderProtocol) {
   return {
     baseUrl: 'https://provider.example/v1',
-    capabilities: { streaming: true, structuredOutput: true, vision: true },
+    capabilities: { promptCaching: false, streaming: true, structuredOutput: true, vision: true },
     customHeaders: { 'x-client-name': 'algorithm-workbench-test' },
     model: 'fixture-model',
     protocol,
@@ -75,6 +75,122 @@ describe('AI provider adapters', () => {
     await expect(
       adapter.completeText(profile('openai-chat-completions'), 'test-secret', 'Reply'),
     ).resolves.toBe('from legacy completion')
+  })
+
+  it('disables Qwen thinking for structured tasks and reads nested compatible output', async () => {
+    let capturedBody: Record<string, unknown> = {}
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: string, init?: RequestInit) => {
+        capturedBody = JSON.parse(String(init?.body)) as Record<string, unknown>
+        return new Response(
+          JSON.stringify({
+            output: {
+              choices: [
+                {
+                  message: {
+                    content: null,
+                    reasoning_content: '{"categoryPath":["字符串算法","BWT"]}',
+                  },
+                },
+              ],
+            },
+          }),
+          { headers: { 'content-type': 'application/json' }, status: 200 },
+        )
+      }),
+    )
+
+    const qwenProfile = profile('openai-chat-completions')
+    qwenProfile.model = 'qwen3-vl-plus'
+    await expect(
+      getAiProviderAdapter('openai-chat-completions').complete(qwenProfile, 'test-secret', {
+        disableThinking: true,
+        jsonSchema: {
+          name: 'template_metadata',
+          schema: { properties: { categoryPath: { type: 'array' } }, type: 'object' },
+        },
+        maxOutputTokens: 4_000,
+        text: 'Analyze BWT.',
+      }),
+    ).resolves.toBe('{"categoryPath":["字符串算法","BWT"]}')
+    expect(capturedBody.enable_thinking).toBe(false)
+  })
+
+  it('maps stable context, prompt caching and JSON schema for OpenAI Chat', async () => {
+    let capturedBody: Record<string, unknown> = {}
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: string, init?: RequestInit) => {
+        capturedBody = JSON.parse(String(init?.body)) as Record<string, unknown>
+        return new Response(
+          JSON.stringify({ choices: [{ message: { content: '{"ok":true}' } }] }),
+          {
+            headers: { 'content-type': 'application/json' },
+            status: 200,
+          },
+        )
+      }),
+    )
+
+    const enabledProfile = profile('openai-chat-completions')
+    enabledProfile.capabilities.promptCaching = true
+    await getAiProviderAdapter('openai-chat-completions').complete(enabledProfile, 'test-secret', {
+      cache: { key: 'workspace-cache-key', stableContext: '{"workspace":"fixture"}' },
+      jsonSchema: {
+        name: 'fixture_schema',
+        schema: {
+          $schema: 'http://json-schema.org/draft-07/schema#',
+          properties: {
+            alternatives: {
+              items: {
+                properties: { reason: { type: 'string' }, target: { type: 'string' } },
+                required: ['target'],
+                type: 'object',
+              },
+              type: 'array',
+            },
+            ok: { type: 'boolean' },
+          },
+          required: ['ok'],
+          type: 'object',
+        },
+      },
+      maxOutputTokens: 512,
+      system: 'Return JSON.',
+      text: 'Analyze.',
+    })
+
+    expect(capturedBody.prompt_cache_key).toBe('workspace-cache-key')
+    expect(capturedBody.messages).toEqual([
+      { content: 'Return JSON.', role: 'system' },
+      { content: '{"workspace":"fixture"}', role: 'user' },
+      { content: 'Analyze.', role: 'user' },
+    ])
+    expect(capturedBody.response_format).toEqual({
+      json_schema: {
+        name: 'fixture_schema',
+        schema: {
+          additionalProperties: false,
+          properties: {
+            alternatives: {
+              items: {
+                additionalProperties: false,
+                properties: { reason: { type: 'string' }, target: { type: 'string' } },
+                required: ['reason', 'target'],
+                type: 'object',
+              },
+              type: 'array',
+            },
+            ok: { type: 'boolean' },
+          },
+          required: ['alternatives', 'ok'],
+          type: 'object',
+        },
+        strict: true,
+      },
+      type: 'json_schema',
+    })
   })
 
   it('accepts Chat Completions shaped responses from compatible Responses endpoints', async () => {
@@ -225,5 +341,120 @@ describe('AI provider adapters', () => {
         'Reply with OK only.',
       ),
     ).rejects.toMatchObject({ code: 'AI_RATE_LIMITED' })
+  })
+
+  it('preserves Retry-After timing for bounded task retries', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response('{}', {
+            headers: { 'retry-after': '2.5' },
+            status: 429,
+          }),
+      ),
+    )
+
+    await expect(
+      getAiProviderAdapter('openai-chat-completions').completeText(
+        profile('openai-chat-completions'),
+        'test-secret',
+        'Reply',
+      ),
+    ).rejects.toMatchObject({ code: 'AI_RATE_LIMITED', retryAfterMs: 2_500 })
+  })
+
+  it('maps an external AbortSignal to a user cancellation', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((_url: string, init?: RequestInit) => {
+        return new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () =>
+            reject(new DOMException('Aborted', 'AbortError')),
+          )
+        })
+      }),
+    )
+    const controller = new AbortController()
+    const completion = getAiProviderAdapter('openai-chat-completions').complete(
+      profile('openai-chat-completions'),
+      'test-secret',
+      { maxOutputTokens: 256, signal: controller.signal, text: 'Reply' },
+    )
+    controller.abort()
+
+    await expect(completion).rejects.toMatchObject({ code: 'AI_CANCELLED' })
+  })
+
+  it('marks only the stable Anthropic system prefix as cacheable', async () => {
+    let capturedBody: Record<string, unknown> = {}
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: string, init?: RequestInit) => {
+        capturedBody = JSON.parse(String(init?.body)) as Record<string, unknown>
+        return new Response(JSON.stringify({ content: [{ text: 'OK', type: 'text' }] }), {
+          headers: { 'content-type': 'application/json' },
+          status: 200,
+        })
+      }),
+    )
+    const enabledProfile = profile('anthropic-messages')
+    enabledProfile.capabilities.promptCaching = true
+
+    await getAiProviderAdapter('anthropic-messages').complete(enabledProfile, 'test-secret', {
+      cache: { key: 'ignored-by-anthropic', stableContext: '{"workspace":"fixture"}' },
+      maxOutputTokens: 256,
+      system: 'Task rules',
+      text: 'Analyze',
+    })
+
+    expect(capturedBody.system).toEqual([
+      { text: 'Task rules', type: 'text' },
+      {
+        cache_control: { type: 'ephemeral' },
+        text: '{"workspace":"fixture"}',
+        type: 'text',
+      },
+    ])
+  })
+
+  it('maps JSON schema to Gemini and Ollama structured output fields', async () => {
+    const bodies: Record<string, unknown>[] = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) => {
+        bodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>)
+        return url.includes('generateContent')
+          ? new Response(
+              JSON.stringify({ candidates: [{ content: { parts: [{ text: 'OK' }] } }] }),
+              { headers: { 'content-type': 'application/json' }, status: 200 },
+            )
+          : new Response(JSON.stringify({ message: { content: 'OK' } }), {
+              headers: { 'content-type': 'application/json' },
+              status: 200,
+            })
+      }),
+    )
+    const jsonSchema = {
+      name: 'fixture_schema',
+      schema: { properties: { ok: { type: 'boolean' } }, required: ['ok'], type: 'object' },
+    }
+
+    await getAiProviderAdapter('gemini-generate-content').complete(
+      profile('gemini-generate-content'),
+      'test-secret',
+      { jsonSchema, maxOutputTokens: 256, text: 'Analyze' },
+    )
+    await getAiProviderAdapter('ollama-chat').complete(profile('ollama-chat'), null, {
+      jsonSchema,
+      maxOutputTokens: 256,
+      text: 'Analyze',
+    })
+
+    expect(bodies[0]?.generationConfig).toMatchObject({
+      responseMimeType: 'application/json',
+      responseSchema: jsonSchema.schema,
+    })
+    expect(bodies[1]?.format).toEqual(jsonSchema.schema)
   })
 })

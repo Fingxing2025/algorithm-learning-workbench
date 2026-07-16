@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 import type { ProblemImage } from '@core/contracts/problem'
 
 import { Button } from '@/components/ui/button'
+import { useI18n } from '@/lib/i18n'
 
 interface ProblemImageCardProps {
   image: ProblemImage
@@ -15,6 +16,7 @@ interface ProblemImageCardProps {
 type ImageState = { status: 'error' } | { status: 'loading' } | { dataUrl: string; status: 'ready' }
 
 export function ProblemImageCard({ image, isBusy, onRemove }: ProblemImageCardProps) {
+  const { t } = useI18n()
   const [confirming, setConfirming] = useState(false)
   const [previewOpen, setPreviewOpen] = useState(false)
   const [state, setState] = useState<ImageState>({ status: 'loading' })
@@ -48,7 +50,7 @@ export function ProblemImageCard({ image, isBusy, onRemove }: ProblemImageCardPr
         {state.status === 'error' && <AlertCircle className="size-5 text-red-500" />}
         {state.status === 'ready' && (
           <button
-            aria-label={`预览图片 ${image.originalName}`}
+            aria-label={`${t('预览图片')} ${image.originalName}`}
             className="group/preview relative size-full cursor-zoom-in outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
             onClick={() => setPreviewOpen(true)}
             type="button"
@@ -81,7 +83,7 @@ export function ProblemImageCard({ image, isBusy, onRemove }: ProblemImageCardPr
               type="button"
               variant="outline"
             >
-              确认
+              {t('确认')}
             </Button>
             <Button
               onClick={() => setConfirming(false)}
@@ -89,12 +91,12 @@ export function ProblemImageCard({ image, isBusy, onRemove }: ProblemImageCardPr
               type="button"
               variant="ghost"
             >
-              取消
+              {t('取消')}
             </Button>
           </div>
         ) : (
           <Button
-            aria-label={`移除图片 ${image.originalName}`}
+            aria-label={`${t('移除图片')} ${image.originalName}`}
             disabled={isBusy}
             onClick={() => setConfirming(true)}
             size="icon"
@@ -110,9 +112,11 @@ export function ProblemImageCard({ image, isBusy, onRemove }: ProblemImageCardPr
           <Dialog.Portal>
             <Dialog.Overlay className="dialog-overlay fixed inset-0 z-[80] bg-overlay/85 backdrop-blur-md" />
             <Dialog.Content className="fixed inset-4 z-[81] grid place-items-center overflow-hidden rounded-2xl border border-white/10 bg-[#080b12] p-4 shadow-2xl outline-none sm:inset-8">
-              <Dialog.Title className="sr-only">预览题目图片：{image.originalName}</Dialog.Title>
+              <Dialog.Title className="sr-only">
+                {t('预览题目图片：{name}', { name: image.originalName })}
+              </Dialog.Title>
               <Dialog.Description className="sr-only">
-                放大查看本地保存的题目图片，按 Escape 关闭预览。
+                {t('放大查看本地保存的题目图片，按 Escape 关闭预览。')}
               </Dialog.Description>
               <img
                 alt={image.originalName}
@@ -124,9 +128,9 @@ export function ProblemImageCard({ image, isBusy, onRemove }: ProblemImageCardPr
               </div>
               <Dialog.Close asChild>
                 <Button
-                  aria-label="关闭图片预览"
+                  aria-label={t('关闭图片预览')}
                   className="absolute right-4 top-4 border-white/15 bg-black/55 text-white hover:bg-black/75"
-                  size="icon"
+                  size="close"
                   type="button"
                   variant="outline"
                 >

@@ -3,6 +3,8 @@ import { randomUUID } from 'node:crypto'
 import { and, desc, eq } from 'drizzle-orm'
 
 import {
+  emptyProblemAnalysisStructure,
+  problemAnalysisStructureSchema,
   problemImageSchema,
   problemSchema,
   problemStatusSchema,
@@ -41,6 +43,8 @@ function parseTags(tagsJson: string): string[] {
 
 function toProblemValues(fields: CreateProblemRequest | UpdateProblemRequest) {
   return {
+    aiSummary: fields.aiSummary,
+    analysisJson: JSON.stringify(fields.analysis),
     difficulty: fields.difficulty,
     notes: fields.notes,
     platform: fields.platform,
@@ -190,6 +194,13 @@ export class ProblemRepository {
       .all()
 
     return problemRows.map(row => {
+      let analysis: unknown
+      try {
+        analysis = JSON.parse(row.analysisJson)
+      } catch {
+        analysis = emptyProblemAnalysisStructure
+      }
+      const parsedAnalysis = problemAnalysisStructureSchema.safeParse(analysis)
       const parsedStatus = problemStatusSchema.safeParse(row.status)
       const imagesForProblem = imageRows.flatMap(image => {
         if (image.problemId !== row.id) {
@@ -229,6 +240,8 @@ export class ProblemRepository {
       })
 
       return problemSchema.parse({
+        aiSummary: row.aiSummary,
+        analysis: parsedAnalysis.success ? parsedAnalysis.data : emptyProblemAnalysisStructure,
         createdAt: row.createdAt,
         difficulty: row.difficulty,
         id: row.id,

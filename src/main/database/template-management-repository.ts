@@ -7,9 +7,11 @@ import {
   type TemplateMetadata,
   type TemplateMetadataFields,
   fileChangeOperationSchema,
+  fileChangePlanPayloadSchema,
   fileChangePlanSchema,
+  parseStoredFileChangePlanPayload,
   type FileChangeExecution,
-  type FileChangeOperation,
+  type FileChangeOperationInput,
   type FileChangePlan,
 } from '@core/contracts/template-management'
 
@@ -74,17 +76,33 @@ export class TemplateManagementRepository {
     workspaceId: string,
     providerName: string,
     model: string,
-    operations: FileChangeOperation[],
+    operations: FileChangeOperationInput[],
+    options?: Pick<FileChangePlan, 'contextVersion' | 'diagnostic' | 'outputLanguage' | 'summary'>,
   ): FileChangePlan {
     const id = randomUUID()
     const timestamp = new Date().toISOString()
+    const payload = fileChangePlanPayloadSchema.parse({
+      contextVersion: options?.contextVersion ?? null,
+      diagnostic: options?.diagnostic ?? {
+        auditIssueCount: 0,
+        candidateTemplateCount: 0,
+        contextTruncated: false,
+        notesIncludedCount: 0,
+        requestId: null,
+        schemaVersion: 2,
+      },
+      operations: fileChangeOperationSchema.array().max(100).parse(operations),
+      outputLanguage: options?.outputLanguage ?? 'zh-CN',
+      schemaVersion: 2,
+      summary: options?.summary ?? '',
+    })
     this.database.orm
       .insert(fileChangePlans)
       .values({
         createdAt: timestamp,
         id,
         model,
-        operationsJson: JSON.stringify(operations),
+        operationsJson: JSON.stringify(payload),
         providerName,
         status: 'draft',
         updatedAt: timestamp,
@@ -101,18 +119,25 @@ export class TemplateManagementRepository {
       .where(eq(fileChangePlans.id, planId))
       .get()
     if (!record) return null
-    const operations = fileChangeOperationSchema
-      .array()
-      .max(100)
-      .safeParse(JSON.parse(record.operationsJson))
-    if (!operations.success) return null
+    let stored: unknown
+    try {
+      stored = JSON.parse(record.operationsJson)
+    } catch {
+      return null
+    }
+    const payload = parseStoredFileChangePlanPayload(stored)
+    if (!payload) return null
     const plan = fileChangePlanSchema.safeParse({
+      contextVersion: payload.contextVersion,
       createdAt: record.createdAt,
+      diagnostic: payload.diagnostic,
       id: record.id,
       model: record.model,
-      operations: operations.data,
+      operations: payload.operations,
+      outputLanguage: payload.outputLanguage,
       providerName: record.providerName,
       status: record.status,
+      summary: payload.summary,
       updatedAt: record.updatedAt,
     })
     return plan.success ? plan.data : null
@@ -260,6 +285,18 @@ export class TemplateManagementRepository {
       })
       .run()
     return this.getMetadata(templateId)!
+  }
+
+  upsertMetadataBatch(
+    updates: Array<{ fields: TemplateMetadataFields; templateId: string }>,
+  ): void {
+    if (updates.length === 0) return
+    const updatedAt = new Date().toISOString()
+    this.database.client.transaction(() => {
+      for (const update of updates) {
+        this.upsertMetadataRaw(update.templateId, update.fields, updatedAt)
+      }
+    })()
   }
 
   private remapTemplateDataRaw(previousId: string, nextId: string): void {

@@ -6,6 +6,7 @@ export class PublicError extends Error {
   constructor(
     public readonly code: IpcErrorCode,
     message: string,
+    public readonly retryAfterMs?: number,
   ) {
     super(message)
     this.name = 'PublicError'
@@ -14,7 +15,11 @@ export class PublicError extends Error {
 
 export function toPublicIpcError(error: unknown): IpcError {
   if (error instanceof PublicError) {
-    return { code: error.code, message: error.message }
+    return {
+      code: error.code,
+      message: error.message,
+      ...(error.retryAfterMs === undefined ? {} : { retryAfterMs: error.retryAfterMs }),
+    }
   }
 
   if (error instanceof ZodError) {

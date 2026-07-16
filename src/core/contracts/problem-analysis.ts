@@ -1,6 +1,8 @@
 import { z } from 'zod'
 
 import { problemFieldsSchema, relationTypeSchema } from './problem'
+import { problemAnalysisStructureSchema } from './problem'
+import { aiOutputLanguageSchema, aiRequestPreviewSchema } from './ai-request'
 
 const templateIdSchema = z.string().regex(/^[a-f0-9]{64}$/)
 
@@ -26,20 +28,28 @@ export const problemAnalysisImagesSchema = z
 export const analyzeProblemRequestSchema = z
   .object({
     images: problemAnalysisImagesSchema,
+    outputLanguage: aiOutputLanguageSchema,
     text: z.string().trim().max(100_000),
   })
   .strict()
   .refine(request => request.text.length > 0 || request.images.length > 0, '请输入题面或添加图片。')
 export type AnalyzeProblemRequest = z.infer<typeof analyzeProblemRequestSchema>
+export const previewProblemAnalysisRequestSchema = analyzeProblemRequestSchema
+export const previewProblemAnalysisResultSchema = aiRequestPreviewSchema
 
 export const problemAnalysisCandidateSchema = z
   .object({
     confidence: z.number().min(0).max(1),
     reason: z.string().trim().max(500),
+    applicableWhen: z.array(z.string().trim().min(1).max(500)).max(20),
+    evidence: z.array(z.string().trim().min(1).max(500)).max(20),
+    matchedCapabilities: z.array(z.string().trim().min(1).max(500)).max(20),
+    notApplicableWhen: z.array(z.string().trim().min(1).max(500)).max(20),
     relationType: relationTypeSchema,
     templateId: templateIdSchema,
     templateName: z.string().min(1).max(255),
     templatePath: z.string().min(1).max(4096),
+    warnings: z.array(z.string().trim().min(1).max(500)).max(20),
   })
   .strict()
 export type ProblemAnalysisCandidate = z.infer<typeof problemAnalysisCandidateSchema>
@@ -80,6 +90,8 @@ export type CommitProblemAnalysisRequest = z.infer<typeof commitProblemAnalysisR
 
 export const modelProblemAnalysisSchema = z
   .object({
+    aiSummary: z.string().max(20_000),
+    analysis: problemAnalysisStructureSchema,
     difficulty: z.string().max(40).nullable().optional(),
     notes: z.string().max(100_000).optional(),
     platform: z.string().max(80).nullable().optional(),
@@ -91,8 +103,13 @@ export const modelProblemAnalysisSchema = z
       .array(
         z.object({
           confidence: z.number().min(0).max(1).optional(),
+          applicableWhen: z.array(z.string().max(500)).max(20).optional(),
+          evidence: z.array(z.string().max(500)).max(20).optional(),
+          matchedCapabilities: z.array(z.string().max(500)).max(20).optional(),
+          notApplicableWhen: z.array(z.string().max(500)).max(20).optional(),
           reason: z.string().max(500).optional(),
           templateId: templateIdSchema,
+          warnings: z.array(z.string().max(500)).max(20).optional(),
         }),
       )
       .max(16)

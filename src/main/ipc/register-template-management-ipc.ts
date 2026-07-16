@@ -1,20 +1,33 @@
 import { z } from 'zod'
 
 import {
+  batchImportTemplateRequestSchema,
+  batchImportTemplateResultSchema,
+  batchTemplateImportSourceListSchema,
+  inspectBatchTemplateImportRequestSchema,
+  inspectBatchTemplateImportResultSchema,
   classifyTemplateRequestSchema,
   importTemplateRequestSchema,
   importTemplateResultSchema,
+  previewTemplateClassificationRequestSchema,
+  previewTemplateClassificationResultSchema,
   templateClassificationSchema,
   templateImportSourceSchema,
   templateMetadataRequestSchema,
   templateMetadataSchema,
   updateTemplateMetadataRequestSchema,
   applyFileChangePlanRequestSchema,
+  cancelFilePlanGenerationRequestSchema,
+  exportFilePlanDiagnosticRequestSchema,
   fileChangeExecutionListSchema,
   fileChangeMutationResultSchema,
   fileChangePlanListSchema,
   fileChangePlanRequestSchema,
   fileChangePlanSchema,
+  filePlanGenerationRequestSchema,
+  previewFilePlanResultSchema,
+  previewBatchTemplateClassificationRequestSchema,
+  previewBatchTemplateClassificationResultSchema,
   rollbackFileChangeExecutionRequestSchema,
   workspaceAuditSchema,
 } from '@core/contracts/template-management'
@@ -28,6 +41,18 @@ export function registerTemplateManagementIpc(
   getParentWindow: () => Electron.BrowserWindow | undefined,
 ): void {
   registerValidatedHandler({
+    channel: IPC_CHANNELS.templateManagement.chooseBatchImportFiles,
+    handler: () => service.chooseBatchImportFiles(getParentWindow()),
+    inputSchema: z.void(),
+    outputSchema: batchTemplateImportSourceListSchema,
+  })
+  registerValidatedHandler({
+    channel: IPC_CHANNELS.templateManagement.chooseBatchImportDirectory,
+    handler: () => service.chooseBatchImportDirectory(getParentWindow()),
+    inputSchema: z.void(),
+    outputSchema: batchTemplateImportSourceListSchema,
+  })
+  registerValidatedHandler({
     channel: IPC_CHANNELS.templateManagement.chooseImportSource,
     handler: () => service.chooseImportSource(getParentWindow()),
     inputSchema: z.void(),
@@ -40,10 +65,37 @@ export function registerTemplateManagementIpc(
     outputSchema: workspaceAuditSchema,
   })
   registerValidatedHandler({
+    channel: IPC_CHANNELS.templateManagement.previewBatchClassification,
+    handler: request => service.previewBatchClassification(request),
+    inputSchema: previewBatchTemplateClassificationRequestSchema,
+    outputSchema: previewBatchTemplateClassificationResultSchema,
+  })
+  registerValidatedHandler({
+    channel: IPC_CHANNELS.templateManagement.previewFilePlan,
+    handler: request => service.previewFilePlan(request),
+    inputSchema: filePlanGenerationRequestSchema,
+    outputSchema: previewFilePlanResultSchema,
+  })
+  registerValidatedHandler({
     channel: IPC_CHANNELS.templateManagement.generateFilePlan,
-    handler: () => service.generateFilePlan(),
-    inputSchema: z.void(),
+    handler: request => service.generateFilePlan(request),
+    inputSchema: filePlanGenerationRequestSchema,
     outputSchema: fileChangePlanSchema,
+  })
+  registerValidatedHandler({
+    channel: IPC_CHANNELS.templateManagement.cancelFilePlanGeneration,
+    handler: request => {
+      service.cancelFilePlanGeneration(request.requestId)
+      return null
+    },
+    inputSchema: cancelFilePlanGenerationRequestSchema,
+    outputSchema: z.null(),
+  })
+  registerValidatedHandler({
+    channel: IPC_CHANNELS.templateManagement.exportFilePlanDiagnostic,
+    handler: request => service.exportFilePlanDiagnostic(request.planId, getParentWindow()),
+    inputSchema: exportFilePlanDiagnosticRequestSchema,
+    outputSchema: z.boolean(),
   })
   registerValidatedHandler({
     channel: IPC_CHANNELS.templateManagement.listFilePlans,
@@ -76,6 +128,12 @@ export function registerTemplateManagementIpc(
     outputSchema: fileChangeMutationResultSchema,
   })
   registerValidatedHandler({
+    channel: IPC_CHANNELS.templateManagement.previewClassification,
+    handler: request => service.previewClassification(request),
+    inputSchema: previewTemplateClassificationRequestSchema,
+    outputSchema: previewTemplateClassificationResultSchema,
+  })
+  registerValidatedHandler({
     channel: IPC_CHANNELS.templateManagement.classify,
     handler: request => service.classify(request),
     inputSchema: classifyTemplateRequestSchema,
@@ -92,6 +150,18 @@ export function registerTemplateManagementIpc(
     handler: request => service.redraftFilePlan(request.planId),
     inputSchema: fileChangePlanRequestSchema,
     outputSchema: fileChangePlanSchema,
+  })
+  registerValidatedHandler({
+    channel: IPC_CHANNELS.templateManagement.importTemplatesBatch,
+    handler: request => service.importTemplatesBatch(request),
+    inputSchema: batchImportTemplateRequestSchema,
+    outputSchema: batchImportTemplateResultSchema,
+  })
+  registerValidatedHandler({
+    channel: IPC_CHANNELS.templateManagement.inspectBatchImport,
+    handler: request => service.inspectBatchImport(request),
+    inputSchema: inspectBatchTemplateImportRequestSchema,
+    outputSchema: inspectBatchTemplateImportResultSchema,
   })
   registerValidatedHandler({
     channel: IPC_CHANNELS.templateManagement.importTemplate,

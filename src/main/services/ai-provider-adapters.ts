@@ -18,8 +18,13 @@ export interface AiCompletionImage {
 }
 
 export interface AiCompletionRequest {
+  cache?: { key: string; stableContext: string }
+  disableThinking?: boolean
   images?: AiCompletionImage[]
+  jsonSchema?: { name: string; schema: Record<string, unknown> }
   maxOutputTokens: number
+  onAttempt?: (attempt: { maxOutputTokens: number }) => void
+  signal?: AbortSignal
   system?: string
   text: string
 }
@@ -130,9 +135,13 @@ async function requestJson(
   body: unknown,
   headers: Record<string, string>,
   timeoutMs: number,
+  externalSignal?: AbortSignal,
 ): Promise<unknown> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
+  const signal = externalSignal
+    ? AbortSignal.any([controller.signal, externalSignal])
+    : controller.signal
   let response: Response
   try {
     response = await fetch(url, {
@@ -140,9 +149,12 @@ async function requestJson(
       headers: { 'content-type': 'application/json', ...headers },
       method: 'POST',
       redirect: 'error',
-      signal: controller.signal,
+      signal,
     })
   } catch (error) {
+    if (externalSignal?.aborted) {
+      throw new PublicError('AI_CANCELLED', 'AI 请求已取消。')
+    }
     if (error instanceof Error && error.name === 'AbortError') {
       throw new PublicError('AI_TIMEOUT', 'AI 请求超时，请检查接口地址或增大超时时间。')
     }
@@ -158,7 +170,14 @@ async function requestJson(
     throw new PublicError('AI_MODEL_NOT_FOUND', '接口或模型不存在，请核对 Base URL 和模型名称。')
   }
   if (response.status === 429) {
-    throw new PublicError('AI_RATE_LIMITED', '请求受到限流，请稍后重试或更换模型。')
+    const retryAfter = response.headers.get('retry-after')
+    const seconds = retryAfter ? Number(retryAfter) : Number.NaN
+    const retryAfterMs = Number.isFinite(seconds)
+      ? Math.max(0, seconds * 1_000)
+      : retryAfter
+        ? Math.max(0, Date.parse(retryAfter) - Date.now())
+        : undefined
+    throw new PublicError('AI_RATE_LIMITED', '请求受到限流，请稍后重试或更换模型。', retryAfterMs)
   }
   if (response.status === 400) {
     const detail = await readResponseBody(response)
@@ -190,15 +209,41 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+function toOpenAiStrictJsonSchema(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(toOpenAiStrictJsonSchema)
+  if (!isRecord(value)) return value
+
+  const normalized = Object.fromEntries(
+    Object.entries(value)
+      .filter(([key]) => key !== '$schema')
+      .map(([key, nested]) => [key, toOpenAiStrictJsonSchema(nested)]),
+  )
+  if (isRecord(value.properties)) {
+    normalized.required = Object.keys(value.properties)
+    normalized.additionalProperties = false
+  }
+  return normalized
+}
+
 function extractTextBlocks(value: unknown, depth = 0): string[] {
   if (depth > 4) return []
   if (typeof value === 'string') return value.trim() ? [value.trim()] : []
   if (Array.isArray(value)) return value.flatMap(item => extractTextBlocks(item, depth + 1))
   if (!isRecord(value)) return []
 
-  if (typeof value.text === 'string') return extractTextBlocks(value.text, depth + 1)
-  if (typeof value.output_text === 'string') return extractTextBlocks(value.output_text, depth + 1)
-  if ('content' in value) return extractTextBlocks(value.content, depth + 1)
+  for (const key of ['text', 'output_text', 'content']) {
+    if (!(key in value)) continue
+    const blocks = extractTextBlocks(value[key], depth + 1)
+    if (blocks.length > 0) return blocks
+  }
+  for (const key of ['message', 'delta', 'choices', 'output', 'result', 'data']) {
+    if (!(key in value)) continue
+    const blocks = extractTextBlocks(value[key], depth + 1)
+    if (blocks.length > 0) return blocks
+  }
+  if (typeof value.reasoning_content === 'string') {
+    return extractTextBlocks(value.reasoning_content, depth + 1)
+  }
   return []
 }
 
@@ -237,23 +282,55 @@ const adapters: Record<AiProviderProtocol, AiProviderAdapter> = {
             ]
       const messages = [
         ...(request.system ? [{ content: request.system, role: 'system' }] : []),
+        ...(request.cache?.stableContext
+          ? [{ content: request.cache.stableContext, role: 'user' }]
+          : []),
         { content: userContent, role: 'user' },
       ]
       const data = (await requestJson(
         endpoint(profile.baseUrl, 'chat/completions'),
-        { max_tokens: request.maxOutputTokens, messages, model: profile.model },
+        {
+          max_tokens: request.maxOutputTokens,
+          messages,
+          model: profile.model,
+          ...(request.disableThinking && /^qwen(?:\d|[-_.])/iu.test(profile.model)
+            ? { enable_thinking: false }
+            : {}),
+          ...(profile.capabilities.promptCaching && request.cache
+            ? { prompt_cache_key: request.cache.key }
+            : {}),
+          ...(profile.capabilities.structuredOutput && request.jsonSchema
+            ? {
+                response_format: {
+                  json_schema: {
+                    name: request.jsonSchema.name,
+                    schema: toOpenAiStrictJsonSchema(request.jsonSchema.schema),
+                    strict: true,
+                  },
+                  type: 'json_schema',
+                },
+              }
+            : {}),
+        },
         { ...profile.customHeaders, authorization: `Bearer ${requireApiKey(apiKey)}` },
         profile.timeoutMs,
+        request.signal,
       )) as {
-        choices?: Array<{ message?: { content?: unknown }; text?: unknown }>
-        output?: Array<{ content?: unknown }>
+        choices?: Array<{
+          message?: { content?: unknown; reasoning_content?: unknown }
+          text?: unknown
+        }>
+        output?: unknown
         output_text?: unknown
+        result?: unknown
       }
       return requireText(
         data.choices?.[0]?.message?.content,
         data.choices?.[0]?.text,
         data.output_text,
-        data.output?.map(item => item.content),
+        data.output,
+        data.result,
+        data.choices?.[0]?.message?.reasoning_content,
       )
     },
   }),
@@ -261,6 +338,14 @@ const adapters: Record<AiProviderProtocol, AiProviderAdapter> = {
     async complete(profile, apiKey, request) {
       const images = request.images ?? []
       const input = [
+        ...(request.cache?.stableContext
+          ? [
+              {
+                content: [{ text: request.cache.stableContext, type: 'input_text' }],
+                role: 'user',
+              },
+            ]
+          : []),
         {
           content: [
             { text: request.text, type: 'input_text' },
@@ -276,10 +361,26 @@ const adapters: Record<AiProviderProtocol, AiProviderAdapter> = {
           input,
           max_output_tokens: request.maxOutputTokens,
           model: profile.model,
+          ...(profile.capabilities.promptCaching && request.cache
+            ? { prompt_cache_key: request.cache.key }
+            : {}),
           stream: true,
+          ...(profile.capabilities.structuredOutput && request.jsonSchema
+            ? {
+                text: {
+                  format: {
+                    name: request.jsonSchema.name,
+                    schema: toOpenAiStrictJsonSchema(request.jsonSchema.schema),
+                    strict: true,
+                    type: 'json_schema',
+                  },
+                },
+              }
+            : {}),
         },
         { ...profile.customHeaders, authorization: `Bearer ${requireApiKey(apiKey)}` },
         profile.timeoutMs,
+        request.signal,
       )) as {
         choices?: Array<{ message?: { content?: unknown }; text?: unknown }>
         output?: Array<{ content?: unknown }>
@@ -308,7 +409,24 @@ const adapters: Record<AiProviderProtocol, AiProviderAdapter> = {
           max_tokens: request.maxOutputTokens,
           messages: [{ content, role: 'user' }],
           model: profile.model,
-          ...(request.system ? { system: request.system } : {}),
+          ...(request.system || request.cache?.stableContext
+            ? {
+                system: [
+                  ...(request.system ? [{ text: request.system, type: 'text' }] : []),
+                  ...(request.cache?.stableContext
+                    ? [
+                        {
+                          ...(profile.capabilities.promptCaching
+                            ? { cache_control: { type: 'ephemeral' } }
+                            : {}),
+                          text: request.cache.stableContext,
+                          type: 'text',
+                        },
+                      ]
+                    : []),
+                ],
+              }
+            : {}),
         },
         {
           ...profile.customHeaders,
@@ -316,6 +434,7 @@ const adapters: Record<AiProviderProtocol, AiProviderAdapter> = {
           'x-api-key': requireApiKey(apiKey),
         },
         profile.timeoutMs,
+        request.signal,
       )) as { content?: unknown }
       return requireText(data.content)
     },
@@ -324,6 +443,7 @@ const adapters: Record<AiProviderProtocol, AiProviderAdapter> = {
     async complete(profile, apiKey, request) {
       const model = profile.model.replace(/^models\//, '')
       const parts = [
+        ...(request.cache?.stableContext ? [{ text: request.cache.stableContext }] : []),
         { text: request.text },
         ...(request.images ?? []).map(image => ({
           inlineData: { data: image.base64, mimeType: image.mediaType },
@@ -333,11 +453,17 @@ const adapters: Record<AiProviderProtocol, AiProviderAdapter> = {
         endpoint(profile.baseUrl, `models/${encodeURIComponent(model)}:generateContent`),
         {
           contents: [{ parts, role: 'user' }],
-          generationConfig: { maxOutputTokens: request.maxOutputTokens },
+          generationConfig: {
+            maxOutputTokens: request.maxOutputTokens,
+            ...(profile.capabilities.structuredOutput && request.jsonSchema
+              ? { responseMimeType: 'application/json', responseSchema: request.jsonSchema.schema }
+              : {}),
+          },
           ...(request.system ? { systemInstruction: { parts: [{ text: request.system }] } } : {}),
         },
         { ...profile.customHeaders, 'x-goog-api-key': requireApiKey(apiKey) },
         profile.timeoutMs,
+        request.signal,
       )) as { candidates?: Array<{ content?: { parts?: unknown } }> }
       return requireText(data.candidates?.[0]?.content?.parts)
     },
@@ -346,6 +472,9 @@ const adapters: Record<AiProviderProtocol, AiProviderAdapter> = {
     async complete(profile, _apiKey, request) {
       const messages = [
         ...(request.system ? [{ content: request.system, role: 'system' }] : []),
+        ...(request.cache?.stableContext
+          ? [{ content: request.cache.stableContext, role: 'user' }]
+          : []),
         {
           content: request.text,
           ...(request.images?.length ? { images: request.images.map(image => image.base64) } : {}),
@@ -354,9 +483,17 @@ const adapters: Record<AiProviderProtocol, AiProviderAdapter> = {
       ]
       const data = (await requestJson(
         endpoint(profile.baseUrl, 'api/chat'),
-        { messages, model: profile.model, stream: false },
+        {
+          ...(profile.capabilities.structuredOutput && request.jsonSchema
+            ? { format: request.jsonSchema.schema }
+            : {}),
+          messages,
+          model: profile.model,
+          stream: false,
+        },
         profile.customHeaders,
         profile.timeoutMs,
+        request.signal,
       )) as {
         choices?: Array<{ message?: { content?: unknown }; text?: unknown }>
         message?: { content?: unknown }

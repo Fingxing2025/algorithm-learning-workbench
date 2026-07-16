@@ -121,6 +121,12 @@ export const fileChangeExecutions = sqliteTable(
 export const problems = sqliteTable(
   'problems',
   {
+    aiSummary: text('ai_summary').notNull().default(''),
+    analysisJson: text('analysis_json')
+      .notNull()
+      .default(
+        '{"inputDescription":"","outputDescription":"","constraints":[],"examples":[],"algorithmSignals":[],"edgeCases":[]}',
+      ),
     createdAt: text('created_at').notNull(),
     difficulty: text('difficulty'),
     id: text('id').primaryKey(),

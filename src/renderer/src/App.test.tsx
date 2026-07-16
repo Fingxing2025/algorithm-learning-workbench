@@ -38,6 +38,15 @@ const workspaceFixture: WorkspaceSnapshot = {
 }
 
 const problemFixture: Problem = {
+  aiSummary: '',
+  analysis: {
+    algorithmSignals: [],
+    constraints: [],
+    edgeCases: [],
+    examples: [],
+    inputDescription: '',
+    outputDescription: '',
+  },
   createdAt: '2026-07-14T08:00:00.000Z',
   difficulty: '提高',
   id: '50000000-0000-4000-8000-000000000001',
@@ -100,10 +109,12 @@ function installDesktopMock(currentWorkspace: WorkspaceSnapshot | null, problems
         }),
       },
       templateManagement: {
+        auditWorkspace: vi.fn(),
         chooseImportSource: vi.fn(),
         classify: vi.fn(),
         getMetadata: vi.fn().mockResolvedValue(null),
         importTemplate: vi.fn(),
+        listFileExecutions: vi.fn().mockResolvedValue([]),
         listFilePlans: vi.fn().mockResolvedValue([]),
         updateMetadata: vi.fn(),
       },
@@ -194,5 +205,53 @@ describe('App', () => {
 
     fireEvent.keyDown(window, { key: '1', metaKey: true })
     expect(await screen.findByRole('heading', { level: 1, name: '工作台' })).toBeInTheDocument()
+  })
+
+  it('keeps the dashboard vertically scrollable and opens all three summary destinations', async () => {
+    installDesktopMock(workspaceFixture, [problemFixture])
+    const user = userEvent.setup()
+    render(<App />)
+
+    await screen.findByRole('heading', { level: 1, name: '工作台' })
+    expect(screen.getByTestId('dashboard-scroll-region')).toHaveClass(
+      'h-full',
+      'overflow-y-auto',
+      'overscroll-contain',
+    )
+
+    await user.click(screen.getByRole('button', { name: /算法模板.*打开模板库/ }))
+    expect(await screen.findByRole('heading', { level: 1, name: '模板库' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: '工作台' }))
+    await user.click(screen.getByRole('button', { name: /题目卡片.*打开题目库/ }))
+    expect(await screen.findByRole('heading', { level: 1, name: '题目卡片' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: '工作台' }))
+    await user.click(screen.getByRole('button', { name: /待确认计划.*打开 AI 管理/ }))
+    expect(
+      await screen.findByRole('heading', { level: 1, name: '总体文件 AI 管理' }),
+    ).toBeInTheDocument()
+  })
+
+  it('switches the complete interface to English and restores the saved locale', async () => {
+    installDesktopMock(workspaceFixture, [problemFixture])
+    const user = userEvent.setup()
+    const firstRender = render(<App />)
+
+    await screen.findByRole('heading', { level: 1, name: '工作台' })
+    await user.click(screen.getByRole('button', { name: '切换到英文界面' }))
+
+    expect(document.documentElement.lang).toBe('en')
+    expect(window.localStorage.getItem('ui:locale')).toBe('en')
+    expect(screen.getByRole('button', { name: 'Workbench' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: /Algorithm templates.*Open Templates/ }),
+    ).toBeEnabled()
+
+    firstRender.unmount()
+    render(<App />)
+
+    expect(await screen.findByRole('button', { name: 'Workbench' })).toBeInTheDocument()
+    expect(document.documentElement.lang).toBe('en')
   })
 })

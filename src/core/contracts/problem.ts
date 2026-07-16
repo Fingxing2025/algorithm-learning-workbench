@@ -9,6 +9,34 @@ export const relationSourceSchema = z.enum(['manual', 'ai'])
 
 const nullableText = (maximum: number) => z.string().trim().max(maximum).nullable()
 
+export const problemAnalysisExampleSchema = z
+  .object({
+    explanation: z.string().max(10_000),
+    input: z.string().max(20_000),
+    output: z.string().max(20_000),
+  })
+  .strict()
+
+export const problemAnalysisStructureSchema = z
+  .object({
+    algorithmSignals: z.array(z.string().trim().min(1).max(200)).max(30),
+    constraints: z.array(z.string().trim().min(1).max(500)).max(50),
+    edgeCases: z.array(z.string().trim().min(1).max(500)).max(30),
+    examples: z.array(problemAnalysisExampleSchema).max(12),
+    inputDescription: z.string().max(20_000),
+    outputDescription: z.string().max(20_000),
+  })
+  .strict()
+export type ProblemAnalysisStructure = z.infer<typeof problemAnalysisStructureSchema>
+export const emptyProblemAnalysisStructure: ProblemAnalysisStructure = {
+  algorithmSignals: [],
+  constraints: [],
+  edgeCases: [],
+  examples: [],
+  inputDescription: '',
+  outputDescription: '',
+}
+
 const problemUrlSchema = nullableText(2048).refine(value => {
   if (value === null) {
     return true
@@ -23,6 +51,8 @@ const problemUrlSchema = nullableText(2048).refine(value => {
 
 export const problemFieldsSchema = z
   .object({
+    aiSummary: z.string().max(20_000),
+    analysis: problemAnalysisStructureSchema,
     difficulty: nullableText(40),
     notes: z.string().max(100_000),
     platform: nullableText(80),
@@ -117,6 +147,7 @@ export type Problem = z.infer<typeof problemSchema>
 export type ProblemFields = z.infer<typeof problemFieldsSchema>
 export type ProblemImage = z.infer<typeof problemImageSchema>
 export type ProblemImageData = z.infer<typeof problemImageDataSchema>
+export type ProblemAnalysisExample = z.infer<typeof problemAnalysisExampleSchema>
 export type ProblemStatus = z.infer<typeof problemStatusSchema>
 export type ProblemTemplateRelation = z.infer<typeof problemTemplateRelationSchema>
 export type RelationType = z.infer<typeof relationTypeSchema>

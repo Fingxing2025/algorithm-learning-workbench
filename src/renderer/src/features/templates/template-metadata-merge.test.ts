@@ -6,10 +6,14 @@ import {
   emptyTemplateMetadata,
   findTemplateMetadataConflicts,
   mergeTemplateClassification,
+  restoreDraftBeforeClassificationLanguageChange,
 } from './template-metadata-merge'
 
 const classification: TemplateClassification = {
+  alternatives: [],
   categoryPath: ['图论', '最短路', 'Dijkstra'],
+  classificationReason: '当前工作区的最短路分类。',
+  confidence: 0.95,
   metadata: {
     ...emptyTemplateMetadata,
     solves: 'AI 识别的问题',
@@ -17,6 +21,13 @@ const classification: TemplateClassification = {
     timeComplexity: 'O(m log n)',
   },
   model: 'fixture-model',
+  placement: {
+    existingParentPath: '图论/最短路',
+    mode: 'create-subdirectory',
+    newDirectories: ['Dijkstra'],
+    reason: '按具体算法建立子目录。',
+    targetDirectory: '图论/最短路/Dijkstra',
+  },
   providerName: 'fixture-provider',
   suggestedRelativePath: '图论/最短路/dijkstra.cpp',
 }
@@ -51,5 +62,33 @@ describe('template metadata merge', () => {
     expect(merged.metadata.timeComplexity).toBe('O(m log n)')
     expect(merged.metadata.solves).toBe('用户定义的问题')
     expect(merged.metadata.tags).toEqual(['我的标签'])
+  })
+
+  it('removes untouched AI values on language change while preserving user edits', () => {
+    const baseline = {
+      metadata: { ...emptyTemplateMetadata, solves: '用户原始问题', tags: ['用户标签'] },
+      relativePath: 'custom.cpp',
+    }
+    const current = {
+      metadata: {
+        ...classification.metadata,
+        constraints: '用户后续手动修改',
+        solves: '用户原始问题',
+        tags: ['用户标签'],
+      },
+      relativePath: classification.suggestedRelativePath,
+    }
+
+    expect(
+      restoreDraftBeforeClassificationLanguageChange(current, baseline, classification),
+    ).toEqual({
+      metadata: {
+        ...emptyTemplateMetadata,
+        constraints: '用户后续手动修改',
+        solves: '用户原始问题',
+        tags: ['用户标签'],
+      },
+      relativePath: 'custom.cpp',
+    })
   })
 })

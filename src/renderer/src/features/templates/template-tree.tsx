@@ -13,6 +13,7 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 
 import type { TemplateActionRequest, TemplateSummary } from '@core/contracts/workspace'
 
+import { useI18n } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 
 import {
@@ -36,6 +37,7 @@ export function TemplateTree({
   selectedTemplateId,
   templates,
 }: TemplateTreeProps) {
+  const { t } = useI18n()
   const scrollRef = useRef<HTMLDivElement>(null)
   const tree = useMemo(() => buildTemplateTree(templates), [templates])
   const [expandedIds, setExpandedIds] = useState(() => getDefaultExpandedIds(tree))
@@ -159,7 +161,7 @@ export function TemplateTree({
       <div className="border-b border-border px-3 py-3.5">
         <div className="mb-2.5 flex items-center justify-between px-1">
           <span className="text-[10px] font-semibold uppercase tracking-[0.11em] text-muted-foreground">
-            工作区文件
+            {t('工作区文件')}
           </span>
           <span className="rounded-md bg-panel px-1.5 py-0.5 text-[9px] font-semibold text-muted-foreground ring-1 ring-border">
             {templates.length}
@@ -168,15 +170,15 @@ export function TemplateTree({
         <div className="flex h-9 items-center gap-2 rounded-xl border border-border bg-panel px-3 shadow-xs transition-colors focus-within:border-primary/35 focus-within:ring-2 focus-within:ring-ring">
           <Search aria-hidden="true" className="size-3.5 text-muted-foreground" />
           <input
-            aria-label="筛选模板树"
+            aria-label={t('筛选模板树')}
             className="min-w-0 flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground"
             onChange={event => setQuery(event.target.value)}
-            placeholder="筛选当前工作区"
+            placeholder={t('筛选当前工作区')}
             value={query}
           />
         </div>
         <p className="mt-2.5 px-1 text-[10px] text-muted-foreground">
-          {query ? `${rows.length} 个匹配结果` : `${templates.length} 个模板`}
+          {query ? `${rows.length} ${t('个匹配结果')}` : `${templates.length} ${t('个模板')}`}
         </p>
       </div>
 
@@ -184,9 +186,11 @@ export function TemplateTree({
         <div className="grid min-h-0 flex-1 place-items-center p-6 text-center">
           <div>
             <FileCode2 aria-hidden="true" className="mx-auto size-6 text-muted-foreground" />
-            <p className="mt-3 text-xs font-medium">{query ? '没有匹配模板' : '工作区还是空的'}</p>
+            <p className="mt-3 text-xs font-medium">
+              {t(query ? '没有匹配模板' : '工作区还是空的')}
+            </p>
             <p className="mt-1 text-[11px] leading-5 text-muted-foreground">
-              {query ? '尝试缩短关键词。' : '使用右上角“新建模板”添加第一份源码。'}
+              {t(query ? '尝试缩短关键词。' : '使用右上角“新建模板”添加第一份源码。')}
             </p>
           </div>
         </div>
@@ -195,7 +199,7 @@ export function TemplateTree({
           aria-activedescendant={
             rows[focusedIndex] ? `tree-row-${rows[focusedIndex].id}` : undefined
           }
-          aria-label="模板树"
+          aria-label={t('模板树')}
           className="min-h-0 flex-1 overflow-auto py-1.5 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
           onKeyDown={handleTreeKeyDown}
           ref={scrollRef}
@@ -278,7 +282,7 @@ export function TemplateTree({
                         }
                       >
                         <Copy aria-hidden="true" className="size-3.5" />
-                        复制源码
+                        {t('复制源码')}
                       </ContextMenu.Item>
                       <ContextMenu.Item
                         className="flex cursor-default items-center gap-2 rounded-md px-2.5 py-2 outline-none data-[highlighted]:bg-muted"
@@ -287,7 +291,7 @@ export function TemplateTree({
                         }
                       >
                         <Copy aria-hidden="true" className="size-3.5" />
-                        复制相对路径
+                        {t('复制相对路径')}
                       </ContextMenu.Item>
                       <ContextMenu.Separator className="my-1 h-px bg-border" />
                       <ContextMenu.Item
@@ -295,7 +299,7 @@ export function TemplateTree({
                         onSelect={() => onAction({ action: 'reveal', templateId: row.template.id })}
                       >
                         <FolderOpen aria-hidden="true" className="size-3.5" />
-                        在文件管理器中显示
+                        {t('在文件管理器中显示')}
                       </ContextMenu.Item>
                     </ContextMenu.Content>
                   </ContextMenu.Portal>

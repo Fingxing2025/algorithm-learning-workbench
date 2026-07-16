@@ -21,6 +21,7 @@ import { AiProviderService } from './services/ai-provider-service'
 import { SecretStore } from './security/secret-store'
 import { WorkspaceService } from './services/workspace-service'
 import { TemplateManagementService } from './services/template-management-service'
+import { WorkspaceAiContextService } from './services/workspace-ai-context-service'
 import { createMainWindow } from './window/create-main-window'
 
 let mainWindow: BrowserWindow | null = null
@@ -48,20 +49,27 @@ async function bootstrap(): Promise<void> {
   appDatabase = createAppDatabase(app.getPath('userData'))
   const templateManagementRepository = new TemplateManagementRepository(appDatabase)
   const workspaceRepository = new WorkspaceRepository(appDatabase)
-  const workspaceService = new WorkspaceService(workspaceRepository, templateManagementRepository)
+  const problemRepository = new ProblemRepository(appDatabase)
+  const workspaceService = new WorkspaceService(
+    workspaceRepository,
+    templateManagementRepository,
+    app.getPath('userData'),
+  )
   const aiProviderService = new AiProviderService(
     new AiProviderRepository(appDatabase),
     new SecretStore(app.getPath('userData')),
   )
-  const problemService = new ProblemService(
-    new ProblemRepository(appDatabase),
-    app.getPath('userData'),
+  const problemService = new ProblemService(problemRepository, app.getPath('userData'))
+  const workspaceAiContextService = new WorkspaceAiContextService(
+    workspaceRepository,
+    templateManagementRepository,
+    problemRepository,
   )
   const problemAnalysisService = new ProblemAnalysisService(
     aiProviderService,
-    new ProblemRepository(appDatabase),
-    new WorkspaceRepository(appDatabase),
+    problemRepository,
     app.getPath('userData'),
+    workspaceAiContextService,
   )
   const templateManagementService = new TemplateManagementService(
     aiProviderService,
@@ -69,6 +77,7 @@ async function bootstrap(): Promise<void> {
     workspaceRepository,
     workspaceService,
     app.getPath('userData'),
+    workspaceAiContextService,
   )
   registerAppIpc()
   registerAiProviderIpc(aiProviderService)

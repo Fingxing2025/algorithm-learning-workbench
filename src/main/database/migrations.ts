@@ -4,12 +4,14 @@ import initialMigration from '../../../drizzle/0000_initial.sql?raw'
 import problemsMigration from '../../../drizzle/0001_problems_relations.sql?raw'
 import aiProvidersMigration from '../../../drizzle/0002_ai_providers.sql?raw'
 import templateManagementMigration from '../../../drizzle/0003_template_management.sql?raw'
+import aiContextProblemStructureMigration from '../../../drizzle/0004_ai_context_problem_structure.sql?raw'
 
 const migrations = [
   { id: '0000_initial', sql: initialMigration },
   { id: '0001_problems_relations', sql: problemsMigration },
   { id: '0002_ai_providers', sql: aiProvidersMigration },
   { id: '0003_template_management', sql: templateManagementMigration },
+  { id: '0004_ai_context_problem_structure', sql: aiContextProblemStructureMigration },
 ] as const
 
 export function runMigrations(client: BetterSqlite3.Database): void {

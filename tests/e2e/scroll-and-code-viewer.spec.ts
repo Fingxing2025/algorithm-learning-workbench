@@ -77,6 +77,16 @@ test('scrolls large template and problem lists and switches the code theme', asy
     })
     await page.getByLabel('代码主题').selectOption('vscode-dark')
     await expect(highlightedSource).toHaveAttribute('data-code-theme', 'vscode-dark')
+    await expect(highlightedSource.locator('.cm-cpp-header').first()).toHaveCSS(
+      'color',
+      'rgb(206, 145, 120)',
+    )
+    await expect(highlightedSource.locator('.cm-cpp-primitive-type').first()).toHaveCSS(
+      'color',
+      'rgb(86, 156, 214)',
+    )
+    await expect(highlightedSource.locator('.cm-rainbow-bracket-0').first()).toBeVisible()
+    await expect(highlightedSource.locator('.cm-indent-guides').first()).toBeVisible()
     await page.screenshot({
       animations: 'disabled',
       path: resolve('output/playwright/code-theme-vscode-dark-1280x720.png'),
@@ -97,6 +107,15 @@ test('scrolls large template and problem lists and switches the code theme', asy
         desktop: {
           problems: {
             create: (request: {
+              aiSummary: string
+              analysis: {
+                algorithmSignals: string[]
+                constraints: string[]
+                edgeCases: string[]
+                examples: []
+                inputDescription: string
+                outputDescription: string
+              }
               difficulty: string
               notes: string
               platform: string
@@ -112,6 +131,15 @@ test('scrolls large template and problem lists and switches the code theme', asy
       }
       for (let index = 0; index < 36; index += 1) {
         await renderer.desktop.problems.create({
+          aiSummary: '',
+          analysis: {
+            algorithmSignals: [],
+            constraints: [],
+            edgeCases: [],
+            examples: [],
+            inputDescription: '',
+            outputDescription: '',
+          },
           difficulty: '测试',
           notes: '',
           platform: '滚动测试',

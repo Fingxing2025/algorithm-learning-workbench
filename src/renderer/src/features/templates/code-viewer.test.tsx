@@ -15,6 +15,24 @@ describe('CodeViewer', () => {
     expect(source.textContent).toContain('<script>')
   })
 
+  it('adds C++-specific semantic colors, bracket depth colors, and indentation guides', () => {
+    render(
+      <CodeViewer
+        code={
+          '#include <vector>\nint main() {\n    std::vector<int> values;\n    if (values.empty()) {\n        return 0;\n    }\n}'
+        }
+        language="C++"
+      />,
+    )
+
+    const source = screen.getByLabelText('高亮模板源码')
+    expect(source.querySelector('.cm-cpp-header')).toHaveTextContent('<vector>')
+    expect(source.querySelector('.cm-cpp-primitive-type')).toHaveTextContent('int')
+    expect(source.querySelector('.cm-rainbow-bracket-0')).not.toBeNull()
+    expect(source.querySelector('.cm-rainbow-bracket-1')).not.toBeNull()
+    expect(source.querySelector('.cm-indent-guides')).not.toBeNull()
+  })
+
   it('persists an independently selected VS Code theme', () => {
     render(<CodeViewer code="const value = 1" language="TypeScript" />)
     fireEvent.change(screen.getByLabelText('代码主题'), { target: { value: 'vscode-dark' } })

@@ -101,20 +101,23 @@ test('configures and tests two different provider protocols from a zero-data des
   await expect(page.getByRole('heading', { level: 1, name: 'AI 设置' })).toBeVisible()
   await expect(page.getByText('还没有 AI Provider')).toBeVisible()
 
-  await page.getByRole('button', { name: '使用 DeepSeek 预设' }).click()
+  await page.getByRole('button', { name: '使用预设 DeepSeek' }).click()
   await expect(page.getByLabel('Provider 显示名称')).toHaveValue('DeepSeek')
   await expect(page.getByLabel('Provider 协议')).toHaveValue('openai-chat-completions')
   await expect(page.getByLabel('Base URL')).toHaveValue('https://api.deepseek.com/v1')
   await expect(page.getByLabel('模型名称')).toHaveValue('deepseek-v4-flash')
 
-  await page.getByRole('button', { name: '使用 阿里云百炼 预设' }).click()
+  await page.getByRole('button', { name: '使用预设 阿里云百炼' }).click()
   await expect(page.getByLabel('Provider 显示名称')).toHaveValue('阿里云百炼')
-  await expect(page.getByLabel('Base URL')).toHaveValue('')
+  await expect(page.getByLabel('Base URL')).toHaveValue(
+    'https://ws-q88wpweukv7ai50n.cn-beijing.maas.aliyuncs.com/compatible-mode/v1',
+  )
   await expect(page.getByLabel('Base URL')).toHaveAttribute(
     'placeholder',
-    'https://<WorkspaceId>.cn-beijing.maas.aliyuncs.com/compatible-mode/v1',
+    'https://ws-q88wpweukv7ai50n.cn-beijing.maas.aliyuncs.com/compatible-mode/v1',
   )
-  await expect(page.getByLabel('模型名称')).toHaveValue('qwen-plus')
+  await expect(page.getByLabel('模型名称')).toHaveValue('qwen3-vl-plus')
+  await expect(page.getByLabel('视觉输入')).toBeChecked()
   await page.screenshot({
     animations: 'disabled',
     path: resolve('output/playwright/provider-presets-light.png'),

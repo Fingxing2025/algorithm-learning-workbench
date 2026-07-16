@@ -9,13 +9,14 @@ import {
   RefreshCw,
   Trash2,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import type { Problem, RelationType, UpsertProblemRelationRequest } from '@core/contracts/problem'
 import type { TemplateActionRequest, TemplateSummary } from '@core/contracts/workspace'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { useI18n } from '@/lib/i18n'
 
 import type { TemplateSourceState } from './use-template-source'
 import { CodeViewer } from './code-viewer'
@@ -67,8 +68,13 @@ export function AlgorithmCard({
   sourceState,
   template,
 }: AlgorithmCardProps) {
+  const { t } = useI18n()
   const [relationDialogOpen, setRelationDialogOpen] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+
+  useEffect(() => {
+    setConfirmDelete(false)
+  }, [template?.id])
 
   if (!template) {
     return (
@@ -81,9 +87,9 @@ export function AlgorithmCard({
           <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-primary/10 text-primary ring-1 ring-primary/10">
             <FileCode2 aria-hidden="true" className="size-6" />
           </span>
-          <h2 className="mt-4 text-sm font-semibold">选择一份算法模板</h2>
+          <h2 className="mt-4 text-sm font-semibold">{t('选择一份算法模板')}</h2>
           <p className="mt-2 text-xs leading-5 text-muted-foreground">
-            从左侧模板树打开源码；搜索结果也会自动定位并展开对应目录。
+            {t('从左侧模板树打开源码；搜索结果也会自动定位并展开对应目录。')}
           </p>
         </div>
       </section>
@@ -93,7 +99,7 @@ export function AlgorithmCard({
   return (
     <section className="flex h-full min-h-0 flex-col bg-background/75">
       <header
-        aria-label="模板摘要"
+        aria-label={t('模板摘要')}
         className="relative overflow-hidden border-b border-primary/12 bg-panel px-5 py-4 shadow-xs"
       >
         <div aria-hidden="true" className="absolute inset-y-0 left-0 w-1 bg-primary" />
@@ -104,7 +110,7 @@ export function AlgorithmCard({
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="relative min-w-0">
             <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.11em] text-primary">
-              当前模板
+              {t('当前模板')}
             </div>
             <div className="flex items-center gap-2.5">
               <h1 className="truncate text-xl font-semibold tracking-[-0.03em]">{template.name}</h1>
@@ -121,7 +127,7 @@ export function AlgorithmCard({
             {confirmDelete ? (
               <div className="flex items-center gap-2 rounded-xl border border-red-500/20 bg-red-500/5 px-2 py-1">
                 <span className="text-[11px] text-red-600 dark:text-red-300">
-                  源文件将备份后删除
+                  {t('源文件将备份后删除')}
                 </span>
                 <Button
                   disabled={isProblemBusy}
@@ -130,7 +136,7 @@ export function AlgorithmCard({
                   type="button"
                   variant="outline"
                 >
-                  确认删除
+                  {t('确认删除')}
                 </Button>
                 <Button
                   onClick={() => setConfirmDelete(false)}
@@ -138,12 +144,12 @@ export function AlgorithmCard({
                   type="button"
                   variant="ghost"
                 >
-                  取消
+                  {t('取消')}
                 </Button>
               </div>
             ) : (
               <Button
-                aria-label={`删除模板 ${template.name}`}
+                aria-label={`${t('删除模板')} ${template.name}`}
                 disabled={isProblemBusy}
                 onClick={() => setConfirmDelete(true)}
                 size="icon"
@@ -160,10 +166,10 @@ export function AlgorithmCard({
               variant="outline"
             >
               <Copy aria-hidden="true" className="size-3.5" />
-              复制源码
+              {t('复制源码')}
             </Button>
             <Button
-              aria-label="在文件管理器中显示"
+              aria-label={t('在文件管理器中显示')}
               onClick={() => onAction({ action: 'reveal', templateId: template.id })}
               size="icon"
               type="button"
@@ -176,9 +182,9 @@ export function AlgorithmCard({
 
         <dl className="relative mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px] text-muted-foreground">
           {[
-            ['文件类型', template.extension],
-            ['文件大小', formatBytes(template.sizeBytes)],
-            ['关联题目', String(relatedProblems.length)],
+            [t('文件类型'), template.extension],
+            [t('文件大小'), formatBytes(template.sizeBytes)],
+            [t('关联题目'), String(relatedProblems.length)],
           ].map(([label, value]) => (
             <div className="flex items-center gap-1.5" key={label}>
               <dt>{label}</dt>
@@ -191,13 +197,13 @@ export function AlgorithmCard({
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4 lg:p-5">
         <div className="mb-2.5 flex items-center justify-between px-1">
           <div>
-            <h2 className="text-xs font-semibold">模板源码</h2>
+            <h2 className="text-xs font-semibold">{t('模板源码')}</h2>
             <p className="mt-0.5 text-[10px] text-muted-foreground">
-              只读查看 · 可切换 VS Code 主题
+              {t('只读查看 · 可切换 VS Code 主题')}
             </p>
           </div>
           <Button
-            aria-label="重新读取源码"
+            aria-label={t('重新读取源码')}
             onClick={onReload}
             size="icon"
             type="button"
@@ -214,8 +220,8 @@ export function AlgorithmCard({
           <div className="grid min-h-0 flex-1 place-items-center rounded-xl border border-red-500/20 bg-red-500/5 p-6 text-center">
             <div>
               <AlertCircle aria-hidden="true" className="mx-auto size-6 text-red-500" />
-              <p className="mt-3 text-sm font-medium">源码读取失败</p>
-              <p className="mt-1 text-xs text-muted-foreground">{sourceState.message}</p>
+              <p className="mt-3 text-sm font-medium">{t('源码读取失败')}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{t(sourceState.message)}</p>
               <Button
                 className="mt-4"
                 onClick={onReload}
@@ -223,7 +229,7 @@ export function AlgorithmCard({
                 type="button"
                 variant="outline"
               >
-                重试
+                {t('重试')}
               </Button>
             </div>
           </div>
@@ -237,7 +243,7 @@ export function AlgorithmCard({
         <section className="mt-4 rounded-2xl border border-border bg-panel p-4 shadow-panel">
           <div className="flex items-center gap-2">
             <BookOpenText aria-hidden="true" className="size-4 text-muted-foreground" />
-            <h2 className="text-xs font-semibold">关联题目</h2>
+            <h2 className="text-xs font-semibold">{t('关联题目')}</h2>
             <Badge className="ml-auto">{relatedProblems.length}</Badge>
             <Button
               disabled={isProblemBusy || problems.length === 0}
@@ -250,12 +256,12 @@ export function AlgorithmCard({
               variant="outline"
             >
               <Link2 aria-hidden="true" className="size-3.5" />
-              设置关联
+              {t('设置关联')}
             </Button>
           </div>
           {relatedProblems.length === 0 ? (
             <p className="mt-3 text-[11px] leading-5 text-muted-foreground">
-              还没有题目使用该模板。点击“设置关联”即可从题库中添加。
+              {t('还没有题目使用该模板。点击“设置关联”即可从题库中添加。')}
             </p>
           ) : (
             <div className="mt-3 grid gap-2 sm:grid-cols-2">
@@ -269,7 +275,7 @@ export function AlgorithmCard({
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-xs font-medium">{problem.title}</span>
                     <span className="mt-0.5 block text-[10px] text-muted-foreground">
-                      {relationLabels[problem.relationType]}
+                      {t(relationLabels[problem.relationType])}
                     </span>
                   </span>
                   <ChevronRight aria-hidden="true" className="size-3.5 text-muted-foreground" />

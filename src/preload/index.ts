@@ -11,7 +11,10 @@ async function invokeResult<Value>(channel: string, input?: unknown): Promise<Va
     throw new Error('主进程返回了无效响应。')
   }
   if (!result.ok) {
-    throw new Error(result.error.message)
+    throw Object.assign(new Error(result.error.message), {
+      code: result.error.code,
+      retryAfterMs: result.error.retryAfterMs,
+    })
   }
   return result.value
 }
@@ -49,6 +52,7 @@ const desktopApi: DesktopApi = {
     analyze: request => invokeResult(IPC_CHANNELS.problemAnalysis.analyze, request),
     chooseImages: () => invokeResult(IPC_CHANNELS.problemAnalysis.chooseImages),
     commit: request => invokeResult(IPC_CHANNELS.problemAnalysis.commit, request),
+    preview: request => invokeResult(IPC_CHANNELS.problemAnalysis.preview, request),
   },
   templates: {
     create: request => invokeResult(IPC_CHANNELS.templates.create, request),
@@ -60,17 +64,39 @@ const desktopApi: DesktopApi = {
   templateManagement: {
     applyFilePlan: request => invokeResult(IPC_CHANNELS.templateManagement.applyFilePlan, request),
     auditWorkspace: () => invokeResult(IPC_CHANNELS.templateManagement.auditWorkspace),
+    cancelFilePlanGeneration: async requestId => {
+      await invokeResult<null>(IPC_CHANNELS.templateManagement.cancelFilePlanGeneration, {
+        requestId,
+      })
+    },
     cancelFilePlan: planId =>
       invokeResult(IPC_CHANNELS.templateManagement.cancelFilePlan, { planId }),
+    chooseBatchImportDirectory: () =>
+      invokeResult(IPC_CHANNELS.templateManagement.chooseBatchImportDirectory),
+    chooseBatchImportFiles: () =>
+      invokeResult(IPC_CHANNELS.templateManagement.chooseBatchImportFiles),
     chooseImportSource: () => invokeResult(IPC_CHANNELS.templateManagement.chooseImportSource),
     classify: request => invokeResult(IPC_CHANNELS.templateManagement.classify, request),
     deleteTemplate: templateId =>
       invokeResult(IPC_CHANNELS.templateManagement.deleteTemplate, { templateId }),
+    exportFilePlanDiagnostic: planId =>
+      invokeResult(IPC_CHANNELS.templateManagement.exportFilePlanDiagnostic, { planId }),
     getMetadata: templateId =>
       invokeResult(IPC_CHANNELS.templateManagement.getMetadata, { templateId }),
     importTemplate: request =>
       invokeResult(IPC_CHANNELS.templateManagement.importTemplate, request),
-    generateFilePlan: () => invokeResult(IPC_CHANNELS.templateManagement.generateFilePlan),
+    importTemplatesBatch: request =>
+      invokeResult(IPC_CHANNELS.templateManagement.importTemplatesBatch, request),
+    inspectBatchImport: request =>
+      invokeResult(IPC_CHANNELS.templateManagement.inspectBatchImport, request),
+    previewBatchClassification: request =>
+      invokeResult(IPC_CHANNELS.templateManagement.previewBatchClassification, request),
+    previewClassification: request =>
+      invokeResult(IPC_CHANNELS.templateManagement.previewClassification, request),
+    previewFilePlan: request =>
+      invokeResult(IPC_CHANNELS.templateManagement.previewFilePlan, request),
+    generateFilePlan: request =>
+      invokeResult(IPC_CHANNELS.templateManagement.generateFilePlan, request),
     listFileExecutions: () => invokeResult(IPC_CHANNELS.templateManagement.listFileExecutions),
     listFilePlans: () => invokeResult(IPC_CHANNELS.templateManagement.listFilePlans),
     redraftFilePlan: planId =>

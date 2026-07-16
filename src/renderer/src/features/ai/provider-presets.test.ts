@@ -12,12 +12,14 @@ describe('provider presets', () => {
     expect(preset.capabilities.vision).toBe(false)
   })
 
-  it('requires the user-specific Alibaba Cloud workspace endpoint', () => {
+  it('uses the configured Alibaba Cloud endpoint and visual model', () => {
     const preset = getProviderPreset('aliyun-bailian')
 
-    expect(preset.baseUrl).toBe('')
-    expect(preset.baseUrlPlaceholder).toContain('<WorkspaceId>.cn-beijing.maas.aliyuncs.com')
-    expect(preset.model).toBe('qwen-plus')
-    expect(preset.capabilities.vision).toBe(false)
+    expect(preset.baseUrl).toBe(
+      'https://ws-q88wpweukv7ai50n.cn-beijing.maas.aliyuncs.com/compatible-mode/v1',
+    )
+    expect(preset.baseUrlPlaceholder).toBe(preset.baseUrl)
+    expect(preset.model).toBe('qwen3-vl-plus')
+    expect(preset.capabilities.vision).toBe(true)
   })
 })

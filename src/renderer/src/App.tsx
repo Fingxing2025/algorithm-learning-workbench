@@ -12,6 +12,7 @@ import {
   FileCode2,
   FolderOpen,
   GitBranch,
+  Languages,
   LayoutDashboard,
   LoaderCircle,
   Moon,
@@ -50,6 +51,7 @@ import { WorkspaceOnboarding } from '@/features/templates/workspace-onboarding'
 import { useRuntimeInfo } from '@/hooks/use-runtime-info'
 import { useTheme } from '@/hooks/use-theme'
 import { cn } from '@/lib/utils'
+import { I18nProvider, useI18n } from '@/lib/i18n'
 
 const FileManagementWorkspace = lazy(async () => {
   const module = await import('@/features/ai/file-management-workspace')
@@ -95,6 +97,7 @@ function NavigationButton({
   onSelect: (view: AppView) => void
   shortcutLabel?: string
 }) {
+  const { t } = useI18n()
   const Icon = item.icon
   const toneClasses = {
     amber: {
@@ -121,7 +124,7 @@ function NavigationButton({
   return (
     <button
       aria-current={active ? 'page' : undefined}
-      aria-label={item.label}
+      aria-label={t(item.label)}
       className={cn(
         'group relative flex h-10 w-full items-center gap-3 rounded-xl px-3 text-left text-[13px] font-medium outline-none transition-all duration-150 focus-visible:ring-2 focus-visible:ring-ring',
         active && toneClasses.active,
@@ -152,8 +155,10 @@ function NavigationButton({
           strokeWidth={1.8}
         />
       </span>
-      <span>{item.label}</span>
-      {item.disabled && <span className="ml-auto text-[10px] font-medium uppercase">稍后</span>}
+      <span>{t(item.label)}</span>
+      {item.disabled && (
+        <span className="ml-auto text-[10px] font-medium uppercase">{t('稍后')}</span>
+      )}
       {!item.disabled && shortcutLabel && (
         <kbd className="nav-shortcut ml-auto font-sans text-[9px] font-medium">{shortcutLabel}</kbd>
       )}
@@ -162,18 +167,23 @@ function NavigationButton({
 }
 
 function SummaryCard({
+  destination,
   icon: Icon,
   label,
   note,
+  onClick,
   tone,
   value,
 }: {
+  destination: string
   icon: LucideIcon
   label: string
   note: string
+  onClick: () => void
   tone: 'amber' | 'indigo' | 'teal'
   value: string
 }) {
+  const prefersReducedMotion = useReducedMotion()
   const toneClasses = {
     amber: 'bg-warning/12 text-warning ring-warning/15',
     indigo: 'bg-primary/11 text-primary ring-primary/15',
@@ -181,9 +191,19 @@ function SummaryCard({
   }
 
   return (
-    <article
-      className="summary-card interactive-lift rounded-2xl border p-4 shadow-panel hover:border-border-strong"
+    <motion.button
+      aria-label={`${label}，${destination}`}
+      className="summary-card group relative rounded-2xl border p-4 text-left shadow-panel outline-none hover:border-border-strong focus-visible:ring-2 focus-visible:ring-ring"
       data-tone={tone}
+      onClick={onClick}
+      transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+      type="button"
+      variants={{
+        hidden: prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 14 },
+        show: { opacity: 1, y: 0 },
+      }}
+      whileHover={prefersReducedMotion ? undefined : { scale: 1.012, y: -3 }}
+      whileTap={prefersReducedMotion ? undefined : { scale: 0.992 }}
     >
       <div className="flex items-center justify-between">
         <span className="text-[11px] font-semibold uppercase tracking-[0.09em] text-muted-foreground">
@@ -202,7 +222,11 @@ function SummaryCard({
         {value}
       </p>
       <p className="mt-2 text-[11px] text-muted-foreground">{note}</p>
-    </article>
+      <ArrowRight
+        aria-hidden="true"
+        className="absolute bottom-4 right-4 size-3.5 -translate-x-1 text-muted-foreground opacity-0 transition-all duration-200 group-hover:translate-x-0 group-hover:opacity-100 group-focus-visible:translate-x-0 group-focus-visible:opacity-100"
+      />
+    </motion.button>
   )
 }
 
@@ -215,15 +239,18 @@ function WorkspaceUnavailable({
   onChoose: (request: ChooseWorkspaceRequest) => void
   workspace: WorkspaceSnapshot
 }) {
+  const { t } = useI18n()
   return (
     <main className="grid min-h-0 place-items-center overflow-y-auto p-8">
       <section className="w-full max-w-lg rounded-2xl border border-border bg-panel p-7 text-center shadow-xs">
         <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-warning/12 text-warning">
           <AlertTriangle aria-hidden="true" className="size-6" />
         </span>
-        <h1 className="mt-4 text-lg font-semibold">原工作区当前不可用</h1>
+        <h1 className="mt-4 text-lg font-semibold">{t('原工作区当前不可用')}</h1>
         <p className="mt-2 text-sm leading-6 text-muted-foreground">
-          “{workspace.name}”可能已被移动、重命名或暂时卸载。应用没有修改其中的文件。
+          {t('工作区“{name}”可能已被移动、重命名或暂时卸载。应用没有修改其中的文件。', {
+            name: workspace.name,
+          })}
         </p>
         <Button
           className="mt-5"
@@ -232,7 +259,7 @@ function WorkspaceUnavailable({
           type="button"
         >
           <FolderOpen aria-hidden="true" className="size-4" />
-          重新选择工作区
+          {t('重新选择工作区')}
         </Button>
       </section>
     </main>
@@ -260,20 +287,29 @@ function Dashboard({
   problems: Problem[]
   workspace: WorkspaceSnapshot
 }) {
+  const { t } = useI18n()
+  const prefersReducedMotion = useReducedMotion()
   const templateOverview = workspace.templates.slice(0, 5)
   const recentProblems = problems.slice(0, 5)
   const relationCount = problems.reduce((total, problem) => total + problem.relations.length, 0)
 
   return (
-    <main className="relative min-h-0 overflow-y-auto px-5 py-5 lg:px-8 lg:py-7">
+    <main
+      aria-label={t('工作台')}
+      className="relative h-full min-h-0 overflow-y-auto overscroll-contain px-5 py-5 lg:px-8 lg:py-7"
+      data-testid="dashboard-scroll-region"
+    >
       <div
         aria-hidden="true"
         className="app-grid-texture pointer-events-none absolute inset-x-0 top-0 h-72 opacity-45"
       />
       <div className="relative mx-auto max-w-[1120px]">
-        <section
+        <motion.section
+          animate={{ opacity: 1, y: 0 }}
           className="dashboard-hero relative overflow-hidden rounded-[24px] border px-5 py-6 lg:px-7 lg:py-7"
           data-ui="dashboard-hero"
+          initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 16 }}
+          transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
         >
           <span aria-hidden="true" className="orbital-rings" />
           <div
@@ -288,23 +324,23 @@ function Dashboard({
             <div className="flex min-w-0 flex-col justify-center">
               <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.09em] text-muted-foreground">
                 <CircleDot aria-hidden="true" className="size-3.5 fill-success/15 text-success" />
-                {workspace.name} · 本地工作区
+                {workspace.name} · {t('本地工作区')}
               </div>
               <h1
-                aria-label="工作台"
+                aria-label={t('工作台')}
                 className="mt-3 text-[28px] font-semibold tracking-[-0.045em] lg:text-[34px]"
               >
-                让算法知识有清晰的节奏
+                {t('让算法知识有清晰的节奏')}
               </h1>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                把算法源码、题目记录与 AI 整理集中在一个本地知识库中。
+                {t('管理本地模板、题目关联和 AI 文件计划。')}
               </p>
               <div className="mt-4 flex flex-wrap gap-2">
                 <span className="dashboard-hero-chip">
-                  <span className="size-1.5 rounded-full bg-cyan-300" /> 本地优先
+                  <span className="size-1.5 rounded-full bg-cyan-300" /> {t('本地优先')}
                 </span>
-                <span className="dashboard-hero-chip">模板与题目双向关联</span>
-                <span className="dashboard-hero-chip">AI 变更先预览</span>
+                <span className="dashboard-hero-chip">{t('模板与题目双向关联')}</span>
+                <span className="dashboard-hero-chip">{t('AI 变更先预览')}</span>
               </div>
               <div className="mt-5 flex flex-wrap gap-2">
                 <Button
@@ -315,7 +351,7 @@ function Dashboard({
                   variant="outline"
                 >
                   <BookOpenText aria-hidden="true" className="size-3.5" />
-                  浏览题目
+                  {t('浏览题目')}
                 </Button>
                 <Button
                   className="dashboard-hero-action"
@@ -325,7 +361,7 @@ function Dashboard({
                   variant="outline"
                 >
                   <FolderOpen aria-hidden="true" className="size-3.5" />
-                  浏览模板库
+                  {t('浏览模板库')}
                 </Button>
                 <Button
                   className="border border-white/18 bg-white text-indigo-700 shadow-lg hover:bg-white/90"
@@ -334,73 +370,85 @@ function Dashboard({
                   type="button"
                 >
                   <Plus aria-hidden="true" className="size-3.5" />
-                  新建模板
+                  {t('新建模板')}
                 </Button>
               </div>
             </div>
 
-            <aside aria-label="知识脉络概览" className="hero-knowledge-map">
+            <aside aria-label={t('知识脉络概览')} className="hero-knowledge-map">
               <div className="relative flex items-center justify-between gap-3">
                 <div>
                   <p className="text-[10px] font-semibold uppercase tracking-[0.11em] text-white/55">
                     Knowledge graph
                   </p>
-                  <h2 className="mt-1 text-sm font-semibold text-white">知识脉络</h2>
+                  <h2 className="mt-1 text-sm font-semibold text-white">{t('知识脉络')}</h2>
                 </div>
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/8 px-2 py-1 text-[9px] font-medium text-white/70">
                   <span className="size-1.5 rounded-full bg-emerald-300 shadow-[0_0_10px_rgb(110_231_183/0.8)]" />
-                  当前索引
+                  {t('当前索引')}
                 </span>
               </div>
               <div className="knowledge-flow relative mt-4 flex items-center justify-between">
                 <div className="knowledge-flow-node" data-tone="cyan">
                   <FileCode2 aria-hidden="true" className="size-4" />
                   <strong>{workspace.summary.templateCount}</strong>
-                  <span>模板</span>
+                  <span>{t('模板')}</span>
                 </div>
                 <span aria-hidden="true" className="knowledge-flow-line" />
                 <div className="knowledge-flow-node" data-tone="amber">
                   <GitBranch aria-hidden="true" className="size-4" />
                   <strong>{relationCount}</strong>
-                  <span>关联</span>
+                  <span>{t('关联')}</span>
                 </div>
                 <span aria-hidden="true" className="knowledge-flow-line" />
                 <div className="knowledge-flow-node" data-tone="coral">
                   <BookOpenText aria-hidden="true" className="size-4" />
                   <strong>{problems.length}</strong>
-                  <span>题目</span>
+                  <span>{t('题目')}</span>
                 </div>
               </div>
               <p className="relative mt-3 border-t border-white/10 pt-3 text-[10px] leading-4 text-white/58">
-                关系双向可见，源码与学习记录始终保存在本地。
+                {t('关系双向可见，源码与学习记录始终保存在本地。')}
               </p>
             </aside>
           </div>
-        </section>
+        </motion.section>
 
-        <section aria-label="知识库概览" className="mt-6 grid gap-3 sm:grid-cols-3">
+        <motion.section
+          animate="show"
+          aria-label={t('知识库概览')}
+          className="mt-6 grid gap-3 sm:grid-cols-3"
+          initial="hidden"
+          transition={{ delayChildren: 0.12, staggerChildren: 0.06 }}
+        >
           <SummaryCard
+            destination={t('打开模板库')}
             icon={FileCode2}
-            label="算法模板"
-            note="已索引的本地源码"
+            label={t('算法模板')}
+            note={t('已索引的本地源码')}
+            onClick={onOpenTemplates}
             tone="indigo"
             value={String(workspace.summary.templateCount)}
           />
           <SummaryCard
+            destination={t('打开题目库')}
             icon={BookOpenText}
-            label="题目卡片"
-            note="沉淀题面与模板关联"
+            label={t('题目卡片')}
+            note={t('整理题面与模板关联')}
+            onClick={onOpenProblems}
             tone="teal"
             value={String(problems.length)}
           />
           <SummaryCard
+            destination={t('打开 AI 管理')}
             icon={Sparkles}
-            label="待确认计划"
-            note={pendingPlanCount > 0 ? '需要你审查后才会执行' : '当前没有待处理变更'}
+            label={t('待确认计划')}
+            note={t(pendingPlanCount > 0 ? '需要你审查后才会执行' : '当前没有待处理变更')}
+            onClick={onOpenAi}
             tone="amber"
             value={String(pendingPlanCount)}
           />
-        </section>
+        </motion.section>
 
         <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1.18fr)_minmax(320px,0.82fr)]">
           <section
@@ -409,15 +457,15 @@ function Dashboard({
           >
             <div className="flex items-center justify-between gap-3">
               <div>
-                <h2 className="text-sm font-semibold">模板概览</h2>
-                <p className="mt-1 text-xs text-muted-foreground">从当前索引快速打开模板</p>
+                <h2 className="text-sm font-semibold">{t('模板概览')}</h2>
+                <p className="mt-1 text-xs text-muted-foreground">{t('从当前索引快速打开模板')}</p>
               </div>
               <button
                 className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
                 onClick={onOpenTemplates}
                 type="button"
               >
-                查看全部
+                {t('查看全部')}
                 <ArrowRight aria-hidden="true" className="size-3" />
               </button>
             </div>
@@ -452,9 +500,9 @@ function Dashboard({
               <div className="mt-4 grid min-h-52 place-items-center rounded-xl border border-dashed border-border bg-muted/30 p-6 text-center">
                 <div>
                   <FileCode2 aria-hidden="true" className="mx-auto size-7 text-muted-foreground" />
-                  <p className="mt-3 text-sm font-medium">从第一份模板开始</p>
+                  <p className="mt-3 text-sm font-medium">{t('从第一份模板开始')}</p>
                   <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                    新建源码文件后，它会立即进入本地索引。
+                    {t('新建源码文件后，它会立即进入本地索引。')}
                   </p>
                 </div>
               </div>
@@ -468,15 +516,17 @@ function Dashboard({
             >
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <h2 className="text-sm font-semibold">最近题目</h2>
-                  <p className="mt-1 text-xs text-muted-foreground">继续整理题面和模板关联</p>
+                  <h2 className="text-sm font-semibold">{t('近期题目')}</h2>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {t('继续整理题面和模板关联')}
+                  </p>
                 </div>
                 <button
                   className="inline-flex items-center gap-1 text-[11px] font-semibold text-success outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
                   onClick={onOpenProblems}
                   type="button"
                 >
-                  查看全部
+                  {t('查看全部')}
                   <ArrowRight aria-hidden="true" className="size-3" />
                 </button>
               </div>
@@ -496,10 +546,12 @@ function Dashboard({
                         <span className="block truncate text-sm font-medium">{problem.title}</span>
                         <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
                           {[problem.platform, problem.problemCode].filter(Boolean).join(' · ') ||
-                            '本地题目卡片'}
+                            t('本地题目卡片')}
                         </span>
                       </span>
-                      <Badge>{problem.relations.length} 个模板</Badge>
+                      <Badge>
+                        {problem.relations.length} {t('个模板')}
+                      </Badge>
                       <ChevronRight
                         aria-hidden="true"
                         className="dashboard-list-arrow size-3.5 text-muted-foreground"
@@ -511,12 +563,12 @@ function Dashboard({
                 <div className="mt-4 grid min-h-40 place-items-center rounded-xl border border-dashed border-border bg-muted/30 p-5 text-center">
                   <div>
                     <BookOpenText className="mx-auto size-7 text-muted-foreground" />
-                    <p className="mt-3 text-sm font-medium">创建第一张题目卡片</p>
+                    <p className="mt-3 text-sm font-medium">{t('创建第一张题目卡片')}</p>
                     <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                      无需 AI，也能手动记录题面并关联模板。
+                      {t('无需 AI，也能手动记录题面并关联模板。')}
                     </p>
                     <Button className="mt-4" onClick={onOpenProblems} size="compact" type="button">
-                      进入题目库
+                      {t('进入题目库')}
                     </Button>
                   </div>
                 </div>
@@ -533,15 +585,17 @@ function Dashboard({
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between gap-2">
-                    <h2 className="text-sm font-semibold">AI 整理中心</h2>
+                    <h2 className="text-sm font-semibold">{t('AI 整理中心')}</h2>
                     {pendingPlanCount > 0 && (
-                      <Badge tone="warning">{pendingPlanCount} 项待审</Badge>
+                      <Badge tone="warning">
+                        {pendingPlanCount} {t('项待审')}
+                      </Badge>
                     )}
                   </div>
                   <p className="mt-1.5 text-xs leading-5 text-muted-foreground">
                     {pendingPlanCount > 0
-                      ? '有新的文件整理建议等待确认；执行前可逐项查看 Diff。'
-                      : '扫描重复模板、命名异常和缺失元数据，AI 只会先生成可审查计划。'}
+                      ? t('有新的文件整理建议等待确认；执行前可逐项查看 Diff。')
+                      : t('扫描重复模板、命名异常和缺失元数据，AI 只会先生成可审查计划。')}
                   </p>
                   <Button
                     className="mt-3"
@@ -550,7 +604,7 @@ function Dashboard({
                     type="button"
                     variant="outline"
                   >
-                    打开 AI 管理
+                    {t('打开 AI 管理')}
                     <ArrowRight aria-hidden="true" className="size-3.5" />
                   </Button>
                 </div>
@@ -602,6 +656,7 @@ function TemplateLibrary({
   sourceState: ReturnType<typeof useTemplateSource>['state']
   workspace: WorkspaceSnapshot
 }) {
+  const { t } = useI18n()
   return (
     <main className="workspace-stage flex h-full min-h-0 flex-col overflow-hidden">
       <header className="glass-section-header flex min-h-[62px] flex-wrap items-center gap-3 border-b px-5 py-2.5">
@@ -610,12 +665,14 @@ function TemplateLibrary({
         </span>
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <h1 className="truncate text-[15px] font-semibold tracking-tight">模板库</h1>
-            <Badge tone="accent">{workspace.summary.templateCount} 个模板</Badge>
+            <h1 className="truncate text-[15px] font-semibold tracking-tight">{t('模板库')}</h1>
+            <Badge tone="accent">
+              {workspace.summary.templateCount} {t('个模板')}
+            </Badge>
           </div>
           <p className="mt-0.5 flex items-center gap-1.5 truncate text-[11px] text-muted-foreground">
             <span className="size-1.5 rounded-full bg-success" />
-            {workspace.name} · 本地索引
+            {workspace.name} · {t('本地索引')}
           </p>
         </div>
         <div className="ml-auto flex items-center gap-2">
@@ -627,10 +684,10 @@ function TemplateLibrary({
             variant="ghost"
           >
             <FolderOpen aria-hidden="true" className="size-3.5" />
-            更换目录
+            {t('更换目录')}
           </Button>
           <Button
-            aria-label="重新扫描工作区"
+            aria-label={t('重新扫描工作区')}
             disabled={isBusy}
             onClick={onRescan}
             size="icon"
@@ -641,7 +698,7 @@ function TemplateLibrary({
           </Button>
           <Button disabled={isBusy} onClick={onCreateTemplate} size="compact" type="button">
             <Plus aria-hidden="true" className="size-3.5" />
-            新建模板
+            {t('新建模板')}
           </Button>
         </div>
       </header>
@@ -658,7 +715,7 @@ function TemplateLibrary({
             <section className="grid min-h-0 place-items-center bg-background">
               <div className="text-center">
                 <LoaderCircle className="mx-auto size-5 animate-spin text-primary" />
-                <p className="mt-2 text-xs text-muted-foreground">正在准备源码查看器…</p>
+                <p className="mt-2 text-xs text-muted-foreground">{t('正在准备源码查看器…')}</p>
               </div>
             </section>
           }
@@ -690,7 +747,7 @@ function TemplateLibrary({
   )
 }
 
-export default function App() {
+function AppContent() {
   const [commandOpen, setCommandOpen] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
   const [currentView, setCurrentView] = useState<AppView>('dashboard')
@@ -699,6 +756,7 @@ export default function App() {
   const [selectedProblemId, setSelectedProblemId] = useState<string | null>(null)
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null)
   const prefersReducedMotion = useReducedMotion()
+  const { locale, t, toggleLocale } = useI18n()
   const runtimeState = useRuntimeInfo()
   const { theme, toggleTheme } = useTheme()
   const problemState = useProblems()
@@ -824,14 +882,14 @@ export default function App() {
     if (value) {
       setCurrentView('templates')
       setSelectedTemplateId(null)
-      setNotice(`已连接工作区“${value.name}”`)
+      setNotice(t('已连接工作区“{name}”', { name: value.name }))
     }
   }
 
   const handleRescan = async () => {
     const value = await rescan()
     if (value) {
-      setNotice(`扫描完成：发现 ${value.summary.templateCount} 个模板`)
+      setNotice(t('扫描完成：发现 {count} 个模板', { count: value.summary.templateCount }))
     }
   }
 
@@ -842,7 +900,7 @@ export default function App() {
     }
     setCurrentView('templates')
     setSelectedTemplateId(result.templateId)
-    setNotice(`已创建 ${request.relativePath}`)
+    setNotice(t('已创建 {path}', { path: request.relativePath }))
     return true
   }
 
@@ -850,9 +908,9 @@ export default function App() {
     const succeeded = await performTemplateAction(request)
     if (succeeded) {
       const messageByAction = {
-        'copy-relative-path': '已复制相对路径',
-        'copy-source': '已复制模板源码',
-        reveal: '已在文件管理器中定位',
+        'copy-relative-path': t('已复制相对路径'),
+        'copy-source': t('已复制模板源码'),
+        reveal: t('已在文件管理器中定位'),
       }
       setNotice(messageByAction[request.action])
     }
@@ -863,7 +921,7 @@ export default function App() {
     if (!result) return false
     setSelectedTemplateId(null)
     void problemState.reload()
-    setNotice('模板已备份并删除，可在 AI 管理的执行记录中撤销')
+    setNotice(t('模板已备份并删除，可在 AI 管理的执行记录中撤销'))
     return true
   }
 
@@ -885,7 +943,7 @@ export default function App() {
             <main className="grid h-full min-h-0 place-items-center">
               <div className="text-center">
                 <LoaderCircle className="mx-auto size-6 animate-spin text-primary" />
-                <p className="mt-3 text-sm font-medium">正在打开文件 AI 管理…</p>
+                <p className="mt-3 text-sm font-medium">{t('正在打开文件 AI 管理…')}</p>
               </div>
             </main>
           }
@@ -909,7 +967,7 @@ export default function App() {
             <main className="grid h-full min-h-0 place-items-center">
               <div className="text-center">
                 <LoaderCircle className="mx-auto size-6 animate-spin text-primary" />
-                <p className="mt-3 text-sm font-medium">正在打开 AI 设置…</p>
+                <p className="mt-3 text-sm font-medium">{t('正在打开 AI 设置…')}</p>
               </div>
             </main>
           }
@@ -924,7 +982,7 @@ export default function App() {
         <main className="grid min-h-0 place-items-center">
           <div className="text-center">
             <LoaderCircle aria-hidden="true" className="mx-auto size-6 animate-spin text-primary" />
-            <p className="mt-3 text-sm font-medium">正在读取本地工作区…</p>
+            <p className="mt-3 text-sm font-medium">{t('正在读取本地工作区…')}</p>
           </div>
         </main>
       )
@@ -1030,7 +1088,7 @@ export default function App() {
               <Boxes aria-hidden="true" className="size-4" strokeWidth={2} />
             </span>
             <span className="truncate text-[14px] font-semibold tracking-[-0.02em]">
-              算法学习工作台
+              {t('算法学习工作台')}
             </span>
             <Badge className="hidden sm:inline-flex" tone="accent">
               V2 · {runtimeState.status === 'ready' ? runtimeState.value.appVersion : '…'}
@@ -1039,13 +1097,13 @@ export default function App() {
 
           <div className="window-no-drag ml-auto flex items-center gap-2">
             <button
-              aria-label="打开全局搜索"
+              aria-label={t('打开全局搜索')}
               className="glass-search hidden h-9 min-w-60 items-center gap-2 rounded-xl border px-3 text-xs text-muted-foreground shadow-xs outline-none transition-all hover:-translate-y-0.5 hover:border-primary/30 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring md:flex"
               onClick={() => setCommandOpen(true)}
               type="button"
             >
               <Search aria-hidden="true" className="size-3.5" />
-              <span>搜索模板或题目</span>
+              <span>{t('搜索模板或题目')}</span>
               <kbd className="ml-auto rounded-md border border-border bg-panel px-1.5 py-0.5 font-sans text-[9px] font-semibold shadow-xs">
                 {shortcutLabel}
               </kbd>
@@ -1054,7 +1112,30 @@ export default function App() {
             <Tooltip.Root>
               <Tooltip.Trigger asChild>
                 <Button
-                  aria-label={theme === 'dark' ? '切换到浅色主题' : '切换到深色主题'}
+                  aria-label={locale === 'en' ? t('切换到中文界面') : t('切换到英文界面')}
+                  data-testid="locale-toggle"
+                  onClick={toggleLocale}
+                  size="icon"
+                  type="button"
+                  variant="ghost"
+                >
+                  <Languages aria-hidden="true" className="size-4" />
+                </Button>
+              </Tooltip.Trigger>
+              <Tooltip.Portal>
+                <Tooltip.Content
+                  className="z-50 rounded-md bg-foreground px-2 py-1 text-[11px] text-background shadow-md"
+                  sideOffset={6}
+                >
+                  {t('切换语言')} · {locale === 'en' ? 'EN' : '中'}
+                </Tooltip.Content>
+              </Tooltip.Portal>
+            </Tooltip.Root>
+
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
+                <Button
+                  aria-label={t(theme === 'dark' ? '切换到浅色主题' : '切换到深色主题')}
                   onClick={toggleTheme}
                   size="icon"
                   type="button"
@@ -1072,7 +1153,7 @@ export default function App() {
                   className="z-50 rounded-md bg-foreground px-2 py-1 text-[11px] text-background shadow-md"
                   sideOffset={6}
                 >
-                  切换主题
+                  {t('切换主题')}
                 </Tooltip.Content>
               </Tooltip.Portal>
             </Tooltip.Root>
@@ -1082,9 +1163,9 @@ export default function App() {
         <div className="grid min-h-0 grid-cols-[224px_minmax(0,1fr)]">
           <aside className="glass-sidebar flex min-h-0 flex-col border-r px-3 py-4">
             <div className="mb-2 px-3 text-[9px] font-semibold uppercase tracking-[0.13em] text-muted-foreground/75">
-              知识工作台
+              {t('知识工作台')}
             </div>
-            <nav aria-label="主导航" className="space-y-1">
+            <nav aria-label={t('主导航')} className="space-y-1">
               {navigationItems.map(item => (
                 <NavigationButton
                   active={item.id === currentView}
@@ -1099,12 +1180,12 @@ export default function App() {
             <Separator.Root className="my-4 h-px bg-border" decorative />
 
             <div className="mb-2 px-3 text-[9px] font-semibold uppercase tracking-[0.13em] text-muted-foreground/75">
-              模型与服务
+              {t('模型与服务')}
             </div>
 
             <button
               aria-current={currentView === 'settings' ? 'page' : undefined}
-              aria-label="AI 设置"
+              aria-label={t('AI 设置')}
               className={cn(
                 'relative flex h-10 w-full items-center gap-3 rounded-xl px-3 text-left text-[13px] font-medium outline-none transition-all focus-visible:ring-2 focus-visible:ring-ring',
                 currentView === 'settings'
@@ -1117,41 +1198,41 @@ export default function App() {
               <span className="grid size-7 place-items-center rounded-lg bg-accent-blue/10 text-accent-blue">
                 <Settings2 aria-hidden="true" className="size-4" strokeWidth={1.8} />
               </span>
-              AI 设置
+              {t('AI 设置')}
               <kbd className="nav-shortcut ml-auto font-sans text-[9px] font-medium">
                 {shortcutPrefix},
               </kbd>
             </button>
 
             <section
-              aria-label="快捷操作"
+              aria-label={t('快捷操作')}
               className="quick-action-panel mt-4 rounded-2xl border p-2"
             >
               <div className="flex items-center gap-2 px-2 pb-1.5 pt-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-muted-foreground/75">
                 <Command aria-hidden="true" className="size-3" />
-                快捷操作
+                {t('快捷操作')}
               </div>
               <button
-                aria-label="搜索知识库"
+                aria-label={t('搜索知识库')}
                 className="quick-action-row group"
                 onClick={() => setCommandOpen(true)}
                 type="button"
               >
                 <Search aria-hidden="true" className="size-3.5 text-primary" />
-                <span>搜索知识库</span>
+                <span>{t('搜索知识库')}</span>
                 <kbd className="ml-auto font-sans text-[9px] text-muted-foreground">
                   {shortcutLabel}
                 </kbd>
               </button>
               <button
-                aria-label="打开模板创建窗口"
+                aria-label={t('打开模板创建窗口')}
                 className="quick-action-row group"
                 disabled={!workspace?.available}
                 onClick={() => setCreateOpen(true)}
                 type="button"
               >
                 <Plus aria-hidden="true" className="size-3.5 text-accent-cyan" />
-                <span>新建模板</span>
+                <span>{t('新建模板')}</span>
                 <kbd className="ml-auto font-sans text-[9px] text-muted-foreground">
                   {createShortcutLabel}
                 </kbd>
@@ -1160,7 +1241,7 @@ export default function App() {
 
             <div className="glass-floating mt-auto overflow-hidden rounded-2xl border shadow-panel">
               <div className="border-b border-border bg-surface-subtle/70 px-3.5 py-2.5 text-[9px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
-                当前工作区
+                {t('当前工作区')}
               </div>
               <div className="px-3.5 py-3">
                 <div className="flex items-center gap-2 text-xs font-semibold text-foreground">
@@ -1170,12 +1251,12 @@ export default function App() {
                       workspace?.available ? 'bg-success' : 'bg-warning',
                     )}
                   />
-                  <span className="truncate">{workspace?.name ?? '尚未连接工作区'}</span>
+                  <span className="truncate">{workspace?.name ?? t('尚未连接工作区')}</span>
                 </div>
                 <p className="mt-2 text-[11px] leading-4 text-muted-foreground">
                   {workspace
-                    ? `${workspace.summary.templateCount} 个模板 · 本地索引`
-                    : '创建或选择一个普通文件夹即可开始。'}
+                    ? `${workspace.summary.templateCount} ${t('个模板')} · ${t('本地索引')}`
+                    : t('创建或选择一个普通文件夹即可开始。')}
                 </p>
               </div>
             </div>
@@ -1184,9 +1265,9 @@ export default function App() {
           <motion.div
             animate={{ opacity: 1, y: 0 }}
             className="relative h-full min-h-0 overflow-hidden"
-            initial={prefersReducedMotion ? false : { opacity: 0, y: 8 }}
+            initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 10 }}
             key={currentView}
-            transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+            transition={{ duration: 0.38, ease: [0.22, 1, 0.36, 1] }}
           >
             <AnimatePresence>
               {(workspaceError || notice) && workspace && (
@@ -1207,16 +1288,16 @@ export default function App() {
                     exit={prefersReducedMotion ? undefined : { y: -6 }}
                     initial={prefersReducedMotion ? false : { y: -8 }}
                     role={workspaceError ? 'alert' : 'status'}
-                    transition={{ duration: 0.18, ease: 'easeOut' }}
+                    transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
                   >
                     {workspaceError ? (
                       <AlertTriangle aria-hidden="true" className="size-4 shrink-0" />
                     ) : (
                       <Check aria-hidden="true" className="size-4 shrink-0 text-success" />
                     )}
-                    <span>{workspaceError ?? notice}</span>
+                    <span>{t(workspaceError ?? notice ?? '')}</span>
                     <button
-                      aria-label="关闭提示"
+                      aria-label={t('关闭提示')}
                       className="ml-2 rounded p-0.5 text-muted-foreground hover:bg-muted"
                       onClick={() => {
                         clearWorkspaceError()
@@ -1237,19 +1318,19 @@ export default function App() {
         <footer className="glass-toolbar flex items-center border-t px-3 text-[10px] text-muted-foreground">
           <span className="inline-flex items-center gap-1.5">
             <span className="size-1.5 rounded-full bg-success" />
-            桌面运行时
+            {t('桌面运行时')}
           </span>
           <span className="ml-3 border-l border-border pl-3">
-            {runtimeState.status === 'loading' && '正在读取运行信息…'}
-            {runtimeState.status === 'error' && '运行信息暂不可用'}
+            {runtimeState.status === 'loading' && t('正在读取运行信息…')}
+            {runtimeState.status === 'error' && t('运行信息暂不可用')}
             {runtimeState.status === 'ready' &&
               `Electron ${runtimeState.value.electronVersion} · ${runtimeState.value.platform}`}
           </span>
           <span className="ml-auto inline-flex items-center gap-2">
             <ShieldCheck aria-hidden="true" className="size-3" />
             {workspace
-              ? `${workspace.summary.templateCount} 个模板 · ${problemState.problems.length} 道题`
-              : '离线功能优先'}
+              ? `${workspace.summary.templateCount} ${t('个模板')} · ${problemState.problems.length} ${t('道题')}`
+              : t('离线功能优先')}
           </span>
         </footer>
       </div>
@@ -1265,6 +1346,12 @@ export default function App() {
       <CreateTemplateDialog
         error={workspaceError}
         isBusy={isWorkspaceBusy}
+        onBatchComplete={result => {
+          replaceWorkspace(result.workspace)
+          setCurrentView('templates')
+          setSelectedTemplateId(result.imported[0]?.templateId ?? null)
+          setNotice(t('已批量导入 {count} 份 C++ 模板', { count: result.imported.length }))
+        }}
         onCreate={handleCreateTemplate}
         onOpenChange={open => {
           setCreateOpen(open)
@@ -1275,5 +1362,13 @@ export default function App() {
         open={createOpen}
       />
     </Tooltip.Provider>
+  )
+}
+
+export default function App() {
+  return (
+    <I18nProvider>
+      <AppContent />
+    </I18nProvider>
   )
 }

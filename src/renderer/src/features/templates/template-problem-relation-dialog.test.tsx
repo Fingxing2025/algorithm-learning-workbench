@@ -19,6 +19,15 @@ const template: TemplateSummary = {
 
 function problem(id: string, title: string, related = false): Problem {
   return {
+    aiSummary: '',
+    analysis: {
+      algorithmSignals: [],
+      constraints: [],
+      edgeCases: [],
+      examples: [],
+      inputDescription: '',
+      outputDescription: '',
+    },
     createdAt: '2026-07-15T00:00:00.000Z',
     difficulty: null,
     id,

@@ -26,6 +26,9 @@ import { Braces, Maximize2, Minimize2 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { cn } from '@/lib/utils'
+import { useI18n } from '@/lib/i18n'
+
+import { cppCodeVisuals } from './cpp-code-visuals'
 
 const CODE_THEME_STORAGE_KEY = 'ui:code-theme'
 
@@ -78,15 +81,22 @@ interface EditorPalette {
   activeLine: string
   background: string
   bracket: string
-  bracketForeground: string
+  bracketColors: readonly [string, string, string, string, string, string]
   comment: string
+  constant: string
   foreground: string
+  function: string
   gutter: string
   gutterForeground: string
+  header: string
+  indentGuide: string
   isDark: boolean
   keyword: string
   meta: string
   number: string
+  operator: string
+  primitiveType: string
+  property: string
   selection: string
   string: string
   type: string
@@ -98,55 +108,76 @@ const editorPalettes: Record<ResolvedCodeTheme, EditorPalette> = {
     activeLine: '#3e3d32',
     background: '#272822',
     bracket: '#49483e',
-    bracketForeground: '#f8f8f2',
+    bracketColors: ['#f8f8f2', '#f92672', '#66d9ef', '#a6e22e', '#fd971f', '#ae81ff'],
     comment: '#8f908a',
+    constant: '#ae81ff',
     foreground: '#f8f8f2',
+    function: '#a6e22e',
     gutter: '#272822',
     gutterForeground: '#90908a',
+    header: '#e6db74',
+    indentGuide: '#49483e',
     isDark: true,
     keyword: '#f92672',
     meta: '#f92672',
     number: '#ae81ff',
+    operator: '#f92672',
+    primitiveType: '#66d9ef',
+    property: '#a6e22e',
     selection: '#49483e',
     string: '#e6db74',
     type: '#66d9ef',
     variable: '#a6e22e',
   },
   'vscode-dark': {
-    activeLine: '#202020',
-    background: '#101010',
-    bracket: '#343434',
-    bracketForeground: '#f1e05a',
-    comment: '#8b949e',
+    activeLine: '#252526',
+    background: '#1e1e1e',
+    bracket: '#3a3d41',
+    bracketColors: ['#ffd700', '#da70d6', '#179fff', '#ffd700', '#da70d6', '#179fff'],
+    comment: '#6a9955',
+    constant: '#4fc1ff',
     foreground: '#d4d4d4',
-    gutter: '#101010',
-    gutterForeground: '#6e7681',
+    function: '#dcdcaa',
+    gutter: '#1e1e1e',
+    gutterForeground: '#858585',
+    header: '#ce9178',
+    indentGuide: '#404040',
     isDark: true,
-    keyword: '#d2a8ff',
+    keyword: '#c586c0',
     meta: '#c586c0',
     number: '#b5cea8',
+    operator: '#d4d4d4',
+    primitiveType: '#569cd6',
+    property: '#9cdcfe',
     selection: '#264f78',
-    string: '#9cdcfe',
-    type: '#ff7b72',
-    variable: '#2dd4bf',
+    string: '#ce9178',
+    type: '#4ec9b0',
+    variable: '#9cdcfe',
   },
   'vscode-light': {
     activeLine: '#f0f6ff',
     background: '#ffffff',
     bracket: '#d0d7de',
-    bracketForeground: '#9a6700',
-    comment: '#6a737d',
+    bracketColors: ['#9a6700', '#8250df', '#0969da', '#9a6700', '#8250df', '#0969da'],
+    comment: '#008000',
+    constant: '#0070c1',
     foreground: '#24292f',
+    function: '#795e26',
     gutter: '#ffffff',
     gutterForeground: '#8c959f',
+    header: '#a31515',
+    indentGuide: '#d8dee4',
     isDark: false,
-    keyword: '#8250df',
-    meta: '#8250df',
-    number: '#0550ae',
+    keyword: '#af00db',
+    meta: '#af00db',
+    number: '#098658',
+    operator: '#24292f',
+    primitiveType: '#0000ff',
+    property: '#001080',
     selection: '#b6d7ff',
-    string: '#0a6b3c',
-    type: '#cf222e',
-    variable: '#0969da',
+    string: '#a31515',
+    type: '#267f99',
+    variable: '#001080',
   },
 }
 
@@ -206,12 +237,25 @@ function createEditorTheme(theme: ResolvedCodeTheme) {
           padding: '0 0 72px',
         },
         '.cm-line': { padding: '0 18px' },
+        '.cm-line.cm-indent-guides': {
+          backgroundImage: `repeating-linear-gradient(to right, transparent 0, transparent calc(var(--cm-indent-size) - 1px), ${palette.indentGuide} calc(var(--cm-indent-size) - 1px), ${palette.indentGuide} var(--cm-indent-size))`,
+          backgroundPosition: '18px 0',
+          backgroundRepeat: 'no-repeat',
+          backgroundSize: 'calc(var(--cm-indent-level) * var(--cm-indent-size)) 100%',
+        },
         '.cm-lineNumbers .cm-gutterElement': { minWidth: '36px', padding: '0 10px 0 8px' },
         '.cm-matchingBracket': {
           backgroundColor: palette.bracket,
-          color: palette.foreground,
           outline: `1px solid ${palette.gutterForeground}`,
         },
+        '.cm-cpp-header': { color: palette.header },
+        '.cm-cpp-primitive-type': { color: palette.primitiveType },
+        ...Object.fromEntries(
+          palette.bracketColors.map((color, index) => [
+            `.cm-rainbow-bracket-${index}`,
+            { color, fontWeight: '600' },
+          ]),
+        ),
         '.cm-scroller': {
           backgroundColor: palette.background,
           fontFamily: 'inherit',
@@ -232,12 +276,14 @@ function createEditorTheme(theme: ResolvedCodeTheme) {
         { tag: [tags.meta, tags.processingInstruction], color: palette.meta },
         { tag: [tags.string, tags.special(tags.string)], color: palette.string },
         { tag: [tags.number, tags.bool, tags.null], color: palette.number },
-        { tag: [tags.namespace, tags.standard(tags.variableName)], color: palette.variable },
-        { tag: [tags.brace, tags.paren, tags.squareBracket], color: palette.bracketForeground },
+        { tag: [tags.namespace, tags.variableName], color: palette.variable },
+        { tag: [tags.constant(tags.name), tags.macroName], color: palette.constant },
+        { tag: tags.propertyName, color: palette.property },
         {
           tag: [tags.function(tags.variableName), tags.function(tags.propertyName)],
-          color: palette.keyword,
+          color: palette.function,
         },
+        { tag: [tags.operator, tags.operatorKeyword], color: palette.operator },
         { tag: [tags.comment, tags.lineComment, tags.blockComment], color: palette.comment },
       ]),
     ),
@@ -245,6 +291,7 @@ function createEditorTheme(theme: ResolvedCodeTheme) {
 }
 
 function CppCodeEditor({ source, theme }: { source: string; theme: ResolvedCodeTheme }) {
+  const { t } = useI18n()
   const hostRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -263,6 +310,7 @@ function CppCodeEditor({ source, theme }: { source: string; theme: ResolvedCodeT
           highlightActiveLineGutter(),
           highlightActiveLine(),
           bracketMatching(),
+          cppCodeVisuals,
           createEditorTheme(theme),
         ],
       }),
@@ -273,7 +321,7 @@ function CppCodeEditor({ source, theme }: { source: string; theme: ResolvedCodeT
 
   return (
     <div
-      aria-label="高亮模板源码"
+      aria-label={t('高亮模板源码')}
       className="code-editor-surface min-h-0 flex-1 overflow-hidden"
       data-code-theme={theme}
       ref={hostRef}
@@ -292,6 +340,7 @@ function HighlightJsCode({
   source: string
   theme: CodeTheme
 }) {
+  const { t } = useI18n()
   const highlighted = useMemo(() => {
     const registeredLanguage = languageAliases[language]
     return registeredLanguage
@@ -301,7 +350,7 @@ function HighlightJsCode({
 
   return (
     <pre
-      aria-label="高亮模板源码"
+      aria-label={t('高亮模板源码')}
       className="code-surface min-h-0 flex-1 overflow-auto px-5 py-4 font-mono text-[13px] leading-6 selection:bg-[#264f78] selection:text-white"
       data-code-theme={theme}
       tabIndex={0}
@@ -312,10 +361,11 @@ function HighlightJsCode({
 }
 
 export function CodeViewer({ code, language }: { code: string; language: string }) {
+  const { t } = useI18n()
   const [isExpanded, setIsExpanded] = useState(false)
   const [theme, setTheme] = useState<CodeTheme>(getInitialCodeTheme)
   const isApplicationDark = useApplicationDarkMode()
-  const source = code || '// 空模板文件'
+  const source = code || t('// 空模板文件')
   const lineCount = useMemo(() => source.split(/\r\n|\r|\n/).length, [source])
   const resolvedTheme = resolveCodeTheme(theme, isApplicationDark)
   const usesLightChrome = resolvedTheme === 'vscode-light'
@@ -337,7 +387,7 @@ export function CodeViewer({ code, language }: { code: string; language: string 
     <>
       {isExpanded && <div aria-hidden="true" className="fixed inset-0 z-40 bg-overlay/70" />}
       <div
-        aria-label="模板代码查看器"
+        aria-label={t('模板代码查看器')}
         className={cn(
           'relative flex h-[clamp(440px,62vh,720px)] min-h-[440px] shrink-0 flex-col overflow-hidden rounded-xl shadow-[0_12px_32px_-20px_rgba(15,23,42,0.7)]',
           usesLightChrome
@@ -348,7 +398,7 @@ export function CodeViewer({ code, language }: { code: string; language: string 
         data-expanded={isExpanded ? 'true' : 'false'}
       >
         <div
-          aria-label="代码查看器工具栏"
+          aria-label={t('代码查看器工具栏')}
           className={cn(
             'flex h-11 shrink-0 items-center gap-2 border-b px-3.5',
             usesLightChrome
@@ -371,7 +421,7 @@ export function CodeViewer({ code, language }: { code: string; language: string 
               usesLightChrome ? 'text-[#57606a]' : 'text-code-foreground/45',
             )}
           >
-            {lineCount} 行
+            {lineCount} {t('行')}
           </span>
           <label
             className={cn(
@@ -379,9 +429,9 @@ export function CodeViewer({ code, language }: { code: string; language: string 
               usesLightChrome ? 'text-[#57606a]' : 'text-code-foreground/60',
             )}
           >
-            <span className="hidden sm:inline">代码主题</span>
+            <span className="hidden sm:inline">{t('代码主题')}</span>
             <select
-              aria-label="代码主题"
+              aria-label={t('代码主题')}
               className={cn(
                 'h-7 rounded-md border px-2.5 text-[10px] outline-none transition-colors focus:ring-2',
                 usesLightChrome
@@ -393,13 +443,13 @@ export function CodeViewer({ code, language }: { code: string; language: string 
             >
               {codeThemes.map(option => (
                 <option key={option.value} value={option.value}>
-                  {option.label}
+                  {t(option.label)}
                 </option>
               ))}
             </select>
           </label>
           <button
-            aria-label={isExpanded ? '退出代码专注模式' : '进入代码专注模式'}
+            aria-label={t(isExpanded ? '退出代码专注模式' : '进入代码专注模式')}
             className={cn(
               'grid size-7 place-items-center rounded-md outline-none transition-colors focus-visible:ring-2',
               usesLightChrome
@@ -407,7 +457,7 @@ export function CodeViewer({ code, language }: { code: string; language: string 
                 : 'text-code-foreground/60 hover:bg-white/10 hover:text-code-foreground focus-visible:ring-[#007acc]',
             )}
             onClick={() => setIsExpanded(value => !value)}
-            title={isExpanded ? '退出专注模式（Esc）' : '专注模式'}
+            title={t(isExpanded ? '退出专注模式（Esc）' : '专注模式')}
             type="button"
           >
             {isExpanded ? (

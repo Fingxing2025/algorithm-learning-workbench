@@ -3,6 +3,15 @@ import { describe, expect, it } from 'vitest'
 import { createProblemRequestSchema } from './problem'
 
 const validProblem = {
+  aiSummary: '',
+  analysis: {
+    algorithmSignals: [],
+    constraints: [],
+    edgeCases: [],
+    examples: [],
+    inputDescription: '',
+    outputDescription: '',
+  },
   difficulty: null,
   notes: '',
   platform: '洛谷',

@@ -17,9 +17,12 @@ import type {
   ProblemAnalysisImage,
 } from '@core/contracts/problem-analysis'
 import type { CreateProblemRequest, Problem, RelationType } from '@core/contracts/problem'
+import type { AiOutputLanguage, AiRequestPreview } from '@core/contracts/ai-request'
 
+import { AiRequestPreviewDialog } from '@/components/ai-request-preview-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { useI18n } from '@/lib/i18n'
 
 import { problemStatusLabels, relationTypeLabels } from './problem-labels'
 
@@ -60,12 +63,15 @@ export function ProblemAnalysisDialog({
   onOpenChange,
   open,
 }: ProblemAnalysisDialogProps) {
+  const { locale, t } = useI18n()
   const [candidateTypes, setCandidateTypes] = useState<Record<string, RelationType>>({})
   const [draft, setDraft] = useState<ProblemAnalysisDraft | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [fields, setFields] = useState<CreateProblemRequest | null>(null)
   const [images, setImages] = useState<ProblemAnalysisImage[]>([])
   const [isBusy, setIsBusy] = useState(false)
+  const [outputLanguage, setOutputLanguage] = useState<AiOutputLanguage>(locale)
+  const [requestPreview, setRequestPreview] = useState<AiRequestPreview | null>(null)
   const [selectedCandidates, setSelectedCandidates] = useState<Set<string>>(new Set())
   const [tagsText, setTagsText] = useState('')
   const [text, setText] = useState('')
@@ -78,22 +84,24 @@ export function ProblemAnalysisDialog({
     setFields(null)
     setImages([])
     setIsBusy(false)
+    setOutputLanguage(locale)
+    setRequestPreview(null)
     setSelectedCandidates(new Set())
     setTagsText('')
     setText('')
-  }, [open])
+  }, [locale, open])
 
   const chooseImages = async () => {
     setError(null)
     try {
       const chosen = await window.desktop.problemAnalysis.chooseImages()
       if (images.length + chosen.length > 6) {
-        setError('单次题目分析最多添加 6 张图片。')
+        setError(t('单次题目分析最多添加 6 张图片。'))
         return
       }
       setImages(current => [...current, ...chosen])
     } catch (caught) {
-      setError(errorMessage(caught))
+      setError(t(errorMessage(caught)))
     }
   }
 
@@ -102,7 +110,7 @@ export function ProblemAnalysisDialog({
     if (files.length === 0) return
     event.preventDefault()
     if (images.length + files.length > 6) {
-      setError('单次题目分析最多添加 6 张图片。')
+      setError(t('单次题目分析最多添加 6 张图片。'))
       return
     }
     try {
@@ -110,15 +118,20 @@ export function ProblemAnalysisDialog({
       setImages(current => [...current, ...pasted])
       setError(null)
     } catch (caught) {
-      setError(errorMessage(caught))
+      setError(t(errorMessage(caught)))
     }
   }
 
-  const analyze = async () => {
+  const executeAnalysis = async () => {
     setError(null)
     setIsBusy(true)
     try {
-      const result = await window.desktop.problemAnalysis.analyze({ images, text })
+      const result = await window.desktop.problemAnalysis.analyze({
+        images,
+        outputLanguage,
+        text,
+      })
+      setRequestPreview(null)
       setDraft(result)
       setFields(result.fields)
       setTagsText(result.fields.tags.join(', '))
@@ -129,7 +142,21 @@ export function ProblemAnalysisDialog({
         ),
       )
     } catch (caught) {
-      setError(errorMessage(caught))
+      setError(t(errorMessage(caught)))
+    } finally {
+      setIsBusy(false)
+    }
+  }
+
+  const previewAnalysis = async () => {
+    setError(null)
+    setIsBusy(true)
+    try {
+      setRequestPreview(
+        await window.desktop.problemAnalysis.preview({ images, outputLanguage, text }),
+      )
+    } catch (caught) {
+      setError(t(errorMessage(caught)))
     } finally {
       setIsBusy(false)
     }
@@ -163,7 +190,7 @@ export function ProblemAnalysisDialog({
       onCreated(problem)
       onOpenChange(false)
     } catch (caught) {
-      setError(errorMessage(caught))
+      setError(t(errorMessage(caught)))
     } finally {
       setIsBusy(false)
     }
@@ -196,23 +223,26 @@ export function ProblemAnalysisDialog({
             </span>
             <div>
               <Dialog.Title className="text-sm font-semibold">
-                {draft ? '确认 AI 题目草稿' : 'AI 分析题目'}
+                {t(draft ? '确认 AI 题目草稿' : 'AI 分析题目')}
               </Dialog.Title>
               <Dialog.Description
                 className="mt-1 text-xs text-muted-foreground"
                 id="problem-analysis-description"
               >
                 {draft
-                  ? `由 ${draft.providerName} · ${draft.model} 生成，确认前不会写入题库。`
-                  : '输入题面、选择截图或直接粘贴图片；分析结果仅形成可编辑草稿。'}
+                  ? t('由 {provider} · {model} 生成，确认前不会写入题库。', {
+                      model: draft.model,
+                      provider: draft.providerName,
+                    })
+                  : t('输入题面、选择截图或直接粘贴图片；分析结果仅形成可编辑草稿。')}
               </Dialog.Description>
             </div>
             <Dialog.Close asChild>
               <Button
-                aria-label="关闭 AI 题目分析"
+                aria-label={t('关闭 AI 题目分析')}
                 className="ml-auto"
                 disabled={isBusy}
-                size="icon"
+                size="close"
                 type="button"
                 variant="ghost"
               >
@@ -227,9 +257,9 @@ export function ProblemAnalysisDialog({
               role="alert"
             >
               <AlertCircle className="mt-0.5 size-4 shrink-0" />
-              <span>{error}</span>
+              <span>{t(error)}</span>
               <button
-                aria-label="关闭分析错误"
+                aria-label={t('关闭分析错误')}
                 className="ml-auto rounded p-0.5 hover:bg-red-500/10"
                 onClick={() => setError(null)}
                 type="button"
@@ -244,9 +274,9 @@ export function ProblemAnalysisDialog({
               <section className="rounded-2xl border border-border bg-background/55 p-5">
                 <div className="flex items-center justify-between gap-4">
                   <div>
-                    <h3 className="text-sm font-semibold">题面输入</h3>
+                    <h3 className="text-sm font-semibold">{t('题面输入')}</h3>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      支持纯文本、截图，或在文本框内按 Cmd/Ctrl+V 粘贴图片。
+                      {t('支持纯文本、截图，或在文本框内按 Cmd/Ctrl+V 粘贴图片。')}
                     </p>
                   </div>
                   <Button
@@ -257,17 +287,29 @@ export function ProblemAnalysisDialog({
                     variant="outline"
                   >
                     <ImagePlus className="size-3.5" />
-                    选择截图
+                    {t('选择截图')}
                   </Button>
+                  <label className="ml-auto flex items-center gap-2 text-[11px] font-medium">
+                    {t('输出语言')}
+                    <select
+                      aria-label={t('题目分析输出语言')}
+                      className="h-8 rounded-lg border border-border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-ring"
+                      onChange={event => setOutputLanguage(event.target.value as AiOutputLanguage)}
+                      value={outputLanguage}
+                    >
+                      <option value="zh-CN">{t('简体中文')}</option>
+                      <option value="en">English</option>
+                    </select>
+                  </label>
                 </div>
                 <textarea
-                  aria-label="待分析题面"
+                  aria-label={t('待分析题面')}
                   autoFocus
                   className="mt-4 min-h-64 w-full resize-y rounded-xl border border-border bg-panel px-4 py-3 text-sm leading-6 outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring"
                   maxLength={100_000}
                   onChange={event => setText(event.target.value)}
                   onPaste={event => void handlePaste(event)}
-                  placeholder="粘贴题目描述、输入输出与数据范围…"
+                  placeholder={t('粘贴题目描述、输入输出与数据范围…')}
                   value={text}
                 />
               </section>
@@ -276,15 +318,15 @@ export function ProblemAnalysisDialog({
                 <div className="flex items-center gap-3">
                   <FileImage className="size-4 text-muted-foreground" />
                   <div>
-                    <h3 className="text-sm font-semibold">分析图片</h3>
+                    <h3 className="text-sm font-semibold">{t('分析图片')}</h3>
                     <p className="mt-0.5 text-[11px] text-muted-foreground">
-                      {images.length} / 6 张 · 单张 8 MiB · 合计 24 MiB
+                      {images.length} / 6 {t('张')} · {t('单张')} 8 MiB · {t('合计')} 24 MiB
                     </p>
                   </div>
                 </div>
                 {images.length === 0 ? (
                   <div className="mt-4 grid min-h-32 place-items-center rounded-xl border border-dashed border-border text-center text-xs text-muted-foreground">
-                    图片只用于本次分析，确认草稿后才会保存。
+                    {t('图片只用于本次分析，确认草稿后才会保存。')}
                   </div>
                 ) : (
                   <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -300,7 +342,7 @@ export function ProblemAnalysisDialog({
                         />
                         <span className="min-w-0 flex-1 truncate text-xs">{image.name}</span>
                         <Button
-                          aria-label={`移除分析图片 ${image.name}`}
+                          aria-label={`${t('移除分析图片')} ${image.name}`}
                           onClick={() =>
                             setImages(current =>
                               current.filter((_, itemIndex) => itemIndex !== index),
@@ -320,17 +362,17 @@ export function ProblemAnalysisDialog({
 
               <footer className="mt-5 flex items-center justify-between gap-4 border-t border-border pt-4">
                 <p className="text-[11px] text-muted-foreground">
-                  发送前会显示当前任务 Provider；分析不会自动创建题目。
+                  {t('发送前会显示当前任务 Provider；分析不会自动创建题目。')}
                 </p>
                 <div className="flex gap-2">
                   <Dialog.Close asChild>
                     <Button disabled={isBusy} type="button" variant="outline">
-                      取消
+                      {t('取消')}
                     </Button>
                   </Dialog.Close>
                   <Button
                     disabled={isBusy || (!text.trim() && images.length === 0)}
-                    onClick={() => void analyze()}
+                    onClick={() => void previewAnalysis()}
                     type="button"
                   >
                     {isBusy ? (
@@ -338,7 +380,7 @@ export function ProblemAnalysisDialog({
                     ) : (
                       <Sparkles className="size-4" />
                     )}
-                    生成草稿
+                    {t('生成草稿')}
                   </Button>
                 </div>
               </footer>
@@ -350,9 +392,9 @@ export function ProblemAnalysisDialog({
             >
               <div className="grid gap-4 sm:grid-cols-2">
                 <label className="text-xs font-semibold sm:col-span-2">
-                  题目标题
+                  {t('题目标题')}
                   <input
-                    aria-label="AI 草稿题目标题"
+                    aria-label={t('AI 草稿题目标题')}
                     className={inputClass}
                     maxLength={200}
                     onChange={event =>
@@ -363,9 +405,9 @@ export function ProblemAnalysisDialog({
                   />
                 </label>
                 <label className="text-xs font-semibold">
-                  平台
+                  {t('平台')}
                   <input
-                    aria-label="AI 草稿平台"
+                    aria-label={t('AI 草稿平台')}
                     className={inputClass}
                     onChange={event =>
                       setFields(
@@ -377,9 +419,9 @@ export function ProblemAnalysisDialog({
                   />
                 </label>
                 <label className="text-xs font-semibold">
-                  题号
+                  {t('题号')}
                   <input
-                    aria-label="AI 草稿题号"
+                    aria-label={t('AI 草稿题号')}
                     className={inputClass}
                     onChange={event =>
                       setFields(
@@ -391,9 +433,9 @@ export function ProblemAnalysisDialog({
                   />
                 </label>
                 <label className="text-xs font-semibold">
-                  难度
+                  {t('难度')}
                   <input
-                    aria-label="AI 草稿难度"
+                    aria-label={t('AI 草稿难度')}
                     className={inputClass}
                     onChange={event =>
                       setFields(
@@ -405,9 +447,9 @@ export function ProblemAnalysisDialog({
                   />
                 </label>
                 <label className="text-xs font-semibold">
-                  状态
+                  {t('状态')}
                   <select
-                    aria-label="AI 草稿状态"
+                    aria-label={t('AI 草稿状态')}
                     className={inputClass}
                     onChange={event =>
                       setFields(
@@ -422,15 +464,15 @@ export function ProblemAnalysisDialog({
                   >
                     {Object.entries(problemStatusLabels).map(([value, label]) => (
                       <option key={value} value={value}>
-                        {label}
+                        {t(label)}
                       </option>
                     ))}
                   </select>
                 </label>
                 <label className="text-xs font-semibold sm:col-span-2">
-                  题目链接
+                  {t('题目链接')}
                   <input
-                    aria-label="AI 草稿链接"
+                    aria-label={t('AI 草稿链接')}
                     className={inputClass}
                     onChange={event =>
                       setFields(
@@ -442,29 +484,129 @@ export function ProblemAnalysisDialog({
                   />
                 </label>
                 <label className="text-xs font-semibold sm:col-span-2">
-                  标签
+                  {t('标签')}
                   <input
-                    aria-label="AI 草稿标签"
+                    aria-label={t('AI 草稿标签')}
                     className={inputClass}
                     onChange={event => setTagsText(event.target.value)}
                     value={tagsText}
                   />
                 </label>
                 <label className="text-xs font-semibold sm:col-span-2">
-                  题面摘要
+                  {t('原始题面')}
                   <textarea
-                    aria-label="AI 草稿题面摘要"
+                    aria-label={t('AI 草稿原始题面')}
                     className="mt-1.5 min-h-32 w-full resize-y rounded-xl border border-border bg-background px-3 py-2.5 text-sm leading-6 outline-none focus:ring-2 focus:ring-ring"
-                    onChange={event =>
-                      setFields(current => current && { ...current, statement: event.target.value })
-                    }
+                    readOnly
                     value={fields.statement}
                   />
                 </label>
                 <label className="text-xs font-semibold sm:col-span-2">
-                  本地备注
+                  {t('AI 题目摘要')}
                   <textarea
-                    aria-label="AI 草稿本地备注"
+                    aria-label={t('AI 草稿题目摘要')}
+                    className="mt-1.5 min-h-24 w-full resize-y rounded-xl border border-border bg-background px-3 py-2.5 text-sm leading-6 outline-none focus:ring-2 focus:ring-ring"
+                    onChange={event =>
+                      setFields(current => current && { ...current, aiSummary: event.target.value })
+                    }
+                    value={fields.aiSummary}
+                  />
+                </label>
+                {(
+                  [
+                    ['inputDescription', '输入说明'],
+                    ['outputDescription', '输出说明'],
+                  ] as const
+                ).map(([key, label]) => (
+                  <label className="text-xs font-semibold" key={key}>
+                    {t(label)}
+                    <textarea
+                      aria-label={t(`AI 草稿${label}`)}
+                      className="mt-1.5 min-h-20 w-full resize-y rounded-xl border border-border bg-background px-3 py-2.5 text-xs leading-5 outline-none focus:ring-2 focus:ring-ring"
+                      onChange={event =>
+                        setFields(current =>
+                          current
+                            ? {
+                                ...current,
+                                analysis: { ...current.analysis, [key]: event.target.value },
+                              }
+                            : current,
+                        )
+                      }
+                      value={fields.analysis[key]}
+                    />
+                  </label>
+                ))}
+                {(
+                  [
+                    ['constraints', '数据约束'],
+                    ['algorithmSignals', '算法信号'],
+                    ['edgeCases', '边界情况'],
+                  ] as const
+                ).map(([key, label]) => (
+                  <label className="text-xs font-semibold sm:col-span-2" key={key}>
+                    {t(label)}
+                    <textarea
+                      aria-label={t(`AI 草稿${label}`)}
+                      className="mt-1.5 min-h-20 w-full resize-y rounded-xl border border-border bg-background px-3 py-2.5 text-xs leading-5 outline-none focus:ring-2 focus:ring-ring"
+                      onChange={event =>
+                        setFields(current =>
+                          current
+                            ? {
+                                ...current,
+                                analysis: {
+                                  ...current.analysis,
+                                  [key]: event.target.value
+                                    .split('\n')
+                                    .map(item => item.trim())
+                                    .filter(Boolean),
+                                },
+                              }
+                            : current,
+                        )
+                      }
+                      value={fields.analysis[key].join('\n')}
+                    />
+                  </label>
+                ))}
+                {fields.analysis.examples.map((example, index) => (
+                  <section
+                    className="grid gap-2 rounded-xl border border-border bg-muted/25 p-3 sm:col-span-2 sm:grid-cols-2"
+                    key={index}
+                  >
+                    <p className="text-xs font-semibold sm:col-span-2">
+                      {t('样例')} {index + 1}
+                    </p>
+                    {(['input', 'output', 'explanation'] as const).map(key => (
+                      <label
+                        className={`text-[11px] font-medium ${key === 'explanation' ? 'sm:col-span-2' : ''}`}
+                        key={key}
+                      >
+                        {t(key === 'input' ? '输入' : key === 'output' ? '输出' : '解释')}
+                        <textarea
+                          className="mt-1 min-h-16 w-full resize-y rounded-lg border border-border bg-background p-2 font-mono text-[11px] outline-none focus:ring-2 focus:ring-ring"
+                          onChange={event =>
+                            setFields(current => {
+                              if (!current) return current
+                              const examples = current.analysis.examples.map((item, itemIndex) =>
+                                itemIndex === index ? { ...item, [key]: event.target.value } : item,
+                              )
+                              return {
+                                ...current,
+                                analysis: { ...current.analysis, examples },
+                              }
+                            })
+                          }
+                          value={example[key]}
+                        />
+                      </label>
+                    ))}
+                  </section>
+                ))}
+                <label className="text-xs font-semibold sm:col-span-2">
+                  {t('本地备注')}
+                  <textarea
+                    aria-label={t('AI 草稿本地备注')}
                     className="mt-1.5 min-h-20 w-full resize-y rounded-xl border border-border bg-background px-3 py-2.5 text-sm leading-6 outline-none focus:ring-2 focus:ring-ring"
                     onChange={event =>
                       setFields(current => current && { ...current, notes: event.target.value })
@@ -477,16 +619,18 @@ export function ProblemAnalysisDialog({
               <section className="mt-5 rounded-2xl border border-border bg-background/55 p-4">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <h3 className="text-sm font-semibold">候选模板关联</h3>
+                    <h3 className="text-sm font-semibold">{t('候选模板关联')}</h3>
                     <p className="mt-1 text-[11px] text-muted-foreground">
-                      仅保留你确认的候选；创建后仍可手动调整。
+                      {t('仅保留你确认的候选；创建后仍可手动调整。')}
                     </p>
                   </div>
-                  <Badge>{selectedCandidates.size} 个将写入</Badge>
+                  <Badge>
+                    {selectedCandidates.size} {t('个将写入')}
+                  </Badge>
                 </div>
                 {draft.candidates.length === 0 ? (
                   <div className="mt-4 rounded-xl border border-dashed border-border p-4 text-center text-xs text-muted-foreground">
-                    AI 没有找到可靠的本地模板候选。
+                    {t('AI 没有找到可靠的本地模板候选。')}
                   </div>
                 ) : (
                   <div className="mt-4 space-y-2">
@@ -497,7 +641,7 @@ export function ProblemAnalysisDialog({
                       >
                         <label className="grid size-8 shrink-0 place-items-center">
                           <input
-                            aria-label={`选择候选模板 ${candidate.templateName}`}
+                            aria-label={`${t('选择候选模板')} ${candidate.templateName}`}
                             checked={selectedCandidates.has(candidate.templateId)}
                             className="size-4 accent-primary"
                             onChange={event => updateCandidate(candidate, event.target.checked)}
@@ -517,9 +661,35 @@ export function ProblemAnalysisDialog({
                           <p className="mt-1 text-xs leading-5 text-muted-foreground">
                             {candidate.reason}
                           </p>
+                          {candidate.evidence.length > 0 && (
+                            <p className="mt-2 text-[11px] leading-5 text-muted-foreground">
+                              <span className="font-semibold text-foreground">
+                                {t('题面证据')}：
+                              </span>
+                              {candidate.evidence.join('、')}
+                            </p>
+                          )}
+                          {candidate.applicableWhen.length > 0 && (
+                            <p className="mt-1 text-[11px] leading-5 text-success">
+                              <span className="font-semibold">{t('适用条件')}：</span>
+                              {candidate.applicableWhen.join('、')}
+                            </p>
+                          )}
+                          {candidate.notApplicableWhen.length > 0 && (
+                            <p className="mt-1 text-[11px] leading-5 text-warning">
+                              <span className="font-semibold">{t('不适用条件')}：</span>
+                              {candidate.notApplicableWhen.join('、')}
+                            </p>
+                          )}
+                          {candidate.warnings.length > 0 && (
+                            <p className="mt-1 text-[11px] leading-5 text-red-600 dark:text-red-300">
+                              <span className="font-semibold">{t('使用前警告')}：</span>
+                              {candidate.warnings.join('、')}
+                            </p>
+                          )}
                         </div>
                         <select
-                          aria-label={`${candidate.templateName} 关系类型`}
+                          aria-label={`${candidate.templateName} ${t('关系类型')}`}
                           className="h-8 rounded-lg border border-border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-ring"
                           disabled={!selectedCandidates.has(candidate.templateId)}
                           onChange={event =>
@@ -532,7 +702,7 @@ export function ProblemAnalysisDialog({
                         >
                           {Object.entries(relationTypeLabels).map(([value, label]) => (
                             <option key={value} value={value}>
-                              {label}
+                              {t(label)}
                             </option>
                           ))}
                         </select>
@@ -545,7 +715,7 @@ export function ProblemAnalysisDialog({
               <footer className="mt-5 flex items-center justify-between gap-4 border-t border-border pt-4">
                 <p className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
                   <Check className="size-3.5 text-success" />
-                  确认后才会保存题目、{images.length} 张图片和关联。
+                  {t('确认后才会保存题目、{count} 张图片和关联。', { count: images.length })}
                 </p>
                 <div className="flex gap-2">
                   <Button
@@ -554,11 +724,11 @@ export function ProblemAnalysisDialog({
                     type="button"
                     variant="outline"
                   >
-                    返回修改输入
+                    {t('返回修改输入')}
                   </Button>
                   <Button disabled={isBusy || !fields.title.trim()} type="submit">
                     {isBusy && <LoaderCircle className="size-4 animate-spin" />}
-                    确认创建
+                    {t('确认创建')}
                   </Button>
                 </div>
               </footer>
@@ -566,6 +736,14 @@ export function ProblemAnalysisDialog({
           )}
         </Dialog.Content>
       </Dialog.Portal>
+      {requestPreview && (
+        <AiRequestPreviewDialog
+          busy={isBusy}
+          onCancel={() => setRequestPreview(null)}
+          onConfirm={() => void executeAnalysis()}
+          preview={requestPreview}
+        />
+      )}
     </Dialog.Root>
   )
 }

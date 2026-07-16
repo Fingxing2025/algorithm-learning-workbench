@@ -22,6 +22,8 @@ V2 需要让用户从零配置不同 AI 服务，并按题目图片分析、模�
 10. `ai_task_routes` 保存任务到 Provider 的路由。路由保存前验证 Provider 声明的能力满足任务要求；题图分析必须选择视觉 Provider。
 11. `0002_ai_providers` 是增量 migration，不修改现有模板、题目、图片或关联数据。
 12. DeepSeek 与阿里云百炼作为 Renderer 中的 OpenAI-compatible 配置预设，不增加供应商专属协议或数据库字段。DeepSeek 使用官方 `https://api.deepseek.com`，默认模型跟随当前文档使用 `deepseek-v4-flash`；阿里云百炼中国大陆端点包含用户自己的 `WorkspaceId`，因此只展示北京端点模板并要求用户填写，不能保存虚构或过时的固定地址。
+13. 结构化任务在内部请求契约中标记为禁用思考。OpenAI Chat Adapter 对 Qwen 模型发送顶层 `enable_thinking: false`，避免思考 Token 耗尽后 `content` 为空；其他供应商不会收到该非标准字段。响应提取同时兼容 OpenAI `choices` 与阿里云嵌套 `output.choices`，仅当最终正文为空时才把 `reasoning_content` 交给既有 JSON 解析与受限修复流程，且不记录或展示思考内容。
+14. 模板元数据任务使用 32,768 输出 Token 的首选预算，结构修复和语义重试继承同一预算。Provider 若以可识别的 Token/上下文上限错误明确拒绝，任务路由按 16,384、8,192、4,096、2,048 逐档降低；鉴权、模型不存在、普通参数错误和无法读取正文不会触发降档。实际计费仍按供应商生成量而非预算上限决定。
 
 ## 协议基线
 

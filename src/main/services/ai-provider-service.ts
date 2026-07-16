@@ -29,6 +29,21 @@ const RESTRICTED_HEADERS = new Set([
 ])
 const HEADER_NAME_PATTERN = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/
 const LOOPBACK_HOSTS = new Set(['127.0.0.1', '::1', 'localhost'])
+const OUTPUT_TOKEN_FALLBACKS = [32_768, 16_384, 8_192, 4_096, 2_048] as const
+
+function outputTokenBudgets(requested: number): number[] {
+  return [...new Set([requested, ...OUTPUT_TOKEN_FALLBACKS.filter(value => value < requested)])]
+}
+
+function isOutputTokenBudgetRejection(error: unknown): boolean {
+  return (
+    error instanceof PublicError &&
+    error.code === 'AI_INVALID_RESPONSE' &&
+    /(?:max(?:imum)?[ _-]?(?:output[ _-]?)?tokens?|context[ _-]?(?:length|window)|token[ _-]?limit|too many tokens|exceeds?[^.]{0,80}tokens?|最大[^。]{0,40}token|输出[^。]{0,40}上限|上下文[^。]{0,40}长度)/iu.test(
+      error.message,
+    )
+  )
+}
 
 function validateAndNormalizeBaseUrl(
   baseUrl: string,
@@ -85,6 +100,25 @@ function toAdapterProfile(record: AiProviderRecord) {
   }
 }
 
+async function waitForRetry(delayMs: number, signal?: AbortSignal): Promise<void> {
+  if (!signal) {
+    await new Promise(resolve => setTimeout(resolve, delayMs))
+    return
+  }
+  if (signal.aborted) throw new PublicError('AI_CANCELLED', 'AI 请求已取消。')
+  await new Promise<void>((resolve, reject) => {
+    const onAbort = () => {
+      clearTimeout(timer)
+      reject(new PublicError('AI_CANCELLED', 'AI 请求已取消。'))
+    }
+    const timer = setTimeout(() => {
+      signal.removeEventListener('abort', onAbort)
+      resolve()
+    }, delayMs)
+    signal.addEventListener('abort', onAbort, { once: true })
+  })
+}
+
 export class AiProviderService {
   constructor(
     private readonly repository: AiProviderRepository,
@@ -119,6 +153,27 @@ export class AiProviderService {
     return this.repository.listRoutes()
   }
 
+  getTaskTarget(task: AiTaskRoute['task']): {
+    capabilities: AiProviderProfile['capabilities']
+    id: string
+    model: string
+    providerName: string
+  } {
+    const record = this.repository.getProviderForTask(task)
+    if (!record) {
+      throw new PublicError(
+        'AI_ROUTE_REQUIRED',
+        '尚未为此任务选择 AI Provider，请先前往 AI 设置配置任务路由。',
+      )
+    }
+    return {
+      capabilities: toAdapterProfile(record).capabilities,
+      id: record.id,
+      model: record.model,
+      providerName: record.name,
+    }
+  }
+
   async runTask(
     task: AiTaskRoute['task'],
     request: AiCompletionRequest,
@@ -135,8 +190,35 @@ export class AiProviderService {
       throw new PublicError('AI_CAPABILITY_UNSUPPORTED', '当前任务模型不支持图片输入。')
     }
     const apiKey = await this.secretStore.read(record.secretRef)
-    const text = await getAiProviderAdapter(profile.protocol).complete(profile, apiKey, request)
-    return { model: record.model, providerName: record.name, text }
+    const budgets = outputTokenBudgets(request.maxOutputTokens)
+    let lastBudgetError: unknown
+    for (const [budgetIndex, maxOutputTokens] of budgets.entries()) {
+      const budgetedRequest =
+        maxOutputTokens === request.maxOutputTokens ? request : { ...request, maxOutputTokens }
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        try {
+          budgetedRequest.onAttempt?.({ maxOutputTokens })
+          const text = await getAiProviderAdapter(profile.protocol).complete(
+            profile,
+            apiKey,
+            budgetedRequest,
+          )
+          return { model: record.model, providerName: record.name, text }
+        } catch (error) {
+          if (isOutputTokenBudgetRejection(error) && budgetIndex < budgets.length - 1) {
+            lastBudgetError = error
+            break
+          }
+          const retryable =
+            error instanceof PublicError &&
+            ['AI_NETWORK_ERROR', 'AI_RATE_LIMITED', 'AI_TIMEOUT'].includes(error.code)
+          if (!retryable || attempt === 2) throw error
+          const retryAfterMs = error instanceof PublicError ? error.retryAfterMs : undefined
+          await waitForRetry(Math.min(10_000, retryAfterMs ?? 250 * 2 ** attempt), request.signal)
+        }
+      }
+    }
+    throw lastBudgetError
   }
 
   async testConnection(id: string): Promise<AiConnectionResult> {

@@ -13,6 +13,11 @@ export interface TemplateMetadataConflict {
   userValue: string
 }
 
+export interface TemplateDraftSnapshot {
+  metadata: TemplateMetadataFields
+  relativePath: string
+}
+
 export const emptyTemplateMetadata: TemplateMetadataFields = {
   commonMistakes: '',
   constraints: '',
@@ -129,6 +134,67 @@ export function mergeTemplateClassification(
       ),
     },
     relativePath: choose('relativePath', relativePath, classification.suggestedRelativePath),
+  }
+}
+
+export function restoreDraftBeforeClassificationLanguageChange(
+  current: TemplateDraftSnapshot,
+  baseline: TemplateDraftSnapshot,
+  classification: TemplateClassification,
+): TemplateDraftSnapshot {
+  const restore = <Value extends TemplateMetadataFields[keyof TemplateMetadataFields] | string>(
+    currentValue: Value,
+    baselineValue: Value,
+    aiValue: Value,
+  ): Value =>
+    hasValue(aiValue) && comparable(currentValue) === comparable(aiValue)
+      ? baselineValue
+      : currentValue
+
+  return {
+    metadata: {
+      commonMistakes: restore(
+        current.metadata.commonMistakes,
+        baseline.metadata.commonMistakes,
+        classification.metadata.commonMistakes,
+      ),
+      constraints: restore(
+        current.metadata.constraints,
+        baseline.metadata.constraints,
+        classification.metadata.constraints,
+      ),
+      notes: restore(
+        current.metadata.notes,
+        baseline.metadata.notes,
+        classification.metadata.notes,
+      ),
+      prerequisites: restore(
+        current.metadata.prerequisites,
+        baseline.metadata.prerequisites,
+        classification.metadata.prerequisites,
+      ),
+      solves: restore(
+        current.metadata.solves,
+        baseline.metadata.solves,
+        classification.metadata.solves,
+      ),
+      spaceComplexity: restore(
+        current.metadata.spaceComplexity,
+        baseline.metadata.spaceComplexity,
+        classification.metadata.spaceComplexity,
+      ),
+      tags: restore(current.metadata.tags, baseline.metadata.tags, classification.metadata.tags),
+      timeComplexity: restore(
+        current.metadata.timeComplexity,
+        baseline.metadata.timeComplexity,
+        classification.metadata.timeComplexity,
+      ),
+    },
+    relativePath: restore(
+      current.relativePath,
+      baseline.relativePath,
+      classification.suggestedRelativePath,
+    ),
   }
 }
 

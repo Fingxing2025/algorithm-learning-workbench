@@ -4,6 +4,7 @@ import type { ChooseWorkspaceRequest } from '@core/contracts/workspace'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { useI18n } from '@/lib/i18n'
 
 interface WorkspaceOnboardingProps {
   error: string | null
@@ -12,8 +13,9 @@ interface WorkspaceOnboardingProps {
 }
 
 export function WorkspaceOnboarding({ error, isBusy, onChoose }: WorkspaceOnboardingProps) {
+  const { t } = useI18n()
   return (
-    <main className="relative min-h-0 overflow-y-auto px-6 py-7 lg:px-10 lg:py-9">
+    <main className="relative h-full min-h-0 overflow-y-auto px-6 py-7 lg:px-10 lg:py-9">
       <div
         aria-hidden="true"
         className="app-grid-texture pointer-events-none absolute inset-x-0 top-0 h-80 opacity-60"
@@ -30,12 +32,14 @@ export function WorkspaceOnboarding({ error, isBusy, onChoose }: WorkspaceOnboar
           />
           <div className="relative flex items-start justify-between gap-4">
             <div>
-              <Badge tone="accent">首次设置 · 约 1 分钟</Badge>
+              <Badge tone="accent">{t('首次设置 · 约 1 分钟')}</Badge>
               <h1 className="mt-3 text-2xl font-semibold tracking-[-0.035em]">
-                连接你的模板工作区
+                {t('连接你的模板工作区')}
               </h1>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-                工作区是你自己的普通文件夹。模板源码始终保留在文件系统中，应用只建立本地索引。
+                {t(
+                  '工作区是你自己的普通文件夹。模板源码始终保留在文件系统中，应用只建立本地索引。',
+                )}
               </p>
             </div>
             <span className="hidden size-12 shrink-0 place-items-center rounded-2xl bg-primary/11 text-primary ring-1 ring-primary/12 sm:grid">
@@ -46,7 +50,7 @@ export function WorkspaceOnboarding({ error, isBusy, onChoose }: WorkspaceOnboar
 
         {error && (
           <div className="mt-5 rounded-xl border border-red-500/25 bg-red-500/8 px-4 py-3 text-sm text-red-700 dark:text-red-300">
-            {error}
+            {t(error)}
           </div>
         )}
 
@@ -56,11 +60,11 @@ export function WorkspaceOnboarding({ error, isBusy, onChoose }: WorkspaceOnboar
               <span className="grid size-10 place-items-center rounded-xl bg-primary text-primary-foreground shadow-sm">
                 <FolderPlus aria-hidden="true" className="size-5" />
               </span>
-              <Badge tone="accent">推荐新用户</Badge>
+              <Badge tone="accent">{t('推荐新用户')}</Badge>
             </div>
-            <h2 className="mt-5 text-base font-semibold">创建空白工作区</h2>
+            <h2 className="mt-5 text-base font-semibold">{t('创建空白工作区')}</h2>
             <p className="mt-2 text-sm leading-6 text-muted-foreground">
-              在系统对话框中新建或选择空白文件夹，然后从第一份算法模板开始。
+              {t('通过对话框创建一个空白目录，并从第一份模板开始。')}
             </p>
             <Button
               className="mt-auto"
@@ -68,7 +72,7 @@ export function WorkspaceOnboarding({ error, isBusy, onChoose }: WorkspaceOnboar
               onClick={() => onChoose({ intent: 'create' })}
               type="button"
             >
-              创建工作区
+              {t('创建工作区')}
             </Button>
           </section>
 
@@ -77,11 +81,11 @@ export function WorkspaceOnboarding({ error, isBusy, onChoose }: WorkspaceOnboar
               <span className="grid size-10 place-items-center rounded-xl bg-success/10 text-success ring-1 ring-success/10">
                 <FolderOpen aria-hidden="true" className="size-5" />
               </span>
-              <Badge tone="success">只读扫描</Badge>
+              <Badge tone="success">{t('只读扫描')}</Badge>
             </div>
-            <h2 className="mt-5 text-base font-semibold">选择已有模板目录</h2>
+            <h2 className="mt-5 text-base font-semibold">{t('选择已有模板目录')}</h2>
             <p className="mt-2 text-sm leading-6 text-muted-foreground">
-              扫描常见源码文件并生成摘要；不会自动移动、改名、覆盖或删除任何内容。
+              {t('选择一个已有模板目录，先只读扫描，不会自动改名或移动文件。')}
             </p>
             <Button
               className="mt-auto"
@@ -90,7 +94,7 @@ export function WorkspaceOnboarding({ error, isBusy, onChoose }: WorkspaceOnboar
               type="button"
               variant="outline"
             >
-              选择目录
+              {t('选择目录')}
             </Button>
           </section>
         </div>
@@ -100,10 +104,11 @@ export function WorkspaceOnboarding({ error, isBusy, onChoose }: WorkspaceOnboar
             <ShieldCheck aria-hidden="true" className="size-4" />
           </span>
           <div>
-            <p className="text-xs font-semibold">你的源码仍属于你</p>
+            <p className="text-xs font-semibold">{t('你的源码仍属于你')}</p>
             <p className="mt-1 text-xs leading-5 text-muted-foreground">
-              目录授权和文件访问只发生在 Electron Main 进程。Renderer 不会获得文件系统或原始 IPC
-              权限。
+              {t(
+                '目录授权和文件访问只发生在 Electron Main 进程。Renderer 不会获得文件系统或原始 IPC 权限。',
+              )}
             </p>
           </div>
         </div>

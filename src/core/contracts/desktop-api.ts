@@ -1,4 +1,5 @@
 import type { RuntimeInfo } from './runtime'
+import type { AiRequestPreview } from './ai-request'
 import type {
   AiConnectionResult,
   AiProviderIdRequest,
@@ -15,9 +16,15 @@ import type {
   ProblemAnalysisImage,
 } from './problem-analysis'
 import type {
+  BatchImportTemplateRequest,
+  BatchImportTemplateResult,
+  BatchTemplateImportSource,
+  InspectBatchTemplateImportRequest,
+  InspectBatchTemplateImportResult,
   ClassifyTemplateRequest,
   ImportTemplateRequest,
   ImportTemplateResult,
+  PreviewBatchTemplateClassificationRequest,
   TemplateClassification,
   TemplateImportSource,
   TemplateMetadata,
@@ -25,6 +32,7 @@ import type {
   FileChangeExecution,
   FileChangeMutationResult,
   FileChangePlan,
+  FilePlanGenerationRequest,
   WorkspaceAudit,
 } from './template-management'
 import type {
@@ -60,6 +68,7 @@ export interface DesktopApi {
     analyze: (request: AnalyzeProblemRequest) => Promise<ProblemAnalysisDraft>
     chooseImages: () => Promise<ProblemAnalysisImage[]>
     commit: (request: CommitProblemAnalysisRequest) => Promise<Problem>
+    preview: (request: AnalyzeProblemRequest) => Promise<AiRequestPreview>
   }
   app: {
     getRuntimeInfo: () => Promise<RuntimeInfo>
@@ -86,13 +95,28 @@ export interface DesktopApi {
       planId: string
     }) => Promise<FileChangeMutationResult>
     auditWorkspace: () => Promise<WorkspaceAudit>
+    cancelFilePlanGeneration: (requestId: string) => Promise<void>
     cancelFilePlan: (planId: string) => Promise<FileChangePlan>
+    chooseBatchImportDirectory: () => Promise<BatchTemplateImportSource[]>
+    chooseBatchImportFiles: () => Promise<BatchTemplateImportSource[]>
     chooseImportSource: () => Promise<TemplateImportSource | null>
     classify: (request: ClassifyTemplateRequest) => Promise<TemplateClassification>
     deleteTemplate: (templateId: string) => Promise<FileChangeMutationResult>
+    exportFilePlanDiagnostic: (planId: string | null) => Promise<boolean>
     getMetadata: (templateId: string) => Promise<TemplateMetadata | null>
     importTemplate: (request: ImportTemplateRequest) => Promise<ImportTemplateResult>
-    generateFilePlan: () => Promise<FileChangePlan>
+    importTemplatesBatch: (
+      request: BatchImportTemplateRequest,
+    ) => Promise<BatchImportTemplateResult>
+    inspectBatchImport: (
+      request: InspectBatchTemplateImportRequest,
+    ) => Promise<InspectBatchTemplateImportResult>
+    previewBatchClassification: (
+      request: PreviewBatchTemplateClassificationRequest,
+    ) => Promise<AiRequestPreview>
+    previewClassification: (request: ClassifyTemplateRequest) => Promise<AiRequestPreview>
+    previewFilePlan: (request: FilePlanGenerationRequest) => Promise<AiRequestPreview>
+    generateFilePlan: (request: FilePlanGenerationRequest) => Promise<FileChangePlan>
     listFileExecutions: () => Promise<FileChangeExecution[]>
     listFilePlans: () => Promise<FileChangePlan[]>
     redraftFilePlan: (planId: string) => Promise<FileChangePlan>

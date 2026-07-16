@@ -10,6 +10,7 @@ import type {
 import type { TemplateSummary } from '@core/contracts/workspace'
 
 import { Button } from '@/components/ui/button'
+import { useI18n } from '@/lib/i18n'
 
 import { relationTypeLabels } from './problem-labels'
 
@@ -34,6 +35,7 @@ export function RelationDialog({
   problemId,
   templates,
 }: RelationDialogProps) {
+  const { t } = useI18n()
   const [note, setNote] = useState('')
   const [relationType, setRelationType] = useState<RelationType>('used')
   const [templateId, setTemplateId] = useState('')
@@ -68,17 +70,17 @@ export function RelationDialog({
             </span>
             <div>
               <Dialog.Title className="text-sm font-semibold">
-                {existing ? '编辑模板关联' : '关联算法模板'}
+                {t(existing ? '编辑模板关联' : '关联算法模板')}
               </Dialog.Title>
               <Dialog.Description className="mt-1 text-xs text-muted-foreground">
-                解除关联不会删除题目、模板或源码。
+                {t('解除关联不会删除题目、模板或源码。')}
               </Dialog.Description>
             </div>
             <Dialog.Close asChild>
               <Button
-                aria-label="关闭关联编辑器"
+                aria-label={t('关闭关联编辑器')}
                 className="ml-auto"
-                size="icon"
+                size="close"
                 type="button"
                 variant="ghost"
               >
@@ -94,11 +96,11 @@ export function RelationDialog({
                 role="alert"
               >
                 <AlertCircle aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
-                <span>{error}</span>
+                <span>{t(error)}</span>
               </div>
             )}
             <label className="text-xs font-semibold" htmlFor="relation-template">
-              算法模板
+              {t('算法模板')}
             </label>
             <select
               className={inputClass}
@@ -115,7 +117,7 @@ export function RelationDialog({
               ))}
             </select>
             <label className="mt-4 block text-xs font-semibold" htmlFor="relation-type">
-              关系类型
+              {t('关系类型')}
             </label>
             <select
               className={inputClass}
@@ -125,29 +127,29 @@ export function RelationDialog({
             >
               {Object.entries(relationTypeLabels).map(([value, label]) => (
                 <option key={value} value={value}>
-                  {label}
+                  {t(label)}
                 </option>
               ))}
             </select>
             <label className="mt-4 block text-xs font-semibold" htmlFor="relation-note">
-              关联备注
+              {t('关联备注')}
             </label>
             <textarea
               className="mt-1.5 min-h-24 w-full resize-y rounded-xl border border-border bg-background px-3 py-2.5 text-sm leading-6 outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring"
               id="relation-note"
               maxLength={500}
               onChange={event => setNote(event.target.value)}
-              placeholder="例如：本题实际使用了该模板的堆优化版本。"
+              placeholder={t('例如：本题实际使用了该模板的堆优化版本。')}
               value={note}
             />
             <footer className="mt-5 flex justify-end gap-2 border-t border-border pt-4">
               <Dialog.Close asChild>
                 <Button type="button" variant="outline">
-                  取消
+                  {t('取消')}
                 </Button>
               </Dialog.Close>
               <Button disabled={isBusy || !templateId} type="submit">
-                保存关联
+                {t('保存关联')}
               </Button>
             </footer>
           </form>

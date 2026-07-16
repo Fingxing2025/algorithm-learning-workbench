@@ -10,6 +10,7 @@ export const aiProviderProtocolSchema = z.enum([
 export type AiProviderProtocol = z.infer<typeof aiProviderProtocolSchema>
 
 export const aiProviderCapabilitiesSchema = z.object({
+  promptCaching: z.boolean().default(false),
   streaming: z.boolean(),
   structuredOutput: z.boolean(),
   vision: z.boolean(),

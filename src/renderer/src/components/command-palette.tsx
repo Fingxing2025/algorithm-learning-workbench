@@ -7,6 +7,7 @@ import type { TemplateSummary } from '@core/contracts/workspace'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { useI18n } from '@/lib/i18n'
 
 interface CommandPaletteProps {
   onOpenChange: (open: boolean) => void
@@ -28,6 +29,7 @@ export function CommandPalette({
   problems,
   templates,
 }: CommandPaletteProps) {
+  const { t } = useI18n()
   const [query, setQuery] = useState('')
   useEffect(() => {
     if (!open) {
@@ -79,7 +81,7 @@ export function CommandPalette({
               <Search aria-hidden="true" className="size-4" />
             </span>
             <input
-              aria-label="搜索模板、题目或操作"
+              aria-label={t('搜索模板、题目或操作')}
               autoFocus
               className="h-16 flex-1 bg-transparent text-[15px] text-foreground outline-none placeholder:text-muted-foreground"
               onChange={event => setQuery(event.target.value)}
@@ -88,20 +90,20 @@ export function CommandPalette({
                   selectResult(results[0])
                 }
               }}
-              placeholder="搜索模板名称、路径、题目或标签…"
+              placeholder={t('搜索模板名称、路径、题目或标签…')}
               value={query}
             />
             <Dialog.Close asChild>
-              <Button aria-label="关闭全局搜索" size="icon" type="button" variant="ghost">
+              <Button aria-label={t('关闭全局搜索')} size="close" type="button" variant="ghost">
                 <X aria-hidden="true" className="size-4" />
               </Button>
             </Dialog.Close>
           </div>
 
           <div className="max-h-[420px] min-h-44 overflow-y-auto p-2.5">
-            <Dialog.Title className="sr-only">全局搜索</Dialog.Title>
+            <Dialog.Title className="sr-only">{t('全局搜索')}</Dialog.Title>
             <Dialog.Description className="sr-only">
-              搜索并打开算法模板或本地题目卡片。
+              {t('搜索并打开算法模板或本地题目卡片。')}
             </Dialog.Description>
             {results.length > 0 ? (
               <div className="space-y-1">
@@ -113,7 +115,7 @@ export function CommandPalette({
                       ? result.value.relativePath
                       : [result.value.platform, result.value.problemCode]
                           .filter(Boolean)
-                          .join(' · ') || '本地题目卡片'
+                          .join(' · ') || t('本地题目卡片')
                   return (
                     <button
                       className="group flex w-full items-center gap-3 rounded-xl border border-transparent px-3 py-2.5 text-left outline-none transition-all hover:translate-x-0.5 hover:border-border hover:bg-surface-subtle focus-visible:bg-muted"
@@ -140,7 +142,9 @@ export function CommandPalette({
                           {description}
                         </span>
                       </span>
-                      <Badge>{result.kind === 'template' ? result.value.language : '题目'}</Badge>
+                      <Badge>
+                        {result.kind === 'template' ? result.value.language : t('题目')}
+                      </Badge>
                       <ArrowRight aria-hidden="true" className="size-3.5 text-muted-foreground" />
                     </button>
                   )
@@ -151,13 +155,13 @@ export function CommandPalette({
                 <div>
                   <p className="text-sm font-semibold">
                     {templates.length + problems.length === 0
-                      ? '本地知识库还是空的'
-                      : `没有找到“${query}”`}
+                      ? t('本地知识库还是空的')
+                      : t('没有找到“{query}”', { query })}
                   </p>
                   <p className="mt-2 text-xs text-muted-foreground">
                     {templates.length + problems.length === 0
-                      ? '连接模板工作区或创建题目后即可搜索。'
-                      : '尝试模板名称、路径、题号或标签。'}
+                      ? t('连接模板工作区或创建题目后即可搜索。')
+                      : t('尝试模板名称、路径、题号或标签。')}
                   </p>
                 </div>
               </div>
@@ -166,9 +170,9 @@ export function CommandPalette({
 
           <div className="flex items-center justify-between border-t border-border bg-surface-subtle/65 px-4 py-2.5 text-[11px] text-muted-foreground">
             <span>
-              {templates.length} 个模板 · {problems.length} 道题目
+              {templates.length} {t('个模板')} · {problems.length} {t('道题')}
             </span>
-            <span>Enter 打开第一个结果</span>
+            <span>{t('Enter 打开第一个结果')}</span>
           </div>
         </Dialog.Content>
       </Dialog.Portal>

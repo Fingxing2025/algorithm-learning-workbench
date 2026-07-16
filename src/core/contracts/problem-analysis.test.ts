@@ -4,9 +4,14 @@ import { analyzeProblemRequestSchema, commitProblemAnalysisRequestSchema } from 
 
 describe('problem analysis contracts', () => {
   it('requires text or an image before analysis', () => {
-    expect(() => analyzeProblemRequestSchema.parse({ images: [], text: '' })).toThrow()
-    expect(analyzeProblemRequestSchema.parse({ images: [], text: '题面' })).toEqual({
+    expect(() =>
+      analyzeProblemRequestSchema.parse({ images: [], outputLanguage: 'zh-CN', text: '' }),
+    ).toThrow()
+    expect(
+      analyzeProblemRequestSchema.parse({ images: [], outputLanguage: 'zh-CN', text: '题面' }),
+    ).toEqual({
       images: [],
+      outputLanguage: 'zh-CN',
       text: '题面',
     })
   })
@@ -16,6 +21,15 @@ describe('problem analysis contracts', () => {
     expect(() =>
       commitProblemAnalysisRequestSchema.parse({
         fields: {
+          aiSummary: '',
+          analysis: {
+            algorithmSignals: [],
+            constraints: [],
+            edgeCases: [],
+            examples: [],
+            inputDescription: '',
+            outputDescription: '',
+          },
           difficulty: null,
           notes: '',
           platform: null,

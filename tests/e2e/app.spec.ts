@@ -294,7 +294,7 @@ test('creates a problem, associates multiple templates, stores an image, and saf
   await page.getByLabel('难度').fill('提高')
   await page.getByLabel('状态').selectOption('attempted')
   await page.getByLabel('标签').fill('图论, 最短路, Dijkstra')
-  await page.getByLabel('题面摘要').fill('给定一张有向图，求起点到其余顶点的最短距离。')
+  await page.getByLabel('原始题面').fill('给定一张有向图，求起点到其余顶点的最短距离。')
   await page.getByLabel('本地备注').fill('注意重边和不可达顶点。')
   await page.getByRole('button', { name: '创建题目' }).click()
 
@@ -339,7 +339,7 @@ test('creates a problem, associates multiple templates, stores an image, and saf
   })
   expect(storedImages.filter(path => path.endsWith('.png'))).toHaveLength(1)
 
-  await page.getByRole('button', { name: '解除与 dfs 的关联' }).click()
+  await page.getByRole('button', { name: '解除与模板的关联 dfs' }).click()
   await page.getByRole('button', { name: '确认解除' }).click()
   await expect(page.getByText('1 个已确认关联')).toBeVisible()
 
@@ -359,6 +359,15 @@ test('sets a problem relation directly from the template card', async () => {
       desktop: {
         problems: {
           create: (request: {
+            aiSummary: string
+            analysis: {
+              algorithmSignals: string[]
+              constraints: string[]
+              edgeCases: string[]
+              examples: []
+              inputDescription: string
+              outputDescription: string
+            }
             difficulty: null
             notes: string
             platform: string
@@ -373,6 +382,15 @@ test('sets a problem relation directly from the template card', async () => {
       }
     }
     await renderer.desktop.problems.create({
+      aiSummary: '',
+      analysis: {
+        algorithmSignals: [],
+        constraints: [],
+        edgeCases: [],
+        examples: [],
+        inputDescription: '',
+        outputDescription: '',
+      },
       difficulty: null,
       notes: '',
       platform: '模板卡片测试',
@@ -451,6 +469,12 @@ test('persists the problem, image, and surviving relation across a desktop resta
 })
 
 test('deletes a template with backup and removes a problem with its stored images', async () => {
+  await page.getByRole('button', { name: '删除模板 bfs' }).click()
+  await expect(page.getByRole('button', { name: '确认删除' })).toBeVisible()
+  await page.getByText('dfs.py', { exact: true }).click()
+  await expect(page.getByRole('button', { name: '确认删除' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '删除模板 dfs' })).toBeVisible()
+  await page.getByText('bfs.cpp', { exact: true }).click()
   await page.getByRole('button', { name: '删除模板 bfs' }).click()
   await page.getByRole('button', { name: '确认删除' }).click()
   await expect(page.getByText('模板已备份并删除')).toBeVisible()

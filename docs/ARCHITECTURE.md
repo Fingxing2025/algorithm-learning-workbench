@@ -89,6 +89,10 @@ tests/
 - `docs/decisions/0008-workspace-navigation-code-viewer-and-ai-plan-recovery.md`
 - `docs/decisions/0009-template-metadata-merge-review.md`
 - `docs/decisions/0010-deletion-classification-and-plan-redrafting.md`
+- `docs/decisions/0011-interface-localization-and-dashboard-motion.md`
+- `docs/decisions/0012-workspace-ai-context-and-problem-structure.md`
+- `docs/decisions/0013-workspace-file-ai-plan-v2.md`
+- `docs/decisions/0014-batch-cpp-template-intake.md`
 
 安全与发布文档：
 

@@ -2,9 +2,14 @@ import * as Dialog from '@radix-ui/react-dialog'
 import { AlertCircle, BookOpenText, X } from 'lucide-react'
 import { useEffect, useState, type FormEvent } from 'react'
 
-import type { CreateProblemRequest, Problem } from '@core/contracts/problem'
+import {
+  emptyProblemAnalysisStructure,
+  type CreateProblemRequest,
+  type Problem,
+} from '@core/contracts/problem'
 
 import { Button } from '@/components/ui/button'
+import { useI18n } from '@/lib/i18n'
 
 import { problemStatusLabels } from './problem-labels'
 
@@ -19,6 +24,8 @@ interface ProblemEditorDialogProps {
 
 function emptyFields(): CreateProblemRequest {
   return {
+    aiSummary: '',
+    analysis: { ...emptyProblemAnalysisStructure },
     difficulty: null,
     notes: '',
     platform: null,
@@ -44,6 +51,7 @@ export function ProblemEditorDialog({
   open,
   problem,
 }: ProblemEditorDialogProps) {
+  const { t } = useI18n()
   const [fields, setFields] = useState<CreateProblemRequest>(emptyFields)
   const [tagsText, setTagsText] = useState('')
 
@@ -53,6 +61,8 @@ export function ProblemEditorDialog({
     }
     if (problem) {
       setFields({
+        aiSummary: problem.aiSummary,
+        analysis: problem.analysis,
         difficulty: problem.difficulty,
         notes: problem.notes,
         platform: problem.platform,
@@ -98,17 +108,17 @@ export function ProblemEditorDialog({
             </span>
             <div>
               <Dialog.Title className="text-sm font-semibold">
-                {problem ? '编辑题目卡片' : '新建题目卡片'}
+                {t(problem ? '编辑题目卡片' : '新建题目卡片')}
               </Dialog.Title>
               <Dialog.Description className="mt-1 text-xs text-muted-foreground">
-                题目和备注保存在本地数据库；模板关联可在保存后继续编辑。
+                {t('题目和备注保存在本地数据库；模板关联可在保存后继续编辑。')}
               </Dialog.Description>
             </div>
             <Dialog.Close asChild>
               <Button
-                aria-label="关闭题目编辑器"
+                aria-label={t('关闭题目编辑器')}
                 className="ml-auto"
-                size="icon"
+                size="close"
                 type="button"
                 variant="ghost"
               >
@@ -124,13 +134,13 @@ export function ProblemEditorDialog({
                 role="alert"
               >
                 <AlertCircle aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
-                <span>{error}</span>
+                <span>{t(error)}</span>
               </div>
             )}
 
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="sm:col-span-2 text-xs font-semibold">
-                题目标题
+                {t('题目标题')}
                 <input
                   autoFocus
                   className={inputClass}
@@ -138,23 +148,23 @@ export function ProblemEditorDialog({
                   onChange={event =>
                     setFields(current => ({ ...current, title: event.target.value }))
                   }
-                  placeholder="例如 最短路计数"
+                  placeholder={t('例如 最短路计数')}
                   required
                   value={fields.title}
                 />
               </label>
               <label className="text-xs font-semibold">
-                平台
+                {t('平台')}
                 <input
                   className={inputClass}
                   maxLength={80}
                   onChange={event => updateText('platform', event.target.value)}
-                  placeholder="洛谷、Codeforces…"
+                  placeholder={t('洛谷、Codeforces…')}
                   value={fields.platform ?? ''}
                 />
               </label>
               <label className="text-xs font-semibold">
-                题号
+                {t('题号')}
                 <input
                   className={inputClass}
                   maxLength={80}
@@ -164,17 +174,17 @@ export function ProblemEditorDialog({
                 />
               </label>
               <label className="text-xs font-semibold">
-                难度
+                {t('难度')}
                 <input
                   className={inputClass}
                   maxLength={40}
                   onChange={event => updateText('difficulty', event.target.value)}
-                  placeholder="普及+/提高、1600…"
+                  placeholder={t('普及+/提高、1600…')}
                   value={fields.difficulty ?? ''}
                 />
               </label>
               <label className="text-xs font-semibold">
-                状态
+                {t('状态')}
                 <select
                   className={inputClass}
                   onChange={event =>
@@ -187,13 +197,13 @@ export function ProblemEditorDialog({
                 >
                   {Object.entries(problemStatusLabels).map(([value, label]) => (
                     <option key={value} value={value}>
-                      {label}
+                      {t(label)}
                     </option>
                   ))}
                 </select>
               </label>
               <label className="sm:col-span-2 text-xs font-semibold">
-                题目链接
+                {t('题目链接')}
                 <input
                   className={inputClass}
                   maxLength={2048}
@@ -204,51 +214,62 @@ export function ProblemEditorDialog({
                 />
               </label>
               <label className="sm:col-span-2 text-xs font-semibold">
-                标签
+                {t('标签')}
                 <input
                   className={inputClass}
                   onChange={event => setTagsText(event.target.value)}
-                  placeholder="最短路, 图论, Dijkstra"
+                  placeholder={t('最短路, 图论, Dijkstra')}
                   value={tagsText}
                 />
                 <span className="mt-1 block text-[10px] font-normal text-muted-foreground">
-                  使用逗号分隔，最多 20 个标签。
+                  {t('使用逗号分隔，最多 20 个标签。')}
                 </span>
               </label>
               <label className="sm:col-span-2 text-xs font-semibold">
-                题面摘要
+                {t('原始题面')}
                 <textarea
                   className="mt-1.5 min-h-32 w-full resize-y rounded-xl border border-border bg-background px-3 py-2.5 text-sm leading-6 outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring"
                   onChange={event =>
                     setFields(current => ({ ...current, statement: event.target.value }))
                   }
-                  placeholder="记录题意、输入输出和关键约束…"
+                  placeholder={t('记录原始题面、输入输出和数据范围…')}
                   value={fields.statement}
                 />
               </label>
               <label className="sm:col-span-2 text-xs font-semibold">
-                本地备注
+                {t('AI 题目摘要')}
+                <textarea
+                  className="mt-1.5 min-h-24 w-full resize-y rounded-xl border border-border bg-background px-3 py-2.5 text-sm leading-6 outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring"
+                  onChange={event =>
+                    setFields(current => ({ ...current, aiSummary: event.target.value }))
+                  }
+                  placeholder={t('可选：题目的简洁结构化摘要…')}
+                  value={fields.aiSummary}
+                />
+              </label>
+              <label className="sm:col-span-2 text-xs font-semibold">
+                {t('本地备注')}
                 <textarea
                   className="mt-1.5 min-h-28 w-full resize-y rounded-xl border border-border bg-background px-3 py-2.5 text-sm leading-6 outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring"
                   onChange={event =>
                     setFields(current => ({ ...current, notes: event.target.value }))
                   }
-                  placeholder="记录思路、错误原因或复盘…"
+                  placeholder={t('记录思路、错误原因或复盘…')}
                   value={fields.notes}
                 />
               </label>
             </div>
 
             <footer className="mt-5 flex items-center justify-between gap-4 border-t border-border pt-4">
-              <p className="text-[11px] text-muted-foreground">所有内容默认只保存在本机。</p>
+              <p className="text-[11px] text-muted-foreground">{t('所有内容默认只保存在本机。')}</p>
               <div className="flex gap-2">
                 <Dialog.Close asChild>
                   <Button type="button" variant="outline">
-                    取消
+                    {t('取消')}
                   </Button>
                 </Dialog.Close>
                 <Button disabled={isBusy || !fields.title.trim()} type="submit">
-                  {problem ? '保存修改' : '创建题目'}
+                  {t(problem ? '保存修改' : '创建题目')}
                 </Button>
               </div>
             </footer>

@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
 import { workspaceSnapshotSchema } from './workspace'
+import { aiOutputLanguageSchema, aiRequestPreviewSchema } from './ai-request'
 
 const templateIdSchema = z.string().regex(/^[a-f0-9]{64}$/)
 const relativePathSchema = z
@@ -40,6 +41,61 @@ export const templateImportSourceSchema = z
   .strict()
 export type TemplateImportSource = z.infer<typeof templateImportSourceSchema>
 
+export const batchTemplateImportSourceSchema = templateImportSourceSchema
+  .extend({
+    content: z
+      .string()
+      .min(1)
+      .max(2 * 1024 * 1024),
+    displayPath: relativePathSchema,
+    id: z.string().uuid(),
+  })
+  .strict()
+export type BatchTemplateImportSource = z.infer<typeof batchTemplateImportSourceSchema>
+export const batchTemplateImportSourceListSchema = z.array(batchTemplateImportSourceSchema).max(100)
+
+export const inspectBatchTemplateImportRequestSchema = z
+  .object({
+    items: z
+      .array(
+        z
+          .object({
+            relativePath: relativePathSchema,
+            sourceId: z.string().uuid(),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(100),
+  })
+  .strict()
+export type InspectBatchTemplateImportRequest = z.infer<
+  typeof inspectBatchTemplateImportRequestSchema
+>
+export const batchTemplateImportConflictSchema = z
+  .object({
+    actualRelativePath: relativePathSchema.nullable(),
+    canOverwrite: z.boolean(),
+    existingFileState: z.string().max(300).nullable(),
+    kind: z.enum([
+      'batch-duplicate',
+      'case-conflict',
+      'existing-directory',
+      'existing-file',
+      'existing-special',
+    ]),
+    relativePath: relativePathSchema,
+    sourceId: z.string().uuid(),
+  })
+  .strict()
+export type BatchTemplateImportConflict = z.infer<typeof batchTemplateImportConflictSchema>
+export const inspectBatchTemplateImportResultSchema = z
+  .object({ conflicts: z.array(batchTemplateImportConflictSchema).max(200) })
+  .strict()
+export type InspectBatchTemplateImportResult = z.infer<
+  typeof inspectBatchTemplateImportResultSchema
+>
+
 export const templateMetadataLanguageSchema = z.enum(['zh-CN', 'en']).default('zh-CN')
 export type TemplateMetadataLanguage = z.infer<typeof templateMetadataLanguageSchema>
 
@@ -50,16 +106,80 @@ export const classifyTemplateRequestSchema = z
       .min(1)
       .max(2 * 1024 * 1024),
     fileName: z.string().max(255),
+    metadata: templateMetadataFieldsSchema,
     outputLanguage: templateMetadataLanguageSchema,
   })
   .strict()
 export type ClassifyTemplateRequest = z.infer<typeof classifyTemplateRequestSchema>
+export const previewTemplateClassificationRequestSchema = classifyTemplateRequestSchema
+export const previewTemplateClassificationResultSchema = aiRequestPreviewSchema.extend({
+  outputLanguage: aiOutputLanguageSchema,
+})
+
+export const previewBatchTemplateClassificationRequestSchema = z
+  .object({
+    outputLanguage: templateMetadataLanguageSchema,
+    sources: z.array(batchTemplateImportSourceSchema).min(1).max(100),
+  })
+  .strict()
+export type PreviewBatchTemplateClassificationRequest = z.infer<
+  typeof previewBatchTemplateClassificationRequestSchema
+>
+export const previewBatchTemplateClassificationResultSchema = aiRequestPreviewSchema.extend({
+  outputLanguage: aiOutputLanguageSchema,
+})
 
 export const templateClassificationSchema = z
   .object({
-    categoryPath: z.array(z.string().trim().min(1).max(80)).min(3).max(4),
+    alternatives: z
+      .array(
+        z
+          .object({
+            confidence: z.number().min(0).max(1),
+            reason: z.string().max(1_000),
+            targetDirectory: z.string().max(4096),
+          })
+          .strict(),
+      )
+      .max(3),
+    categoryPath: z.array(z.string().trim().min(1).max(80)).min(2).max(5),
+    classificationReason: z.string().max(2_000),
+    confidence: z.number().min(0).max(1),
+    diagnostic: z
+      .object({
+        outputTokenBudgets: z.array(z.number().int().positive()).max(20),
+        providerCallCount: z.number().int().nonnegative(),
+        stageTimings: z
+          .array(
+            z
+              .object({
+                elapsedMs: z.number().int().nonnegative(),
+                requestCount: z.number().int().positive(),
+                stage: z.enum([
+                  'initial-generation',
+                  'schema-fallback',
+                  'structure-repair',
+                  'semantic-retry',
+                ]),
+              })
+              .strict(),
+          )
+          .max(8),
+        totalElapsedMs: z.number().int().nonnegative(),
+      })
+      .strict()
+      .optional(),
     metadata: templateMetadataFieldsSchema,
     model: z.string().min(1).max(160),
+    placement: z
+      .object({
+        existingParentPath: z.string().max(4096),
+        mode: z.enum(['existing-directory', 'create-subdirectory', 'create-category-chain']),
+        newDirectories: z.array(z.string().trim().min(1).max(80)).max(5),
+        reason: z.string().max(2_000),
+        targetDirectory: z.string().max(4096),
+      })
+      .strict(),
     providerName: z.string().min(1).max(80),
     suggestedRelativePath: relativePathSchema,
   })
@@ -79,6 +199,48 @@ export const importTemplateResultSchema = z
   .object({ templateId: templateIdSchema, workspace: workspaceSnapshotSchema })
   .strict()
 export type ImportTemplateResult = z.infer<typeof importTemplateResultSchema>
+
+export const batchImportTemplateRequestSchema = z
+  .object({
+    items: z
+      .array(
+        z
+          .object({
+            content: z
+              .string()
+              .min(1)
+              .max(2 * 1024 * 1024),
+            conflictAction: z.enum(['create', 'overwrite']),
+            expectedExistingFileState: z.string().max(300).nullable(),
+            metadata: templateMetadataFieldsSchema.nullable(),
+            relativePath: relativePathSchema,
+            sourceId: z.string().uuid(),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(100),
+  })
+  .strict()
+export type BatchImportTemplateRequest = z.infer<typeof batchImportTemplateRequestSchema>
+export const batchImportTemplateResultSchema = z
+  .object({
+    imported: z
+      .array(
+        z
+          .object({
+            relativePath: relativePathSchema,
+            sourceId: z.string().uuid(),
+            templateId: templateIdSchema,
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(100),
+    workspace: workspaceSnapshotSchema,
+  })
+  .strict()
+export type BatchImportTemplateResult = z.infer<typeof batchImportTemplateResultSchema>
 
 export const workspaceAuditIssueSchema = z
   .object({
@@ -105,9 +267,29 @@ export const workspaceAuditSchema = z
   .strict()
 export type WorkspaceAudit = z.infer<typeof workspaceAuditSchema>
 
+export const filePlanOperationSourceSchema = z.enum(['ai', 'local-audit', 'manual'])
+export const filePlanRiskSchema = z.enum(['low', 'medium', 'high'])
+export const filePlanPreconditionSchema = z
+  .object({
+    metadataUpdatedAt: z.string().datetime().nullable(),
+    sourceModifiedAt: z.string().datetime(),
+    sourceSha256: z.string().regex(/^[a-f0-9]{64}$/),
+    sourceSizeBytes: z.number().int().nonnegative(),
+    targetExpectedAbsent: z.boolean(),
+  })
+  .strict()
+
 const planOperationBase = {
+  alternatives: z.array(z.string().trim().min(1).max(500)).max(5).default([]),
+  applicability: z.array(z.string().trim().min(1).max(500)).max(10).default([]),
+  confidence: z.number().min(0).max(1).default(0.5),
+  evidence: z.array(z.string().trim().min(1).max(500)).max(12).default([]),
   id: z.string().uuid(),
+  precondition: filePlanPreconditionSchema.nullable().default(null),
   reason: z.string().trim().min(1).max(500),
+  risk: filePlanRiskSchema.default('medium'),
+  selectedByDefault: z.boolean().default(false),
+  source: filePlanOperationSourceSchema.default('ai'),
   sourcePath: relativePathSchema,
   templateId: templateIdSchema,
 }
@@ -125,20 +307,90 @@ export const fileChangeOperationSchema = z.discriminatedUnion('kind', [
     .strict(),
 ])
 export type FileChangeOperation = z.infer<typeof fileChangeOperationSchema>
+export type FileChangeOperationInput = z.input<typeof fileChangeOperationSchema>
+
+export const filePlanDiagnosticSchema = z
+  .object({
+    auditIssueCount: z.number().int().nonnegative(),
+    candidateTemplateCount: z.number().int().nonnegative(),
+    contextTruncated: z.boolean(),
+    notesIncludedCount: z.number().int().nonnegative(),
+    requestId: z.string().uuid().nullable(),
+    schemaVersion: z.literal(2),
+  })
+  .strict()
 
 export const fileChangePlanSchema = z
   .object({
+    contextVersion: z.string().max(64).nullable().default(null),
     createdAt: z.string().datetime(),
+    diagnostic: filePlanDiagnosticSchema.default({
+      auditIssueCount: 0,
+      candidateTemplateCount: 0,
+      contextTruncated: false,
+      notesIncludedCount: 0,
+      requestId: null,
+      schemaVersion: 2,
+    }),
     id: z.string().uuid(),
     model: z.string().min(1).max(160),
     operations: z.array(fileChangeOperationSchema).max(100),
+    outputLanguage: aiOutputLanguageSchema.default('zh-CN'),
     providerName: z.string().min(1).max(80),
     status: z.enum(['draft', 'cancelled', 'applied']),
+    summary: z.string().max(4_000).default(''),
     updatedAt: z.string().datetime(),
   })
   .strict()
 export type FileChangePlan = z.infer<typeof fileChangePlanSchema>
 export const fileChangePlanListSchema = z.array(fileChangePlanSchema).max(100)
+
+export const fileChangePlanPayloadSchema = z
+  .object({
+    contextVersion: z.string().max(64).nullable(),
+    diagnostic: filePlanDiagnosticSchema,
+    operations: z.array(fileChangeOperationSchema).max(100),
+    outputLanguage: aiOutputLanguageSchema,
+    schemaVersion: z.literal(2),
+    summary: z.string().max(4_000),
+  })
+  .strict()
+export type FileChangePlanPayload = z.infer<typeof fileChangePlanPayloadSchema>
+
+export function parseStoredFileChangePlanPayload(stored: unknown): FileChangePlanPayload | null {
+  const legacyOperations = fileChangeOperationSchema.array().max(100).safeParse(stored)
+  if (legacyOperations.success) {
+    return fileChangePlanPayloadSchema.parse({
+      contextVersion: null,
+      diagnostic: {
+        auditIssueCount: 0,
+        candidateTemplateCount: 0,
+        contextTruncated: false,
+        notesIncludedCount: 0,
+        requestId: null,
+        schemaVersion: 2,
+      },
+      operations: legacyOperations.data,
+      outputLanguage: 'zh-CN',
+      schemaVersion: 2,
+      summary: '',
+    })
+  }
+  const versionedPayload = fileChangePlanPayloadSchema.safeParse(stored)
+  return versionedPayload.success ? versionedPayload.data : null
+}
+
+export const filePlanGenerationRequestSchema = z
+  .object({ outputLanguage: aiOutputLanguageSchema, requestId: z.string().uuid() })
+  .strict()
+export type FilePlanGenerationRequest = z.infer<typeof filePlanGenerationRequestSchema>
+export const previewFilePlanResultSchema = aiRequestPreviewSchema
+export const cancelFilePlanGenerationRequestSchema = z
+  .object({ requestId: z.string().uuid() })
+  .strict()
+export const exportFilePlanDiagnosticRequestSchema = z
+  .object({ planId: z.string().uuid().nullable() })
+  .strict()
 
 export const fileChangePlanRequestSchema = z.object({ planId: z.string().uuid() }).strict()
 export const applyFileChangePlanRequestSchema = fileChangePlanRequestSchema
@@ -167,13 +419,32 @@ export type FileChangeMutationResult = z.infer<typeof fileChangeMutationResultSc
 
 export const modelTemplateClassificationSchema = z
   .object({
-    categoryPath: z.array(z.string().trim().min(1).max(80)).min(3).max(4),
+    alternatives: z
+      .array(
+        z.object({
+          confidence: z.number().min(0).max(1),
+          reason: z.string().max(1_000),
+          targetDirectory: z.string().max(4096),
+        }),
+      )
+      .max(3)
+      .optional(),
+    categoryPath: z.array(z.string().trim().min(1).max(80)).min(2).max(5),
+    classificationReason: z.string().max(2_000),
     commonMistakes: z.string().max(10_000).optional(),
+    confidence: z.number().min(0).max(1),
     constraints: z.string().max(10_000).optional(),
     prerequisites: z.string().max(10_000).optional(),
     solves: z.string().max(10_000).optional(),
     spaceComplexity: z.string().max(120).nullable().optional(),
     fileName: z.string().trim().min(1).max(255),
+    placement: z.object({
+      existingParentPath: z.string().max(4096),
+      mode: z.enum(['existing-directory', 'create-subdirectory', 'create-category-chain']),
+      newDirectories: z.array(z.string().trim().min(1).max(80)).max(5),
+      reason: z.string().max(2_000),
+      targetDirectory: z.string().max(4096),
+    }),
     tags: z.array(z.string().trim().min(1).max(40)).max(20).optional(),
     timeComplexity: z.string().max(120).nullable().optional(),
   })
@@ -190,30 +461,38 @@ const modelTemplateMetadataPatchSchema = z.object({
   timeComplexity: z.string().trim().max(120).nullable().optional(),
 })
 
+const modelFilePlanSuggestionBase = {
+  alternatives: z.array(z.string().trim().min(1).max(500)).max(5),
+  applicability: z.array(z.string().trim().min(1).max(500)).max(10),
+  confidence: z.number().min(0).max(1),
+  evidence: z.array(z.string().trim().min(1).max(500)).max(12),
+  reason: z.string().trim().min(1).max(500),
+  risk: filePlanRiskSchema,
+  templateId: templateIdSchema,
+}
+
 export const modelFileChangePlanSchema = z
   .object({
     operations: z
       .array(
         z.discriminatedUnion('kind', [
           z.object({
+            ...modelFilePlanSuggestionBase,
             kind: z.literal('move'),
-            reason: z.string().max(500),
             targetPath: relativePathSchema,
-            templateId: templateIdSchema,
           }),
           z.object({
+            ...modelFilePlanSuggestionBase,
             kind: z.literal('delete'),
-            reason: z.string().max(500),
-            templateId: templateIdSchema,
           }),
           z.object({
+            ...modelFilePlanSuggestionBase,
             kind: z.literal('update-metadata'),
             metadata: modelTemplateMetadataPatchSchema,
-            reason: z.string().max(500),
-            templateId: templateIdSchema,
           }),
         ]),
       )
       .max(100),
+    summary: z.string().max(4_000),
   })
   .strict()

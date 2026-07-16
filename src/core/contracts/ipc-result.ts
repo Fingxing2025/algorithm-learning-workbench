@@ -1,6 +1,7 @@
 export type IpcErrorCode =
   | 'AI_AUTH_FAILED'
   | 'AI_CAPABILITY_UNSUPPORTED'
+  | 'AI_CANCELLED'
   | 'AI_INVALID_RESPONSE'
   | 'AI_MODEL_NOT_FOUND'
   | 'AI_NETWORK_ERROR'
@@ -28,6 +29,7 @@ export type IpcErrorCode =
 export interface IpcError {
   code: IpcErrorCode
   message: string
+  retryAfterMs?: number
 }
 
 export type IpcResult<T> = { ok: true; value: T } | { error: IpcError; ok: false }

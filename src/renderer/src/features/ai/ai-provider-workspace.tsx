@@ -25,6 +25,7 @@ import type {
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { useI18n } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 
 import {
@@ -83,7 +84,12 @@ interface FormState {
 const emptyForm: FormState = {
   apiKey: '',
   baseUrl: protocolOptions[0]!.defaultBaseUrl,
-  capabilities: { streaming: true, structuredOutput: true, vision: false },
+  capabilities: {
+    promptCaching: false,
+    streaming: true,
+    structuredOutput: true,
+    vision: false,
+  },
   customHeadersText: '{}',
   model: '',
   name: '',
@@ -120,6 +126,7 @@ function parseCustomHeaders(text: string): Record<string, string> {
 }
 
 export function AiProviderWorkspace() {
+  const { t } = useI18n()
   const providerState = useAiProviders()
   const [deletePending, setDeletePending] = useState(false)
   const [form, setForm] = useState<FormState>(emptyForm)
@@ -169,7 +176,7 @@ export function AiProviderWorkspace() {
       capabilities: { ...preset.capabilities },
       customHeadersText: '{}',
       model: preset.model,
-      name: preset.name,
+      name: t(preset.name),
       protocol: preset.protocol,
       timeoutSeconds: preset.timeoutSeconds,
     })
@@ -196,12 +203,12 @@ export function AiProviderWorkspace() {
     try {
       customHeaders = parseCustomHeaders(form.customHeadersText)
     } catch (error) {
-      setFormError(error instanceof Error ? error.message : '自定义请求头格式无效。')
+      setFormError(error instanceof Error ? t(error.message) : t('自定义请求头格式无效。'))
       return
     }
     const timeoutMs = Math.round(Number(form.timeoutSeconds) * 1000)
     if (!Number.isFinite(timeoutMs)) {
-      setFormError('超时时间必须是数字。')
+      setFormError(t('超时时间必须是数字。'))
       return
     }
     const request: CreateAiProviderRequest = {
@@ -223,7 +230,7 @@ export function AiProviderWorkspace() {
       setSelectedId(saved.id)
       setForm(profileToForm(saved))
       setIsCreating(false)
-      setSuccess(isCreating ? 'Provider 已安全保存。' : 'Provider 配置已更新。')
+      setSuccess(t(isCreating ? 'Provider 已安全保存。' : 'Provider 配置已更新。'))
     }
   }
 
@@ -231,7 +238,13 @@ export function AiProviderWorkspace() {
     if (!selectedProfile) return
     setSuccess(null)
     const result = await providerState.testConnection(selectedProfile.id)
-    if (result) setSuccess(`${result.message} 延迟 ${result.latencyMs} ms。`)
+    if (result)
+      setSuccess(
+        t('{message} 延迟 {latency} ms。', {
+          latency: result.latencyMs,
+          message: t(result.message),
+        }),
+      )
   }
 
   const deleteProfile = async () => {
@@ -245,7 +258,7 @@ export function AiProviderWorkspace() {
       <main className="grid h-full min-h-0 place-items-center">
         <div className="text-center">
           <LoaderCircle className="mx-auto size-6 animate-spin text-primary" />
-          <p className="mt-3 text-sm font-medium">正在读取 AI Provider…</p>
+          <p className="mt-3 text-sm font-medium">{t('正在读取 AI Provider…')}</p>
         </div>
       </main>
     )
@@ -259,16 +272,18 @@ export function AiProviderWorkspace() {
         </span>
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-[15px] font-semibold tracking-tight">AI 设置</h1>
-            <Badge tone="accent">{providerState.profiles.length} 个配置</Badge>
+            <h1 className="text-[15px] font-semibold tracking-tight">{t('AI 设置')}</h1>
+            <Badge tone="accent">
+              {providerState.profiles.length} {t('个配置')}
+            </Badge>
           </div>
           <p className="mt-0.5 text-[11px] text-muted-foreground">
-            只负责供应商、密钥、模型能力与任务路由；不会在此执行 AI 管理任务
+            {t('只负责供应商、密钥、模型能力与任务路由；不会在此执行 AI 管理任务')}
           </p>
         </div>
         <Button className="ml-auto" onClick={startCreating} size="compact" type="button">
           <Plus className="size-3.5" />
-          添加 Provider
+          {t('添加 Provider')}
         </Button>
       </header>
 
@@ -276,7 +291,7 @@ export function AiProviderWorkspace() {
         <aside className="min-h-0 overflow-y-auto border-r border-border bg-sidebar/75 p-3">
           <div className="mb-3 flex items-center justify-between px-1">
             <span className="text-[10px] font-semibold uppercase tracking-[0.11em] text-muted-foreground">
-              Provider 配置
+              {t('Provider 配置')}
             </span>
             <span className="rounded-md bg-panel px-1.5 py-0.5 text-[9px] font-semibold text-muted-foreground ring-1 ring-border">
               {providerState.profiles.length}
@@ -286,9 +301,9 @@ export function AiProviderWorkspace() {
             <div className="grid min-h-52 place-items-center rounded-xl border border-dashed border-border bg-panel/50 p-5 text-center">
               <div>
                 <Bot className="mx-auto size-7 text-muted-foreground" />
-                <p className="mt-3 text-sm font-medium">还没有 AI Provider</p>
+                <p className="mt-3 text-sm font-medium">{t('还没有 AI Provider')}</p>
                 <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                  可先配置云端服务或本机 Ollama。
+                  {t('可先配置云端服务或本机 Ollama。')}
                 </p>
               </div>
             </div>
@@ -343,20 +358,20 @@ export function AiProviderWorkspace() {
               />
               <div className="relative">
                 <p className="text-xs font-medium text-primary">
-                  {isCreating ? '新配置' : '配置详情'}
+                  {t(isCreating ? '新配置' : '配置详情')}
                 </p>
                 <h2 className="mt-1 text-xl font-semibold tracking-tight">
-                  {isCreating ? '连接一个 AI 服务' : selectedProfile?.name}
+                  {isCreating ? t('连接一个 AI 服务') : selectedProfile?.name}
                 </h2>
                 <p className="mt-1 max-w-2xl text-xs leading-5 text-muted-foreground">
-                  Provider 只声明连接方式与能力。题目分析和文件管理将在任务路由确认后使用它。
+                  {t('Provider 只声明连接方式与能力。题目分析和文件管理将在任务路由确认后使用它。')}
                 </p>
               </div>
               {!isCreating && selectedProfile && (
                 <div className="relative flex items-center gap-2">
                   <Badge tone={selectedProfile.hasSecret ? 'success' : 'neutral'}>
                     <KeyRound className="size-3" />
-                    {selectedProfile.hasSecret ? '密钥已保存' : '无密钥'}
+                    {t(selectedProfile.hasSecret ? '密钥已保存' : '无密钥')}
                   </Badge>
                   <Button
                     disabled={providerState.isBusy}
@@ -366,7 +381,7 @@ export function AiProviderWorkspace() {
                     variant="outline"
                   >
                     <Wifi className="size-3.5" />
-                    测试连接
+                    {t('测试连接')}
                   </Button>
                 </div>
               )}
@@ -387,9 +402,9 @@ export function AiProviderWorkspace() {
                 ) : (
                   <AlertTriangle className="mt-0.5 size-4 shrink-0" />
                 )}
-                <span>{success ?? formError ?? providerState.error}</span>
+                <span>{t(success ?? formError ?? providerState.error ?? '')}</span>
                 <button
-                  aria-label="关闭 AI 提示"
+                  aria-label={t('关闭 AI 提示')}
                   className="ml-auto rounded p-0.5 hover:bg-muted"
                   onClick={() => {
                     setSuccess(null)
@@ -404,15 +419,15 @@ export function AiProviderWorkspace() {
             )}
 
             {isCreating && (
-              <section aria-label="供应商快捷预设" className="mt-6">
+              <section aria-label={t('供应商快捷预设')} className="mt-6">
                 <div className="flex flex-wrap items-end justify-between gap-2">
                   <div>
-                    <h3 className="text-sm font-semibold">供应商快捷预设</h3>
+                    <h3 className="text-sm font-semibold">{t('供应商快捷预设')}</h3>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      自动填写官方兼容协议和推荐模型，保存前仍可修改。
+                      {t('自动填写官方兼容协议和推荐模型，保存前仍可修改。')}
                     </p>
                   </div>
-                  <Badge tone="neutral">API Key 仍由你填写</Badge>
+                  <Badge tone="neutral">{t('API Key 仍由你填写')}</Badge>
                 </div>
                 <div className="mt-3 grid gap-3 md:grid-cols-2">
                   {providerPresets.map(preset => {
@@ -420,7 +435,7 @@ export function AiProviderWorkspace() {
                     const Icon = preset.id === 'deepseek' ? Zap : Cloud
                     return (
                       <button
-                        aria-label={`使用 ${preset.name} 预设`}
+                        aria-label={`${t('使用预设')} ${t(preset.name)}`}
                         aria-pressed={selected}
                         className={cn(
                           'interactive-lift group rounded-2xl border p-4 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring',
@@ -445,11 +460,11 @@ export function AiProviderWorkspace() {
                           </span>
                           <span className="min-w-0">
                             <span className="flex items-center gap-2 text-sm font-semibold">
-                              {preset.name}
+                              {t(preset.name)}
                               {selected && <CheckCircle2 className="size-3.5 text-primary" />}
                             </span>
                             <span className="mt-1 block text-xs leading-5 text-muted-foreground">
-                              {preset.description}
+                              {t(preset.description)}
                             </span>
                             <span className="mt-2 block font-mono text-[11px] text-primary">
                               {preset.model}
@@ -465,21 +480,21 @@ export function AiProviderWorkspace() {
 
             <div className="mt-6 grid gap-5 rounded-2xl border border-border bg-panel p-5 shadow-panel md:grid-cols-2">
               <label className="grid gap-1.5 text-xs font-medium">
-                显示名称
+                {t('显示名称')}
                 <input
-                  aria-label="Provider 显示名称"
+                  aria-label={t('Provider 显示名称')}
                   className="h-10 rounded-xl border border-input bg-background px-3 text-sm outline-none transition-colors focus:border-primary/40 focus:ring-2 focus:ring-ring"
                   maxLength={80}
                   onChange={event => setForm(current => ({ ...current, name: event.target.value }))}
-                  placeholder="例如：我的 OpenAI"
+                  placeholder={t('例如：我的 OpenAI')}
                   required
                   value={form.name}
                 />
               </label>
               <label className="grid gap-1.5 text-xs font-medium">
-                协议
+                {t('协议')}
                 <select
-                  aria-label="Provider 协议"
+                  aria-label={t('Provider 协议')}
                   className="h-10 rounded-xl border border-input bg-background px-3 text-sm outline-none transition-colors focus:border-primary/40 focus:ring-2 focus:ring-ring"
                   onChange={event => {
                     const protocol = event.target.value as AiProviderProtocol
@@ -515,33 +530,33 @@ export function AiProviderWorkspace() {
                 />
                 <span className="font-normal text-muted-foreground">
                   {selectedPresetId === 'aliyun-bailian'
-                    ? '将 <WorkspaceId> 替换为百炼工作空间 ID；其他地域请使用控制台给出的兼容端点。'
-                    : '云端服务必须使用 HTTPS；Ollama 可连接 localhost。'}
+                    ? t('已填入阿里云北京区域兼容端点；如控制台配置不同，请按实际端点调整。')
+                    : t('云端服务必须使用 HTTPS；Ollama 可连接 localhost。')}
                 </span>
               </label>
               <label className="grid gap-1.5 text-xs font-medium">
-                模型名称
+                {t('模型名称')}
                 <input
-                  aria-label="模型名称"
+                  aria-label={t('模型名称')}
                   className="h-10 rounded-xl border border-input bg-background px-3 font-mono text-xs outline-none transition-colors focus:border-primary/40 focus:ring-2 focus:ring-ring"
                   maxLength={160}
                   onChange={event =>
                     setForm(current => ({ ...current, model: event.target.value }))
                   }
-                  placeholder="精确填写服务商模型 ID"
+                  placeholder={t('精确填写服务商模型 ID')}
                   required
                   value={form.model}
                 />
                 {selectedPresetId && (
                   <span className="font-normal text-muted-foreground">
-                    {getProviderPreset(selectedPresetId).modelHint}
+                    {t(getProviderPreset(selectedPresetId).modelHint)}
                   </span>
                 )}
               </label>
               <label className="grid gap-1.5 text-xs font-medium">
-                超时时间（秒）
+                {t('超时时间（秒）')}
                 <input
-                  aria-label="超时时间"
+                  aria-label={t('超时时间')}
                   className="h-10 rounded-xl border border-input bg-background px-3 text-sm outline-none transition-colors focus:border-primary/40 focus:ring-2 focus:ring-ring"
                   max="120"
                   min="3"
@@ -554,7 +569,7 @@ export function AiProviderWorkspace() {
                 />
               </label>
               <label className="grid gap-1.5 text-xs font-medium md:col-span-2">
-                API Key {selectedProfile?.hasSecret && '（留空则保留现有密钥）'}
+                API Key {selectedProfile?.hasSecret && t('（留空则保留现有密钥）')}
                 <input
                   aria-label="API Key"
                   autoComplete="off"
@@ -564,8 +579,8 @@ export function AiProviderWorkspace() {
                   }
                   placeholder={
                     form.protocol === 'ollama-chat'
-                      ? '本机 Ollama 通常无需填写'
-                      : '仅写入系统安全存储'
+                      ? t('本机 Ollama 通常无需填写')
+                      : t('仅写入系统安全存储')
                   }
                   type="password"
                   value={form.apiKey}
@@ -575,15 +590,16 @@ export function AiProviderWorkspace() {
 
             <div className="mt-5 grid gap-5 lg:grid-cols-2">
               <section className="rounded-2xl border border-border bg-panel p-5 shadow-panel">
-                <h3 className="text-sm font-semibold">模型能力</h3>
+                <h3 className="text-sm font-semibold">{t('模型能力')}</h3>
                 <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                  按实际模型能力声明，任务路由会在调用前检查。
+                  {t('按实际模型能力声明，任务路由会在调用前检查。')}
                 </p>
                 <div className="mt-4 space-y-3">
                   {(
                     [
                       ['vision', '视觉输入'],
                       ['structuredOutput', '结构化输出'],
+                      ['promptCaching', 'Prompt 缓存'],
                       ['streaming', '流式输出'],
                     ] as const
                   ).map(([key, label]) => (
@@ -594,19 +610,19 @@ export function AiProviderWorkspace() {
                         onChange={event => updateCapability(key, event.target.checked)}
                         type="checkbox"
                       />
-                      {label}
+                      {t(label)}
                     </label>
                   ))}
                 </div>
               </section>
 
               <section className="rounded-2xl border border-border bg-panel p-5 shadow-panel">
-                <h3 className="text-sm font-semibold">自定义请求头</h3>
+                <h3 className="text-sm font-semibold">{t('自定义请求头')}</h3>
                 <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                  使用 JSON 对象；鉴权与传输敏感头由应用管理，不能覆盖。
+                  {t('使用 JSON 对象；鉴权与传输敏感头由应用管理，不能覆盖。')}
                 </p>
                 <textarea
-                  aria-label="自定义请求头"
+                  aria-label={t('自定义请求头')}
                   className="mt-3 min-h-28 w-full resize-y rounded-xl border border-input bg-background p-3 font-mono text-xs outline-none transition-colors focus:border-primary/40 focus:ring-2 focus:ring-ring"
                   onChange={event =>
                     setForm(current => ({ ...current, customHeadersText: event.target.value }))
@@ -619,9 +635,9 @@ export function AiProviderWorkspace() {
 
             {!isCreating && selectedProfile && (
               <section className="mt-5 rounded-2xl border border-primary/15 bg-panel p-5 shadow-panel">
-                <h3 className="text-sm font-semibold">任务路由</h3>
+                <h3 className="text-sm font-semibold">{t('任务路由')}</h3>
                 <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                  将工作台任务指向此 Provider；题图分析只接受视觉模型。
+                  {t('工作台任务指向此 Provider；题图分析只接受视觉模型。')}
                 </p>
                 <div className="mt-4 grid gap-3 md:grid-cols-3">
                   {taskOptions.map(task => {
@@ -649,9 +665,9 @@ export function AiProviderWorkspace() {
                         }
                         type="button"
                       >
-                        <span className="block text-xs font-medium">{task.label}</span>
+                        <span className="block text-xs font-medium">{t(task.label)}</span>
                         <span className="mt-1 block text-[11px] text-muted-foreground">
-                          {active ? '当前路由' : disabled ? '需要视觉能力' : '设为当前路由'}
+                          {t(active ? '当前路由' : disabled ? '需要视觉能力' : '设为当前路由')}
                         </span>
                       </button>
                     )
@@ -663,17 +679,17 @@ export function AiProviderWorkspace() {
             <div className="mt-6 flex flex-wrap items-center gap-2">
               <Button disabled={providerState.isBusy} type="submit">
                 {providerState.isBusy && <LoaderCircle className="size-4 animate-spin" />}
-                {isCreating ? '保存 Provider' : '保存更改'}
+                {t(isCreating ? '保存 Provider' : '保存更改')}
               </Button>
               <span className="text-[11px] text-muted-foreground">
-                当前协议：{protocolLabel(form.protocol)}
+                {t('当前协议')}：{protocolLabel(form.protocol)}
               </span>
               {!isCreating && selectedProfile && (
                 <div className="ml-auto flex items-center gap-2">
                   {deletePending ? (
                     <>
                       <span className="text-xs text-red-600 dark:text-red-300">
-                        删除后任务路由也会移除
+                        {t('删除后任务路由也会移除')}
                       </span>
                       <Button
                         disabled={providerState.isBusy}
@@ -683,7 +699,7 @@ export function AiProviderWorkspace() {
                         className="border-red-500/30 text-red-600 hover:bg-red-500/10 dark:text-red-300"
                         variant="outline"
                       >
-                        确认删除
+                        {t('确认删除')}
                       </Button>
                       <Button
                         onClick={() => setDeletePending(false)}
@@ -691,7 +707,7 @@ export function AiProviderWorkspace() {
                         type="button"
                         variant="ghost"
                       >
-                        取消
+                        {t('取消')}
                       </Button>
                     </>
                   ) : (
@@ -702,7 +718,7 @@ export function AiProviderWorkspace() {
                       variant="ghost"
                     >
                       <Trash2 className="size-3.5" />
-                      删除配置
+                      {t('删除配置')}
                     </Button>
                   )}
                 </div>
