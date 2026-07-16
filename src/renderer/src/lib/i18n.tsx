@@ -200,6 +200,8 @@ const english: Record<string, string> = {
 Object.assign(english, {
   数据管理: 'Data Management',
   '只读诊断、可验证导出和恢复预览': 'Read-only diagnostics, verifiable export, and restore preview',
+  '只读诊断、可验证备份恢复与安全治理':
+    'Read-only diagnostics, verifiable backup and restore, and safe lifecycle management',
   重新诊断: 'Diagnose again',
   '数据操作未完成。': 'The data operation did not finish.',
   一致性诊断: 'Consistency diagnostics',
@@ -1007,6 +1009,99 @@ Object.assign(english, {
   题面证据: 'Statement evidence',
   解释: 'Explanation',
   未提取: 'Not extracted',
+})
+
+Object.assign(english, {
+  备份生命周期: 'Backup lifecycle',
+  '保留策略只生成建议，不会后台删除。确认后的项目只移入应用隔离区，并可撤销。':
+    'Retention only produces recommendations and never deletes in the background. Confirmed items move to the app quarantine and can be undone.',
+  备份保留策略: 'Backup retention policy',
+  永久保留: 'Keep forever',
+  '保留 7 天': 'Keep for 7 days',
+  '保留 30 天': 'Keep for 30 days',
+  '保留 90 天': 'Keep for 90 days',
+  受管数据占用: 'Managed storage',
+  可隔离占用: 'Eligible for quarantine',
+  异常中断残留: 'Interrupted-operation residue',
+  可撤销隔离操作: 'Undoable quarantine operations',
+  '占用数值以字节计：受管 {managed}，可隔离 {eligible}。':
+    'Storage values: {managed} managed, {eligible} eligible for quarantine.',
+  恢复预备份: 'Restore preflight backups',
+  文件计划备份: 'File-plan backups',
+  批量导入备份: 'Batch-import backups',
+  题目图片残留区: 'Problem-image residue',
+  数据隔离区: 'Data quarantine',
+  '{count} 项 · {bytes}': '{count} items · {bytes}',
+  发现异常中断残留: 'Interrupted-operation residue found',
+  '这些目录可能包含恢复前原始数据，当前只报告并保护，不会从清理入口移动。':
+    'These directories may contain original pre-restore data. They are reported and protected, and cannot be moved by cleanup.',
+  逐项治理清单: 'Itemized lifecycle list',
+  '受保护项目不可选择；需要判断的项目必须由你主动勾选。':
+    'Protected items cannot be selected. Review items require your explicit selection.',
+  选择全部可隔离项: 'Select all eligible items',
+  题目图片残留: 'Problem-image residue',
+  '仍用于撤销文件计划，必须保留': 'Required to undo an applied file plan',
+  '批量导入备份，需要你判断': 'Batch-import backup requiring your review',
+  '预备份校验未通过，需要你判断': 'Preflight backup failed verification and needs review',
+  '最新有效预备份，必须保留': 'Newest valid preflight backup; protected',
+  无当前记录的题目图片残留: 'Problem-image residue without a current record',
+  已超过所选保留期: 'Older than the selected retention window',
+  当前策略为永久保留: 'Current policy keeps backups forever',
+  '文件计划已经回滚，可建议隔离': 'The file plan was rolled back; quarantine is recommended',
+  '包含符号链接，禁止处理': 'Contains a symbolic link and cannot be processed',
+  '没有对应执行记录，需要你判断': 'No matching execution record; review required',
+  仍在所选保留期内: 'Still within the selected retention window',
+  '选择治理项目 {id}': 'Select lifecycle item {id}',
+  受保护: 'Protected',
+  建议隔离: 'Quarantine suggested',
+  需要判断: 'Review required',
+  '清单超过 100 项；本次仅显示前 100 项，请分批处理。':
+    'The list exceeds 100 items. Only the first 100 are shown; process them in batches.',
+  '当前没有受管备份或异常残留。': 'No managed backups or operation residue found.',
+  '正在生成预览…': 'Preparing preview...',
+  预览隔离操作: 'Preview quarantine',
+  隔离预览可继续: 'Quarantine preview can continue',
+  隔离预览已阻止: 'Quarantine preview is blocked',
+  '将移动 {count} 项、共 {bytes}；不会永久删除，可从隔离区撤销。':
+    'Move {count} items totaling {bytes}. Nothing is permanently deleted, and the operation can be undone.',
+  '候选已变化或包含受保护项目，请重新诊断。':
+    'Candidates changed or include protected items. Diagnose again.',
+  '我已核对清单，并允许应用把所选项目移入隔离区。':
+    'I reviewed the list and allow the app to move the selected items into quarantine.',
+  确认移入隔离区: 'Confirm quarantine',
+  '所选项目已移入隔离区，可以撤销；没有永久删除文件。':
+    'Selected items moved into quarantine and can be undone. No files were permanently deleted.',
+  '已从隔离区恢复 {count} 项；未覆盖任何后续文件。':
+    'Restored {count} items from quarantine without overwriting later files.',
+  撤销隔离: 'Undo quarantine',
+  '正在读取备份生命周期…': 'Reading backup lifecycle...',
+  '清理候选已变化或包含受保护项目，请重新预览。':
+    'Cleanup candidates changed or include protected items. Preview again.',
+  '清理候选已变化，请重新诊断和预览。': 'Cleanup candidates changed. Diagnose and preview again.',
+  '清理候选在确认后发生变化，操作已取消。':
+    'A cleanup candidate changed after confirmation. The operation was cancelled.',
+  '模拟清理失败，已回滚到操作前状态。':
+    'Simulated cleanup failure. All items were rolled back to their original locations.',
+  '清理失败且自动回滚未完成，请在数据管理页检查异常残留。':
+    'Cleanup failed and automatic rollback did not finish. Inspect operation residue in Data Management.',
+  '隔离已完成，但清单刷新失败，请重新诊断。':
+    'Quarantine completed, but the list could not refresh. Diagnose again.',
+  '清理失败，已回滚到操作前状态。':
+    'Cleanup failed. All items were rolled back to their original locations.',
+  '隔离记录不存在、已变化或当前无法撤销。':
+    'The quarantine record is missing, changed, or cannot currently be undone.',
+  '原位置已有新文件，撤销已取消以避免覆盖。':
+    'A new item occupies the original location. Undo was cancelled to avoid overwriting it.',
+  '隔离内容已变化，撤销已取消。': 'Quarantined content changed. Undo was cancelled.',
+  '模拟撤销失败，已回滚到隔离状态。': 'Simulated undo failure. Items were returned to quarantine.',
+  '撤销失败且自动回滚未完成，请在数据管理页检查异常残留。':
+    'Undo failed and automatic rollback did not finish. Inspect operation residue in Data Management.',
+  '撤销失败，项目仍保留在隔离区。': 'Undo failed. Items remain in quarantine.',
+  '隔离记录不在允许的数据目录内。':
+    'The quarantine record is outside the allowed data directories.',
+  '隔离记录路径无效。': 'The quarantine record path is invalid.',
+  '隔离目标路径无效。': 'The quarantine destination path is invalid.',
+  '隔离目标已存在，请重新诊断。': 'The quarantine destination exists. Diagnose again.',
 })
 
 const englishPatterns: Array<{

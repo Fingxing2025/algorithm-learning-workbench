@@ -2,12 +2,20 @@ import type { RuntimeInfo } from './runtime'
 import type { AiRequestPreview } from './ai-request'
 import type {
   BackupExportResult,
+  BackupLifecycleInventory,
+  BackupLifecycleRequest,
   BackupVerification,
+  CleanupPreview,
+  CleanupPreviewRequest,
   DataDiagnostics,
   ExportBackupRequest,
+  QuarantineCleanupRequest,
+  QuarantineCleanupResult,
   RestoreBackupRequest,
   RestoreBackupResult,
   RestorePreview,
+  UndoCleanupRequest,
+  UndoCleanupResult,
 } from './data-management'
 import type {
   AiConnectionResult,
@@ -85,8 +93,12 @@ export interface DesktopApi {
   dataManagement: {
     diagnose: () => Promise<DataDiagnostics>
     exportBackup: (request: ExportBackupRequest) => Promise<BackupExportResult | null>
+    inspectBackupLifecycle: (request: BackupLifecycleRequest) => Promise<BackupLifecycleInventory>
+    previewCleanup: (request: CleanupPreviewRequest) => Promise<CleanupPreview>
     previewRestore: () => Promise<RestorePreview | null>
+    quarantineCleanup: (request: QuarantineCleanupRequest) => Promise<QuarantineCleanupResult>
     restoreBackup: (request: RestoreBackupRequest) => Promise<RestoreBackupResult>
+    undoCleanup: (request: UndoCleanupRequest) => Promise<UndoCleanupResult>
     verifyBackup: () => Promise<BackupVerification | null>
   }
   problems: {

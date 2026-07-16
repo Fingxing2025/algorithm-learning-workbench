@@ -38,8 +38,14 @@ const desktopApi: DesktopApi = {
   dataManagement: {
     diagnose: () => invokeResult(IPC_CHANNELS.dataManagement.diagnose),
     exportBackup: request => invokeResult(IPC_CHANNELS.dataManagement.exportBackup, request),
+    inspectBackupLifecycle: request =>
+      invokeResult(IPC_CHANNELS.dataManagement.inspectBackupLifecycle, request),
+    previewCleanup: request => invokeResult(IPC_CHANNELS.dataManagement.previewCleanup, request),
     previewRestore: () => invokeResult(IPC_CHANNELS.dataManagement.previewRestore),
+    quarantineCleanup: request =>
+      invokeResult(IPC_CHANNELS.dataManagement.quarantineCleanup, request),
     restoreBackup: request => invokeResult(IPC_CHANNELS.dataManagement.restoreBackup, request),
+    undoCleanup: request => invokeResult(IPC_CHANNELS.dataManagement.undoCleanup, request),
     verifyBackup: () => invokeResult(IPC_CHANNELS.dataManagement.verifyBackup),
   },
   problems: {

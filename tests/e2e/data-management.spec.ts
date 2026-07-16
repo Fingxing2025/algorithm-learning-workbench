@@ -149,6 +149,16 @@ test('exports and verifies a blank user data backup, then rejects tampering', as
     fullPage: true,
     path: resolve('output/playwright/data-management-dark-1440x900.png'),
   })
+  await electronApp.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0]?.setSize(1280, 720),
+  )
+  await page.screenshot({
+    fullPage: true,
+    path: resolve('output/playwright/data-management-dark-1280x720.png'),
+  })
+  await electronApp.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0]?.setSize(1440, 900),
+  )
   await page.locator('html').evaluate(root => root.classList.remove('dark'))
 
   const backupPath = join(temporaryRoot, 'blank-export.awb-backup')
@@ -241,6 +251,7 @@ test('restores a verified backup with a preflight backup and skips external temp
   await setNextSelection(populatedBackupPath)
   await page.getByRole('button', { name: '恢复预览' }).click()
   await expect(page.getByText('恢复预览可继续')).toBeVisible()
+  await page.getByText('恢复预览可继续').scrollIntoViewIfNeeded()
   await page.screenshot({
     fullPage: true,
     path: resolve('output/playwright/data-management-restore-light-1440x900.png'),
@@ -260,6 +271,16 @@ test('restores a verified backup with a preflight backup and skips external temp
     fullPage: true,
     path: resolve('output/playwright/data-management-restore-dark-1440x900.png'),
   })
+  await electronApp.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0]?.setSize(1280, 720),
+  )
+  await page.screenshot({
+    fullPage: true,
+    path: resolve('output/playwright/data-management-restore-dark-1280x720.png'),
+  })
+  await electronApp.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0]?.setSize(1440, 900),
+  )
   await page.locator('html').evaluate(root => root.classList.remove('dark'))
 
   await page.getByLabel('我已确认恢复预览，并允许应用恢复 userData 中的数据副本。').check()
@@ -296,6 +317,67 @@ test('restores a verified backup with a preflight backup and skips external temp
   expect(blankDiagnostics.counts.problems).toBe(0)
   expect(blankDiagnostics.counts.templates).toBe(0)
   expect(blankDiagnostics.counts.aiProviderProfiles).toBe(0)
+})
+
+test('previews, quarantines, and undoes user-selected lifecycle items', async () => {
+  const batchBackup = join(userDataDirectory, 'batch-import-backups', 'lifecycle-review')
+  const imageTrash = join(userDataDirectory, 'problem-images', '.trash', 'lifecycle-residual')
+  await mkdir(batchBackup, { recursive: true })
+  await mkdir(imageTrash, { recursive: true })
+  await writeFile(join(batchBackup, 'backup.bin'), 'lifecycle backup fixture')
+  await writeFile(join(imageTrash, 'residual.bin'), 'lifecycle trash fixture')
+
+  await page.getByRole('button', { name: '数据管理' }).click()
+  await page.getByRole('button', { name: '重新诊断' }).click()
+  await expect(page.getByRole('heading', { name: '备份生命周期' })).toBeVisible()
+  await expect(page.getByText('批量导入备份，需要你判断')).toBeVisible()
+  await expect(page.getByText('无当前记录的题目图片残留')).toBeVisible()
+  await page.getByRole('heading', { name: '备份生命周期' }).scrollIntoViewIfNeeded()
+
+  await electronApp.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0]?.setSize(1440, 900),
+  )
+  await page.screenshot({
+    fullPage: true,
+    path: resolve('output/playwright/data-management-lifecycle-light-1440x900.png'),
+  })
+  await electronApp.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0]?.setSize(1280, 720),
+  )
+  await page.screenshot({
+    fullPage: true,
+    path: resolve('output/playwright/data-management-lifecycle-light-1280x720.png'),
+  })
+  await page.locator('html').evaluate(root => root.classList.add('dark'))
+  await page.screenshot({
+    fullPage: true,
+    path: resolve('output/playwright/data-management-lifecycle-dark-1280x720.png'),
+  })
+  await electronApp.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0]?.setSize(1440, 900),
+  )
+  await page.screenshot({
+    fullPage: true,
+    path: resolve('output/playwright/data-management-lifecycle-dark-1440x900.png'),
+  })
+  await page.locator('html').evaluate(root => root.classList.remove('dark'))
+
+  await page.getByRole('button', { name: '选择全部可隔离项' }).click()
+  await page.getByRole('button', { name: '预览隔离操作' }).click()
+  await expect(page.getByText('隔离预览可继续')).toBeVisible()
+  await expect(page.getByText(/将移动 2 项/)).toBeVisible()
+  await page.getByLabel('我已核对清单，并允许应用把所选项目移入隔离区。').check()
+  await page.getByRole('button', { name: '确认移入隔离区' }).click()
+  await expect(page.getByRole('alert')).toContainText('没有永久删除文件')
+  await expect(stat(batchBackup)).rejects.toThrow()
+  await expect(stat(imageTrash)).rejects.toThrow()
+  const quarantineOperations = await readdir(join(userDataDirectory, 'data-management-quarantine'))
+  expect(quarantineOperations).toHaveLength(1)
+
+  await page.getByRole('button', { name: '撤销隔离' }).click()
+  await expect(page.getByRole('alert')).toContainText('已从隔离区恢复 2 项')
+  await expect(stat(batchBackup)).resolves.toBeTruthy()
+  await expect(stat(imageTrash)).resolves.toBeTruthy()
 })
 
 test('rolls back current data when restore fails after file swap', async () => {
@@ -340,4 +422,31 @@ test('rolls back current data when restore fails after file swap', async () => {
   expect(await readFile(join(workspacePath, 'rollback-template.cpp'), 'utf8')).toBe(
     'void rollback_fixture() {}\n',
   )
+})
+
+test('rolls back every lifecycle item when quarantine fails after the first move', async () => {
+  await electronApp.close()
+  userDataDirectory = join(temporaryRoot, 'cleanup-rollback-user-data')
+  const first = join(userDataDirectory, 'batch-import-backups', 'first')
+  const second = join(userDataDirectory, 'batch-import-backups', 'second')
+  await mkdir(first, { recursive: true })
+  await mkdir(second, { recursive: true })
+  await writeFile(join(first, 'backup.bin'), 'first cleanup fixture')
+  await writeFile(join(second, 'backup.bin'), 'second cleanup fixture')
+  await launchApplication({ E2E_CLEANUP_FAIL_AFTER_MOVES: '1' })
+  await page.getByRole('button', { name: '数据管理' }).click()
+  await expect(page.getByText('批量导入备份，需要你判断')).toHaveCount(2)
+
+  await page.getByRole('button', { name: '选择全部可隔离项' }).click()
+  await page.getByRole('button', { name: '预览隔离操作' }).click()
+  await page.getByLabel('我已核对清单，并允许应用把所选项目移入隔离区。').check()
+  await page.getByRole('button', { name: '确认移入隔离区' }).click()
+  await expect(page.getByRole('alert')).toContainText('模拟清理失败，已回滚到操作前状态')
+  await expect(stat(first)).resolves.toBeTruthy()
+  await expect(stat(second)).resolves.toBeTruthy()
+  const inventory = await page.evaluate(() =>
+    window.desktop.dataManagement.inspectBackupLifecycle({ retentionPolicy: 'forever' }),
+  )
+  expect(inventory.quarantineOperations).toHaveLength(0)
+  expect(inventory.interruptedOperationCount).toBe(0)
 })

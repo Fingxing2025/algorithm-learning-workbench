@@ -2,12 +2,20 @@ import { z } from 'zod'
 
 import {
   backupExportResultSchema,
+  backupLifecycleInventorySchema,
+  backupLifecycleRequestSchema,
   backupVerificationSchema,
+  cleanupPreviewRequestSchema,
+  cleanupPreviewSchema,
   dataDiagnosticsSchema,
   exportBackupRequestSchema,
   restoreBackupRequestSchema,
   restoreBackupResultSchema,
   restorePreviewSchema,
+  quarantineCleanupRequestSchema,
+  quarantineCleanupResultSchema,
+  undoCleanupRequestSchema,
+  undoCleanupResultSchema,
 } from '@core/contracts/data-management'
 import { IPC_CHANNELS } from '@core/ipc/channels'
 
@@ -37,15 +45,39 @@ export function registerDataManagementIpc(
     outputSchema: backupVerificationSchema.nullable(),
   })
   registerValidatedHandler({
+    channel: IPC_CHANNELS.dataManagement.inspectBackupLifecycle,
+    handler: request => service.inspectBackupLifecycle(request),
+    inputSchema: backupLifecycleRequestSchema,
+    outputSchema: backupLifecycleInventorySchema,
+  })
+  registerValidatedHandler({
+    channel: IPC_CHANNELS.dataManagement.previewCleanup,
+    handler: request => service.previewCleanup(request),
+    inputSchema: cleanupPreviewRequestSchema,
+    outputSchema: cleanupPreviewSchema,
+  })
+  registerValidatedHandler({
     channel: IPC_CHANNELS.dataManagement.previewRestore,
     handler: () => service.previewRestore(getParentWindow()),
     inputSchema: z.void(),
     outputSchema: restorePreviewSchema.nullable(),
   })
   registerValidatedHandler({
+    channel: IPC_CHANNELS.dataManagement.quarantineCleanup,
+    handler: request => service.quarantineCleanup(request),
+    inputSchema: quarantineCleanupRequestSchema,
+    outputSchema: quarantineCleanupResultSchema,
+  })
+  registerValidatedHandler({
     channel: IPC_CHANNELS.dataManagement.restoreBackup,
     handler: request => service.restoreBackup(request),
     inputSchema: restoreBackupRequestSchema,
     outputSchema: restoreBackupResultSchema,
+  })
+  registerValidatedHandler({
+    channel: IPC_CHANNELS.dataManagement.undoCleanup,
+    handler: request => service.undoCleanup(request),
+    inputSchema: undoCleanupRequestSchema,
+    outputSchema: undoCleanupResultSchema,
   })
 }

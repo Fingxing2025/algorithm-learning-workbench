@@ -1,18 +1,24 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   Archive,
+  ArchiveRestore,
   CheckCircle2,
   Database,
   Download,
+  HardDrive,
   LoaderCircle,
   RotateCcw,
   ShieldCheck,
   TriangleAlert,
+  Undo2,
 } from 'lucide-react'
 
 import type {
   BackupExportResult,
+  BackupLifecycleInventory,
+  BackupRetentionPolicy,
   BackupVerification,
+  CleanupPreview,
   DataDiagnostics,
   RestoreBackupResult,
   RestorePreview,
@@ -22,7 +28,16 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useI18n } from '@/lib/i18n'
 
-type Operation = 'diagnose' | 'export' | 'preview' | 'restore' | 'verify'
+type Operation =
+  | 'cleanup-preview'
+  | 'diagnose'
+  | 'export'
+  | 'lifecycle'
+  | 'quarantine'
+  | 'preview'
+  | 'restore'
+  | 'undo-cleanup'
+  | 'verify'
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
@@ -30,7 +45,7 @@ function formatBytes(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(1)} MiB`
 }
 
-function CountTile({ label, value }: { label: string; value: number }) {
+function CountTile({ label, value }: { label: string; value: number | string }) {
   return (
     <div className="rounded-xl border border-border bg-panel/70 p-3">
       <p className="text-[11px] text-muted-foreground">{label}</p>
@@ -40,8 +55,13 @@ function CountTile({ label, value }: { label: string; value: number }) {
 }
 
 export function DataManagementWorkspace() {
-  const { t } = useI18n()
+  const { locale, t } = useI18n()
   const [diagnostics, setDiagnostics] = useState<DataDiagnostics | null>(null)
+  const [lifecycle, setLifecycle] = useState<BackupLifecycleInventory | null>(null)
+  const [retentionPolicy, setRetentionPolicy] = useState<BackupRetentionPolicy>('forever')
+  const [selectedCandidateIds, setSelectedCandidateIds] = useState<string[]>([])
+  const [cleanupPreview, setCleanupPreview] = useState<CleanupPreview | null>(null)
+  const [confirmQuarantine, setConfirmQuarantine] = useState(false)
   const [exportResult, setExportResult] = useState<BackupExportResult | null>(null)
   const [verification, setVerification] = useState<BackupVerification | null>(null)
   const [restorePreview, setRestorePreview] = useState<RestorePreview | null>(null)
@@ -57,7 +77,7 @@ export function DataManagementWorkspace() {
     try {
       await task()
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : t('数据操作未完成。'))
+      setMessage(error instanceof Error ? t(error.message) : t('数据操作未完成。'))
     } finally {
       setOperation(null)
     }
@@ -65,7 +85,26 @@ export function DataManagementWorkspace() {
 
   const refreshDiagnostics = async () => {
     await run('diagnose', async () => {
-      setDiagnostics(await window.desktop.dataManagement.diagnose())
+      const [nextDiagnostics, nextLifecycle] = await Promise.all([
+        window.desktop.dataManagement.diagnose(),
+        window.desktop.dataManagement.inspectBackupLifecycle({ retentionPolicy }),
+      ])
+      setDiagnostics(nextDiagnostics)
+      setLifecycle(nextLifecycle)
+      setSelectedCandidateIds(current =>
+        current.filter(id => nextLifecycle.candidates.some(candidate => candidate.id === id)),
+      )
+    })
+  }
+
+  const refreshLifecycle = async (policy: BackupRetentionPolicy) => {
+    await run('lifecycle', async () => {
+      setLifecycle(
+        await window.desktop.dataManagement.inspectBackupLifecycle({ retentionPolicy: policy }),
+      )
+      setSelectedCandidateIds([])
+      setCleanupPreview(null)
+      setConfirmQuarantine(false)
     })
   }
 
@@ -83,6 +122,70 @@ export function DataManagementWorkspace() {
   const restorePackagePath = restorePreview?.verification.packagePath ?? null
   const canExecuteRestore =
     Boolean(restorePackagePath) && Boolean(restorePreview?.canRestore) && confirmRestore
+  const selectedCandidates =
+    lifecycle?.candidates.filter(candidate => selectedCandidateIds.includes(candidate.id)) ?? []
+  const canPreviewCleanup = selectedCandidates.length > 0 && operation === null
+
+  const lifecycleAreaLabel = (key: BackupLifecycleInventory['areas'][number]['key']) => {
+    switch (key) {
+      case 'restore-preflight-backups':
+        return t('恢复预备份')
+      case 'file-plan-backups':
+        return t('文件计划备份')
+      case 'batch-import-backups':
+        return t('批量导入备份')
+      case 'problem-image-trash':
+        return t('题目图片残留区')
+      case 'data-management-quarantine':
+        return t('数据隔离区')
+      case 'interrupted-operations':
+        return t('异常中断残留')
+    }
+  }
+
+  const candidateCategoryLabel = (
+    category: BackupLifecycleInventory['candidates'][number]['category'],
+  ) => {
+    switch (category) {
+      case 'restore-preflight-backup':
+        return t('恢复预备份')
+      case 'file-plan-backup':
+        return t('文件计划备份')
+      case 'batch-import-backup':
+        return t('批量导入备份')
+      case 'problem-image-trash':
+        return t('题目图片残留')
+    }
+  }
+
+  const candidateReasonLabel = (
+    reason: BackupLifecycleInventory['candidates'][number]['reason'],
+  ) => {
+    switch (reason) {
+      case 'applied-file-execution':
+        return t('仍用于撤销文件计划，必须保留')
+      case 'batch-import-without-record':
+        return t('批量导入备份，需要你判断')
+      case 'invalid-preflight-backup':
+        return t('预备份校验未通过，需要你判断')
+      case 'latest-valid-preflight':
+        return t('最新有效预备份，必须保留')
+      case 'residual-image-trash':
+        return t('无当前记录的题目图片残留')
+      case 'retention-expired':
+        return t('已超过所选保留期')
+      case 'retention-policy-forever':
+        return t('当前策略为永久保留')
+      case 'rolled-back-file-execution':
+        return t('文件计划已经回滚，可建议隔离')
+      case 'symlink-detected':
+        return t('包含符号链接，禁止处理')
+      case 'unrecorded-file-plan-backup':
+        return t('没有对应执行记录，需要你判断')
+      case 'within-retention-window':
+        return t('仍在所选保留期内')
+    }
+  }
 
   return (
     <main className="workspace-stage flex h-full min-h-0 flex-col overflow-hidden">
@@ -93,7 +196,7 @@ export function DataManagementWorkspace() {
         <div className="min-w-0">
           <h1 className="truncate text-[15px] font-semibold tracking-tight">{t('数据管理')}</h1>
           <p className="mt-0.5 text-[11px] text-muted-foreground">
-            {t('只读诊断、可验证导出和恢复预览')}
+            {t('只读诊断、可验证备份恢复与安全治理')}
           </p>
         </div>
         <div className="ml-auto flex items-center gap-2">
@@ -219,6 +322,316 @@ export function DataManagementWorkspace() {
                     </p>
                   ))}
                 </div>
+              </div>
+            )}
+          </section>
+
+          <section
+            className="content-card rounded-2xl border border-border p-5 shadow-panel"
+            data-testid="backup-lifecycle"
+          >
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-semibold">{t('备份生命周期')}</h2>
+                <p className="mt-1 max-w-2xl text-xs leading-5 text-muted-foreground">
+                  {t('保留策略只生成建议，不会后台删除。确认后的项目只移入应用隔离区，并可撤销。')}
+                </p>
+              </div>
+              <label className="grid gap-1 text-xs text-muted-foreground">
+                <span>{t('备份保留策略')}</span>
+                <select
+                  aria-label={t('备份保留策略')}
+                  className="h-9 rounded-lg border border-border bg-background px-3 text-xs text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  disabled={operation !== null}
+                  onChange={event => {
+                    const policy = event.currentTarget.value as BackupRetentionPolicy
+                    setRetentionPolicy(policy)
+                    void refreshLifecycle(policy)
+                  }}
+                  value={retentionPolicy}
+                >
+                  <option value="forever">{t('永久保留')}</option>
+                  <option value="7-days">{t('保留 7 天')}</option>
+                  <option value="30-days">{t('保留 30 天')}</option>
+                  <option value="90-days">{t('保留 90 天')}</option>
+                </select>
+              </label>
+            </div>
+
+            {lifecycle ? (
+              <>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <CountTile
+                    label={t('受管数据占用')}
+                    value={formatBytes(lifecycle.totalManagedBytes)}
+                  />
+                  <CountTile
+                    label={t('可隔离占用')}
+                    value={formatBytes(lifecycle.quarantinableBytes)}
+                  />
+                  <CountTile
+                    label={t('异常中断残留')}
+                    value={lifecycle.interruptedOperationCount}
+                  />
+                  <CountTile
+                    label={t('可撤销隔离操作')}
+                    value={lifecycle.quarantineOperations.filter(item => item.canUndo).length}
+                  />
+                </div>
+                <p className="mt-2 text-[11px] text-muted-foreground">
+                  {t('占用数值以字节计：受管 {managed}，可隔离 {eligible}。', {
+                    eligible: formatBytes(lifecycle.quarantinableBytes),
+                    managed: formatBytes(lifecycle.totalManagedBytes),
+                  })}
+                </p>
+
+                <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                  {lifecycle.areas.map(area => (
+                    <div className="rounded-xl border border-border bg-muted/25 p-3" key={area.key}>
+                      <p className="text-xs font-medium">{lifecycleAreaLabel(area.key)}</p>
+                      <p className="mt-1 text-[11px] text-muted-foreground">
+                        {t('{count} 项 · {bytes}', {
+                          bytes: formatBytes(area.bytes),
+                          count: area.itemCount,
+                        })}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+
+                {lifecycle.interruptedOperationCount > 0 && (
+                  <div className="mt-4 rounded-xl border border-warning/25 bg-warning/8 p-4 text-xs">
+                    <p className="flex items-center gap-2 font-semibold text-warning">
+                      <TriangleAlert aria-hidden="true" className="size-4" />
+                      {t('发现异常中断残留')}
+                    </p>
+                    <p className="mt-2 leading-5 text-muted-foreground">
+                      {t('这些目录可能包含恢复前原始数据，当前只报告并保护，不会从清理入口移动。')}
+                    </p>
+                  </div>
+                )}
+
+                <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-xs font-semibold">{t('逐项治理清单')}</h3>
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      {t('受保护项目不可选择；需要判断的项目必须由你主动勾选。')}
+                    </p>
+                  </div>
+                  <Button
+                    disabled={
+                      operation !== null ||
+                      !lifecycle.candidates.some(candidate => candidate.canQuarantine)
+                    }
+                    onClick={() => {
+                      setSelectedCandidateIds(
+                        lifecycle.candidates
+                          .filter(candidate => candidate.canQuarantine)
+                          .slice(0, 100)
+                          .map(candidate => candidate.id),
+                      )
+                      setCleanupPreview(null)
+                      setConfirmQuarantine(false)
+                    }}
+                    size="compact"
+                    type="button"
+                    variant="outline"
+                  >
+                    {t('选择全部可隔离项')}
+                  </Button>
+                </div>
+
+                {lifecycle.candidates.length > 0 ? (
+                  <div className="mt-3 grid gap-2">
+                    {lifecycle.candidates.slice(0, 100).map(candidate => (
+                      <label
+                        className="flex items-start gap-3 rounded-xl border border-border bg-panel/55 p-3"
+                        data-cleanup-candidate={candidate.id.slice(0, 8)}
+                        key={candidate.id}
+                      >
+                        <input
+                          aria-label={t('选择治理项目 {id}', { id: candidate.id.slice(0, 8) })}
+                          checked={selectedCandidateIds.includes(candidate.id)}
+                          className="mt-0.5 size-4 accent-[hsl(var(--primary))]"
+                          disabled={!candidate.canQuarantine || operation !== null}
+                          onChange={event => {
+                            setSelectedCandidateIds(current =>
+                              event.currentTarget.checked
+                                ? [...current, candidate.id]
+                                : current.filter(id => id !== candidate.id),
+                            )
+                            setCleanupPreview(null)
+                            setConfirmQuarantine(false)
+                          }}
+                          type="checkbox"
+                        />
+                        <span className="min-w-0 flex-1">
+                          <span className="flex flex-wrap items-center gap-2 text-xs font-medium">
+                            {candidateCategoryLabel(candidate.category)}
+                            <Badge
+                              tone={
+                                candidate.disposition === 'protected'
+                                  ? 'neutral'
+                                  : candidate.disposition === 'suggested'
+                                    ? 'success'
+                                    : 'warning'
+                              }
+                            >
+                              {candidate.disposition === 'protected'
+                                ? t('受保护')
+                                : candidate.disposition === 'suggested'
+                                  ? t('建议隔离')
+                                  : t('需要判断')}
+                            </Badge>
+                          </span>
+                          <span className="mt-1 block text-[11px] leading-5 text-muted-foreground">
+                            {candidateReasonLabel(candidate.reason)} ·{' '}
+                            {formatBytes(candidate.bytes)} ·{' '}
+                            {new Date(candidate.createdAt).toLocaleString(locale)} · #
+                            {candidate.id.slice(0, 8)}
+                          </span>
+                        </span>
+                      </label>
+                    ))}
+                    {lifecycle.candidates.length > 100 && (
+                      <p className="text-[11px] text-warning">
+                        {t('清单超过 100 项；本次仅显示前 100 项，请分批处理。')}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="mt-3 rounded-xl border border-dashed border-border p-4 text-xs text-muted-foreground">
+                    {t('当前没有受管备份或异常残留。')}
+                  </div>
+                )}
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Button
+                    disabled={!canPreviewCleanup}
+                    onClick={() =>
+                      void run('cleanup-preview', async () => {
+                        const preview = await window.desktop.dataManagement.previewCleanup({
+                          candidateIds: selectedCandidateIds,
+                          retentionPolicy,
+                        })
+                        setCleanupPreview(preview)
+                        setConfirmQuarantine(false)
+                      })
+                    }
+                    type="button"
+                    variant="outline"
+                  >
+                    <HardDrive aria-hidden="true" className="size-4" />
+                    {operation === 'cleanup-preview' ? t('正在生成预览…') : t('预览隔离操作')}
+                  </Button>
+                </div>
+
+                {cleanupPreview && (
+                  <div className="mt-4 rounded-xl border border-warning/25 bg-warning/8 p-4 text-xs">
+                    <p className="font-semibold text-warning">
+                      {cleanupPreview.canExecute ? t('隔离预览可继续') : t('隔离预览已阻止')}
+                    </p>
+                    <p className="mt-2 leading-5 text-muted-foreground">
+                      {t('将移动 {count} 项、共 {bytes}；不会永久删除，可从隔离区撤销。', {
+                        bytes: formatBytes(cleanupPreview.totalBytes),
+                        count: cleanupPreview.candidates.length,
+                      })}
+                    </p>
+                    {cleanupPreview.errors.length > 0 && (
+                      <p className="mt-2 text-warning">
+                        {t('候选已变化或包含受保护项目，请重新诊断。')}
+                      </p>
+                    )}
+                    {cleanupPreview.canExecute && (
+                      <>
+                        <label className="mt-3 flex items-start gap-2 text-muted-foreground">
+                          <input
+                            checked={confirmQuarantine}
+                            className="mt-0.5 size-4 accent-[hsl(var(--warning))]"
+                            onChange={event => setConfirmQuarantine(event.currentTarget.checked)}
+                            type="checkbox"
+                          />
+                          <span>{t('我已核对清单，并允许应用把所选项目移入隔离区。')}</span>
+                        </label>
+                        <Button
+                          className="mt-3"
+                          disabled={operation !== null || !confirmQuarantine}
+                          onClick={() =>
+                            void run('quarantine', async () => {
+                              const result = await window.desktop.dataManagement.quarantineCleanup({
+                                candidateIds: selectedCandidateIds,
+                                confirmQuarantine: true,
+                                retentionPolicy,
+                              })
+                              setLifecycle(result.inventory)
+                              setDiagnostics(await window.desktop.dataManagement.diagnose())
+                              setSelectedCandidateIds([])
+                              setCleanupPreview(null)
+                              setConfirmQuarantine(false)
+                              setMessage(t('所选项目已移入隔离区，可以撤销；没有永久删除文件。'))
+                            })
+                          }
+                          type="button"
+                        >
+                          {operation === 'quarantine' ? (
+                            <LoaderCircle aria-hidden="true" className="size-4 animate-spin" />
+                          ) : (
+                            <ArchiveRestore aria-hidden="true" className="size-4" />
+                          )}
+                          {t('确认移入隔离区')}
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                )}
+
+                {lifecycle.quarantineOperations.length > 0 && (
+                  <div className="mt-5 rounded-xl border border-border bg-muted/25 p-4">
+                    <h3 className="text-xs font-semibold">{t('可撤销隔离操作')}</h3>
+                    <div className="mt-3 grid gap-2">
+                      {lifecycle.quarantineOperations.map(item => (
+                        <div
+                          className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-background/60 p-3 text-xs"
+                          key={item.id}
+                        >
+                          <p className="text-muted-foreground">
+                            {new Date(item.createdAt).toLocaleString(locale)} · {item.itemCount}{' '}
+                            {t('项')} · {formatBytes(item.bytes)} · #{item.id.slice(0, 8)}
+                          </p>
+                          <Button
+                            disabled={!item.canUndo || operation !== null}
+                            onClick={() =>
+                              void run('undo-cleanup', async () => {
+                                const result = await window.desktop.dataManagement.undoCleanup({
+                                  confirmUndo: true,
+                                  operationId: item.id,
+                                  retentionPolicy,
+                                })
+                                setLifecycle(result.inventory)
+                                setDiagnostics(await window.desktop.dataManagement.diagnose())
+                                setMessage(
+                                  t('已从隔离区恢复 {count} 项；未覆盖任何后续文件。', {
+                                    count: result.restoredCount,
+                                  }),
+                                )
+                              })
+                            }
+                            size="compact"
+                            type="button"
+                            variant="outline"
+                          >
+                            <Undo2 aria-hidden="true" className="size-3.5" />
+                            {t('撤销隔离')}
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
+                <LoaderCircle className="size-4 animate-spin" /> {t('正在读取备份生命周期…')}
               </div>
             )}
           </section>

@@ -23,6 +23,10 @@ import {
   type BackupFileEntry,
   type BackupManifest,
   type BackupVerification,
+  type BackupLifecycleInventory,
+  type BackupLifecycleRequest,
+  type CleanupPreview,
+  type CleanupPreviewRequest,
   type DataDiagnostics,
   type DataIntegrityIssue,
   type DataManagementCounts,
@@ -31,6 +35,10 @@ import {
   type RestoreBackupRequest,
   type RestoreBackupResult,
   type RestorePreview,
+  type QuarantineCleanupRequest,
+  type QuarantineCleanupResult,
+  type UndoCleanupRequest,
+  type UndoCleanupResult,
 } from '@core/contracts/data-management'
 
 import packageJson from '../../../package.json'
@@ -41,6 +49,7 @@ import {
   resolveAuthorizedFile,
   resolveAuthorizedRoot,
 } from '../security/path-guard'
+import { DataLifecycleService } from './data-lifecycle-service'
 
 const DATABASE_FILE = 'algorithm-workbench.sqlite'
 const BACKUP_EXTENSION = '.awb-backup'
@@ -97,10 +106,16 @@ const zeroCounts: DataManagementCounts = {
 }
 
 export class DataManagementService {
+  private readonly lifecycleService: DataLifecycleService
+
   constructor(
     private readonly database: AppDatabase,
     private readonly userDataPath: string,
-  ) {}
+  ) {
+    this.lifecycleService = new DataLifecycleService(database, userDataPath, packagePath =>
+      this.verifyBackupPath(packagePath),
+    )
+  }
 
   async diagnose(): Promise<DataDiagnostics> {
     const counts = await this.collectCounts()
@@ -227,6 +242,22 @@ export class DataManagementService {
       if (error instanceof PublicError) throw error
       throw new PublicError('UNKNOWN', '恢复失败，当前数据已回滚到操作前状态。')
     }
+  }
+
+  inspectBackupLifecycle(request: BackupLifecycleRequest): Promise<BackupLifecycleInventory> {
+    return this.lifecycleService.inspect(request)
+  }
+
+  previewCleanup(request: CleanupPreviewRequest): Promise<CleanupPreview> {
+    return this.lifecycleService.preview(request)
+  }
+
+  quarantineCleanup(request: QuarantineCleanupRequest): Promise<QuarantineCleanupResult> {
+    return this.lifecycleService.quarantine(request)
+  }
+
+  undoCleanup(request: UndoCleanupRequest): Promise<UndoCleanupResult> {
+    return this.lifecycleService.undo(request)
   }
 
   private exportDialogOptions(): Electron.SaveDialogOptions {
@@ -548,7 +579,10 @@ export class DataManagementService {
     const imageRoot = join(this.userDataPath, 'problem-images')
     const files = await this.listRelativeFiles(imageRoot)
     const orphanCount = files.filter(
-      path => !path.includes('/.trash/') && !recordPaths.has(`problem-images/${path}`),
+      path =>
+        !path.startsWith('.trash/') &&
+        !path.includes('/.trash/') &&
+        !recordPaths.has(`problem-images/${path}`),
     ).length
     if (orphanCount > 0) {
       issues.push({ count: orphanCount, kind: 'orphan-image-file', severity: 'warning' })
@@ -562,13 +596,24 @@ export class DataManagementService {
 
   private async inspectBackupDirectories(): Promise<DataIntegrityIssue[]> {
     const issues: DataIntegrityIssue[] = []
-    const recorded = new Set(
-      (
-        this.database.client
-          .prepare('SELECT backup_directory AS backupDirectory FROM file_change_executions')
-          .all() as Array<{ backupDirectory: string }>
-      ).map(row => row.backupDirectory),
-    )
+    const executionRecords = this.database.client
+      .prepare('SELECT backup_directory AS backupDirectory, status FROM file_change_executions')
+      .all() as Array<{ backupDirectory: string; status: string }>
+    const recorded = new Set(executionRecords.map(row => row.backupDirectory))
+    const missingAppliedBackups = executionRecords.filter(row => {
+      if (row.status !== 'applied') return false
+      const backupPath = resolve(this.userDataPath, row.backupDirectory)
+      return (
+        !isPathInsideRoot(this.userDataPath, backupPath) || !this.fileExistsOrDirectory(backupPath)
+      )
+    }).length
+    if (missingAppliedBackups > 0) {
+      issues.push({
+        count: missingAppliedBackups,
+        kind: 'file-execution-backup-missing',
+        severity: 'error',
+      })
+    }
     const filePlanBackups = await this.listDirectoryNames(
       join(this.userDataPath, 'file-plan-backups'),
     )
@@ -618,6 +663,10 @@ export class DataManagementService {
       {
         key: 'batch-import-backups',
         bytes: await this.pathSize(join(this.userDataPath, 'batch-import-backups')),
+      },
+      {
+        key: 'data-management-quarantine',
+        bytes: await this.pathSize(join(this.userDataPath, 'data-management-quarantine')),
       },
       {
         key: 'restore-preflight-backups',
@@ -845,6 +894,15 @@ export class DataManagementService {
   private fileExists(path: string): boolean {
     try {
       return statSync(path).isFile()
+    } catch {
+      return false
+    }
+  }
+
+  private fileExistsOrDirectory(path: string): boolean {
+    try {
+      const stats = statSync(path)
+      return stats.isFile() || stats.isDirectory()
     } catch {
       return false
     }

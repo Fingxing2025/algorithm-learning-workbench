@@ -29,6 +29,7 @@ export const dataIntegrityIssueSchema = z
       'database-foreign-key',
       'database-quick-check',
       'file-plan-backup-without-record',
+      'file-execution-backup-missing',
       'image-file-missing',
       'image-record-orphaned',
       'orphan-image-file',
@@ -46,6 +47,7 @@ export const dataStorageAreaSchema = z
     key: z.enum([
       'batch-import-backups',
       'database',
+      'data-management-quarantine',
       'electron-cache',
       'file-plan-backups',
       'problem-images',
@@ -168,3 +170,173 @@ export const restoreBackupResultSchema = z
   })
   .strict()
 export type RestoreBackupResult = z.infer<typeof restoreBackupResultSchema>
+
+export const backupRetentionPolicySchema = z.enum(['forever', '7-days', '30-days', '90-days'])
+export type BackupRetentionPolicy = z.infer<typeof backupRetentionPolicySchema>
+
+export const backupLifecycleRequestSchema = z
+  .object({ retentionPolicy: backupRetentionPolicySchema })
+  .strict()
+export type BackupLifecycleRequest = z.infer<typeof backupLifecycleRequestSchema>
+
+export const cleanupCandidateCategorySchema = z.enum([
+  'batch-import-backup',
+  'file-plan-backup',
+  'problem-image-trash',
+  'restore-preflight-backup',
+])
+export type CleanupCandidateCategory = z.infer<typeof cleanupCandidateCategorySchema>
+
+export const cleanupCandidateReasonSchema = z.enum([
+  'applied-file-execution',
+  'batch-import-without-record',
+  'invalid-preflight-backup',
+  'latest-valid-preflight',
+  'residual-image-trash',
+  'retention-expired',
+  'retention-policy-forever',
+  'rolled-back-file-execution',
+  'symlink-detected',
+  'unrecorded-file-plan-backup',
+  'within-retention-window',
+])
+export type CleanupCandidateReason = z.infer<typeof cleanupCandidateReasonSchema>
+
+export const cleanupCandidateSchema = z
+  .object({
+    bytes: z.number().int().nonnegative(),
+    canQuarantine: z.boolean(),
+    category: cleanupCandidateCategorySchema,
+    createdAt: z.string().datetime(),
+    disposition: z.enum(['protected', 'review', 'suggested']),
+    id: z.string().regex(/^[a-f0-9]{64}$/),
+    reason: cleanupCandidateReasonSchema,
+    verificationOk: z.boolean().nullable(),
+  })
+  .strict()
+export type CleanupCandidate = z.infer<typeof cleanupCandidateSchema>
+
+export const backupLifecycleAreaSchema = z
+  .object({
+    bytes: z.number().int().nonnegative(),
+    itemCount: z.number().int().nonnegative(),
+    key: z.enum([
+      'batch-import-backups',
+      'data-management-quarantine',
+      'file-plan-backups',
+      'interrupted-operations',
+      'problem-image-trash',
+      'restore-preflight-backups',
+    ]),
+    quarantinableBytes: z.number().int().nonnegative(),
+    quarantinableCount: z.number().int().nonnegative(),
+  })
+  .strict()
+export type BackupLifecycleArea = z.infer<typeof backupLifecycleAreaSchema>
+
+export const cleanupQuarantineOperationSchema = z
+  .object({
+    bytes: z.number().int().nonnegative(),
+    canUndo: z.boolean(),
+    createdAt: z.string().datetime(),
+    id: z.string().uuid(),
+    itemCount: z.number().int().positive(),
+  })
+  .strict()
+export type CleanupQuarantineOperation = z.infer<typeof cleanupQuarantineOperationSchema>
+
+export const backupLifecycleInventorySchema = z
+  .object({
+    areas: z.array(backupLifecycleAreaSchema).max(10),
+    candidates: z.array(cleanupCandidateSchema).max(2_000),
+    checkedAt: z.string().datetime(),
+    interruptedOperationCount: z.number().int().nonnegative(),
+    quarantineOperations: z.array(cleanupQuarantineOperationSchema).max(100),
+    quarantinableBytes: z.number().int().nonnegative(),
+    retentionPolicy: backupRetentionPolicySchema,
+    schemaVersion: z.literal(1),
+    totalManagedBytes: z.number().int().nonnegative(),
+  })
+  .strict()
+export type BackupLifecycleInventory = z.infer<typeof backupLifecycleInventorySchema>
+
+export const cleanupPreviewRequestSchema = z
+  .object({
+    candidateIds: z
+      .array(z.string().regex(/^[a-f0-9]{64}$/))
+      .min(1)
+      .max(100),
+    retentionPolicy: backupRetentionPolicySchema,
+  })
+  .strict()
+export type CleanupPreviewRequest = z.infer<typeof cleanupPreviewRequestSchema>
+
+export const cleanupPreviewSchema = z
+  .object({
+    canExecute: z.boolean(),
+    candidates: z.array(cleanupCandidateSchema).max(100),
+    checkedAt: z.string().datetime(),
+    errors: z
+      .array(z.enum(['candidate-changed', 'candidate-not-found', 'candidate-protected']))
+      .max(100),
+    totalBytes: z.number().int().nonnegative(),
+  })
+  .strict()
+export type CleanupPreview = z.infer<typeof cleanupPreviewSchema>
+
+export const quarantineCleanupRequestSchema = cleanupPreviewRequestSchema
+  .extend({ confirmQuarantine: z.literal(true) })
+  .strict()
+export type QuarantineCleanupRequest = z.infer<typeof quarantineCleanupRequestSchema>
+
+export const quarantineCleanupResultSchema = z
+  .object({
+    inventory: backupLifecycleInventorySchema,
+    operation: cleanupQuarantineOperationSchema,
+    quarantinedCount: z.number().int().positive(),
+  })
+  .strict()
+export type QuarantineCleanupResult = z.infer<typeof quarantineCleanupResultSchema>
+
+export const undoCleanupRequestSchema = z
+  .object({
+    confirmUndo: z.literal(true),
+    operationId: z.string().uuid(),
+    retentionPolicy: backupRetentionPolicySchema,
+  })
+  .strict()
+export type UndoCleanupRequest = z.infer<typeof undoCleanupRequestSchema>
+
+export const undoCleanupResultSchema = z
+  .object({
+    inventory: backupLifecycleInventorySchema,
+    operationId: z.string().uuid(),
+    restoredBytes: z.number().int().nonnegative(),
+    restoredCount: z.number().int().positive(),
+  })
+  .strict()
+export type UndoCleanupResult = z.infer<typeof undoCleanupResultSchema>
+
+export const cleanupQuarantineManifestSchema = z
+  .object({
+    completed: z.literal(true),
+    createdAt: z.string().datetime(),
+    formatVersion: z.literal('v1'),
+    items: z
+      .array(
+        z
+          .object({
+            bytes: z.number().int().nonnegative(),
+            candidateId: z.string().regex(/^[a-f0-9]{64}$/),
+            category: cleanupCandidateCategorySchema,
+            fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+            originalRelativePath: z.string().min(1).max(4096),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(100),
+    operationId: z.string().uuid(),
+  })
+  .strict()
+export type CleanupQuarantineManifest = z.infer<typeof cleanupQuarantineManifestSchema>
