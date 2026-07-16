@@ -5,6 +5,8 @@ import type {
   BackupVerification,
   DataDiagnostics,
   ExportBackupRequest,
+  RestoreBackupRequest,
+  RestoreBackupResult,
   RestorePreview,
 } from './data-management'
 import type {
@@ -84,6 +86,7 @@ export interface DesktopApi {
     diagnose: () => Promise<DataDiagnostics>
     exportBackup: (request: ExportBackupRequest) => Promise<BackupExportResult | null>
     previewRestore: () => Promise<RestorePreview | null>
+    restoreBackup: (request: RestoreBackupRequest) => Promise<RestoreBackupResult>
     verifyBackup: () => Promise<BackupVerification | null>
   }
   problems: {

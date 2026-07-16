@@ -5,6 +5,8 @@ import {
   backupVerificationSchema,
   dataDiagnosticsSchema,
   exportBackupRequestSchema,
+  restoreBackupRequestSchema,
+  restoreBackupResultSchema,
   restorePreviewSchema,
 } from '@core/contracts/data-management'
 import { IPC_CHANNELS } from '@core/ipc/channels'
@@ -39,5 +41,11 @@ export function registerDataManagementIpc(
     handler: () => service.previewRestore(getParentWindow()),
     inputSchema: z.void(),
     outputSchema: restorePreviewSchema.nullable(),
+  })
+  registerValidatedHandler({
+    channel: IPC_CHANNELS.dataManagement.restoreBackup,
+    handler: request => service.restoreBackup(request),
+    inputSchema: restoreBackupRequestSchema,
+    outputSchema: restoreBackupResultSchema,
   })
 }

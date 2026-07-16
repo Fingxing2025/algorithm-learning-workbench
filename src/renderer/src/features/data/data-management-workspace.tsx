@@ -14,6 +14,7 @@ import type {
   BackupExportResult,
   BackupVerification,
   DataDiagnostics,
+  RestoreBackupResult,
   RestorePreview,
 } from '@core/contracts/data-management'
 
@@ -21,7 +22,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useI18n } from '@/lib/i18n'
 
-type Operation = 'diagnose' | 'export' | 'preview' | 'verify'
+type Operation = 'diagnose' | 'export' | 'preview' | 'restore' | 'verify'
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
@@ -44,7 +45,9 @@ export function DataManagementWorkspace() {
   const [exportResult, setExportResult] = useState<BackupExportResult | null>(null)
   const [verification, setVerification] = useState<BackupVerification | null>(null)
   const [restorePreview, setRestorePreview] = useState<RestorePreview | null>(null)
+  const [restoreResult, setRestoreResult] = useState<RestoreBackupResult | null>(null)
   const [includeTemplateSources, setIncludeTemplateSources] = useState(false)
+  const [confirmRestore, setConfirmRestore] = useState(false)
   const [operation, setOperation] = useState<Operation | null>(null)
   const [message, setMessage] = useState<string | null>(null)
 
@@ -77,6 +80,9 @@ export function DataManagementWorkspace() {
     () => diagnostics?.storage.find(area => area.key === 'user-data-total')?.bytes ?? 0,
     [diagnostics],
   )
+  const restorePackagePath = restorePreview?.verification.packagePath ?? null
+  const canExecuteRestore =
+    Boolean(restorePackagePath) && Boolean(restorePreview?.canRestore) && confirmRestore
 
   return (
     <main className="workspace-stage flex h-full min-h-0 flex-col overflow-hidden">
@@ -274,7 +280,10 @@ export function DataManagementWorkspace() {
                 disabled={operation !== null}
                 onClick={() =>
                   void run('preview', async () => {
-                    setRestorePreview(await window.desktop.dataManagement.previewRestore())
+                    const preview = await window.desktop.dataManagement.previewRestore()
+                    setRestorePreview(preview)
+                    setRestoreResult(null)
+                    setConfirmRestore(false)
                   })
                 }
                 type="button"
@@ -333,6 +342,71 @@ export function DataManagementWorkspace() {
                     ))}
                   </div>
                 )}
+                {restorePreview.canRestore && (
+                  <div className="mt-4 rounded-xl border border-warning/25 bg-warning/8 p-3">
+                    <p className="font-semibold text-warning">{t('恢复执行确认')}</p>
+                    <p className="mt-2 leading-5 text-muted-foreground">
+                      {t(
+                        '恢复前会自动备份当前数据；本版本会跳过模板源码恢复，不会修改外部模板工作区。',
+                      )}
+                    </p>
+                    <label className="mt-3 flex items-start gap-2 text-muted-foreground">
+                      <input
+                        checked={confirmRestore}
+                        className="mt-0.5 size-4 accent-[hsl(var(--warning))]"
+                        onChange={event => setConfirmRestore(event.currentTarget.checked)}
+                        type="checkbox"
+                      />
+                      <span>{t('我已确认恢复预览，并允许应用恢复 userData 中的数据副本。')}</span>
+                    </label>
+                    <Button
+                      className="mt-3"
+                      disabled={operation !== null || !canExecuteRestore}
+                      onClick={() =>
+                        void run('restore', async () => {
+                          if (!restorePackagePath) return
+                          const result = await window.desktop.dataManagement.restoreBackup({
+                            confirmRestore: true,
+                            packagePath: restorePackagePath,
+                            templateSourceStrategy: 'skip',
+                          })
+                          setRestoreResult(result)
+                          setDiagnostics(await window.desktop.dataManagement.diagnose())
+                          setMessage(
+                            result.providerSecretsNeedReentry
+                              ? t('恢复完成。Provider 密钥未恢复，请重新配置密钥。')
+                              : t('恢复完成。恢复前自动备份已保存。'),
+                          )
+                          setConfirmRestore(false)
+                        })
+                      }
+                      type="button"
+                    >
+                      {operation === 'restore' ? (
+                        <LoaderCircle aria-hidden="true" className="size-4 animate-spin" />
+                      ) : (
+                        <RotateCcw aria-hidden="true" className="size-4" />
+                      )}
+                      {t('确认恢复')}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {restoreResult && (
+              <div className="mt-4 rounded-xl border border-success/25 bg-success/8 p-4 text-xs">
+                <p className="font-semibold text-success">{t('恢复完成')}</p>
+                <p className="mt-2 text-muted-foreground">
+                  {t('题目')}: {restoreResult.restoredCounts.problems} · {t('模板')}:{' '}
+                  {restoreResult.restoredCounts.templates} · {t('Provider 配置')}:{' '}
+                  {restoreResult.restoredCounts.aiProviderProfiles}
+                </p>
+                {restoreResult.skippedTemplateSources && (
+                  <p className="mt-2 text-muted-foreground">
+                    {t('备份包包含模板源码副本；本次已按策略跳过。')}
+                  </p>
+                )}
               </div>
             )}
           </section>
@@ -340,7 +414,9 @@ export function DataManagementWorkspace() {
           <section className="rounded-2xl border border-border bg-panel/70 p-5 text-xs leading-5 text-muted-foreground">
             <div className="flex items-start gap-3">
               <Archive aria-hidden="true" className="mt-0.5 size-4 text-primary" />
-              <p>{t('当前版本只开放恢复预览；执行恢复会在导出校验和失败回滚测试稳定后开放。')}</p>
+              <p>
+                {t('恢复执行只处理应用 userData 数据；模板源码默认跳过，外部工作区不会被修改。')}
+              </p>
             </div>
           </section>
         </div>

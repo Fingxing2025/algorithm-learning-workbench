@@ -15,6 +15,7 @@ export const IPC_CHANNELS = {
     diagnose: 'data-management:diagnose',
     exportBackup: 'data-management:export-backup',
     previewRestore: 'data-management:preview-restore',
+    restoreBackup: 'data-management:restore-backup',
     verifyBackup: 'data-management:verify-backup',
   },
   problems: {

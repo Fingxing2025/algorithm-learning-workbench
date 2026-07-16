@@ -28,6 +28,8 @@ import {
   type DataManagementCounts,
   type DataStorageArea,
   type ExportBackupRequest,
+  type RestoreBackupRequest,
+  type RestoreBackupResult,
   type RestorePreview,
 } from '@core/contracts/data-management'
 
@@ -48,8 +50,35 @@ const COMPLETED_PATH = 'COMPLETED'
 const DATA_DIRECTORY = 'data'
 const SQLITE_SNAPSHOT_PATH = 'data/sqlite/algorithm-workbench.sqlite'
 const MAX_MANIFEST_BYTES = 8 * 1024 * 1024
+const RESTORABLE_USER_DATA_DIRECTORIES = [
+  'problem-images',
+  'file-plan-backups',
+  'batch-import-backups',
+] as const
+const RESTORE_TABLES = [
+  'app_migrations',
+  'app_state',
+  'workspaces',
+  'templates',
+  'template_metadata',
+  'problems',
+  'problem_images',
+  'template_problem_relations',
+  'ai_provider_profiles',
+  'ai_task_routes',
+  'file_change_plans',
+  'file_change_executions',
+] as const
 
 type CountKey = keyof DataManagementCounts
+type RestorableUserDataDirectory = (typeof RESTORABLE_USER_DATA_DIRECTORIES)[number]
+
+interface DirectorySwap {
+  directoryName: RestorableUserDataDirectory
+  originalPath: string
+  restoredPath: string
+  targetPath: string
+}
 
 const zeroCounts: DataManagementCounts = {
   aiProviderProfiles: 0,
@@ -149,9 +178,6 @@ export class DataManagementService {
     if (verification.manifest?.formatVersion !== 'v1') {
       conflicts.push('备份包版本不兼容。')
     }
-    if (verification.manifest?.includeTemplateSources) {
-      conflicts.push('备份包含模板源码，恢复前必须选择跳过、新目录或确认覆盖策略。')
-    }
     const currentCounts = await this.collectCounts()
     return {
       canRestore: conflicts.length === 0 && verification.ok,
@@ -159,6 +185,47 @@ export class DataManagementService {
       currentCounts,
       manifest: verification.manifest,
       verification,
+    }
+  }
+
+  async restoreBackup(request: RestoreBackupRequest): Promise<RestoreBackupResult> {
+    const backupPath = resolve(request.packagePath)
+    const verification = await this.verifyBackupPath(backupPath)
+    if (!verification.ok || !verification.manifest) {
+      throw new PublicError('INVALID_REQUEST', '备份包校验未通过，禁止恢复。')
+    }
+    if (verification.manifest.formatVersion !== 'v1') {
+      throw new PublicError('INVALID_REQUEST', '备份包版本不兼容，无法恢复。')
+    }
+    if (request.templateSourceStrategy !== 'skip') {
+      throw new PublicError('INVALID_REQUEST', '当前版本只支持跳过模板源码恢复。')
+    }
+
+    const preflightBackupPath = await this.createPreflightBackup()
+    const restoreId = randomUUID()
+    const stagingRoot = join(this.userDataPath, `.restore-${restoreId}.tmp`)
+    const swaps: DirectorySwap[] = []
+    try {
+      await mkdir(stagingRoot, { recursive: false })
+      await this.prepareRestoredDirectories(backupPath, stagingRoot)
+      await this.applyRestoredDirectories(stagingRoot, swaps)
+      if (process.env.E2E_RESTORE_FAIL_STAGE === 'after-file-swap') {
+        throw new PublicError('UNKNOWN', '模拟恢复失败，已回滚到操作前状态。')
+      }
+      await this.restoreDatabaseFromSnapshot(join(backupPath, SQLITE_SNAPSHOT_PATH))
+      await rm(stagingRoot, { force: true, recursive: true })
+      const diagnostics = await this.diagnose()
+      return {
+        preflightBackupPath,
+        providerSecretsNeedReentry: verification.manifest.counts.aiProviderProfiles > 0,
+        restoredCounts: diagnostics.counts,
+        skippedTemplateSources: verification.manifest.includeTemplateSources,
+      }
+    } catch (error) {
+      await this.rollbackRestoredDirectories(swaps)
+      await rm(stagingRoot, { force: true, recursive: true }).catch(() => undefined)
+      if (error instanceof PublicError) throw error
+      throw new PublicError('UNKNOWN', '恢复失败，当前数据已回滚到操作前状态。')
     }
   }
 
@@ -258,6 +325,153 @@ export class DataManagementService {
       { flag: 'wx' },
     )
     return manifest
+  }
+
+  private async createPreflightBackup(): Promise<string> {
+    const backupRoot = join(this.userDataPath, 'restore-preflight-backups')
+    await mkdir(backupRoot, { recursive: true })
+    const finalPath = join(
+      backupRoot,
+      `preflight-${new Date().toISOString().replace(/[:.]/g, '-')}-${randomUUID()}${BACKUP_EXTENSION}`,
+    )
+    const temporaryPath = join(backupRoot, `.${basename(finalPath)}.tmp`)
+    try {
+      await mkdir(temporaryPath, { recursive: false })
+      await this.writeBackupPackage(temporaryPath, { includeTemplateSources: false })
+      const verification = await this.verifyBackupPath(temporaryPath, { requireExtension: false })
+      if (!verification.ok) {
+        throw new PublicError('UNKNOWN', '恢复前自动备份验证失败，恢复已取消。')
+      }
+      await rename(temporaryPath, finalPath)
+      const publishedVerification = await this.verifyBackupPath(finalPath)
+      if (!publishedVerification.ok) {
+        throw new PublicError('UNKNOWN', '恢复前自动备份发布后验证失败，恢复已取消。')
+      }
+      return finalPath
+    } catch (error) {
+      await rm(temporaryPath, { force: true, recursive: true }).catch(() => undefined)
+      if (error instanceof PublicError) throw error
+      throw new PublicError('UNKNOWN', '恢复前自动备份失败，恢复已取消。')
+    }
+  }
+
+  private async prepareRestoredDirectories(backupPath: string, stagingRoot: string): Promise<void> {
+    const restoredRoot = join(stagingRoot, 'restored')
+    await mkdir(restoredRoot, { recursive: true })
+    for (const directoryName of RESTORABLE_USER_DATA_DIRECTORIES) {
+      const source = join(backupPath, DATA_DIRECTORY, directoryName)
+      if (!(await this.pathExists(source))) continue
+      await cp(source, join(restoredRoot, directoryName), {
+        dereference: false,
+        errorOnExist: true,
+        force: false,
+        recursive: true,
+      })
+    }
+  }
+
+  private async applyRestoredDirectories(
+    stagingRoot: string,
+    swaps: DirectorySwap[],
+  ): Promise<void> {
+    const originalRoot = join(stagingRoot, 'original')
+    await mkdir(originalRoot, { recursive: true })
+    for (const directoryName of RESTORABLE_USER_DATA_DIRECTORIES) {
+      const targetPath = join(this.userDataPath, directoryName)
+      const originalPath = join(originalRoot, directoryName)
+      const restoredPath = join(stagingRoot, 'restored', directoryName)
+      if (await this.pathExists(targetPath)) {
+        await rename(targetPath, originalPath)
+      }
+      swaps.push({ directoryName, originalPath, restoredPath, targetPath })
+      if (await this.pathExists(restoredPath)) {
+        await rename(restoredPath, targetPath)
+      }
+    }
+  }
+
+  private async rollbackRestoredDirectories(swaps: DirectorySwap[]): Promise<void> {
+    for (const swap of [...swaps].reverse()) {
+      await rm(swap.targetPath, { force: true, recursive: true }).catch(() => undefined)
+      if (await this.pathExists(swap.originalPath)) {
+        await rename(swap.originalPath, swap.targetPath).catch(() => undefined)
+      }
+    }
+  }
+
+  private async restoreDatabaseFromSnapshot(snapshotPath: string): Promise<void> {
+    const snapshot = new BetterSqlite3(snapshotPath, { readonly: true })
+    try {
+      const snapshotCheck = this.checkDatabase(snapshot)
+      if (snapshotCheck.quickCheck !== 'ok' || !snapshotCheck.foreignKeyOk) {
+        throw new PublicError('INVALID_REQUEST', '备份 SQLite 校验未通过，禁止恢复。')
+      }
+      const currentColumns = new Map(
+        RESTORE_TABLES.map(table => [table, this.getTableColumns(this.database.client, table)]),
+      )
+      const snapshotColumns = new Map(
+        RESTORE_TABLES.map(table => [table, this.getTableColumns(snapshot, table)]),
+      )
+      for (const table of RESTORE_TABLES) {
+        const current = currentColumns.get(table) ?? []
+        const backup = snapshotColumns.get(table) ?? []
+        if (
+          current.length === 0 ||
+          backup.length === 0 ||
+          current.join('\0') !== backup.join('\0')
+        ) {
+          throw new PublicError('INVALID_REQUEST', '备份数据库结构与当前版本不兼容，无法恢复。')
+        }
+      }
+    } finally {
+      snapshot.close()
+    }
+
+    let attached = false
+    this.database.client.pragma('foreign_keys = OFF')
+    try {
+      this.database.client.prepare('ATTACH DATABASE ? AS restore_src').run(snapshotPath)
+      attached = true
+      const restoreTransaction = this.database.client.transaction(() => {
+        for (const table of [...RESTORE_TABLES].reverse()) {
+          this.database.client.prepare(`DELETE FROM ${table}`).run()
+        }
+        for (const table of RESTORE_TABLES) {
+          const columns = this.getTableColumns(this.database.client, table)
+          const columnList = columns.map(column => `"${column}"`).join(', ')
+          this.database.client
+            .prepare(
+              `INSERT INTO ${table} (${columnList}) SELECT ${columnList} FROM restore_src.${table}`,
+            )
+            .run()
+        }
+        const restoredCheck = this.checkDatabase(this.database.client)
+        if (restoredCheck.quickCheck !== 'ok' || !restoredCheck.foreignKeyOk) {
+          throw new PublicError('UNKNOWN', '恢复后的 SQLite 校验失败，当前数据已回滚。')
+        }
+      })
+      restoreTransaction()
+    } catch (error) {
+      if (error instanceof PublicError) throw error
+      throw new PublicError('UNKNOWN', 'SQLite 恢复失败，当前数据已回滚。')
+    } finally {
+      if (attached) {
+        try {
+          this.database.client.prepare('DETACH DATABASE restore_src').run()
+        } catch {
+          // Best-effort cleanup; the active connection is still protected by the transaction above.
+        }
+      }
+      this.database.client.pragma('foreign_keys = ON')
+    }
+  }
+
+  private getTableColumns(client: BetterSqlite3.Database, table: string): string[] {
+    return (
+      client.prepare(`PRAGMA table_info(${table})`).all() as Array<{
+        name: string
+      }>
+    ).map(column => column.name)
   }
 
   private async writeSqliteSnapshot(snapshotPath: string): Promise<void> {

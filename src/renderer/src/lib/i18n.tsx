@@ -240,6 +240,40 @@ Object.assign(english, {
   版本: 'Version',
   恢复预览可继续: 'Restore preview can continue',
   恢复预览存在阻止项: 'Restore preview has blocking items',
+  恢复执行确认: 'Restore execution confirmation',
+  '恢复前会自动备份当前数据；本版本会跳过模板源码恢复，不会修改外部模板工作区。':
+    'The app will back up current data before restore. This version skips template sources and will not modify external template workspaces.',
+  '我已确认恢复预览，并允许应用恢复 userData 中的数据副本。':
+    'I reviewed the restore preview and allow the app to restore the data copy in userData.',
+  确认恢复: 'Confirm restore',
+  恢复完成: 'Restore complete',
+  '恢复完成。Provider 密钥未恢复，请重新配置密钥。':
+    'Restore complete. Provider keys were not restored; reconfigure the keys.',
+  '恢复完成。恢复前自动备份已保存。': 'Restore complete. The preflight backup was saved.',
+  '备份包包含模板源码副本；本次已按策略跳过。':
+    'The backup package contains template source copies; they were skipped by policy.',
+  '恢复执行只处理应用 userData 数据；模板源码默认跳过，外部工作区不会被修改。':
+    'Restore execution only handles app userData. Template sources are skipped by default, and external workspaces are not modified.',
+  '备份包校验未通过，禁止恢复。': 'Backup verification failed. Restore is blocked.',
+  '备份包版本不兼容。': 'Backup package version is incompatible.',
+  '备份包版本不兼容，无法恢复。': 'Backup package version is incompatible and cannot be restored.',
+  '当前版本只支持跳过模板源码恢复。':
+    'This version only supports skipping template source restore.',
+  '恢复前自动备份验证失败，恢复已取消。':
+    'Preflight backup verification failed. Restore was cancelled.',
+  '恢复前自动备份发布后验证失败，恢复已取消。':
+    'Preflight backup verification failed after publishing. Restore was cancelled.',
+  '恢复前自动备份失败，恢复已取消。': 'Preflight backup failed. Restore was cancelled.',
+  '模拟恢复失败，已回滚到操作前状态。':
+    'Simulated restore failure. Data was rolled back to the pre-operation state.',
+  '备份 SQLite 校验未通过，禁止恢复。': 'Backup SQLite verification failed. Restore is blocked.',
+  '备份数据库结构与当前版本不兼容，无法恢复。':
+    'The backup database structure is incompatible with this version and cannot be restored.',
+  '恢复后的 SQLite 校验失败，当前数据已回滚。':
+    'Restored SQLite verification failed. Current data was rolled back.',
+  'SQLite 恢复失败，当前数据已回滚。': 'SQLite restore failed. Current data was rolled back.',
+  '恢复失败，当前数据已回滚到操作前状态。':
+    'Restore failed. Current data was rolled back to the pre-operation state.',
   备份题目: 'Backup problems',
   '导出备份失败，临时文件已清理。': 'Backup export failed. Temporary files were cleaned up.',
   '目标备份包已存在，请选择新的导出位置。':

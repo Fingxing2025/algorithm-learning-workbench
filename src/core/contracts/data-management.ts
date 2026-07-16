@@ -149,3 +149,22 @@ export const restorePreviewSchema = z
   })
   .strict()
 export type RestorePreview = z.infer<typeof restorePreviewSchema>
+
+export const restoreBackupRequestSchema = z
+  .object({
+    confirmRestore: z.literal(true),
+    packagePath: z.string().min(1).max(4096),
+    templateSourceStrategy: z.literal('skip'),
+  })
+  .strict()
+export type RestoreBackupRequest = z.infer<typeof restoreBackupRequestSchema>
+
+export const restoreBackupResultSchema = z
+  .object({
+    preflightBackupPath: z.string().min(1).max(4096),
+    providerSecretsNeedReentry: z.boolean(),
+    restoredCounts: dataManagementCountsSchema,
+    skippedTemplateSources: z.boolean(),
+  })
+  .strict()
+export type RestoreBackupResult = z.infer<typeof restoreBackupResultSchema>

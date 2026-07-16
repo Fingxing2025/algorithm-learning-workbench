@@ -39,6 +39,7 @@ const desktopApi: DesktopApi = {
     diagnose: () => invokeResult(IPC_CHANNELS.dataManagement.diagnose),
     exportBackup: request => invokeResult(IPC_CHANNELS.dataManagement.exportBackup, request),
     previewRestore: () => invokeResult(IPC_CHANNELS.dataManagement.previewRestore),
+    restoreBackup: request => invokeResult(IPC_CHANNELS.dataManagement.restoreBackup, request),
     verifyBackup: () => invokeResult(IPC_CHANNELS.dataManagement.verifyBackup),
   },
   problems: {
