@@ -41,6 +41,7 @@ export default tseslint.config(
       'src/core/**/*.ts',
       'src/main/**/*.ts',
       'src/preload/**/*.ts',
+      'scripts/**/*.mjs',
       'tests/**/*.ts',
     ],
     languageOptions: {

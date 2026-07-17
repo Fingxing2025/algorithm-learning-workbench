@@ -1,95 +1,165 @@
 # 发布与打包
 
-## 版本与环境
+## 版本事实与发布边界
 
-- 当前源码版本：`0.1.2` 开发快照
-- 最近已生成并校验的本地开发产物：`0.1.1`
-- 开发环境：Node.js 24 或更高版本
-- 桌面运行时：Electron 43.1.0
-- 打包器：electron-builder 26.15.3
-- 原生依赖：`better-sqlite3`，打包前必须针对当前 Electron ABI 重建
+- 当前源码版本：`0.1.2`。
+- 唯一机器可读版本事实源：`package.json`；`package-lock.json` 必须保持相同名称和版本。
+- 产品名：`算法学习工作台`。
+- App ID：`com.algorithmworkbench.desktop`。
+- macOS 候选：arm64 DMG + ZIP。
+- Windows 候选：x64 NSIS。
+- 开发环境：Node.js 24 或更高版本。
+- 桌面运行时：Electron 43.1.0。
+- 打包器：electron-builder 26.15.3。
+- 原生依赖：better-sqlite3 12.11.1；候选必须证明 `better_sqlite3.node` 与目标架构一致，并通过真实打包入口启动。
 
-## 发布前验证
+发布模式严格分离：
+
+- `preview`：脚本移除签名与 notarization 环境变量、关闭证书自动发现，只能生成明确标注的 unsigned/ad-hoc 预览候选。
+- `signed`：缺少平台证书或公证凭据时立即失败；构建后仍必须通过签名、TeamIdentifier/notarization 或 Authenticode 验证。
+- Windows CI 构建或签名验证不等于真实 Windows 安装、升级、权限与卸载验收。
+
+决策依据见 `docs/decisions/0018-release-candidate-pipeline-and-platform-evidence.md`。
+
+## 源码与质量门禁
 
 ```bash
 npm ci
 npm run rebuild:native
+npm audit --audit-level=moderate
 npm run check
 npm run test:e2e
-npm audit --audit-level=moderate
 ```
 
-开发目录产物：
+候选预检拒绝 dirty 的已跟踪源码和非受保护的意外未跟踪文件；本地受保护的未跟踪 `问题反馈.txt` 不计入候选 dirty 状态。`.codex/config.toml` 必须保持未修改，`release/` 必须继续由 Git 忽略。
+
+## macOS arm64 预览候选
 
 ```bash
-npm run package:dir
+npm run release:mac:preview
 ```
 
-macOS DMG 与 ZIP：
+该命令按顺序执行：
 
-```bash
-npm run dist:mac
-hdiutil verify release/算法学习工作台-<version>-mac-arm64.dmg
-shasum -a 256 release/*.dmg release/*.zip
+1. 校验版本、appId、productName、架构、Git 状态、ASAR、原生模块解包、hardened runtime 与最小 entitlement。
+2. 只删除当前版本 `mac/arm64/preview` 的预期输出，不使用 `release/*` 混入历史版本。
+3. 构建一次 macOS arm64 App、DMG 与 ZIP。
+4. 验证 Info.plist、App/原生模块架构、DMG 完整性、签名/公证真实状态和包内容隐私边界。
+5. 生成 SHA-256、CycloneDX SBOM、构建元数据、验证报告和发布说明草稿。
+
+当前版本的精确输出为：
+
+```text
+release/算法学习工作台-0.1.2-mac-arm64.dmg
+release/算法学习工作台-0.1.2-mac-arm64.zip
+release/mac-arm64/算法学习工作台.app
+release/candidates/0.1.2-mac-arm64-preview/
+  SHA256SUMS.txt
+  RELEASE_NOTES.md
+  artifact-verification.json
+  build-metadata.json
+  sbom.cyclonedx.json
 ```
 
-Windows x64 NSIS：
+`release/` 中可能仍有历史版本；只有当前候选证据目录里的 `SHA256SUMS.txt` 是本次候选的摘要来源。
 
-```bash
-npm run dist:win
-```
+## 打包入口 smoke
 
-CI 在 Ubuntu 执行静态检查/单元测试/依赖审计，在 macOS 执行真实 Electron E2E，并在 macOS 与 Windows runner 构建平台产物。CI 配置存在不等于 Windows 实机安装验证已完成。
-
-## 打包入口 smoke test
-
-构建 macOS 产物后，以全新应用数据目录启动真实二进制：
+候选生成后必须从真实二进制分别验证全新 userData 和已经写入 V2 数据后的重启：
 
 ```bash
 PACKAGED_APP_PATH="release/mac-arm64/算法学习工作台.app/Contents/MacOS/算法学习工作台" \
 node ./node_modules/@playwright/test/cli.js test tests/e2e/packaged.spec.ts
 ```
 
-该测试验证首次启动页、运行时版本、Preload API，以及 Renderer 中 `process`/`require` 不可见。
+这两个 smoke 场景验证首次启动、运行时版本、Preload/Renderer 隔离、工作区和模板落盘，以及相同 userData 重启后的数据可见性。旧 schema 的原位升级仍由完整 E2E 中的 migration 场景覆盖。
 
-## 签名与发布门禁
+## macOS 正式签名与 notarization
 
-当前开发机没有有效 Developer ID identity，因此 macOS DMG/ZIP 未签名、未 notarize，只能作为开发预览。公开发布前必须：
+不要在聊天、源码、日志或制品中传递证书密码、私钥或 Apple 凭据。应在本机 Keychain 或受保护 CI secrets 中配置。
 
-1. 在受保护 CI 发布环境配置 macOS Developer ID Application 和 notarization。
-2. 配置 Windows Authenticode 证书并验证 NSIS 安装/卸载。
-3. 验证签名、生成 SHA-256 与可选 SBOM/attestation。
-4. 从可信渠道发布，并在发布页明确版本、架构、校验值和已知限制。
+推荐 notarization 凭据：
+
+- `APPLE_API_KEY`
+- `APPLE_API_KEY_ID`
+- `APPLE_API_ISSUER`
+
+GitHub Actions 中把 `.p8` 内容以 base64 保存为 `APPLE_API_KEY_BASE64` secret；工作流只在 signed job 的临时目录解码，并通过 `APPLE_API_KEY` 传递临时路径，结束时删除。`APPLE_API_KEY_ID` 与 `APPLE_API_ISSUER` 分别使用独立 secret。不要把 `.p8` 文件提交到仓库或作为候选制品上传。
+
+签名身份可由 Keychain 中的 `Developer ID Application` 提供，或通过受保护的 `CSC_LINK` / `CSC_KEY_PASSWORD` 交给 electron-builder 导入。electron-builder 文档化的 Apple ID 三元组或 Keychain Profile 也可用于 notarization，但 API key 方式优先。
+
+```bash
+npm run release:mac:signed
+```
+
+正式命令只有在以下项目全部成立时才成功：
+
+- App 通过 `codesign --verify --deep --strict`。
+- Authority 为 `Developer ID Application` 且存在 TeamIdentifier。
+- notarization ticket 已 staple 并通过 `stapler validate`。
+- Gatekeeper `spctl` 接受 App。
+- DMG、App、better-sqlite3、版本、架构、隐私扫描、SHA-256 和 SBOM 来自同一候选。
+
+当前开发机没有有效 Developer ID identity，也没有本 Session 可用的 notarization 凭据，因此只能生成预览候选；不得把该状态写成正式发布通过。
+
+## macOS entitlement
+
+`build/entitlements.mac.plist` 与 `build/entitlements.mac.inherit.plist` 只启用：
+
+- `com.apple.security.cs.allow-jit`
+- `com.apple.security.cs.allow-unsigned-executable-memory`
+
+当前不启用 `com.apple.security.cs.disable-library-validation`。如未来真实签名候选的同 Team 原生模块仍无法加载，必须先记录证据并更新 ADR，不能直接放宽。
+
+## Windows x64 候选与实机验收
+
+Windows 预览/正式候选必须在原生 Windows runner 或主机生成：
+
+```powershell
+npm run release:win:preview
+# 配置受保护的 WIN_CSC_LINK / WIN_CSC_KEY_PASSWORD 后：
+npm run release:win:signed
+```
+
+CI 对 `win-unpacked/算法学习工作台.exe` 运行全新/已有 V2 userData 的打包入口 smoke，并验证 x64 PE、better-sqlite3、版本、隐私内容和 Authenticode 真实状态。但这仍不是 NSIS 实机安装证据。
+
+把候选复制到真实 Windows 主机后，先从 `SHA256SUMS.txt` 取得安装器摘要，再运行：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/release/windows-acceptance.ps1 `
+  -InstallerPath "release/算法学习工作台-0.1.2-win-x64.exe" `
+  -Mode Preview `
+  -ExpectedVersion "0.1.2" `
+  -ExpectedSha256 "<SHA256SUMS.txt 中的值>" `
+  -ExistingV2UserDataPath "<测试副本路径>" `
+  -EvidencePath "windows-acceptance-evidence.json"
+```
+
+脚本会检查安装器摘要/签名、静默安装、App 版本与签名、全新和已有 V2 userData 启动、桌面/开始菜单快捷方式、静默卸载和 userData 保留。执行后仍必须人工确认 UI、已有模板/题目/关系/图片/Provider 状态和安装权限。测试已有数据时只能使用备份副本，不要直接拿唯一生产 userData 做验收。
+
+当前没有真实 Windows 主机证据，状态必须保持“未验证”。
+
+## 产物隐私与供应链检查
+
+候选检查会列出 ASAR 和外部 Resources，拒绝：
+
+- SQLite/数据库、`.awb-backup`、日志、证书、私钥和环境文件。
+- `secrets/`、题目图片、文件计划备份、批量导入备份、恢复预备份和隔离区。
+- 测试输出、Playwright 报告、用户模板源码和应用代码中的开发者绝对路径。
+- 常见高置信度私钥、云凭据和 API key 形态。
+
+SBOM 由 npm 自带的 CycloneDX 生成能力创建，不引入运行时依赖。SBOM 描述依赖组成，但不能替代代码签名、漏洞审计或发布渠道 provenance。
+
+GitHub Actions 使用固定 commit SHA 的 checkout、setup-node 与 upload-artifact；工作流权限保持 `contents: read`。手动 `release-candidate` 工作流的 `preview` 模式不会使用传入 secrets，`signed` 模式缺凭据会失败。
 
 ## 数据兼容与回滚
 
 - 全新应用数据目录必须能完成首次设置，不依赖旧项目或示例数据。
-- V2 数据升级只通过 `src/main/database/migrations.ts` 中的版本化 migration；不得要求用户删除数据库。
-- 模板文件计划执行前保留备份；执行失败会恢复已完成步骤，撤销成功会清理对应备份。
-- 安装包不应包含数据库、个人模板、题目、Provider、API Key、测试输出或本机绝对路径。
+- 已有 V2 数据只通过版本化 migration 原位升级，不得要求删除数据库。
+- 模板文件计划执行前保留备份；数据管理页支持校验备份、恢复预览、恢复前备份、中断恢复、隔离与系统废纸篓移交。
+- 安装包不得包含 userData、数据库、个人模板、题目、图片、Provider、API Key、测试输出或本机绝对路径。
+- 自动更新、更新回滚和签名轮换仍未决；实现前必须新增 ADR。
 
-## 本地验证记录
+## 当前本机候选记录
 
-### 0.1.2 源码快照（2026-07-15）
-
-- 完成题目图片预览、题目/模板安全删除、元数据语言与精细分类、重复/相似文件建议和计划重新草拟。
-- 完成模板卡片直接建立题目关联、CodeMirror/VS Code 风格源码主题，以及最新视觉系统迭代。
-- `npm run check` 通过：16 个测试文件、43 项测试通过。
-- 常规 `npm run test:e2e` 通过 22 项，打包入口测试按条件跳过。
-- `npm audit --audit-level=moderate` 报告 0 个漏洞。
-- 当前尚未为 0.1.2 重新生成、签名或发布安装包；不能沿用 0.1.1 的校验值。
-
-### 0.1.1（2026-07-15）
-
-- 新增 DeepSeek 官方 OpenAI-compatible 快捷预设，默认使用 `deepseek-v4-flash`。
-- 新增阿里云百炼快捷预设，默认使用 `qwen-plus`，并要求填写当前百炼工作空间兼容端点。
-- Provider 协议、密钥存储和数据库结构没有变化，既有 0.1.0 配置可原位继续使用。
-
-macOS arm64、Electron 43.1.0 开发预览产物：
-
-| 产物                                 |       大小 | SHA-256                                                            |
-| ------------------------------------ | ---------: | ------------------------------------------------------------------ |
-| `算法学习工作台-0.1.1-mac-arm64.dmg` | 约 130 MiB | `114a5c45056baac59fd31ca2f8cbb8b120abb1829867117a85b1c9109e9b2816` |
-| `算法学习工作台-0.1.1-mac-arm64.zip` | 约 145 MiB | `c2a7e8c7d6ce25bcfba38be2c3efe199ba51d3a5f197f16bc6c7b233b1d29b7f` |
-
-`hdiutil verify` 返回有效；应用主程序为 Mach-O 64-bit arm64。`codesign` 显示 ad-hoc 签名、无 TeamIdentifier，符合“未签名开发预览”的披露。重新打包后校验值会变化，正式发布必须以同一次发布流程重新生成并记录。
+Session C 的最终候选记录应以本文件所在提交后的本机验证结果和 `release/candidates/0.1.2-mac-arm64-preview/` 为准。旧的 0.1.0/0.1.1/0.1.2 文件若不在该证据目录中引用，都只是历史本地产物，不得沿用其摘要或签名判断。

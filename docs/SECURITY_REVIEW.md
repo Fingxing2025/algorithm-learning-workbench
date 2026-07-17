@@ -17,11 +17,11 @@
 ### SEC-001：公开发布产物尚未签名和公证
 
 - 规则：发布供应链完整性。
-- 位置：`package.json:84-126`（electron-builder 配置）；`.github/workflows/quality.yml:39-65`（平台打包）。
-- 证据：macOS 配置启用了 hardened runtime，但没有 Developer ID identity/notarization；本机打包日志确认 `0 valid identities found` 并跳过签名。
+- 位置：`package.json`（electron-builder 与候选命令）；`scripts/release/`；`.github/workflows/quality.yml`；`.github/workflows/release-candidate.yml`。
+- 证据：macOS 配置启用了 hardened runtime 与最小 entitlement，但当前机器仍为 `0 valid identities found`；现有 App 没有 Developer ID Authority、TeamIdentifier 或 notarization ticket，Gatekeeper 不接受。
 - 影响：攻击者可替换来源不明的 DMG/ZIP，用户也会遇到 Gatekeeper 警告，无法可靠验证发布者身份。
-- 修复：公开分发前在受保护 CI 环境配置 Developer ID Application、notarization 凭证和 Windows Authenticode；发布流程验证签名并保存校验值/attestation。
-- 缓解：当前产物只标记为开发预览，使用 SHA-256 校验，并从受控渠道分发。
+- 修复：公开分发前在受保护 CI 环境配置 Developer ID Application、notarization 凭证和 Windows Authenticode；运行 `signed` 候选并保存签名、公证、SHA-256、SBOM 与真实平台验收证据。
+- 缓解：ADR-0018 已把 preview/signed 分离；preview 主动移除签名环境，signed 缺凭据或最终证据即失败。候选只选择当前版本制品并生成 SHA-256、CycloneDX SBOM、构建元数据和隐私报告。该缓解不能替代正式签名。
 - 误报说明：若发布平台在仓库外完成签名，需要保留可审计的签名验证输出；当前本机产物已确认未签名。
 
 ## Low
@@ -75,4 +75,6 @@
 - API Key 由 Electron `safeStorage` 加密；Linux `basic_text` 后端会被拒绝，SQLite 仅保存不可推导密钥的引用（`src/main/security/secret-store.ts:16-34,70-93`）。
 - Provider 禁止重定向、限制超时和响应大小，并区分鉴权、模型、限流和网络错误（`src/main/services/ai-provider-adapters.ts:42-93`）。
 - AI 题目结果是内存草稿；文件管理结果是受限计划，用户确认前不写入数据或修改模板（`src/main/services/problem-analysis-service.ts:91-141`; `src/main/services/template-management-service.ts:190-230`）。
-- 锁文件已提交，CI 使用最小只读权限、`npm ci` 并执行 `npm audit --audit-level=moderate`（`.github/workflows/quality.yml:8-24`）。
+- 锁文件已提交，CI 使用最小只读权限、`npm ci` 与依赖审计；checkout、setup-node、upload-artifact 均固定到 commit SHA（`.github/workflows/quality.yml`; `.github/workflows/release-candidate.yml`）。
+- 候选隐私检查拒绝 userData/SQLite/密钥/证书/备份/题目图片/测试输出/用户模板源码和开发者绝对路径；SBOM 与摘要只覆盖按当前版本精确推导的制品（`scripts/release/verify-artifacts.mjs`; `scripts/release/generate-release-metadata.mjs`）。
+- macOS entitlement 只保留 JIT 与 unsigned executable memory，没有启用 `disable-library-validation`（`build/entitlements.mac.plist`; `build/entitlements.mac.inherit.plist`）。

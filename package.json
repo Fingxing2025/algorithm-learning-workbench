@@ -19,13 +19,21 @@
     "format:check": "node ./node_modules/prettier/bin/prettier.cjs --check .",
     "icon:build": "node scripts/render-icon.mjs",
     "test": "node ./node_modules/vitest/vitest.mjs run",
+    "test:release": "node --test scripts/release/*.test.mjs",
     "test:watch": "node ./node_modules/vitest/vitest.mjs",
     "test:e2e": "npm run build && node ./node_modules/@playwright/test/cli.js test",
     "rebuild:native": "node ./node_modules/@electron/rebuild/lib/cli.js -f -w better-sqlite3 -v 43.1.0",
-    "check": "npm run typecheck && npm run lint && npm run format:check && npm run test",
+    "check": "npm run typecheck && npm run lint && npm run format:check && npm run test && npm run test:release",
     "package:dir": "npm run build && node ./node_modules/electron-builder/out/cli/cli.js --dir --publish never",
     "dist:mac": "npm run build && node ./node_modules/electron-builder/out/cli/cli.js --mac dmg zip --publish never",
-    "dist:win": "npm run build && node ./node_modules/electron-builder/out/cli/cli.js --win nsis --x64 --publish never"
+    "dist:win": "npm run build && node ./node_modules/electron-builder/out/cli/cli.js --win nsis --x64 --publish never",
+    "release:preflight": "node scripts/release/preflight.mjs",
+    "release:mac:preview": "node scripts/release/run-candidate.mjs --platform mac --arch arm64 --mode preview",
+    "release:mac:signed": "node scripts/release/run-candidate.mjs --platform mac --arch arm64 --mode signed",
+    "release:win:preview": "node scripts/release/run-candidate.mjs --platform win --arch x64 --mode preview",
+    "release:win:signed": "node scripts/release/run-candidate.mjs --platform win --arch x64 --mode signed",
+    "release:verify": "node scripts/release/generate-release-metadata.mjs",
+    "release:sbom": "node scripts/release/generate-sbom.mjs"
   },
   "dependencies": {
     "@codemirror/lang-cpp": "^6.0.3",
@@ -107,6 +115,8 @@
     "mac": {
       "category": "public.app-category.education",
       "hardenedRuntime": true,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.inherit.plist",
       "icon": "build/icon.png",
       "target": [
         "dmg",

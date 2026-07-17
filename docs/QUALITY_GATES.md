@@ -56,7 +56,9 @@
 ## 发布门禁
 
 - macOS/Windows 产物由平台 runner 构建，原生 SQLite 与当前 Electron ABI 匹配。
-- 使用全新应用数据目录运行打包后二进制 smoke test。
-- DMG/安装包结构、架构和 SHA-256 在同一次发布流程中验证并记录。
+- 使用全新应用数据目录和已经写入 V2 数据的目录分别运行打包后二进制 smoke test；旧 schema migration 由完整 E2E 独立覆盖。
+- DMG/安装包结构、Info.plist/文件版本、App 与 better-sqlite3 架构、SHA-256、SBOM、隐私扫描和签名状态在同一次发布流程中验证并记录。
+- 发布脚本只按 `package.json` 精确选择当前版本/平台/架构制品，不得用宽泛 glob 混入 `release/` 中的历史版本。
+- `preview` 必须主动移除签名环境并明确标记未签名；`signed` 缺证书、公证凭据或最终签名证据时必须失败关闭。
 - 公开发布必须完成平台代码签名；未签名产物只能标记为开发预览。
 - Windows 正式质量声明必须有真实 Windows 安装、启动、升级与卸载证据，不能只依赖交叉构建或 CI 产物。

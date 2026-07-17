@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, rm } from 'node:fs/promises'
+import { access, mkdtemp, mkdir, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 
@@ -39,6 +39,65 @@ test('launches the packaged desktop app with a clean user-data directory', async
     expect(boundary).toEqual({ desktop: 'object', process: 'undefined', require: 'undefined' })
   } finally {
     await app.close()
+    await rm(temporaryRoot, { force: true, recursive: true })
+  }
+})
+
+test('preserves an existing V2 workspace across packaged app relaunch', async () => {
+  const executablePath = process.env.PACKAGED_APP_PATH
+  test.skip(!executablePath, 'PACKAGED_APP_PATH is only set during packaged smoke tests')
+  const temporaryRoot = await mkdtemp(join(tmpdir(), 'algorithm-workbench-packaged-existing-'))
+  const userDataDirectory = join(temporaryRoot, 'user-data')
+  const workspaceDirectory = join(temporaryRoot, 'workspace')
+  await mkdir(userDataDirectory)
+  await mkdir(workspaceDirectory)
+
+  const launch = () =>
+    electron.launch({
+      executablePath: resolve(executablePath!),
+      env: {
+        ...process.env,
+        E2E_USER_DATA_DIR: userDataDirectory,
+        NODE_ENV: 'test',
+      },
+    })
+
+  let app = await launch()
+  try {
+    let page = await app.firstWindow()
+    await app.evaluate(({ dialog }, selectedDirectory) => {
+      dialog.showOpenDialog = (async () => ({
+        canceled: false,
+        filePaths: [selectedDirectory],
+      })) as typeof dialog.showOpenDialog
+    }, workspaceDirectory)
+    await page.getByRole('button', { name: '创建工作区' }).click()
+    await expect(page.getByRole('heading', { level: 1, name: '模板库' })).toBeVisible()
+    await page.getByRole('button', { name: '新建模板' }).click()
+    await page.getByLabel('文件名').fill('release-smoke.cpp')
+    await page
+      .getByRole('textbox', { name: '模板源码', exact: true })
+      .fill('void release_smoke() {}\n')
+    await page.getByRole('button', { name: '确认创建' }).click()
+    await expect(page.getByRole('heading', { level: 1, name: 'release-smoke' })).toBeVisible()
+    await app.close()
+
+    await access(join(userDataDirectory, 'algorithm-workbench.sqlite'))
+    expect(await readFile(join(workspaceDirectory, 'release-smoke.cpp'), 'utf8')).toBe(
+      'void release_smoke() {}\n',
+    )
+
+    app = await launch()
+    page = await app.firstWindow()
+    await expect(page.getByRole('heading', { level: 1, name: '工作台' })).toBeVisible()
+    await expect(page.getByText('1 个模板 · 本地索引')).toBeVisible()
+    await page.getByRole('button', { name: '模板库', exact: true }).click()
+    await expect(page.getByRole('heading', { level: 1, name: '模板库' })).toBeVisible()
+    await expect(page.getByText('release-smoke.cpp', { exact: true })).toBeVisible()
+    await page.getByText('release-smoke.cpp', { exact: true }).click()
+    await expect(page.getByText('void release_smoke() {}')).toBeVisible()
+  } finally {
+    await app.close().catch(() => undefined)
     await rm(temporaryRoot, { force: true, recursive: true })
   }
 })

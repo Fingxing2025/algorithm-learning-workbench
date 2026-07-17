@@ -96,6 +96,7 @@ tests/
 - `docs/decisions/0015-data-backup-diagnostics-and-restore.md`
 - `docs/decisions/0016-ai-task-reliability-and-provider-compatibility.md`
 - `docs/decisions/0017-bugfix-workflows-and-local-template-retrieval.md`
+- `docs/decisions/0018-release-candidate-pipeline-and-platform-evidence.md`
 
 安全与发布文档：
 
