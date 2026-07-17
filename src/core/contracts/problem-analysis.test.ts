@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
-import { analyzeProblemRequestSchema, commitProblemAnalysisRequestSchema } from './problem-analysis'
+import {
+  analyzeProblemRequestSchema,
+  commitProblemAnalysisRequestSchema,
+  modelProblemAnalysisSchema,
+  problemAnalysisCandidateRoleSchema,
+} from './problem-analysis'
 
 describe('problem analysis contracts', () => {
   it('requires text or an image before analysis', () => {
@@ -56,6 +61,58 @@ describe('problem analysis contracts', () => {
         relations: [
           { note: '', relationType: 'recommended', templateId },
           { note: '', relationType: 'used', templateId },
+        ],
+      }),
+    ).toThrow()
+  })
+
+  it('keeps candidate roles in the draft contract without changing persisted relation types', () => {
+    expect(problemAnalysisCandidateRoleSchema.options).toEqual([
+      'direct-solution',
+      'subproblem',
+      'prerequisite',
+      'optimization',
+      'alternative-solution',
+    ])
+    const parsed = modelProblemAnalysisSchema.parse({
+      aiSummary: '',
+      analysis: {
+        algorithmSignals: [],
+        constraints: [],
+        edgeCases: [],
+        examples: [],
+        inputDescription: '',
+        outputDescription: '',
+      },
+      templateCandidates: [
+        {
+          confidence: 0.8,
+          reason: '直接解法',
+          role: 'direct-solution',
+          templateId: 'a'.repeat(64),
+        },
+        {
+          confidence: 0.7,
+          reason: '替代解法',
+          role: 'alternative-solution',
+          templateId: 'b'.repeat(64),
+        },
+      ],
+      title: '多方向题目',
+    })
+    expect(parsed.templateCandidates?.map(candidate => candidate.role)).toEqual([
+      'direct-solution',
+      'alternative-solution',
+    ])
+    expect(() =>
+      modelProblemAnalysisSchema.parse({
+        ...parsed,
+        templateCandidates: [
+          {
+            confidence: 0.9,
+            role: 'database-relation-type',
+            templateId: 'c'.repeat(64),
+          },
         ],
       }),
     ).toThrow()

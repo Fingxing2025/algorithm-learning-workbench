@@ -199,6 +199,24 @@ const english: Record<string, string> = {
 }
 
 Object.assign(english, {
+  已取消: 'Cancelled',
+  '计划状态已变化、仍是待确认草稿，或计划不属于当前工作区；未归档任何记录。':
+    'A plan changed state, is still a pending draft, or belongs to another workspace. No records were archived.',
+  '计划记录归档失败，所有记录均保持原状。':
+    'Plan record archiving failed. All records remain unchanged.',
+  '模板不存在或当前不可用，请重新扫描工作区。':
+    'The template does not exist or is unavailable. Rescan the workspace.',
+  '移动预览已过期或不属于当前工作区，请重新预览。':
+    'The relocation preview expired or belongs to another workspace. Preview it again.',
+  '模板索引已变化，请重新预览。': 'The template index changed. Preview the relocation again.',
+  '源文件在确认前已变化，请重新预览。':
+    'The source file changed before confirmation. Preview the relocation again.',
+  '新路径必须与原路径不同。': 'The new path must differ from the current path.',
+  '重命名时必须保留原源码扩展名。': 'Renaming must preserve the original source file extension.',
+  '目标文件扩展名不受支持。': 'The destination file extension is not supported.',
+  '首版不支持仅修改文件名大小写。':
+    'This version does not support changing only the filename letter case.',
+  '目标父目录不是安全的普通目录。': 'The destination parent is not a safe regular directory.',
   数据管理: 'Data Management',
   '只读诊断、可验证导出和恢复预览': 'Read-only diagnostics, verifiable export, and restore preview',
   '只读诊断、可验证备份恢复与安全治理':
@@ -224,6 +242,42 @@ Object.assign(english, {
     'Plans are only hidden from the normal list. Template sources, executions, undo backups, and user data remain.',
   确认删除计划记录: 'Confirm delete plan records',
   删除计划记录: 'Delete plan record',
+  关闭新建题目: 'Close new problem',
+  'AI 已补全草稿：{provider} · {model}。你仍可修改后一次保存。':
+    'AI filled the draft with {provider} · {model}. You can still edit it and save once.',
+  '手动填写，或在同一窗口中加入图文并请求 AI 补全。':
+    'Fill it manually, or add text and images in the same window and ask AI to complete it.',
+  'AI 请求已取消，已填写的题目内容和模板选择均已保留。':
+    'AI request cancelled. Your problem fields and template selections were preserved.',
+  '用户手动选择。': 'Selected manually by the user.',
+  结构化分析: 'Structured analysis',
+  'AI 图文补全': 'AI text and image completion',
+  '使用上方题面与下方图片补全空白字段；失败或取消不会清空你的内容。':
+    'Use the statement above and images below to fill blank fields. Failure or cancellation keeps your content.',
+  取消分析: 'Cancel analysis',
+  重新分析并补全: 'Analyze again and complete',
+  'AI 分析并补全': 'Analyze and complete with AI',
+  '图片只在最终确认创建后保存。': 'Images are saved only after final creation confirmation.',
+  模板关联草稿: 'Template relation drafts',
+  '可手动搜索多份模板；AI 建议不会自动保存。':
+    'Search and select multiple templates manually. AI suggestions are never saved automatically.',
+  搜索本地模板: 'Search local templates',
+  '名称、路径或语言': 'Name, path, or language',
+  选择本地模板: 'Choose local template',
+  '选择模板…': 'Choose a template…',
+  添加本地模板关联: 'Add local template relation',
+  '尚未选择模板；没有可靠候选时可以保持为空。':
+    'No template selected. Leave it empty when there is no reliable candidate.',
+  手动选择: 'Manual selection',
+  直接解法: 'Direct solution',
+  子问题: 'Subproblem',
+  前置能力: 'Prerequisite',
+  优化方向: 'Optimization',
+  替代解法: 'Alternative solution',
+  移除模板关联草稿: 'Remove template relation draft',
+  '为什么需要这份模板…': 'Why this template is needed…',
+  '最终确认后才会原子保存题目、图片和已勾选关系。':
+    'The problem, images, and checked relations are saved atomically only after final confirmation.',
   '暂无可归档计划记录。': 'No archivable plan records.',
   '已从普通列表隐藏 {count} 份计划；执行记录、撤销能力和安全备份保持不变。':
     'Hidden {count} plans from the normal list. Executions, undo, and safety backups remain unchanged.',

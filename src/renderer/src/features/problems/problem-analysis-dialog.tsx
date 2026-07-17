@@ -4,20 +4,28 @@ import {
   Check,
   FileImage,
   ImagePlus,
+  Link2,
   LoaderCircle,
+  Plus,
+  Search,
   Sparkles,
   Trash2,
   X,
 } from 'lucide-react'
-import { useEffect, useRef, useState, type ClipboardEvent, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type ClipboardEvent, type FormEvent } from 'react'
 
 import type {
   ProblemAnalysisCandidate,
-  ProblemAnalysisDraft,
   ProblemAnalysisImage,
 } from '@core/contracts/problem-analysis'
-import type { CreateProblemRequest, Problem, RelationType } from '@core/contracts/problem'
+import {
+  emptyProblemAnalysisStructure,
+  type CreateProblemRequest,
+  type Problem,
+  type RelationType,
+} from '@core/contracts/problem'
 import type { AiOutputLanguage, AiRequestPreview } from '@core/contracts/ai-request'
+import type { TemplateSummary } from '@core/contracts/workspace'
 
 import { AiRequestPreviewDialog } from '@/components/ai-request-preview-dialog'
 import { Badge } from '@/components/ui/badge'
@@ -30,6 +38,36 @@ interface ProblemAnalysisDialogProps {
   onCreated: (problem: Problem) => void
   onOpenChange: (open: boolean) => void
   open: boolean
+  templates: TemplateSummary[]
+}
+
+interface RelationDraft extends ProblemAnalysisCandidate {
+  note: string
+  source: 'ai' | 'manual'
+}
+
+const roleLabels: Record<ProblemAnalysisCandidate['role'], string> = {
+  'alternative-solution': '替代解法',
+  'direct-solution': '直接解法',
+  optimization: '优化方向',
+  prerequisite: '前置能力',
+  subproblem: '子问题',
+}
+
+function emptyFields(): CreateProblemRequest {
+  return {
+    aiSummary: '',
+    analysis: { ...emptyProblemAnalysisStructure },
+    difficulty: null,
+    notes: '',
+    platform: null,
+    problemCode: null,
+    statement: '',
+    status: 'unattempted',
+    tags: [],
+    title: '',
+    url: null,
+  }
 }
 
 function errorMessage(error: unknown): string {
@@ -58,39 +96,103 @@ function readClipboardImage(file: File): Promise<ProblemAnalysisImage> {
   })
 }
 
+function mergeAiFields(
+  current: CreateProblemRequest,
+  generated: CreateProblemRequest,
+): CreateProblemRequest {
+  return {
+    aiSummary: current.aiSummary.trim() || generated.aiSummary,
+    analysis: {
+      algorithmSignals:
+        current.analysis.algorithmSignals.length > 0
+          ? current.analysis.algorithmSignals
+          : generated.analysis.algorithmSignals,
+      constraints:
+        current.analysis.constraints.length > 0
+          ? current.analysis.constraints
+          : generated.analysis.constraints,
+      edgeCases:
+        current.analysis.edgeCases.length > 0
+          ? current.analysis.edgeCases
+          : generated.analysis.edgeCases,
+      examples:
+        current.analysis.examples.length > 0
+          ? current.analysis.examples
+          : generated.analysis.examples,
+      inputDescription:
+        current.analysis.inputDescription.trim() || generated.analysis.inputDescription,
+      outputDescription:
+        current.analysis.outputDescription.trim() || generated.analysis.outputDescription,
+    },
+    difficulty: current.difficulty ?? generated.difficulty,
+    notes: current.notes.trim() || generated.notes,
+    platform: current.platform ?? generated.platform,
+    problemCode: current.problemCode ?? generated.problemCode,
+    statement: current.statement,
+    status: current.status,
+    tags: [...new Set([...current.tags, ...generated.tags])],
+    title: current.title.trim() || generated.title,
+    url: current.url ?? generated.url,
+  }
+}
+
 export function ProblemAnalysisDialog({
   onCreated,
   onOpenChange,
   open,
+  templates,
 }: ProblemAnalysisDialogProps) {
   const { locale, t } = useI18n()
-  const [candidateTypes, setCandidateTypes] = useState<Record<string, RelationType>>({})
-  const [draft, setDraft] = useState<ProblemAnalysisDraft | null>(null)
+  const localeRef = useRef(locale)
+  localeRef.current = locale
+  const [draftInfo, setDraftInfo] = useState<{ model: string; providerName: string } | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [fields, setFields] = useState<CreateProblemRequest | null>(null)
+  const [fields, setFields] = useState<CreateProblemRequest>(emptyFields)
   const [images, setImages] = useState<ProblemAnalysisImage[]>([])
   const [isBusy, setIsBusy] = useState(false)
-  const [outputLanguage, setOutputLanguage] = useState<AiOutputLanguage>(locale)
+  const [outputLanguage, setOutputLanguage] = useState<AiOutputLanguage>('zh-CN')
+  const [relationDrafts, setRelationDrafts] = useState<RelationDraft[]>([])
   const [requestPreview, setRequestPreview] = useState<AiRequestPreview | null>(null)
   const [selectedCandidates, setSelectedCandidates] = useState<Set<string>>(new Set())
+  const [selectedManualTemplateId, setSelectedManualTemplateId] = useState('')
   const [tagsText, setTagsText] = useState('')
-  const [text, setText] = useState('')
+  const [templateQuery, setTemplateQuery] = useState('')
   const activeRequestId = useRef<string | null>(null)
+  const relationDraftsRef = useRef<RelationDraft[]>([])
+  const selectedCandidatesRef = useRef<Set<string>>(new Set())
+  relationDraftsRef.current = relationDrafts
+  selectedCandidatesRef.current = selectedCandidates
 
   useEffect(() => {
     if (!open) return
-    setCandidateTypes({})
-    setDraft(null)
+    setDraftInfo(null)
     setError(null)
-    setFields(null)
+    setFields(emptyFields())
     setImages([])
     setIsBusy(false)
-    setOutputLanguage(locale)
+    setOutputLanguage(localeRef.current)
+    setRelationDrafts([])
     setRequestPreview(null)
     setSelectedCandidates(new Set())
+    setSelectedManualTemplateId('')
     setTagsText('')
-    setText('')
-  }, [locale, open])
+    setTemplateQuery('')
+  }, [open])
+
+  const availableManualTemplates = useMemo(() => {
+    const selected = new Set(relationDrafts.map(candidate => candidate.templateId))
+    const query = templateQuery.trim().toLocaleLowerCase('zh-CN')
+    return templates
+      .filter(template => !selected.has(template.id))
+      .filter(
+        template =>
+          !query ||
+          `${template.name} ${template.relativePath} ${template.language}`
+            .toLocaleLowerCase('zh-CN')
+            .includes(query),
+      )
+      .slice(0, 50)
+  }, [relationDrafts, templateQuery, templates])
 
   const chooseImages = async () => {
     setError(null)
@@ -133,19 +235,40 @@ export function ProblemAnalysisDialog({
         images,
         outputLanguage,
         requestId,
-        text,
+        text: fields.statement,
       })
       if (activeRequestId.current !== requestId) return
       setRequestPreview(null)
-      setDraft(result)
-      setFields(result.fields)
-      setTagsText(result.fields.tags.join(', '))
-      setSelectedCandidates(new Set(result.candidates.map(candidate => candidate.templateId)))
-      setCandidateTypes(
-        Object.fromEntries(
-          result.candidates.map(candidate => [candidate.templateId, candidate.relationType]),
-        ),
+      setDraftInfo({ model: result.model, providerName: result.providerName })
+      setFields(current => mergeAiFields(current, result.fields))
+      setTagsText(current => {
+        const existing = current
+          .split(/[,，]/)
+          .map(tag => tag.trim())
+          .filter(Boolean)
+        return [...new Set([...existing, ...result.fields.tags])].join(', ')
+      })
+      const generatedDrafts: RelationDraft[] = result.candidates.map(candidate => ({
+        ...candidate,
+        note: candidate.reason,
+        source: 'ai',
+      }))
+      const manual = relationDraftsRef.current.filter(candidate => candidate.source === 'manual')
+      const manualIds = new Set(manual.map(candidate => candidate.templateId))
+      const nextDrafts = [
+        ...manual,
+        ...generatedDrafts.filter(candidate => !manualIds.has(candidate.templateId)),
+      ].slice(0, 8)
+      const nextSelected = new Set(
+        manual
+          .filter(candidate => selectedCandidatesRef.current.has(candidate.templateId))
+          .map(candidate => candidate.templateId),
       )
+      for (const candidate of generatedDrafts) {
+        if (candidate.confidence >= 0.65) nextSelected.add(candidate.templateId)
+      }
+      setRelationDrafts(nextDrafts)
+      setSelectedCandidates(nextSelected)
     } catch (caught) {
       if (activeRequestId.current !== requestId) return
       setRequestPreview(null)
@@ -164,7 +287,7 @@ export function ProblemAnalysisDialog({
     activeRequestId.current = null
     setRequestPreview(null)
     setIsBusy(false)
-    setError(t('AI 请求已取消，迟到响应不会写入状态。'))
+    setError(t('AI 请求已取消，已填写的题目内容和模板选择均已保留。'))
     void window.desktop.problemAnalysis.cancel(requestId)
   }
 
@@ -173,7 +296,11 @@ export function ProblemAnalysisDialog({
     setIsBusy(true)
     try {
       setRequestPreview(
-        await window.desktop.problemAnalysis.preview({ images, outputLanguage, text }),
+        await window.desktop.problemAnalysis.preview({
+          images,
+          outputLanguage,
+          text: fields.statement,
+        }),
       )
     } catch (caught) {
       setError(t(errorMessage(caught)))
@@ -184,7 +311,6 @@ export function ProblemAnalysisDialog({
 
   const confirm = async (event: FormEvent) => {
     event.preventDefault()
-    if (!fields || !draft) return
     setError(null)
     setIsBusy(true)
     try {
@@ -199,11 +325,11 @@ export function ProblemAnalysisDialog({
       const problem = await window.desktop.problemAnalysis.commit({
         fields: { ...fields, tags },
         images,
-        relations: draft.candidates
+        relations: relationDrafts
           .filter(candidate => selectedCandidates.has(candidate.templateId))
           .map(candidate => ({
-            note: candidate.reason,
-            relationType: candidateTypes[candidate.templateId] ?? 'recommended',
+            note: candidate.note,
+            relationType: candidate.relationType,
             templateId: candidate.templateId,
           })),
       })
@@ -216,11 +342,43 @@ export function ProblemAnalysisDialog({
     }
   }
 
-  const updateCandidate = (candidate: ProblemAnalysisCandidate, checked: boolean) => {
+  const addManualTemplate = () => {
+    const template = templates.find(item => item.id === selectedManualTemplateId)
+    if (!template || relationDrafts.length >= 8) return
+    const candidate: RelationDraft = {
+      applicableWhen: [],
+      confidence: 1,
+      evidence: [],
+      matchedCapabilities: [],
+      notApplicableWhen: [],
+      note: '',
+      reason: t('用户手动选择。'),
+      relationType: 'used',
+      role: 'direct-solution',
+      source: 'manual',
+      templateId: template.id,
+      templateName: template.name,
+      templatePath: template.relativePath,
+      warnings: [],
+    }
+    setRelationDrafts(current => [...current, candidate])
+    setSelectedCandidates(current => new Set(current).add(template.id))
+    setSelectedManualTemplateId('')
+  }
+
+  const updateRelation = (templateId: string, patch: Partial<RelationDraft>) => {
+    setRelationDrafts(current =>
+      current.map(candidate =>
+        candidate.templateId === templateId ? { ...candidate, ...patch } : candidate,
+      ),
+    )
+  }
+
+  const removeRelation = (templateId: string) => {
+    setRelationDrafts(current => current.filter(candidate => candidate.templateId !== templateId))
     setSelectedCandidates(current => {
       const next = new Set(current)
-      if (checked) next.add(candidate.templateId)
-      else next.delete(candidate.templateId)
+      next.delete(templateId)
       return next
     })
   }
@@ -229,44 +387,42 @@ export function ProblemAnalysisDialog({
     'mt-1.5 h-9 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring'
 
   return (
-    <Dialog.Root onOpenChange={openValue => !isBusy && onOpenChange(openValue)} open={open}>
+    <Dialog.Root onOpenChange={value => !isBusy && onOpenChange(value)} open={open}>
       <Dialog.Portal>
         <Dialog.Overlay className="dialog-overlay fixed inset-0 z-50 bg-overlay/60 backdrop-blur-[3px]" />
         <Dialog.Content
-          aria-describedby="problem-analysis-description"
-          className="dialog-surface fixed left-1/2 top-1/2 z-50 flex h-[min(850px,calc(100vh-24px))] w-[min(980px,calc(100vw-24px))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-3xl border border-primary/18 bg-panel shadow-2xl outline-none ring-1 ring-white/8"
+          aria-describedby="problem-create-description"
+          className="dialog-surface fixed left-1/2 top-1/2 z-50 flex h-[min(870px,calc(100vh-24px))] w-[min(1120px,calc(100vw-24px))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-3xl border border-primary/18 bg-panel shadow-2xl outline-none ring-1 ring-white/8"
           onInteractOutside={event => isBusy && event.preventDefault()}
         >
           <header className="flex items-start border-b border-border px-5 py-4">
             <span className="mr-3 grid size-9 place-items-center rounded-xl bg-primary/10 text-primary">
-              <Sparkles className="size-4" />
+              <Sparkles aria-hidden="true" className="size-4" />
             </span>
             <div>
-              <Dialog.Title className="text-sm font-semibold">
-                {t(draft ? '确认 AI 题目草稿' : 'AI 分析题目')}
-              </Dialog.Title>
+              <Dialog.Title className="text-sm font-semibold">{t('新建题目')}</Dialog.Title>
               <Dialog.Description
                 className="mt-1 text-xs text-muted-foreground"
-                id="problem-analysis-description"
+                id="problem-create-description"
               >
-                {draft
-                  ? t('由 {provider} · {model} 生成，确认前不会写入题库。', {
-                      model: draft.model,
-                      provider: draft.providerName,
+                {draftInfo
+                  ? t('AI 已补全草稿：{provider} · {model}。你仍可修改后一次保存。', {
+                      model: draftInfo.model,
+                      provider: draftInfo.providerName,
                     })
-                  : t('输入题面、选择截图或直接粘贴图片；分析结果仅形成可编辑草稿。')}
+                  : t('手动填写，或在同一窗口中加入图文并请求 AI 补全。')}
               </Dialog.Description>
             </div>
             <Dialog.Close asChild>
               <Button
-                aria-label={t('关闭 AI 题目分析')}
+                aria-label={t('关闭新建题目')}
                 className="ml-auto"
                 disabled={isBusy}
                 size="close"
                 type="button"
                 variant="ghost"
               >
-                <X className="size-4" />
+                <X aria-hidden="true" className="size-4" />
               </Button>
             </Dialog.Close>
           </header>
@@ -276,303 +432,192 @@ export function ProblemAnalysisDialog({
               className="flex items-start gap-2 border-b border-red-500/20 bg-red-500/7 px-5 py-2.5 text-xs text-red-700 dark:text-red-300"
               role="alert"
             >
-              <AlertCircle className="mt-0.5 size-4 shrink-0" />
-              <span>{t(error)}</span>
+              <AlertCircle aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+              <span>{error}</span>
               <button
                 aria-label={t('关闭分析错误')}
                 className="ml-auto rounded p-0.5 hover:bg-red-500/10"
                 onClick={() => setError(null)}
                 type="button"
               >
-                <X className="size-3.5" />
+                <X aria-hidden="true" className="size-3.5" />
               </button>
             </div>
           )}
 
-          {!draft || !fields ? (
-            <div className="min-h-0 flex-1 overflow-y-auto p-5">
-              <section className="rounded-2xl border border-border bg-background/55 p-5">
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <h3 className="text-sm font-semibold">{t('题面输入')}</h3>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {t('支持纯文本、截图，或在文本框内按 Cmd/Ctrl+V 粘贴图片。')}
-                    </p>
-                  </div>
-                  <Button
-                    disabled={isBusy || images.length >= 6}
-                    onClick={() => void chooseImages()}
-                    size="compact"
-                    type="button"
-                    variant="outline"
-                  >
-                    <ImagePlus className="size-3.5" />
-                    {t('选择截图')}
-                  </Button>
-                  <label className="ml-auto flex items-center gap-2 text-[11px] font-medium">
-                    {t('输出语言')}
-                    <select
-                      aria-label={t('题目分析输出语言')}
-                      className="h-8 rounded-lg border border-border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-ring"
-                      onChange={event => setOutputLanguage(event.target.value as AiOutputLanguage)}
-                      value={outputLanguage}
-                    >
-                      <option value="zh-CN">{t('简体中文')}</option>
-                      <option value="en">English</option>
-                    </select>
-                  </label>
-                </div>
-                <textarea
-                  aria-label={t('待分析题面')}
-                  autoFocus
-                  className="mt-4 min-h-64 w-full resize-y rounded-xl border border-border bg-panel px-4 py-3 text-sm leading-6 outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring"
-                  maxLength={100_000}
-                  onChange={event => setText(event.target.value)}
-                  onPaste={event => void handlePaste(event)}
-                  placeholder={t('粘贴题目描述、输入输出与数据范围…')}
-                  value={text}
-                />
-              </section>
-
-              <section className="mt-4 rounded-2xl border border-border bg-background/55 p-5">
-                <div className="flex items-center gap-3">
-                  <FileImage className="size-4 text-muted-foreground" />
-                  <div>
-                    <h3 className="text-sm font-semibold">{t('分析图片')}</h3>
-                    <p className="mt-0.5 text-[11px] text-muted-foreground">
-                      {images.length} / 6 {t('张')} · {t('单张')} 8 MiB · {t('合计')} 24 MiB
-                    </p>
-                  </div>
-                </div>
-                {images.length === 0 ? (
-                  <div className="mt-4 grid min-h-32 place-items-center rounded-xl border border-dashed border-border text-center text-xs text-muted-foreground">
-                    {t('图片只用于本次分析，确认草稿后才会保存。')}
-                  </div>
-                ) : (
-                  <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    {images.map((image, index) => (
-                      <article
-                        className="flex items-center gap-3 rounded-xl border border-border bg-panel p-2.5"
-                        key={`${image.name}-${index}`}
-                      >
-                        <img
-                          alt={image.name}
-                          className="size-12 rounded-lg border border-border object-cover"
-                          src={image.dataUrl}
-                        />
-                        <span className="min-w-0 flex-1 truncate text-xs">{image.name}</span>
-                        <Button
-                          aria-label={`${t('移除分析图片')} ${image.name}`}
-                          onClick={() =>
-                            setImages(current =>
-                              current.filter((_, itemIndex) => itemIndex !== index),
-                            )
-                          }
-                          size="icon"
-                          type="button"
-                          variant="ghost"
-                        >
-                          <Trash2 className="size-3.5" />
-                        </Button>
-                      </article>
-                    ))}
-                  </div>
-                )}
-              </section>
-
-              <footer className="mt-5 flex items-center justify-between gap-4 border-t border-border pt-4">
-                <p className="text-[11px] text-muted-foreground">
-                  {t('发送前会显示当前任务 Provider；分析不会自动创建题目。')}
-                </p>
-                <div className="flex gap-2">
-                  <Dialog.Close asChild>
-                    <Button disabled={isBusy} type="button" variant="outline">
-                      {t('取消')}
-                    </Button>
-                  </Dialog.Close>
-                  <Button
-                    disabled={isBusy || (!text.trim() && images.length === 0)}
-                    onClick={() => void previewAnalysis()}
-                    type="button"
-                  >
-                    {isBusy ? (
-                      <LoaderCircle className="size-4 animate-spin" />
-                    ) : (
-                      <Sparkles className="size-4" />
-                    )}
-                    {t('生成草稿')}
-                  </Button>
-                </div>
-              </footer>
-            </div>
-          ) : (
-            <form
-              className="min-h-0 flex-1 overflow-y-auto p-5"
-              onSubmit={event => void confirm(event)}
-            >
-              <div className="grid gap-4 sm:grid-cols-2">
-                <label className="text-xs font-semibold sm:col-span-2">
-                  {t('题目标题')}
-                  <input
-                    aria-label={t('AI 草稿题目标题')}
-                    className={inputClass}
-                    maxLength={200}
-                    onChange={event =>
-                      setFields(current => current && { ...current, title: event.target.value })
-                    }
-                    required
-                    value={fields.title}
-                  />
-                </label>
-                <label className="text-xs font-semibold">
-                  {t('平台')}
-                  <input
-                    aria-label={t('AI 草稿平台')}
-                    className={inputClass}
-                    onChange={event =>
-                      setFields(
-                        current =>
-                          current && { ...current, platform: nullable(event.target.value) },
-                      )
-                    }
-                    value={fields.platform ?? ''}
-                  />
-                </label>
-                <label className="text-xs font-semibold">
-                  {t('题号')}
-                  <input
-                    aria-label={t('AI 草稿题号')}
-                    className={inputClass}
-                    onChange={event =>
-                      setFields(
-                        current =>
-                          current && { ...current, problemCode: nullable(event.target.value) },
-                      )
-                    }
-                    value={fields.problemCode ?? ''}
-                  />
-                </label>
-                <label className="text-xs font-semibold">
-                  {t('难度')}
-                  <input
-                    aria-label={t('AI 草稿难度')}
-                    className={inputClass}
-                    onChange={event =>
-                      setFields(
-                        current =>
-                          current && { ...current, difficulty: nullable(event.target.value) },
-                      )
-                    }
-                    value={fields.difficulty ?? ''}
-                  />
-                </label>
-                <label className="text-xs font-semibold">
-                  {t('状态')}
-                  <select
-                    aria-label={t('AI 草稿状态')}
-                    className={inputClass}
-                    onChange={event =>
-                      setFields(
-                        current =>
-                          current && {
-                            ...current,
-                            status: event.target.value as CreateProblemRequest['status'],
-                          },
-                      )
-                    }
-                    value={fields.status}
-                  >
-                    {Object.entries(problemStatusLabels).map(([value, label]) => (
-                      <option key={value} value={value}>
-                        {t(label)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="text-xs font-semibold sm:col-span-2">
-                  {t('题目链接')}
-                  <input
-                    aria-label={t('AI 草稿链接')}
-                    className={inputClass}
-                    onChange={event =>
-                      setFields(
-                        current => current && { ...current, url: nullable(event.target.value) },
-                      )
-                    }
-                    type="url"
-                    value={fields.url ?? ''}
-                  />
-                </label>
-                <label className="text-xs font-semibold sm:col-span-2">
-                  {t('标签')}
-                  <input
-                    aria-label={t('AI 草稿标签')}
-                    className={inputClass}
-                    onChange={event => setTagsText(event.target.value)}
-                    value={tagsText}
-                  />
-                </label>
-                <label className="text-xs font-semibold sm:col-span-2">
-                  {t('原始题面')}
-                  <textarea
-                    aria-label={t('AI 草稿原始题面')}
-                    className="mt-1.5 min-h-32 w-full resize-y rounded-xl border border-border bg-background px-3 py-2.5 text-sm leading-6 outline-none focus:ring-2 focus:ring-ring"
-                    readOnly
-                    value={fields.statement}
-                  />
-                </label>
-                <label className="text-xs font-semibold sm:col-span-2">
-                  {t('AI 题目摘要')}
-                  <textarea
-                    aria-label={t('AI 草稿题目摘要')}
-                    className="mt-1.5 min-h-24 w-full resize-y rounded-xl border border-border bg-background px-3 py-2.5 text-sm leading-6 outline-none focus:ring-2 focus:ring-ring"
-                    onChange={event =>
-                      setFields(current => current && { ...current, aiSummary: event.target.value })
-                    }
-                    value={fields.aiSummary}
-                  />
-                </label>
-                {(
-                  [
-                    ['inputDescription', '输入说明'],
-                    ['outputDescription', '输出说明'],
-                  ] as const
-                ).map(([key, label]) => (
-                  <label className="text-xs font-semibold" key={key}>
-                    {t(label)}
-                    <textarea
-                      aria-label={t(`AI 草稿${label}`)}
-                      className="mt-1.5 min-h-20 w-full resize-y rounded-xl border border-border bg-background px-3 py-2.5 text-xs leading-5 outline-none focus:ring-2 focus:ring-ring"
+          <form className="flex min-h-0 flex-1 flex-col" onSubmit={event => void confirm(event)}>
+            <div className="grid min-h-0 flex-1 gap-4 p-5 lg:grid-cols-[minmax(0,1.05fr)_minmax(380px,0.95fr)]">
+              <section className="min-h-0 overflow-y-auto rounded-2xl border border-border bg-background/55 p-4">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="text-xs font-semibold sm:col-span-2">
+                    {t('题目标题')}
+                    <input
+                      autoFocus
+                      className={inputClass}
+                      maxLength={200}
                       onChange={event =>
-                        setFields(current =>
-                          current
-                            ? {
-                                ...current,
-                                analysis: { ...current.analysis, [key]: event.target.value },
-                              }
-                            : current,
-                        )
+                        setFields(current => ({ ...current, title: event.target.value }))
                       }
-                      value={fields.analysis[key]}
+                      placeholder={t('例如 最短路计数')}
+                      required
+                      value={fields.title}
                     />
                   </label>
-                ))}
-                {(
-                  [
-                    ['constraints', '数据约束'],
-                    ['algorithmSignals', '算法信号'],
-                    ['edgeCases', '边界情况'],
-                  ] as const
-                ).map(([key, label]) => (
-                  <label className="text-xs font-semibold sm:col-span-2" key={key}>
-                    {t(label)}
-                    <textarea
-                      aria-label={t(`AI 草稿${label}`)}
-                      className="mt-1.5 min-h-20 w-full resize-y rounded-xl border border-border bg-background px-3 py-2.5 text-xs leading-5 outline-none focus:ring-2 focus:ring-ring"
+                  <label className="text-xs font-semibold">
+                    {t('平台')}
+                    <input
+                      className={inputClass}
+                      maxLength={80}
                       onChange={event =>
-                        setFields(current =>
-                          current
-                            ? {
+                        setFields(current => ({
+                          ...current,
+                          platform: nullable(event.target.value),
+                        }))
+                      }
+                      value={fields.platform ?? ''}
+                    />
+                  </label>
+                  <label className="text-xs font-semibold">
+                    {t('题号')}
+                    <input
+                      className={inputClass}
+                      maxLength={80}
+                      onChange={event =>
+                        setFields(current => ({
+                          ...current,
+                          problemCode: nullable(event.target.value),
+                        }))
+                      }
+                      value={fields.problemCode ?? ''}
+                    />
+                  </label>
+                  <label className="text-xs font-semibold">
+                    {t('难度')}
+                    <input
+                      className={inputClass}
+                      maxLength={40}
+                      onChange={event =>
+                        setFields(current => ({
+                          ...current,
+                          difficulty: nullable(event.target.value),
+                        }))
+                      }
+                      value={fields.difficulty ?? ''}
+                    />
+                  </label>
+                  <label className="text-xs font-semibold">
+                    {t('状态')}
+                    <select
+                      className={inputClass}
+                      onChange={event =>
+                        setFields(current => ({
+                          ...current,
+                          status: event.target.value as CreateProblemRequest['status'],
+                        }))
+                      }
+                      value={fields.status}
+                    >
+                      {Object.entries(problemStatusLabels).map(([value, label]) => (
+                        <option key={value} value={value}>
+                          {t(label)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="text-xs font-semibold sm:col-span-2">
+                    {t('题目链接')}
+                    <input
+                      className={inputClass}
+                      maxLength={2048}
+                      onChange={event =>
+                        setFields(current => ({ ...current, url: nullable(event.target.value) }))
+                      }
+                      type="url"
+                      value={fields.url ?? ''}
+                    />
+                  </label>
+                  <label className="text-xs font-semibold sm:col-span-2">
+                    {t('标签')}
+                    <input
+                      className={inputClass}
+                      onChange={event => setTagsText(event.target.value)}
+                      placeholder={t('最短路, 图论, Dijkstra')}
+                      value={tagsText}
+                    />
+                  </label>
+                  <label className="text-xs font-semibold sm:col-span-2">
+                    {t('原始题面')}
+                    <textarea
+                      aria-label={t('原始题面')}
+                      className="mt-1.5 min-h-36 w-full resize-y rounded-xl border border-border bg-panel px-3 py-2.5 text-sm leading-6 outline-none focus:ring-2 focus:ring-ring"
+                      maxLength={100_000}
+                      onChange={event =>
+                        setFields(current => ({ ...current, statement: event.target.value }))
+                      }
+                      onPaste={event => void handlePaste(event)}
+                      placeholder={t('记录原始题面、输入输出和数据范围…')}
+                      value={fields.statement}
+                    />
+                  </label>
+                  <label className="text-xs font-semibold sm:col-span-2">
+                    {t('AI 题目摘要')}
+                    <textarea
+                      className="mt-1.5 min-h-20 w-full resize-y rounded-xl border border-border bg-background px-3 py-2.5 text-sm leading-6 outline-none focus:ring-2 focus:ring-ring"
+                      onChange={event =>
+                        setFields(current => ({ ...current, aiSummary: event.target.value }))
+                      }
+                      value={fields.aiSummary}
+                    />
+                  </label>
+                  <label className="text-xs font-semibold sm:col-span-2">
+                    {t('本地备注')}
+                    <textarea
+                      className="mt-1.5 min-h-20 w-full resize-y rounded-xl border border-border bg-background px-3 py-2.5 text-sm leading-6 outline-none focus:ring-2 focus:ring-ring"
+                      onChange={event =>
+                        setFields(current => ({ ...current, notes: event.target.value }))
+                      }
+                      value={fields.notes}
+                    />
+                  </label>
+                </div>
+
+                {draftInfo && (
+                  <section className="mt-4 rounded-xl border border-primary/15 bg-primary/5 p-3">
+                    <h3 className="text-xs font-semibold">{t('结构化分析')}</h3>
+                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                      {(
+                        [
+                          ['inputDescription', '输入说明'],
+                          ['outputDescription', '输出说明'],
+                        ] as const
+                      ).map(([key, label]) => (
+                        <label className="text-[11px] font-medium" key={key}>
+                          {t(label)}
+                          <textarea
+                            className="mt-1 min-h-20 w-full resize-y rounded-lg border border-border bg-background p-2 text-xs outline-none focus:ring-2 focus:ring-ring"
+                            onChange={event =>
+                              setFields(current => ({
+                                ...current,
+                                analysis: { ...current.analysis, [key]: event.target.value },
+                              }))
+                            }
+                            value={fields.analysis[key]}
+                          />
+                        </label>
+                      ))}
+                      {(
+                        [
+                          ['constraints', '数据约束'],
+                          ['algorithmSignals', '算法信号'],
+                          ['edgeCases', '边界情况'],
+                        ] as const
+                      ).map(([key, label]) => (
+                        <label className="text-[11px] font-medium sm:col-span-2" key={key}>
+                          {t(label)}
+                          <textarea
+                            className="mt-1 min-h-20 w-full resize-y rounded-lg border border-border bg-background p-2 text-xs outline-none focus:ring-2 focus:ring-ring"
+                            onChange={event =>
+                              setFields(current => ({
                                 ...current,
                                 analysis: {
                                   ...current.analysis,
@@ -581,179 +626,286 @@ export function ProblemAnalysisDialog({
                                     .map(item => item.trim())
                                     .filter(Boolean),
                                 },
-                              }
-                            : current,
-                        )
-                      }
-                      value={fields.analysis[key].join('\n')}
-                    />
-                  </label>
-                ))}
-                {fields.analysis.examples.map((example, index) => (
-                  <section
-                    className="grid gap-2 rounded-xl border border-border bg-muted/25 p-3 sm:col-span-2 sm:grid-cols-2"
-                    key={index}
-                  >
-                    <p className="text-xs font-semibold sm:col-span-2">
-                      {t('样例')} {index + 1}
-                    </p>
-                    {(['input', 'output', 'explanation'] as const).map(key => (
-                      <label
-                        className={`text-[11px] font-medium ${key === 'explanation' ? 'sm:col-span-2' : ''}`}
-                        key={key}
-                      >
-                        {t(key === 'input' ? '输入' : key === 'output' ? '输出' : '解释')}
-                        <textarea
-                          className="mt-1 min-h-16 w-full resize-y rounded-lg border border-border bg-background p-2 font-mono text-[11px] outline-none focus:ring-2 focus:ring-ring"
-                          onChange={event =>
-                            setFields(current => {
-                              if (!current) return current
-                              const examples = current.analysis.examples.map((item, itemIndex) =>
-                                itemIndex === index ? { ...item, [key]: event.target.value } : item,
-                              )
-                              return {
-                                ...current,
-                                analysis: { ...current.analysis, examples },
-                              }
-                            })
-                          }
-                          value={example[key]}
-                        />
-                      </label>
-                    ))}
-                  </section>
-                ))}
-                <label className="text-xs font-semibold sm:col-span-2">
-                  {t('本地备注')}
-                  <textarea
-                    aria-label={t('AI 草稿本地备注')}
-                    className="mt-1.5 min-h-20 w-full resize-y rounded-xl border border-border bg-background px-3 py-2.5 text-sm leading-6 outline-none focus:ring-2 focus:ring-ring"
-                    onChange={event =>
-                      setFields(current => current && { ...current, notes: event.target.value })
-                    }
-                    value={fields.notes}
-                  />
-                </label>
-              </div>
-
-              <section className="mt-5 rounded-2xl border border-border bg-background/55 p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <h3 className="text-sm font-semibold">{t('候选模板关联')}</h3>
-                    <p className="mt-1 text-[11px] text-muted-foreground">
-                      {t('仅保留你确认的候选；创建后仍可手动调整。')}
-                    </p>
-                  </div>
-                  <Badge>
-                    {selectedCandidates.size} {t('个将写入')}
-                  </Badge>
-                </div>
-                {draft.candidates.length === 0 ? (
-                  <div className="mt-4 rounded-xl border border-dashed border-border p-4 text-center text-xs text-muted-foreground">
-                    {t('AI 没有找到可靠的本地模板候选。')}
-                  </div>
-                ) : (
-                  <div className="mt-4 space-y-2">
-                    {draft.candidates.map(candidate => (
-                      <article
-                        className="flex items-center gap-3 rounded-xl border border-border bg-panel p-3"
-                        key={candidate.templateId}
-                      >
-                        <label className="grid size-8 shrink-0 place-items-center">
-                          <input
-                            aria-label={`${t('选择候选模板')} ${candidate.templateName}`}
-                            checked={selectedCandidates.has(candidate.templateId)}
-                            className="size-4 accent-primary"
-                            onChange={event => updateCandidate(candidate, event.target.checked)}
-                            type="checkbox"
+                              }))
+                            }
+                            value={fields.analysis[key].join('\n')}
                           />
                         </label>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className="truncate text-sm font-medium">
-                              {candidate.templateName}
-                            </span>
-                            <Badge>{Math.round(candidate.confidence * 100)}%</Badge>
-                          </div>
-                          <p className="mt-1 truncate text-[11px] text-muted-foreground">
-                            {candidate.templatePath}
-                          </p>
-                          <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                            {candidate.reason}
-                          </p>
-                          {candidate.evidence.length > 0 && (
-                            <p className="mt-2 text-[11px] leading-5 text-muted-foreground">
-                              <span className="font-semibold text-foreground">
-                                {t('题面证据')}：
-                              </span>
-                              {candidate.evidence.join('、')}
-                            </p>
-                          )}
-                          {candidate.applicableWhen.length > 0 && (
-                            <p className="mt-1 text-[11px] leading-5 text-success">
-                              <span className="font-semibold">{t('适用条件')}：</span>
-                              {candidate.applicableWhen.join('、')}
-                            </p>
-                          )}
-                          {candidate.notApplicableWhen.length > 0 && (
-                            <p className="mt-1 text-[11px] leading-5 text-warning">
-                              <span className="font-semibold">{t('不适用条件')}：</span>
-                              {candidate.notApplicableWhen.join('、')}
-                            </p>
-                          )}
-                          {candidate.warnings.length > 0 && (
-                            <p className="mt-1 text-[11px] leading-5 text-red-600 dark:text-red-300">
-                              <span className="font-semibold">{t('使用前警告')}：</span>
-                              {candidate.warnings.join('、')}
-                            </p>
-                          )}
-                        </div>
-                        <select
-                          aria-label={`${candidate.templateName} ${t('关系类型')}`}
-                          className="h-8 rounded-lg border border-border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-ring"
-                          disabled={!selectedCandidates.has(candidate.templateId)}
-                          onChange={event =>
-                            setCandidateTypes(current => ({
-                              ...current,
-                              [candidate.templateId]: event.target.value as RelationType,
-                            }))
-                          }
-                          value={candidateTypes[candidate.templateId] ?? 'recommended'}
-                        >
-                          {Object.entries(relationTypeLabels).map(([value, label]) => (
-                            <option key={value} value={value}>
-                              {t(label)}
-                            </option>
-                          ))}
-                        </select>
-                      </article>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  </section>
                 )}
               </section>
 
-              <footer className="mt-5 flex items-center justify-between gap-4 border-t border-border pt-4">
-                <p className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                  <Check className="size-3.5 text-success" />
-                  {t('确认后才会保存题目、{count} 张图片和关联。', { count: images.length })}
-                </p>
-                <div className="flex gap-2">
-                  <Button
-                    disabled={isBusy}
-                    onClick={() => setDraft(null)}
-                    type="button"
-                    variant="outline"
-                  >
-                    {t('返回修改输入')}
-                  </Button>
-                  <Button disabled={isBusy || !fields.title.trim()} type="submit">
-                    {isBusy && <LoaderCircle className="size-4 animate-spin" />}
-                    {t('确认创建')}
-                  </Button>
+              <section className="min-h-0 space-y-4 overflow-y-auto rounded-2xl border border-border bg-surface-subtle/45 p-4">
+                <div className="rounded-xl border border-primary/18 bg-primary/5 p-4">
+                  <div className="flex items-center gap-2">
+                    <Sparkles aria-hidden="true" className="size-4 text-primary" />
+                    <h3 className="text-sm font-semibold">{t('AI 图文补全')}</h3>
+                    <label className="ml-auto flex items-center gap-2 text-[10px] font-medium">
+                      {t('输出语言')}
+                      <select
+                        aria-label={t('题目分析输出语言')}
+                        className="h-8 rounded-lg border border-border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-ring"
+                        disabled={isBusy}
+                        onChange={event =>
+                          setOutputLanguage(event.target.value as AiOutputLanguage)
+                        }
+                        value={outputLanguage}
+                      >
+                        <option value="zh-CN">{t('简体中文')}</option>
+                        <option value="en">English</option>
+                      </select>
+                    </label>
+                  </div>
+                  <p className="mt-2 text-[11px] leading-5 text-muted-foreground">
+                    {t('使用上方题面与下方图片补全空白字段；失败或取消不会清空你的内容。')}
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button
+                      disabled={isBusy || images.length >= 6}
+                      onClick={() => void chooseImages()}
+                      size="compact"
+                      type="button"
+                      variant="outline"
+                    >
+                      <ImagePlus aria-hidden="true" className="size-3.5" />
+                      {t('选择截图')}
+                    </Button>
+                    {activeRequestId.current ? (
+                      <Button
+                        onClick={cancelAnalysis}
+                        size="compact"
+                        type="button"
+                        variant="outline"
+                      >
+                        {t('取消分析')}
+                      </Button>
+                    ) : (
+                      <Button
+                        disabled={isBusy || (!fields.statement.trim() && images.length === 0)}
+                        onClick={() => void previewAnalysis()}
+                        size="compact"
+                        type="button"
+                      >
+                        {isBusy ? (
+                          <LoaderCircle aria-hidden="true" className="size-3.5 animate-spin" />
+                        ) : (
+                          <Sparkles aria-hidden="true" className="size-3.5" />
+                        )}
+                        {t(draftInfo ? '重新分析并补全' : 'AI 分析并补全')}
+                      </Button>
+                    )}
+                  </div>
                 </div>
-              </footer>
-            </form>
-          )}
+
+                <div className="rounded-xl border border-border bg-background/60 p-3">
+                  <div className="flex items-center gap-2">
+                    <FileImage aria-hidden="true" className="size-4 text-muted-foreground" />
+                    <h3 className="text-xs font-semibold">{t('题目图片')}</h3>
+                    <Badge className="ml-auto">{images.length} / 6</Badge>
+                  </div>
+                  {images.length === 0 ? (
+                    <p className="mt-3 rounded-lg border border-dashed border-border p-3 text-center text-[11px] text-muted-foreground">
+                      {t('图片只在最终确认创建后保存。')}
+                    </p>
+                  ) : (
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                      {images.map((image, index) => (
+                        <article
+                          className="flex items-center gap-2 rounded-lg border border-border bg-panel p-2"
+                          key={`${image.name}-${index}`}
+                        >
+                          <img
+                            alt={image.name}
+                            className="size-10 rounded border border-border object-cover"
+                            src={image.dataUrl}
+                          />
+                          <span className="min-w-0 flex-1 truncate text-[10px]">{image.name}</span>
+                          <Button
+                            aria-label={`${t('移除分析图片')} ${image.name}`}
+                            onClick={() =>
+                              setImages(current =>
+                                current.filter((_, itemIndex) => itemIndex !== index),
+                              )
+                            }
+                            size="icon"
+                            type="button"
+                            variant="ghost"
+                          >
+                            <Trash2 aria-hidden="true" className="size-3.5" />
+                          </Button>
+                        </article>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="rounded-xl border border-border bg-background/60 p-3">
+                  <div className="flex items-center gap-2">
+                    <Link2 aria-hidden="true" className="size-4 text-success" />
+                    <div>
+                      <h3 className="text-xs font-semibold">{t('模板关联草稿')}</h3>
+                      <p className="mt-0.5 text-[10px] text-muted-foreground">
+                        {t('可手动搜索多份模板；AI 建议不会自动保存。')}
+                      </p>
+                    </div>
+                    <Badge className="ml-auto">{selectedCandidates.size} / 8</Badge>
+                  </div>
+                  <div className="mt-3 flex gap-2">
+                    <label className="relative min-w-0 flex-1">
+                      <Search
+                        aria-hidden="true"
+                        className="absolute left-2.5 top-2.5 size-3.5 text-muted-foreground"
+                      />
+                      <input
+                        aria-label={t('搜索本地模板')}
+                        className="h-9 w-full rounded-lg border border-border bg-background pl-8 pr-2 text-xs outline-none focus:ring-2 focus:ring-ring"
+                        onChange={event => setTemplateQuery(event.target.value)}
+                        placeholder={t('名称、路径或语言')}
+                        value={templateQuery}
+                      />
+                    </label>
+                    <select
+                      aria-label={t('选择本地模板')}
+                      className="h-9 min-w-40 rounded-lg border border-border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-ring"
+                      disabled={relationDrafts.length >= 8 || availableManualTemplates.length === 0}
+                      onChange={event => setSelectedManualTemplateId(event.target.value)}
+                      value={selectedManualTemplateId}
+                    >
+                      <option value="">{t('选择模板…')}</option>
+                      {availableManualTemplates.map(template => (
+                        <option key={template.id} value={template.id}>
+                          {template.name} · {template.relativePath}
+                        </option>
+                      ))}
+                    </select>
+                    <Button
+                      aria-label={t('添加本地模板关联')}
+                      disabled={!selectedManualTemplateId || relationDrafts.length >= 8}
+                      onClick={addManualTemplate}
+                      size="icon"
+                      type="button"
+                      variant="outline"
+                    >
+                      <Plus aria-hidden="true" className="size-3.5" />
+                    </Button>
+                  </div>
+
+                  {relationDrafts.length === 0 ? (
+                    <p className="mt-3 rounded-lg border border-dashed border-border p-3 text-center text-[11px] text-muted-foreground">
+                      {t('尚未选择模板；没有可靠候选时可以保持为空。')}
+                    </p>
+                  ) : (
+                    <div className="mt-3 max-h-80 space-y-2 overflow-y-auto pr-1">
+                      {relationDrafts.map(candidate => (
+                        <article
+                          className="rounded-xl border border-border bg-panel p-3"
+                          key={candidate.templateId}
+                        >
+                          <div className="flex items-center gap-2">
+                            <input
+                              aria-label={`${t('选择候选模板')} ${candidate.templateName}`}
+                              checked={selectedCandidates.has(candidate.templateId)}
+                              className="size-4 accent-primary"
+                              onChange={event =>
+                                setSelectedCandidates(current => {
+                                  const next = new Set(current)
+                                  if (event.target.checked) next.add(candidate.templateId)
+                                  else next.delete(candidate.templateId)
+                                  return next
+                                })
+                              }
+                              type="checkbox"
+                            />
+                            <span className="min-w-0 flex-1 truncate text-xs font-semibold">
+                              {candidate.templateName}
+                            </span>
+                            <Badge tone={candidate.source === 'ai' ? 'accent' : 'neutral'}>
+                              {t(candidate.source === 'ai' ? 'AI 建议' : '手动选择')}
+                            </Badge>
+                            <Badge>{t(roleLabels[candidate.role])}</Badge>
+                            {candidate.source === 'ai' && (
+                              <span className="text-[10px] text-muted-foreground">
+                                {Math.round(candidate.confidence * 100)}%
+                              </span>
+                            )}
+                            <Button
+                              aria-label={`${t('移除模板关联草稿')} ${candidate.templateName}`}
+                              onClick={() => removeRelation(candidate.templateId)}
+                              size="icon"
+                              type="button"
+                              variant="ghost"
+                            >
+                              <X aria-hidden="true" className="size-3.5" />
+                            </Button>
+                          </div>
+                          <p className="mt-1 truncate text-[10px] text-muted-foreground">
+                            {candidate.templatePath}
+                          </p>
+                          {candidate.source === 'ai' && (
+                            <p className="mt-1 text-[11px] leading-5 text-muted-foreground">
+                              {candidate.reason}
+                              {candidate.evidence.length > 0 &&
+                                ` · ${candidate.evidence.join('、')}`}
+                            </p>
+                          )}
+                          <div className="mt-2 grid gap-2 sm:grid-cols-[140px_minmax(0,1fr)]">
+                            <select
+                              aria-label={`${candidate.templateName} ${t('关系类型')}`}
+                              className="h-8 rounded-lg border border-border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-ring"
+                              disabled={!selectedCandidates.has(candidate.templateId)}
+                              onChange={event =>
+                                updateRelation(candidate.templateId, {
+                                  relationType: event.target.value as RelationType,
+                                })
+                              }
+                              value={candidate.relationType}
+                            >
+                              {Object.entries(relationTypeLabels).map(([value, label]) => (
+                                <option key={value} value={value}>
+                                  {t(label)}
+                                </option>
+                              ))}
+                            </select>
+                            <input
+                              aria-label={`${candidate.templateName} ${t('关联备注')}`}
+                              className="h-8 rounded-lg border border-border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-ring"
+                              disabled={!selectedCandidates.has(candidate.templateId)}
+                              maxLength={500}
+                              onChange={event =>
+                                updateRelation(candidate.templateId, { note: event.target.value })
+                              }
+                              placeholder={t('为什么需要这份模板…')}
+                              value={candidate.note}
+                            />
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </section>
+            </div>
+
+            <footer className="flex shrink-0 items-center justify-between gap-4 border-t border-border px-5 py-4">
+              <p className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                <Check aria-hidden="true" className="size-3.5 text-success" />
+                {t('最终确认后才会原子保存题目、图片和已勾选关系。')}
+              </p>
+              <div className="flex gap-2">
+                <Dialog.Close asChild>
+                  <Button disabled={isBusy} type="button" variant="outline">
+                    {t('取消')}
+                  </Button>
+                </Dialog.Close>
+                <Button disabled={isBusy || !fields.title.trim()} type="submit">
+                  {isBusy && <LoaderCircle aria-hidden="true" className="size-4 animate-spin" />}
+                  {t('创建题目')}
+                </Button>
+              </div>
+            </footer>
+          </form>
         </Dialog.Content>
       </Dialog.Portal>
       {requestPreview && (

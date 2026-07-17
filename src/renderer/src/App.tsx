@@ -1093,7 +1093,6 @@ function AppContent() {
           onAddImages={problemState.addImages}
           onAnalysisCreated={problemState.acceptProblem}
           onClearError={problemState.clearError}
-          onCreate={problemState.createProblem}
           onDelete={problemState.deleteProblem}
           onOpenTemplate={openTemplate}
           onRemoveImage={problemState.removeImage}

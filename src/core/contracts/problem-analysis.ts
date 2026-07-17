@@ -5,6 +5,13 @@ import { problemAnalysisStructureSchema } from './problem'
 import { aiOutputLanguageSchema, aiRequestIdSchema, aiRequestPreviewSchema } from './ai-request'
 
 const templateIdSchema = z.string().regex(/^[a-f0-9]{64}$/)
+export const problemAnalysisCandidateRoleSchema = z.enum([
+  'direct-solution',
+  'subproblem',
+  'prerequisite',
+  'optimization',
+  'alternative-solution',
+])
 
 export const problemAnalysisImageSchema = z
   .object({
@@ -54,6 +61,7 @@ export const problemAnalysisCandidateSchema = z
     matchedCapabilities: z.array(z.string().trim().min(1).max(500)).max(20),
     notApplicableWhen: z.array(z.string().trim().min(1).max(500)).max(20),
     relationType: relationTypeSchema,
+    role: problemAnalysisCandidateRoleSchema,
     templateId: templateIdSchema,
     templateName: z.string().min(1).max(255),
     templatePath: z.string().min(1).max(4096),
@@ -116,6 +124,7 @@ export const modelProblemAnalysisSchema = z
           matchedCapabilities: z.array(z.string().max(500)).max(20).optional(),
           notApplicableWhen: z.array(z.string().max(500)).max(20).optional(),
           reason: z.string().max(500).optional(),
+          role: problemAnalysisCandidateRoleSchema.optional(),
           templateId: templateIdSchema,
           warnings: z.array(z.string().max(500)).max(20).optional(),
         }),

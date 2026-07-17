@@ -127,7 +127,8 @@ export class ProblemAnalysisService {
         '原始题面由本地原样保存，不得改写或重复输出原文。输出 aiSummary 和 analysis。',
         'analysis 必须包含 inputDescription、outputDescription、constraints、examples、algorithmSignals、edgeCases。',
         '字段：title, platform, problemCode, url, difficulty, tags, aiSummary, analysis, notes, status, templateCandidates。',
-        'status 只能是 unattempted。templateCandidates 每项包含 templateId, confidence(0到1), reason, evidence, applicableWhen, notApplicableWhen, matchedCapabilities, warnings。',
+        'status 只能是 unattempted。templateCandidates 每项包含 templateId, confidence(0到1), reason, role, evidence, applicableWhen, notApplicableWhen, matchedCapabilities, warnings。',
+        'role 只能是 direct-solution、subproblem、prerequisite、optimization 或 alternative-solution。相关证据支持多个不同方向时返回多个候选，不得固定只返回一个模板。',
         '只能推荐模板目录中真实存在的 templateId；没有可靠候选时返回空数组。',
         'notes 只记录用户输入中明确出现的个人备注，否则返回空字符串。',
         request.outputLanguage === 'en'
@@ -173,6 +174,7 @@ export class ProblemAnalysisService {
               notApplicableWhen: candidate.notApplicableWhen ?? [],
               reason: candidate.reason?.trim() || 'AI 根据题面信号推荐。',
               relationType: 'recommended' as const,
+              role: candidate.role ?? ('direct-solution' as const),
               templateId: template.id,
               templateName: template.name,
               templatePath: template.path,

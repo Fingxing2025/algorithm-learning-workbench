@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, unlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -15,6 +15,7 @@ import { WorkspaceAiContextService } from './workspace-ai-context-service'
 const workspaceId = '40000000-0000-4000-8000-000000000012'
 const dijkstraId = 'a'.repeat(64)
 const flowId = 'b'.repeat(64)
+const dsuId = 'c'.repeat(64)
 
 function template(id: string, relativePath: string, name: string): TemplateSummary {
   return {
@@ -54,11 +55,14 @@ describe('WorkspaceAiContextService', () => {
     rootPath = await mkdtemp(join(tmpdir(), 'workspace-ai-context-'))
     await mkdir(join(rootPath, '图论', '最短路'), { recursive: true })
     await mkdir(join(rootPath, '图论', '网络流'), { recursive: true })
+    await mkdir(join(rootPath, '数据结构', '并查集'), { recursive: true })
     await writeFile(join(rootPath, '图论', '最短路', 'dijkstra.cpp'), 'void dijkstra() {}\n')
     await writeFile(join(rootPath, '图论', '网络流', 'dinic.cpp'), 'void dinic() {}\n')
+    await writeFile(join(rootPath, '数据结构', '并查集', 'dsu.cpp'), 'struct dsu {};\n')
     templates = [
       template(dijkstraId, '图论/最短路/dijkstra.cpp', 'dijkstra'),
       template(flowId, '图论/网络流/dinic.cpp', 'dinic'),
+      template(dsuId, '数据结构/并查集/dsu.cpp', 'dsu'),
     ]
     dijkstraMetadata = metadata(dijkstraId, '单源非负权最短路', '绝对不得发送的用户笔记')
   })
@@ -74,7 +78,15 @@ describe('WorkspaceAiContextService', () => {
     } as unknown as WorkspaceRepository
     const metadataRepository = {
       getMetadata: (templateId: string) =>
-        templateId === dijkstraId ? dijkstraMetadata : metadata(flowId, '最大流', '私密笔记'),
+        templateId === dijkstraId
+          ? dijkstraMetadata
+          : templateId === dsuId
+            ? {
+                ...metadata(dsuId, '维护连通性与集合合并', '并查集私密笔记'),
+                prerequisites: '树结构',
+                tags: ['数据结构', '并查集'],
+              }
+            : metadata(flowId, '最大流', '私密笔记'),
     } as unknown as TemplateManagementRepository
     const problemRepository = {
       listProblems: () => [
@@ -116,6 +128,8 @@ describe('WorkspaceAiContextService', () => {
       '图论',
       '图论/最短路',
       '图论/网络流',
+      '数据结构',
+      '数据结构/并查集',
     ])
     expect(stable.workspaceContextVersion).toBe(context.version)
     expect(context.stableContext).not.toContain('绝对不得发送的用户笔记')
@@ -126,6 +140,40 @@ describe('WorkspaceAiContextService', () => {
       problemCount: 1,
     })
     expect(context.cacheKey).toContain(context.version)
+  })
+
+  it('uses Chinese n-grams and keeps multiple algorithm directions in the candidate pool', async () => {
+    const service = createService()
+    const context = await service.build({
+      model: 'fixture-model',
+      outputLanguage: 'zh-CN',
+      promptSchemaVersion: 'problem-analysis-v2',
+      providerId: 'fixture-provider',
+      query: '组合最短路径与并查集合并',
+      task: 'problem-image-analysis',
+    })
+
+    expect(context.relatedTemplateRefs.map(template => template.id)).toEqual(
+      expect.arrayContaining([dijkstraId, dsuId]),
+    )
+    expect(new Set(context.relatedTemplateRefs.map(template => template.id)).size).toBe(
+      context.relatedTemplateRefs.length,
+    )
+  })
+
+  it('excludes an indexed template when its source can no longer be read safely', async () => {
+    await unlink(join(rootPath, '数据结构', '并查集', 'dsu.cpp'))
+    const context = await createService().build({
+      model: 'fixture-model',
+      outputLanguage: 'zh-CN',
+      promptSchemaVersion: 'problem-analysis-v2',
+      providerId: 'fixture-provider',
+      query: '并查集合并',
+      task: 'problem-image-analysis',
+    })
+
+    expect(context.relatedTemplateRefs.some(template => template.id === dsuId)).toBe(false)
+    expect(context.relatedContext).not.toContain(dsuId)
   })
 
   it('is deterministic and invalidates the version for metadata or relation changes', async () => {

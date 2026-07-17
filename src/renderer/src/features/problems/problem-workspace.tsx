@@ -10,7 +10,6 @@ import {
   LoaderCircle,
   Plus,
   Search,
-  Sparkles,
   Trash2,
   X,
 } from 'lucide-react'
@@ -49,7 +48,6 @@ interface ProblemWorkspaceProps {
   onAddImages: (problemId: string) => Promise<Problem | null>
   onAnalysisCreated: (problem: Problem) => Problem
   onClearError: () => void
-  onCreate: (request: CreateProblemRequest) => Promise<Problem | null>
   onDelete: (problemId: string) => Promise<boolean>
   onOpenTemplate: (templateId: string) => void
   onRemoveImage: (request: RemoveProblemImageRequest) => Promise<Problem | null>
@@ -78,7 +76,6 @@ export function ProblemWorkspace({
   onAddImages,
   onAnalysisCreated,
   onClearError,
-  onCreate,
   onDelete,
   onOpenTemplate,
   onRemoveImage,
@@ -139,8 +136,7 @@ export function ProblemWorkspace({
 
   const openCreateEditor = () => {
     onClearError()
-    setEditingProblem(null)
-    setEditorOpen(true)
+    setAnalysisOpen(true)
   }
 
   const openEditEditor = () => {
@@ -153,9 +149,8 @@ export function ProblemWorkspace({
   }
 
   const handleSaveProblem = async (fields: CreateProblemRequest) => {
-    const saved = editingProblem
-      ? await onUpdate({ ...fields, id: editingProblem.id })
-      : await onCreate(fields)
+    if (!editingProblem) return false
+    const saved = await onUpdate({ ...fields, id: editingProblem.id })
     if (saved) {
       onSelect(saved.id)
       return true
@@ -187,17 +182,7 @@ export function ProblemWorkspace({
           </div>
           <p className="mt-0.5 text-[11px] text-muted-foreground">{t('本地题库与模板关联')}</p>
         </div>
-        <Button
-          className="ml-auto"
-          onClick={() => setAnalysisOpen(true)}
-          size="compact"
-          type="button"
-          variant="outline"
-        >
-          <Sparkles aria-hidden="true" className="size-3.5" />
-          {t('AI 分析题目')}
-        </Button>
-        <Button onClick={openCreateEditor} size="compact" type="button">
+        <Button className="ml-auto" onClick={openCreateEditor} size="compact" type="button">
           <Plus aria-hidden="true" className="size-3.5" />
           {t('新建题目')}
         </Button>
@@ -730,6 +715,7 @@ export function ProblemWorkspace({
             }}
             onOpenChange={setAnalysisOpen}
             open={analysisOpen}
+            templates={templates}
           />
         </Suspense>
       )}

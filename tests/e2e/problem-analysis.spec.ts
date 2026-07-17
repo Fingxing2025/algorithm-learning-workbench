@@ -11,6 +11,12 @@ import {
   type Page,
 } from '@playwright/test'
 
+interface WorkspaceTemplateInput {
+  id: string
+  name: string
+  path: string
+}
+
 let electronApp: ElectronApplication
 let fixtureImagePath: string
 let mockBaseUrl: string
@@ -53,6 +59,31 @@ async function setNextFileSelection(path: string) {
   }, path)
 }
 
+async function addManualRelation(optionLabel: string) {
+  await page.getByLabel('选择本地模板').selectOption({ label: optionLabel })
+  await page.getByRole('button', { name: '添加本地模板关联' }).click()
+}
+
+async function analyzeCurrentDraft() {
+  await page.getByRole('button', { name: 'AI 分析并补全' }).click()
+  await expect(page.getByRole('heading', { name: '确认发送给 AI' })).toBeVisible()
+  await page.getByRole('button', { name: '确认发送并生成' }).click()
+}
+
+function candidate(template: WorkspaceTemplateInput, role: string, confidence: number) {
+  return {
+    applicableWhen: ['题面包含对应算法信号'],
+    confidence,
+    evidence: [`题面需要 ${template.name}`],
+    matchedCapabilities: [template.name],
+    notApplicableWhen: [],
+    reason: `${template.name} 与当前题目方向相关。`,
+    role,
+    templateId: template.id,
+    warnings: [],
+  }
+}
+
 test.beforeAll(async () => {
   mockServer = createServer((request, response) => {
     const chunks: Buffer[] = []
@@ -68,9 +99,12 @@ test.beforeAll(async () => {
         ? userContent.find(part => part.type === 'text')?.text
         : userContent
       const input = JSON.parse(textPart ?? '{}') as {
-        relatedWorkspaceContext?: { relatedTemplates?: Array<{ id: string }> }
+        problemText?: string
+        relatedWorkspaceContext?: { relatedTemplates?: WorkspaceTemplateInput[] }
       }
-      const template = input.relatedWorkspaceContext?.relatedTemplates?.[0]
+      const problemText = input.problemText ?? ''
+      const templates = input.relatedWorkspaceContext?.relatedTemplates ?? []
+
       if (holdNextAnalysisResponse) {
         holdNextAnalysisResponse = false
         heldAnalysisResponseStarted = true
@@ -79,6 +113,7 @@ test.beforeAll(async () => {
         })
         return
       }
+
       response.setHeader('content-type', 'application/json')
       if (invalidAnalysisResponsesRemaining > 0) {
         invalidAnalysisResponsesRemaining -= 1
@@ -87,42 +122,72 @@ test.beforeAll(async () => {
         )
         return
       }
+
+      const ordered = ['dijkstra', 'dsu', 'knapsack', 'mod', 'kmp']
+        .map(name => templates.find(template => template.name === name))
+        .filter((template): template is WorkspaceTemplateInput => Boolean(template))
+      let templateCandidates: ReturnType<typeof candidate>[] = []
+      if (problemText.includes('多方向')) {
+        const roles = [
+          'direct-solution',
+          'subproblem',
+          'prerequisite',
+          'optimization',
+          'alternative-solution',
+        ]
+        templateCandidates = ordered.map((template, index) =>
+          candidate(template, roles[index]!, template.name === 'kmp' ? 0.42 : 0.92 - index * 0.04),
+        )
+        if (templateCandidates[0]) {
+          templateCandidates.push({
+            ...templateCandidates[0],
+            reason: '重复候选必须由 Main 确定性去重。',
+          })
+        }
+        templateCandidates.push(
+          candidate(
+            { id: 'f'.repeat(64), name: 'forged-template', path: '越界/forged.cpp' },
+            'direct-solution',
+            0.99,
+          ),
+        )
+      } else if (!problemText.includes('无可靠候选')) {
+        const dijkstra = ordered[0] ?? templates[0]
+        if (dijkstra) templateCandidates = [candidate(dijkstra, 'direct-solution', 0.93)]
+      }
+
+      const multiDirection = problemText.includes('多方向')
       response.end(
         JSON.stringify({
           choices: [
             {
               message: {
                 content: JSON.stringify({
-                  aiSummary: '在带权有向图中求最短路及其方案数。',
+                  aiSummary: multiDirection
+                    ? '需要组合多个算法方向并比较替代方案。'
+                    : '在带权有向图中求最短路及其方案数。',
                   analysis: {
-                    algorithmSignals: ['单源最短路', '最短路计数'],
+                    algorithmSignals: multiDirection
+                      ? ['最短路', '并查集', '动态规划', '数学', '字符串']
+                      : ['单源最短路', '最短路计数'],
                     constraints: ['n 不超过 2000', '边权非负'],
                     edgeCases: ['多条边产生相同最短距离'],
                     examples: [],
-                    inputDescription: '带权有向图的点和边。',
-                    outputDescription: '最短路长度和方案数。',
+                    inputDescription: '输入图与附加约束。',
+                    outputDescription: '输出计算结果。',
                   },
                   difficulty: '提高',
                   notes: '',
                   platform: '洛谷',
-                  problemCode: 'P1608',
+                  problemCode: multiDirection ? 'P-MULTI' : 'P1608',
                   status: 'unattempted',
-                  tags: ['图论', '最短路', 'Dijkstra'],
-                  templateCandidates: template
-                    ? [
-                        {
-                          applicableWhen: ['边权非负'],
-                          confidence: 0.93,
-                          evidence: ['题面要求单源最短路'],
-                          matchedCapabilities: ['堆优化 Dijkstra'],
-                          notApplicableWhen: ['存在负权边'],
-                          reason: '题目要求单源最短路径及计数。',
-                          templateId: template.id,
-                          warnings: ['需要在松弛时累加方案数'],
-                        },
-                      ]
-                    : [],
-                  title: '最短路计数',
+                  tags: multiDirection ? ['多方向', '组合算法'] : ['图论', '最短路', 'Dijkstra'],
+                  templateCandidates,
+                  title: problemText.includes('无可靠候选')
+                    ? '无候选草稿'
+                    : multiDirection
+                      ? '跨方向算法题'
+                      : '最短路计数',
                   url: null,
                 }),
               },
@@ -142,8 +207,17 @@ test.beforeAll(async () => {
   workspaceRoot = join(temporaryRoot, 'workspace')
   fixtureImagePath = join(temporaryRoot, 'problem.png')
   await mkdir(userDataDirectory)
-  await mkdir(join(workspaceRoot, '图论'), { recursive: true })
-  await writeFile(join(workspaceRoot, '图论', 'dijkstra.cpp'), 'void dijkstra() {}\n', 'utf8')
+  const templateFixtures = [
+    ['图论', 'dijkstra.cpp', 'void dijkstra() {}\n'],
+    ['数据结构', 'dsu.cpp', 'struct dsu {};\n'],
+    ['动态规划', 'knapsack.cpp', 'void knapsack() {}\n'],
+    ['数学', 'mod.cpp', 'long long mod_pow() { return 1; }\n'],
+    ['字符串', 'kmp.cpp', 'void kmp() {}\n'],
+  ] as const
+  for (const [directory, fileName, source] of templateFixtures) {
+    await mkdir(join(workspaceRoot, directory), { recursive: true })
+    await writeFile(join(workspaceRoot, directory, fileName), source, 'utf8')
+  }
   await writeFile(
     fixtureImagePath,
     Buffer.from(
@@ -162,10 +236,11 @@ test.afterAll(async () => {
   if (temporaryRoot) await rm(temporaryRoot, { force: true, recursive: true })
 })
 
-test('configures a visual route and keeps a cancelled AI draft out of user data', async () => {
+test('uses one new-problem entry and supports side-effect-free close plus manual multi-relations', async () => {
   await setNextFileSelection(workspaceRoot)
   await page.getByRole('button', { name: '选择目录' }).click()
-  await expect(page.getByText('dijkstra.cpp')).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: '模板库' })).toBeVisible()
+  await expect(page.getByText('5 个模板').first()).toBeVisible()
 
   await page.getByRole('button', { name: 'AI 设置' }).click()
   await page.getByLabel('Provider 显示名称').fill('题图分析测试')
@@ -177,129 +252,167 @@ test('configures a visual route and keeps a cancelled AI draft out of user data'
   await page.getByRole('button', { name: /题目图片分析/ }).click()
 
   await page.getByRole('button', { name: '题目', exact: true }).click()
-  await page.getByRole('button', { name: 'AI 分析题目' }).click()
-  await page.getByLabel('待分析题面').fill('取消链路测试，不得保存。')
-  await page.getByRole('button', { name: '生成草稿' }).click()
+  await expect(page.getByRole('button', { name: '新建题目' })).toHaveCount(1)
+  await expect(page.getByRole('button', { name: 'AI 分析题目' })).toHaveCount(0)
+
+  await page.getByRole('button', { name: '新建题目' }).click()
+  await page.getByLabel('题目标题').fill('关闭前不保存')
+  await page.getByLabel('原始题面').fill('这个草稿必须保持在内存中。')
+  await setNextFileSelection(fixtureImagePath)
+  await page.getByRole('button', { name: '选择截图' }).click()
+  await expect(page.getByRole('img', { name: 'problem.png' })).toBeVisible()
+  await page.getByRole('button', { name: '关闭新建题目' }).click()
+  await expect(page.getByText('还没有题目卡片')).toBeVisible()
+  await expect(readdir(join(userDataDirectory, 'problem-images'))).rejects.toThrow()
+
+  await page.getByRole('button', { name: '新建题目' }).click()
+  await page.getByLabel('题目标题').fill('手动多模板题')
+  await page.getByLabel('原始题面').fill('手动填写并关联多份本地模板。')
+  await addManualRelation('dijkstra · 图论/dijkstra.cpp')
+  await addManualRelation('dsu · 数据结构/dsu.cpp')
+  await page.getByLabel('dijkstra 关联备注').fill('主算法')
+  await page.getByRole('button', { name: '创建题目' }).click()
+
+  await expect(page.getByRole('heading', { level: 2, name: '手动多模板题' })).toBeVisible()
+  await expect(page.getByText('2 个已确认关联')).toBeVisible()
+  await expect(page.getByText('主算法')).toBeVisible()
+})
+
+test('creates a pure-text AI draft with one validated local candidate', async () => {
+  await page.getByRole('button', { name: '新建题目' }).click()
+  await page.getByLabel('原始题面').fill('单一算法：使用 Dijkstra 求非负权最短路。')
+  const requestCountBefore = requests.length
+  await analyzeCurrentDraft()
+
+  await expect(page.getByLabel('题目标题')).toHaveValue('最短路计数')
+  await expect(page.getByRole('checkbox', { name: /选择候选模板/ })).toHaveCount(1)
+  await expect(page.getByLabel('选择候选模板 dijkstra')).toBeChecked()
+  expect(requests).toHaveLength(requestCountBefore + 1)
+  expect(requests.at(-1)?.headers.authorization).toBe('Bearer analysis-e2e-secret')
+  expect(requests.at(-1)?.body).not.toContain('analysis-e2e-secret')
+
+  await page.getByRole('button', { name: '创建题目' }).click()
+  await expect(page.getByRole('heading', { level: 2, name: '最短路计数' })).toBeVisible()
+  await expect(page.getByText('1 个已确认关联')).toBeVisible()
+})
+
+test('preserves manual fields after cancellation and invalid JSON so creation can continue', async () => {
+  await page.getByRole('button', { name: '新建题目' }).click()
+  await page.getByLabel('题目标题').fill('取消后手动创建')
+  await page.getByLabel('原始题面').fill('取消链路测试，不得清空字段。')
+  await addManualRelation('dsu · 数据结构/dsu.cpp')
+  await page.getByRole('button', { name: 'AI 分析并补全' }).click()
   holdNextAnalysisResponse = true
   await page.getByRole('button', { name: '确认发送并生成' }).click()
   await expect.poll(() => heldAnalysisResponseStarted).toBe(true)
   await page.getByRole('button', { name: '取消生成' }).click()
   await expect(page.getByRole('alert')).toContainText('AI 请求已取消')
-  await page.screenshot({
-    animations: 'disabled',
-    path: resolve('output/playwright/ai-error-cancelled-light-1440x900.png'),
-  })
-  await electronApp.evaluate(({ BrowserWindow }) =>
-    BrowserWindow.getAllWindows()[0]?.setSize(1280, 720),
-  )
-  await page.screenshot({
-    animations: 'disabled',
-    path: resolve('output/playwright/ai-error-cancelled-light-1280x720.png'),
-  })
-  await page.locator('html').evaluate(root => root.classList.add('dark'))
-  await page.screenshot({
-    animations: 'disabled',
-    path: resolve('output/playwright/ai-error-cancelled-dark-1280x720.png'),
-  })
-  await electronApp.evaluate(({ BrowserWindow }) =>
-    BrowserWindow.getAllWindows()[0]?.setSize(1440, 900),
-  )
-  await page.screenshot({
-    animations: 'disabled',
-    path: resolve('output/playwright/ai-error-cancelled-dark-1440x900.png'),
-  })
-  await page.locator('html').evaluate(root => root.classList.remove('dark'))
+  await expect(page.getByLabel('题目标题')).toHaveValue('取消后手动创建')
+  await expect(page.getByLabel('原始题面')).toHaveValue('取消链路测试，不得清空字段。')
+  await expect(page.getByLabel('选择候选模板 dsu')).toBeChecked()
   await expect.poll(() => heldAnalysisResponseClosed).toBe(true)
-  await page.getByRole('button', { name: '关闭 AI 题目分析' }).click()
-  await expect(page.getByText('还没有题目卡片')).toBeVisible()
+  await page.getByRole('button', { name: '创建题目' }).click()
+  await expect(page.getByRole('heading', { level: 2, name: '取消后手动创建' })).toBeVisible()
 
-  await page.getByRole('button', { name: 'AI 分析题目' }).click()
-  await page.getByLabel('待分析题面').fill('无效 JSON 不得创建题目。')
-  await page.getByRole('button', { name: '生成草稿' }).click()
+  await page.getByRole('button', { name: '新建题目' }).click()
+  await page.getByLabel('题目标题').fill('无效响应后继续')
+  await page.getByLabel('原始题面').fill('无效 JSON 不得创建半成品，也不得清空字段。')
+  await page.getByLabel('本地备注').fill('保留这段手工备注。')
+  await page.getByRole('button', { name: 'AI 分析并补全' }).click()
   invalidAnalysisResponsesRemaining = 2
   await page.getByRole('button', { name: '确认发送并生成' }).click()
   await expect(page.getByRole('alert')).toContainText('连续两次未返回完整的结构化题目草稿')
-  await page.getByRole('button', { name: '关闭 AI 题目分析' }).click()
-  await expect(page.getByText('还没有题目卡片')).toBeVisible()
-  await expect(readdir(join(userDataDirectory, 'problem-images'))).rejects.toThrow()
-
-  await page.getByRole('button', { name: 'AI 分析题目' }).click()
-  await page.getByLabel('待分析题面').fill('求最短路径和最短路径方案数，n 不超过 2000。')
-  await setNextFileSelection(fixtureImagePath)
-  await page.getByRole('button', { name: '选择截图' }).click()
-  await expect(page.getByRole('img', { name: 'problem.png' })).toBeVisible()
-  await page.getByRole('button', { name: '生成草稿' }).click()
-  await expect(page.getByRole('heading', { name: '确认发送给 AI' })).toBeVisible()
-  await expect(page.getByText('原始题面文本')).toBeVisible()
-  await expect(
-    page.getByText(`openai-chat-completions · ${new URL(mockBaseUrl).host}`),
-  ).toBeVisible()
-  const requestCountBeforeConfirmation = requests.length
-  await page.getByRole('button', { name: '确认发送并生成' }).click()
-  await expect(page.getByRole('heading', { name: '确认 AI 题目草稿' })).toBeVisible()
-  await expect(page.getByLabel('AI 草稿题目标题')).toHaveValue('最短路计数')
-  await expect(page.getByLabel('AI 草稿原始题面')).toHaveValue(
-    '求最短路径和最短路径方案数，n 不超过 2000。',
-  )
-  await expect(page.getByLabel('AI 草稿题目摘要')).toHaveValue('在带权有向图中求最短路及其方案数。')
-  await expect(page.getByLabel('选择候选模板 dijkstra')).toBeChecked()
-  expect(requests.at(-1)?.headers.authorization).toBe('Bearer analysis-e2e-secret')
-  expect(requests.at(-1)?.body).toContain('image_url')
-  expect(requests.at(-1)?.body).not.toContain('analysis-e2e-secret')
-  expect(requests).toHaveLength(requestCountBeforeConfirmation + 1)
-
-  await page.getByRole('button', { name: '关闭 AI 题目分析' }).click()
-  await expect(page.getByText('还没有题目卡片')).toBeVisible()
-  await expect(readdir(join(userDataDirectory, 'problem-images'))).rejects.toThrow()
+  await expect(page.getByLabel('题目标题')).toHaveValue('无效响应后继续')
+  await expect(page.getByLabel('本地备注')).toHaveValue('保留这段手工备注。')
+  await page.getByRole('button', { name: '创建题目' }).click()
+  await expect(page.getByRole('heading', { level: 2, name: '无效响应后继续' })).toBeVisible()
+  await expect(page.getByText('保留这段手工备注。')).toBeVisible()
 })
 
-test('edits and confirms an AI draft with image and template relation', async () => {
-  await page.getByRole('button', { name: 'AI 分析题目' }).click()
-  await page.getByLabel('待分析题面').fill('求最短路径和最短路径方案数，n 不超过 2000。')
+test('keeps multi-direction AI candidates editable, rejects forged and duplicate IDs, and saves only checked relations', async () => {
+  await page.getByRole('button', { name: '新建题目' }).click()
+  await page
+    .getByLabel('原始题面')
+    .fill('多方向题：组合最短路、并查集、动态规划、数学推导与字符串处理，并比较替代解法。')
   await setNextFileSelection(fixtureImagePath)
   await page.getByRole('button', { name: '选择截图' }).click()
-  await page.getByRole('button', { name: '生成草稿' }).click()
-  await expect(page.getByRole('heading', { name: '确认发送给 AI' })).toBeVisible()
-  await page.getByRole('button', { name: '确认发送并生成' }).click()
-  await expect(page.getByRole('heading', { name: '确认 AI 题目草稿' })).toBeVisible()
+  const requestCountBefore = requests.length
+  await analyzeCurrentDraft()
 
-  await page.getByLabel('AI 草稿本地备注').fill('已检查 AI 字段后确认。')
+  await expect(page.getByLabel('题目标题')).toHaveValue('跨方向算法题')
+  await expect(page.getByRole('checkbox', { name: /选择候选模板/ })).toHaveCount(5)
+  await expect(page.getByLabel('选择候选模板 dijkstra')).toBeChecked()
+  await expect(page.getByLabel('选择候选模板 dsu')).toBeChecked()
+  await expect(page.getByLabel('选择候选模板 knapsack')).toBeChecked()
+  await expect(page.getByLabel('选择候选模板 mod')).toBeChecked()
+  await expect(page.getByLabel('选择候选模板 kmp')).not.toBeChecked()
+  await expect(page.getByText('forged-template')).toHaveCount(0)
+  await expect(page.getByText('直接解法')).toBeVisible()
+  await expect(page.getByText('子问题')).toBeVisible()
+  await expect(page.getByText('前置能力')).toBeVisible()
+  await expect(page.getByText('优化方向')).toBeVisible()
+  await expect(page.getByText('替代解法', { exact: true })).toBeVisible()
+  expect(requests).toHaveLength(requestCountBefore + 1)
+  expect(requests.at(-1)?.body).toContain('image_url')
+  expect(requests.at(-1)?.body).toContain('数据结构/dsu.cpp')
+  expect(requests.at(-1)?.body).toContain('动态规划/knapsack.cpp')
+
+  await page.getByLabel('题目标题').fill('修改后的跨方向题')
+  await page.getByLabel('本地备注').fill('人工复核后只保存三个关系。')
+  await page.getByLabel('dijkstra 关系类型').selectOption('alternative')
+  await page.getByLabel('选择候选模板 mod').uncheck()
   await page.screenshot({
     animations: 'disabled',
-    path: resolve('output/playwright/stage4-problem-analysis-draft-light.png'),
+    path: resolve('output/playwright/unified-problem-multi-template-light-1440x900.png'),
   })
   await electronApp.evaluate(({ BrowserWindow }) =>
     BrowserWindow.getAllWindows()[0]?.setSize(1280, 720),
   )
   await page.screenshot({
     animations: 'disabled',
-    path: resolve('output/playwright/stage4-problem-analysis-draft-light-1280x720.png'),
+    path: resolve('output/playwright/unified-problem-multi-template-light-1280x720.png'),
+  })
+  await page.locator('html').evaluate(root => root.classList.add('dark'))
+  await page.screenshot({
+    animations: 'disabled',
+    path: resolve('output/playwright/unified-problem-multi-template-dark-1280x720.png'),
   })
   await electronApp.evaluate(({ BrowserWindow }) =>
     BrowserWindow.getAllWindows()[0]?.setSize(1440, 900),
   )
-  await page.locator('html').evaluate(root => root.classList.add('dark'))
   await page.screenshot({
     animations: 'disabled',
-    path: resolve('output/playwright/stage4-problem-analysis-draft-dark.png'),
+    path: resolve('output/playwright/unified-problem-multi-template-dark-1440x900.png'),
   })
-  await page.getByRole('button', { name: '确认创建' }).click()
+  await page.locator('html').evaluate(root => root.classList.remove('dark'))
 
-  await expect(page.getByRole('heading', { level: 2, name: '最短路计数' })).toBeVisible()
-  await expect(page.getByText('1 个已确认关联')).toBeVisible()
+  await page.getByRole('button', { name: '创建题目' }).click()
+  await expect(page.getByRole('heading', { level: 2, name: '修改后的跨方向题' })).toBeVisible()
+  await expect(page.getByText('3 个已确认关联')).toBeVisible()
+  await expect(page.getByText('人工复核后只保存三个关系。')).toBeVisible()
   await expect(page.getByRole('img', { name: 'problem.png' })).toBeVisible()
-  await expect(page.getByText('已检查 AI 字段后确认。')).toBeVisible()
   const storedImages = await readdir(join(userDataDirectory, 'problem-images'), { recursive: true })
   expect(storedImages.filter(path => path.endsWith('.png'))).toHaveLength(1)
 })
 
-test('persists the confirmed AI problem after a desktop restart', async () => {
+test('allows an empty candidate result and closing the AI draft writes nothing', async () => {
+  await page.getByRole('button', { name: '新建题目' }).click()
+  await page.getByLabel('原始题面').fill('无可靠候选：只验证允许返回空关联草稿。')
+  await analyzeCurrentDraft()
+  await expect(page.getByLabel('题目标题')).toHaveValue('无候选草稿')
+  await expect(page.getByRole('checkbox', { name: /选择候选模板/ })).toHaveCount(0)
+  await expect(page.getByText('尚未选择模板；没有可靠候选时可以保持为空。')).toBeVisible()
+  await page.getByRole('button', { name: '关闭新建题目' }).click()
+  await expect(page.getByRole('heading', { level: 2, name: '无候选草稿' })).toHaveCount(0)
+})
+
+test('persists multiple confirmed relations after a desktop restart', async () => {
   await electronApp.close()
   await launchApplication()
   await page.getByRole('button', { name: '题目', exact: true }).click()
-  await expect(page.getByRole('heading', { level: 2, name: '最短路计数' })).toBeVisible()
-  await expect(page.getByText('1 个已确认关联')).toBeVisible()
-  await expect(page.getByRole('img', { name: 'problem.png' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 2, name: '修改后的跨方向题' })).toBeVisible()
+  await expect(page.getByText('3 个已确认关联')).toBeVisible()
+  await expect(page.getByText('人工复核后只保存三个关系。')).toBeVisible()
   expect(await readFile(join(workspaceRoot, '图论', 'dijkstra.cpp'), 'utf8')).toBe(
     'void dijkstra() {}\n',
   )

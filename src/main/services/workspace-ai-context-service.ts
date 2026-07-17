@@ -39,13 +39,22 @@ export interface WorkspaceAiContext {
 }
 
 function tokens(value: string): Set<string> {
-  return new Set(
+  const result = new Set<string>()
+  const words =
     value
       .normalize('NFKC')
       .toLocaleLowerCase('en-US')
-      .match(/[\p{L}\p{N}_]+/gu)
-      ?.filter(item => item.length > 1) ?? [],
-  )
+      .match(/[\p{L}\p{N}_]+/gu) ?? []
+  for (const word of words) {
+    if (word.length > 1) result.add(word)
+    if (!/[\u3400-\u9fff]/u.test(word)) continue
+    for (let size = 2; size <= Math.min(4, word.length); size += 1) {
+      for (let index = 0; index + size <= word.length; index += 1) {
+        result.add(word.slice(index, index + size))
+      }
+    }
+  }
+  return result
 }
 
 function metadataText(metadata: TemplateMetadata | null): string {
@@ -56,6 +65,8 @@ function metadataText(metadata: TemplateMetadata | null): string {
     metadata.constraints,
     metadata.prerequisites,
     metadata.commonMistakes,
+    metadata.timeComplexity ?? '',
+    metadata.spaceComplexity ?? '',
   ].join(' ')
 }
 
@@ -240,33 +251,63 @@ export class WorkspaceAiContextService {
     const stableContext = serializedStableContext.context
 
     const queryTokens = tokens(args.query.slice(0, 120_000))
-    const related = [...templates]
+    const scored = templates
+      .map(template => ({ score: relevance(queryTokens, template), template }))
       .sort((left, right) => {
-        const difference = relevance(queryTokens, right) - relevance(queryTokens, left)
+        const difference = right.score - left.score
         return (
           difference ||
-          right.relatedProblemCount - left.relatedProblemCount ||
-          left.path.localeCompare(right.path)
+          right.template.relatedProblemCount - left.template.relatedProblemCount ||
+          left.template.path.localeCompare(right.template.path)
         )
       })
-      .slice(0, MAX_RELATED_TEMPLATES)
+    const related: TemplateContextRecord[] = []
+    const selectedIds = new Set<string>()
+    for (const item of scored) {
+      if (item.score <= 0 || related.length >= MAX_RELATED_TEMPLATES) break
+      related.push(item.template)
+      selectedIds.add(item.template.id)
+    }
+    const representedTopLevels = new Set(related.map(template => template.path.split('/')[0] ?? ''))
+    for (const item of scored) {
+      if (related.length >= MAX_RELATED_TEMPLATES) break
+      if (selectedIds.has(item.template.id)) continue
+      const topLevel = item.template.path.split('/')[0] ?? ''
+      if (representedTopLevels.has(topLevel)) continue
+      related.push(item.template)
+      selectedIds.add(item.template.id)
+      representedTopLevels.add(topLevel)
+    }
+    for (const item of scored) {
+      if (related.length >= MAX_RELATED_TEMPLATES) break
+      if (selectedIds.has(item.template.id)) continue
+      related.push(item.template)
+      selectedIds.add(item.template.id)
+    }
 
     let relatedSourceCharacters = 0
     const relatedTemplates = []
     for (const template of related) {
       let sourceSnippet = ''
-      if (relatedSourceCharacters < MAX_RELATED_SOURCE_CHARS) {
-        try {
-          const file = await resolveAuthorizedFile(workspace.rootPath, template.path)
+      try {
+        const file = await resolveAuthorizedFile(workspace.rootPath, template.path)
+        if (args.task === 'problem-image-analysis') {
+          const source = await readFile(file.absolutePath, 'utf8')
+          if (source.includes('\0')) continue
+          const remaining = MAX_RELATED_SOURCE_CHARS - relatedSourceCharacters
+          sourceSnippet = source.slice(0, Math.max(0, Math.min(2_000, remaining)))
+          relatedSourceCharacters += sourceSnippet.length
+        } else if (relatedSourceCharacters < MAX_RELATED_SOURCE_CHARS) {
           const remaining = MAX_RELATED_SOURCE_CHARS - relatedSourceCharacters
           sourceSnippet = (await readFile(file.absolutePath, 'utf8')).slice(
             0,
             Math.min(2_000, remaining),
           )
           relatedSourceCharacters += sourceSnippet.length
-        } catch {
-          // The index remains useful when an individual source becomes temporarily unreadable.
         }
+      } catch {
+        if (args.task === 'problem-image-analysis') continue
+        // Other tasks can still use metadata when one source becomes temporarily unreadable.
       }
       relatedTemplates.push({
         id: template.id,
