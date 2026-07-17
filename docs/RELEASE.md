@@ -168,4 +168,19 @@ GitHub Actions 使用固定 commit SHA 的 checkout、setup-node 与 upload-arti
 
 ## 当前本机候选记录
 
-Session C 的最终候选记录应以本文件所在提交后的本机验证结果和 `release/candidates/0.1.2-mac-arm64-preview/` 为准。旧的 0.1.0/0.1.1/0.1.2 文件若不在该证据目录中引用，都只是历史本地产物，不得沿用其摘要或签名判断。
+Session C 最终候选来自干净提交 `5817eab7ab0274b6dcc8830334e300dfe1cbe2ae`，完整证据位于 `release/candidates/0.1.2-mac-arm64-preview/`：
+
+| 产物                                 |      字节数 | SHA-256                                                            |
+| ------------------------------------ | ----------: | ------------------------------------------------------------------ |
+| `算法学习工作台-0.1.2-mac-arm64.dmg` | 138,091,048 | `992ec6da84aef0c41522472063f62ab4f955be2457057a400fd4ce700a931d64` |
+| `算法学习工作台-0.1.2-mac-arm64.zip` | 137,555,476 | `5cf10814dca42f0ee97861967ce22d5cc3dfce33d2426a3d74bcbd72497f8164` |
+
+- App 主程序：Mach-O 64-bit arm64。
+- `better_sqlite3.node`：Mach-O 64-bit arm64；Electron module ABI 148。
+- Info.plist：版本/build version `0.1.2`，identifier `com.algorithmworkbench.desktop`，最低 macOS `12.0`。
+- 源 PNG 与打包 `icon.icns`：1024×1024，带 alpha；打包图标 SHA-256 为 `757fbc72d2730d53263719633c5bc730db5b53c4c9f3cb5e17d91cb72ebb5e72`。
+- `hdiutil verify`、候选 `SHA256SUMS.txt` 复核和两项打包入口 smoke 均通过。
+- 隐私扫描：10,739 个 ASAR 条目、316 个 App 文件；禁用条目、用户绝对路径和疑似密钥均 0 命中。
+- 签名：ad-hoc、无 Authority/TeamIdentifier、未 staple、Gatekeeper 不接受；signed 预检因本机 `0 valid identities found` 按设计失败。
+
+旧的 0.1.0/0.1.1/0.1.2 文件若不在上述证据目录中引用，都只是历史本地产物，不得沿用其摘要或签名判断。每次重建压缩包，摘要都可能变化，必须以新候选重新生成。

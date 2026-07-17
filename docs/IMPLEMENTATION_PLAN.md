@@ -86,17 +86,26 @@
 - 已取消或已回滚的文件计划可重新校验并复制为全新草稿。
 - 视觉系统升级为紫蓝、青绿、琥珀、珊瑚四色语义体系；玻璃集中在导航与浮层，内容区增加环境光、焦点卡和支持减少动效的微交互。
 
-当前累计基线：187 项 Vitest 与 43 项常规真实 Electron E2E 通过；打包入口 smoke test 1 项独立通过。上述各阶段中的测试数字是阶段完成时的历史快照，不代表当前累计数量。
+当前累计基线：187 项 Vitest、3 项发布脚本测试与 43 项常规真实 Electron E2E 通过；打包入口全新/已有 V2 userData smoke 2 项独立通过。上述各阶段中的测试数字是阶段完成时的历史快照，不代表当前累计数量。
+
+## Session C：发布候选工程（自动化已完成，2026-07-18）
+
+- 新增 ADR-0018，严格区分 unsigned/ad-hoc preview、signed/notarized、Windows CI 构建和 Windows 实机安装证据。
+- 建立从 `package.json` 精确推导当前版本制品的一键候选流程；生成 SHA-256、CycloneDX SBOM、构建元数据、验证报告和发布说明草稿。
+- 自动验证 Info.plist、App/`better_sqlite3.node` 架构、DMG、1024×1024 alpha 图标、签名/公证真实状态和包内容隐私边界。
+- macOS 使用最小 hardened-runtime entitlement；preview 主动清除签名环境，signed 缺身份/凭据或最终证据时失败关闭。
+- CI Actions 固定到 commit SHA，macOS arm64 与 Windows x64 原生 runner 各构建候选并运行两项打包入口 smoke。
+- 提供 Windows 实机验收脚本，覆盖摘要、Authenticode、NSIS 安装、全新/已有 V2 userData 启动、快捷方式、卸载和数据保留。
+
+验收：最终 macOS arm64 preview 候选来自干净提交，DMG/ZIP 摘要复核、SBOM、架构/图标/隐私检查和两项打包入口 smoke 通过；signed 预检在机器没有 Developer ID 时按设计失败。macOS 正式签名/notarization 与 Windows 实机仍等待外部凭据和硬件，不得标记为完成。
 
 ## 后续阶段
 
 核心功能范围已经闭环，后续不再以继续增加页面为主。优先顺序改为：
 
-1. V2 数据导出、备份校验、原子恢复和异常残留诊断。
-2. AI 结构化输出、重试/取消、错误诊断和五协议兼容矩阵。
-3. macOS 签名/公证、Windows 实机安装验证和发布候选工程。
-4. 面板布局记忆、全键盘操作、可访问性与小窗口验收。
-5. 大型工作区性能基准、增量索引和后台任务。
-6. 行为保持的代码拆分、CHANGELOG 和发布文档统一。
+1. 外部条件齐备时完成 macOS 签名/notarization、Windows Authenticode 与真实主机安装验收。
+2. 面板布局记忆、全键盘操作、可访问性与小窗口验收。
+3. 大型工作区性能基准、增量索引和后台任务。
+4. 行为保持的代码拆分与长期维护整理。
 
 详细任务边界、验收条件和不同 Codex Session 的启动提示见 `docs/PROJECT_STATUS_AND_HANDOFF.md`。

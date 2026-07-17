@@ -1,16 +1,18 @@
 # 项目状态、审计与多 Session 交接
 
 - 更新日期：2026-07-18
-- Bugfix Session 实际开发基线：`de685da feat: harden ai task reliability matrix`；启动提示中的 `66dcb78` 是更早的 Session A 基线，本次没有回退已完成的 Session B
+- Session C 实际开发基线：`cd4c795 docs: add next session launch prompt`
 - 本次交接提交：本文所在提交
 - 源码版本：`0.1.2` 开发快照
-- 产品阶段：0.1.2 功能闭环完成，0.2 Session A 数据可靠性、Session B AI 稳定性与九项 Bugfix Session 完成
+- 产品阶段：0.1.2 功能闭环、Session A/B、九项 Bugfix 与 Session C 发布候选工程均完成；正式签名和 Windows 实机验收仍受外部条件阻塞
 
 ## 0. 新阶段入口
 
 本阶段基于 0.1.2 功能冻结基线继续建设发布可信度。后续不再横向增加 AI 页面或临时补丁；当前目标是让已经承载用户模板、题目、图片、关系和 AI 配置的 V2 数据可恢复，AI 任务可诊断、可取消并在五类协议下具有一致边界。
 
-当前状态：**Session A：数据可靠性与恢复、Session B：AI 稳定性与兼容矩阵、九项 Bugfix Session 均已完成；下一主线为 Session C：发布工程与平台验收**。
+当前状态：**Session A：数据可靠性与恢复、Session B：AI 稳定性与兼容矩阵、九项 Bugfix Session、Session C：可审计发布候选工程均已完成。当前没有 Apple Developer ID/notarization 凭据或 Windows 实机，因此签名、公证和 Windows 安装验收仍明确未完成；无外部条件时下一主线建议 Session D：UX、可访问性与窗口适配。**
+
+Session C 的候选摘要、平台限制和可直接复制的下一 Session 提示词见 `docs/SESSION_C_SUMMARY_AND_NEXT_PROMPT.md`。
 
 Session A 已交付四条可运行纵向切片：第一切片完成备份 ADR、版本化数据管理契约、只读一致性诊断、`.awb-backup` 目录备份包导出、全包 SHA-256 验证、损坏包拒绝和只读恢复预览；第二切片开放恢复执行、恢复前自动预备份以及 SQLite/userData 事务式恢复和故障回滚；第三切片补齐备份保留建议、空间统计、异常残留保护、逐项清理预览、应用隔离区和可撤销回滚；最终切片用版本化 journal、SQLite 事务提交标记和内容指纹完成异常中断后的人工安全恢复，并允许把已验证隔离记录移交系统废纸篓。
 
@@ -97,13 +99,23 @@ Session B 新增事实：
 - 错误契约：公开 IPC 可携带安全 `stage`，新增连接超时、响应超时、超大响应、服务不可用和流中断错误码；不回显供应商错误正文。
 - 数据：Session B 没有新增 migration、数据库字段或持久化文件格式，也没有改变文件计划 `operations_json` 安全 Schema。
 
-本次阶段交付的 macOS arm64 开发预览位于 `release/mac-arm64/算法学习工作台.app`。`release/` 已被 Git 忽略，产物不属于源码提交；该 App 未签名、公证，仅用于本机测试。
+Session C 新增事实：
+
+- ADR-0018 把 preview、signed/notarized、Windows CI 构建和 Windows 实机验收分成独立证据；signed 模式缺凭据即失败，不降级为未签名包。
+- `package.json` 是唯一机器可读版本事实源；候选只精确选择当前版本、平台和架构，不会把 `release/` 中的历史产物混入摘要。
+- macOS 使用最小 hardened-runtime entitlement，只保留 JIT 与 unsigned executable memory，没有启用 `disable-library-validation`。
+- 候选一次生成 DMG/ZIP、SHA-256、CycloneDX SBOM、构建元数据、发布说明草稿与制品验证报告；验证覆盖 Info.plist、App/原生模块架构、图标、DMG、签名/公证真实状态和隐私内容。
+- GitHub Actions 固定 checkout/setup-node/upload-artifact 的 commit SHA；原生 macOS arm64 与 Windows x64 runner 各运行候选构建和两项打包入口 smoke。CI Windows 结果仍只代表构建与未安装 App 启动，不代表 NSIS 实机验收。
+- `scripts/release/windows-acceptance.ps1` 可在真实 Windows 主机验证摘要、Authenticode、NSIS 安装、启动、已有 V2 数据、快捷方式、卸载和 userData 保留，并输出不含用户路径的证据 JSON。
+- 最终本机候选来自干净提交 `5817eab`；macOS signed 预检在 `0 valid identities found` 时按设计失败，preview 候选则完整通过。
+
+本次阶段交付的 macOS arm64 预览候选位于 `release/mac-arm64/算法学习工作台.app`，候选证据位于 `release/candidates/0.1.2-mac-arm64-preview/`。`release/` 已被 Git 忽略，产物不属于源码提交；该 App 为 ad-hoc、无 TeamIdentifier、未公证且 Gatekeeper 不接受，只能用于本机预览与验收。
 
 ## 1. 结论先行
 
 V2 已经完成从零开始使用所需的核心纵向流程，不再是界面原型：新用户可以创建空白工作区，录入和浏览模板，创建题目并建立多对多关联，配置多供应商 AI，确认题目分析草稿，并通过可预览、可撤销的计划整理模板文件。
 
-当前工作的重心应从“继续增加页面和功能”切换为“把已有产品做成可放心发布和长期使用的工具”。V2 数据恢复已经形成完整 Session A 闭环，五类 AI 协议稳定性已经形成 Session B 闭环；接下来的最高价值缺口是真实 Windows 验收和 macOS/Windows 代码签名。
+当前工作的重心应从“继续增加页面和功能”切换为“把已有产品做成可放心发布和长期使用的工具”。V2 数据恢复、五类 AI 协议稳定性和发布候选自动化都已形成闭环；最高价值外部缺口是真实 Windows 验收和 macOS/Windows 代码签名，无证书或硬件时可并行推进 UX/可访问性。
 
 按不同维度估算当前完成度：
 
@@ -115,15 +127,15 @@ V2 已经完成从零开始使用所需的核心纵向流程，不再是界面�
 | AI Provider 稳定性 | Session B 完成 |        95% | 五类协议统一结构化管线、阶段错误、取消、有限重试与主要失败矩阵                    |
 | UI 与交互          | 较完整         |        82% | 双主题、滚动、代码主题和核心状态已覆盖，布局记忆与可访问性仍需系统验收            |
 | 性能与大型工作区   | 未充分证明     |        65% | 有虚拟树和上下文上限，但没有大型工作区基准与增量相似度索引                        |
-| 测试与工程质量     | 良好           |        96% | 187 项 Vitest、43 项常规真实 Electron E2E 与 1 项打包 smoke 当前通过              |
-| 公开发布准备       | 未完成         |        50% | macOS 未签名/公证，Windows 未实机安装验证，无自动更新决策                         |
+| 测试与工程质量     | 良好           |        97% | 187 项 Vitest、3 项发布脚本测试、43 项常规 Electron E2E 与 2 项打包 smoke 通过    |
+| 公开发布准备       | 外部门禁待完成 |        65% | 可重复候选与证据已完成；macOS 未签名/公证，Windows 未实机安装验证                 |
 
 这些百分比用于安排优先级，不是发布承诺。公开发布必须按质量门禁逐项提供证据。
 
 ## 2. 当前 Git 与工作区规则
 
 - 当前分支：`main`。
-- 本 Bugfix Session 阶段前 HEAD：`de685da`；本交接完成后以本文所在提交为新基线。
+- 本 Session 阶段前 HEAD：`cd4c795`；候选源码提交为 `5817eab`，本交接完成后以本文所在提交为新基线。
 - 用户保护内容：`.codex/config.toml`、`问题反馈.txt`；本切片开始与结束时前者保持未修改，后者保持未跟踪。
 - 上述两个文件未被本切片覆盖、回滚、格式化、暂存或纳入提交，后续 Session 仍须继续排除。
 - `C++高亮测试/代码高亮综合测试.cpp` 是本阶段保留的人工代码高亮验收夹具，已纳入源码提交。
@@ -237,26 +249,28 @@ Main
 
 ## 6. 当前验证基线
 
-2026-07-18 在 Bugfix Session 最终工作区重新执行：
+2026-07-18 在 Session C 最终工作区和候选提交重新执行：
 
 | 检查                               | 结果                                                                                                               |
 | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `npm run check`                    | 通过                                                                                                               |
+| `npm run check`                    | 通过；另含 3 项 Node 发布脚本测试                                                                                  |
 | TypeScript                         | 通过                                                                                                               |
 | ESLint（0 warnings）               | 通过                                                                                                               |
 | Prettier check                     | 通过                                                                                                               |
 | Vitest                             | 25 个文件，187 项通过；包含五协议兼容矩阵、统一结构化管线、候选作用契约、中文检索、重试和取消注册表测试            |
 | 统一题目 Electron E2E              | 6 项通过；覆盖纯手动、文本/图文 AI、取消、无效 JSON、多方向候选、空候选、零写入关闭和重启持久化                    |
-| `npm run test:e2e`                 | 43 项通过，1 项打包入口测试按条件跳过；全量重跑总耗时约 2.2 分钟                                                   |
+| `npm run test:e2e`                 | 43 项通过，2 项打包入口测试按条件跳过；全量重跑总耗时约 2.0 分钟                                                   |
 | 数据管理 Electron E2E              | 8 项通过；导出/恢复、隔离/撤销、提交前后中断恢复和故障回滚全部保持通过                                             |
-| 打包入口 smoke test                | macOS arm64 打包后二进制以全新 userData 启动，1 项通过                                                             |
-| `npm audit --audit-level=moderate` | 本切片未改依赖；前一基线为 0 个漏洞，本次复核因 registry TLS 中断未取得新结果                                      |
+| 打包入口 smoke test                | 最终 macOS arm64 候选以全新 userData 启动，并写入工作区/模板后用同一 userData 重启，2 项通过                       |
+| `npm audit --audit-level=moderate` | 通过，0 个漏洞                                                                                                     |
 | Renderer 生产构建                  | 通过；主入口约 318 kB，CodeMirror 延迟块约 386 kB                                                                  |
 | 亮暗/紧凑截图                      | 已生成人工题目手动/AI 多候选、文件计划内部滚动/删除确认、模板树初始/恢复等 1440×900 与 1280×720 亮暗截图并人工复核 |
-| 图标与打包                         | 源 PNG 和 `icon.icns` 四角透明；macOS arm64 `.app` 为 363 MiB、Mach-O arm64，ad-hoc 未签名                         |
-| 备份与隐私复核                     | 打包资源未发现测试密钥、个人绝对路径、SQLite、日志或 secrets 文件；截图只使用合成夹具，不包含真实题面、源码或笔记  |
+| 图标与打包                         | 源 PNG 与打包 `icon.icns` 均为 1024×1024、带 alpha；App 与 `better_sqlite3.node` 均为 arm64                        |
+| 候选制品                           | DMG `992ec6…d64`（138,091,048 B）；ZIP `5cf108…164`（137,555,476 B）；`hdiutil verify` 与摘要复核通过              |
+| 签名/公证                          | ad-hoc、无 Authority/TeamIdentifier、未 staple、Gatekeeper 不接受；signed 预检因无 Developer ID 按设计失败         |
+| 备份与隐私复核                     | 扫描 10,739 个 ASAR 条目和 316 个 App 文件；用户数据、密钥形态、个人绝对路径和禁用文件命中均为 0                   |
 
-说明：打包入口 smoke test 需要先生成 `release/mac-arm64` 目录包并设置 `PACKAGED_APP_PATH`，因此常规 E2E 中跳过是预期行为。本次已对当前 `.app` 单独执行并通过；任何新发布候选仍必须重新运行。
+说明：打包入口 smoke test 需要先生成 `release/mac-arm64` 目录包并设置 `PACKAGED_APP_PATH`，因此常规 E2E 中 2 项跳过是预期行为。本次已对最终候选单独执行并通过；任何新候选仍必须重新运行，不能沿用本次摘要。
 
 现有截图显示视觉系统已显著丰富，信息层级总体清楚。仍需注意：工作台首屏 Hero 在小窗口占用较高；内容区卡片密度和纵向节奏在空数据/少数据状态下仍可更紧凑；玻璃与环境光应继续限定在导航、浮层和重点状态，不能扩散到长文本或表格主体。
 
@@ -265,17 +279,16 @@ Main
 ### P0：公开发布前必须完成
 
 1. macOS Developer ID 签名与 notarization；Windows Authenticode 和真实 Windows 安装/升级/卸载验证。
-2. 从全新 `userData` 和已有 V2 数据各跑一次发布候选验收，确认安装包不含个人数据。
+2. 在获得受保护凭据后从同一提交运行 `release:mac:signed` / `release:win:signed`，保存签名、公证和摘要证据；不要给聊天发送私钥或密码。
 
-### P1：进入发布候选前完成
+### P1：发布候选继续完善
 
 1. 在发布候选使用实际计划支持的云端账号做人工 Provider smoke；Session B 的自动化矩阵使用本地 mock，不代表外部账号、配额和区域权限认证。
 2. 为文件计划执行与回滚增加故障注入单元/集成测试，覆盖第 N 步失败、磁盘满、目标占用和数据库提交失败；外部修改整批拒绝已覆盖。
 3. 实现面板拖动与尺寸记忆；补齐小窗口、200% 缩放、长标题、长路径、长题面和超多标签状态。
 4. 做全页面键盘和屏幕阅读器审计，增加状态播报和稳定的焦点回归测试。
 5. 拆分超大组件和服务，避免在同一提交混入新功能与视觉重构。
-6. 同步 README、用户指南、发布记录、CHANGELOG 和版本号，建立单一发布事实来源。
-7. 为批量导入增加直接恢复到工作区的用户可见撤销；其备份统计、保留建议和隔离入口已完成。
+6. 为批量导入增加直接恢复到工作区的用户可见撤销；其备份统计、保留建议和隔离入口已完成。
 
 ### P2：稳定发布后再做
 
@@ -369,27 +382,32 @@ Main
 
 归档说明：后续仅在新增协议、改变响应上限/重试边界或发现兼容回归时继续更新 ADR-0016 和矩阵；不得为单个兼容端点绕过最终 Zod 校验或文件计划安全 Schema。
 
-### Session C：发布工程与平台验收
+### Session C：发布工程与平台验收（自动化已完成，外部门禁待完成）
+
+状态：可重复候选、摘要、SBOM、元数据、隐私/架构/图标检查、双 userData smoke、签名失败关闭和 Windows 实机脚本已完成。当前机器没有 Apple Developer ID/notarization 凭据，也没有 Windows 实机，因此不能把签名、公证和 NSIS 实机验收标记为通过。
 
 目标：把开发预览推进到可验证的发布候选。
 
-主要范围：
+已完成范围：
 
-- macOS Developer ID、hardened runtime、notarization、stapling。
-- Windows Authenticode、NSIS 实机安装/升级/卸载与文件权限。
-- 版本、CHANGELOG、校验和、SBOM/attestation 和发布说明。
-- 是否引入自动更新的独立 ADR；首个候选可以明确不带自动更新。
+- ADR-0018、preview/signed 双模式与最小 hardened-runtime entitlement。
+- 当前版本精确产物、CHANGELOG、SHA-256、CycloneDX SBOM、构建元数据、隐私报告和发布说明草稿。
+- 固定 Action SHA 的候选 CI、macOS/Windows 打包入口 smoke 和 Windows 实机验收脚本。
+- 自动更新明确保持范围外；实现前需要独立 ADR。
 
-验收：
+已通过：
 
-- macOS `codesign --verify`、`spctl` 和 notarization 证据通过。
-- Windows 实机验证安装、启动、已有 V2 数据升级和卸载保留用户数据策略。
 - 同一次构建产生版本化产物、SHA-256 和发布说明。
 - 全新 userData 与已有 V2 userData 的打包入口 smoke 均通过。
 
-启动提示：
+仍受外部条件阻塞：
 
-> 阅读 AGENTS.md、docs/RELEASE.md 与 docs/PROJECT_STATUS_AND_HANDOFF.md，执行 Session C：发布工程与平台验收。不要把 CI 构建成功当作 Windows 实机通过；所有签名、校验和和安装证据必须来自同一发布候选。
+- macOS `codesign --verify`、`spctl` 和 notarization 正式证据。
+- Windows Authenticode 和真实主机的安装、启动、已有 V2 数据升级、快捷方式、权限及卸载保留策略。
+
+恢复外部门禁时的启动提示：
+
+> 阅读 AGENTS.md、docs/RELEASE.md 与 docs/PROJECT_STATUS_AND_HANDOFF.md，恢复 Session C 外部平台验收。只使用受保护环境中的 Apple Developer ID/notarization 或 Windows Authenticode 凭据，不在聊天中传递私钥；不要把 CI 构建成功当作 Windows 实机通过，所有签名、摘要和安装证据必须来自同一候选。
 
 ### Session D：UX、可访问性与窗口适配
 
@@ -463,15 +481,16 @@ Main
 ```text
 Session A 数据可靠性
   -> Session B AI 稳定性
-  -> Session C 发布工程
+  -> Session C 候选自动化
+     -> 签名/公证/Windows 实机（等待外部条件）
 
 Session D UX/可访问性 ─┐
 Session E 性能         ├-> Session F 代码健康与文档发布候选
 Session A/B/C          ┘
 ```
 
-- Session A 与 Session B 已完成，分别稳定数据恢复和 AI Provider 行为。
-- Session C 现在是主线，需要复用 A/B 的恢复能力、隐私边界和当前完整质量基线。
+- Session A、B 与 Session C 自动化均已完成；签名、公证和 Windows 实机证据等待证书、账号与硬件。
+- 无外部发布条件时，Session D 现在是推荐主线；若条件齐备则先恢复 Session C 的外部门禁。
 - Session D 与 E 可独立分支进行；合并时分别处理 UI 与 Main/数据库冲突。
 - Session F 最后执行，避免在结构仍频繁变化时反复拆分。
 
