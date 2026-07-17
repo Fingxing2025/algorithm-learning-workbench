@@ -261,6 +261,20 @@ test('uses one new-problem entry and supports side-effect-free close plus manual
   await setNextFileSelection(fixtureImagePath)
   await page.getByRole('button', { name: '选择截图' }).click()
   await expect(page.getByRole('img', { name: 'problem.png' })).toBeVisible()
+  await page.screenshot({
+    animations: 'disabled',
+    path: resolve('output/playwright/unified-problem-manual-light-1440x900.png'),
+  })
+  await electronApp.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0]?.setSize(1280, 720),
+  )
+  await page.screenshot({
+    animations: 'disabled',
+    path: resolve('output/playwright/unified-problem-manual-light-1280x720.png'),
+  })
+  await electronApp.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0]?.setSize(1440, 900),
+  )
   await page.getByRole('button', { name: '关闭新建题目' }).click()
   await expect(page.getByText('还没有题目卡片')).toBeVisible()
   await expect(readdir(join(userDataDirectory, 'problem-images'))).rejects.toThrow()

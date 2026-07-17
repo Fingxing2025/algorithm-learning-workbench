@@ -52,9 +52,20 @@ function formatBytes(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(1)} MiB`
 }
 
-function CountTile({ label, value }: { label: string; value: number | string }) {
+function CountTile({
+  dataKey,
+  label,
+  value,
+}: {
+  dataKey?: string
+  label: string
+  value: number | string
+}) {
   return (
-    <div className="rounded-xl border border-border bg-panel/70 p-3">
+    <div
+      className="rounded-xl border border-border bg-panel/70 p-3"
+      data-testid={dataKey ? `data-count-${dataKey}` : undefined}
+    >
       <p className="text-[11px] text-muted-foreground">{label}</p>
       <p className="mt-1 text-xl font-semibold tabular-nums">{value}</p>
     </div>
@@ -320,14 +331,34 @@ export function DataManagementWorkspace() {
 
             {counts ? (
               <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <CountTile label={t('工作区')} value={counts.workspaces} />
-                <CountTile label={t('模板')} value={counts.templates} />
-                <CountTile label={t('题目')} value={counts.problems} />
-                <CountTile label={t('题目图片')} value={counts.problemImages} />
-                <CountTile label={t('模板关系')} value={counts.templateProblemRelations} />
-                <CountTile label={t('Provider 配置')} value={counts.aiProviderProfiles} />
-                <CountTile label={t('文件计划')} value={counts.fileChangePlans} />
-                <CountTile label={t('执行记录')} value={counts.fileChangeExecutions} />
+                <CountTile dataKey="workspaces" label={t('工作区')} value={counts.workspaces} />
+                <CountTile dataKey="templates" label={t('模板')} value={counts.templates} />
+                <CountTile dataKey="problems" label={t('题目')} value={counts.problems} />
+                <CountTile
+                  dataKey="problem-images"
+                  label={t('题目图片')}
+                  value={counts.problemImages}
+                />
+                <CountTile
+                  dataKey="template-relations"
+                  label={t('模板关系')}
+                  value={counts.templateProblemRelations}
+                />
+                <CountTile
+                  dataKey="providers"
+                  label={t('Provider 配置')}
+                  value={counts.aiProviderProfiles}
+                />
+                <CountTile
+                  dataKey="file-plans"
+                  label={t('文件计划')}
+                  value={counts.fileChangePlans}
+                />
+                <CountTile
+                  dataKey="file-executions"
+                  label={t('执行记录')}
+                  value={counts.fileChangeExecutions}
+                />
               </div>
             ) : (
               <div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">

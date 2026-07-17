@@ -362,6 +362,44 @@ test('applies a selected plan with backup, stable relations, and rollback', asyn
   await expect(page.getByRole('status').filter({ hasText: '重新校验并创建' })).toBeVisible()
   await expect(page.getByText('移动 / 重命名', { exact: true })).toBeVisible()
   await page.getByRole('button', { name: '取消计划' }).click()
+  const history = page.getByLabel('文件计划历史列表')
+  await history.scrollIntoViewIfNeeded()
+  await expect(history).toHaveClass(/max-h-64/)
+  await expect(history).toHaveClass(/overflow-y-auto/)
+  expect(await history.evaluate(element => element.scrollHeight > element.clientHeight)).toBe(true)
+  await history.focus()
+  await page.keyboard.press('End')
+  await expect.poll(() => history.evaluate(element => element.scrollTop)).toBeGreaterThan(0)
+  await page
+    .getByRole('button', { name: /删除计划记录 File Management Test/ })
+    .first()
+    .click()
+  await expect(page.getByText(/将归档 1 份计划/)).toBeVisible()
+  await page.screenshot({
+    animations: 'disabled',
+    path: resolve('output/playwright/file-plan-delete-confirm-light-1440x900.png'),
+  })
+  await electronApp.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0]?.setSize(1280, 720),
+  )
+  await page.screenshot({
+    animations: 'disabled',
+    path: resolve('output/playwright/file-plan-delete-confirm-light-1280x720.png'),
+  })
+  await page.locator('html').evaluate(root => root.classList.add('dark'))
+  await page.screenshot({
+    animations: 'disabled',
+    path: resolve('output/playwright/file-plan-delete-confirm-dark-1280x720.png'),
+  })
+  await electronApp.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0]?.setSize(1440, 900),
+  )
+  await page.screenshot({
+    animations: 'disabled',
+    path: resolve('output/playwright/file-plan-delete-confirm-dark-1440x900.png'),
+  })
+  await page.locator('html').evaluate(root => root.classList.remove('dark'))
+  await page.getByRole('button', { name: '取消', exact: true }).click()
   await page.getByRole('button', { name: '切换到英文界面' }).click()
   await expect(page.getByText('Undone')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Copy as new plan' }).first()).toBeVisible()
