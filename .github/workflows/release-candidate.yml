@@ -67,7 +67,8 @@ jobs:
         with:
           name: algorithm-workbench-${{ inputs.mode }}-mac-arm64
           path: |
-            release/*-${{ env.APP_VERSION }}-mac-arm64.*
+            release/*-${{ env.APP_VERSION }}-mac-arm64.dmg
+            release/*-${{ env.APP_VERSION }}-mac-arm64.zip
             release/candidates/${{ env.APP_VERSION }}-mac-arm64-${{ inputs.mode }}/**
           if-no-files-found: error
           retention-days: 14
@@ -102,7 +103,7 @@ jobs:
         with:
           name: algorithm-workbench-${{ inputs.mode }}-win-x64
           path: |
-            release/*-${{ env.APP_VERSION }}-win-x64.*
+            release/*-${{ env.APP_VERSION }}-win-x64.exe
             release/candidates/${{ env.APP_VERSION }}-win-x64-${{ inputs.mode }}/**
           if-no-files-found: error
           retention-days: 14

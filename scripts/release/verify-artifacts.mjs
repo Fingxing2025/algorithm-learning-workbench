@@ -143,6 +143,18 @@ async function readPlistValue(infoPlistPath, key) {
   return result.stdout.trim()
 }
 
+async function imageFacts(path) {
+  const result = await runCommand(
+    'sips',
+    ['-g', 'pixelWidth', '-g', 'pixelHeight', '-g', 'hasAlpha', path],
+    { capture: true },
+  )
+  const width = Number.parseInt(result.stdout.match(/pixelWidth:\s*(\d+)/)?.[1] ?? '', 10)
+  const height = Number.parseInt(result.stdout.match(/pixelHeight:\s*(\d+)/)?.[1] ?? '', 10)
+  const hasAlpha = result.stdout.match(/hasAlpha:\s*(\w+)/)?.[1] === 'yes'
+  return { hasAlpha, height, sha256: await sha256File(path), width }
+}
+
 async function macSignatureReport(appBundlePath) {
   const details = await runCommand('codesign', ['-dv', '--verbose=4', appBundlePath], {
     allowFailure: true,
@@ -182,12 +194,14 @@ async function macSignatureReport(appBundlePath) {
 
 async function verifyMac(facts, options, paths) {
   const infoPlistPath = join(paths.appBundlePath, 'Contents', 'Info.plist')
-  const [bundleIdentifier, appVersion, buildVersion, minimumSystemVersion] = await Promise.all([
-    readPlistValue(infoPlistPath, 'CFBundleIdentifier'),
-    readPlistValue(infoPlistPath, 'CFBundleShortVersionString'),
-    readPlistValue(infoPlistPath, 'CFBundleVersion'),
-    readPlistValue(infoPlistPath, 'LSMinimumSystemVersion'),
-  ])
+  const [bundleIdentifier, appVersion, buildVersion, minimumSystemVersion, iconFile] =
+    await Promise.all([
+      readPlistValue(infoPlistPath, 'CFBundleIdentifier'),
+      readPlistValue(infoPlistPath, 'CFBundleShortVersionString'),
+      readPlistValue(infoPlistPath, 'CFBundleVersion'),
+      readPlistValue(infoPlistPath, 'LSMinimumSystemVersion'),
+      readPlistValue(infoPlistPath, 'CFBundleIconFile'),
+    ])
   if (bundleIdentifier !== facts.appId || appVersion !== facts.version || buildVersion !== facts.version) {
     throw new Error('Info.plist 的 appId 或版本与 package.json 不一致。')
   }
@@ -196,6 +210,22 @@ async function verifyMac(facts, options, paths) {
   const nativeModule = await runCommand('file', ['-b', paths.nativeModulePath], { capture: true })
   if (!executable.stdout.includes(options.arch) || !nativeModule.stdout.includes(options.arch)) {
     throw new Error('App 主程序或 better_sqlite3.node 架构与候选目标不一致。')
+  }
+
+  const packagedIconPath = join(paths.resourcesDirectory, iconFile)
+  const [sourceIcon, packagedIcon] = await Promise.all([
+    imageFacts(join(rootDirectory, 'build', 'icon.png')),
+    imageFacts(packagedIconPath),
+  ])
+  if (
+    sourceIcon.width !== 1024 ||
+    sourceIcon.height !== 1024 ||
+    !sourceIcon.hasAlpha ||
+    packagedIcon.width !== 1024 ||
+    packagedIcon.height !== 1024 ||
+    !packagedIcon.hasAlpha
+  ) {
+    throw new Error('源码或打包 App 图标不是带透明通道的 1024×1024 资源。')
   }
 
   const dmg = paths.artifacts.find(artifact => artifact.extension === 'dmg')
@@ -220,6 +250,11 @@ async function verifyMac(facts, options, paths) {
     app: {
       bundleIdentifier,
       buildVersion,
+      icon: {
+        file: iconFile,
+        packaged: packagedIcon,
+        source: sourceIcon,
+      },
       minimumSystemVersion,
       version: appVersion,
     },

@@ -150,6 +150,7 @@ if (options.platform === 'mac') {
     assertTool('xcrun', ['--find', 'codesign']),
     assertTool('xcrun', ['--find', 'stapler']),
     assertTool('xcrun', ['--find', 'notarytool']),
+    assertTool('xcrun', ['--find', 'sips']),
   ])
   if (options.mode === 'signed') {
     await assertMacSigningPrerequisites()

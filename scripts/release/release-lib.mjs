@@ -163,7 +163,10 @@ export async function pathExists(path) {
 
 export async function cleanCurrentReleaseOutputs(paths) {
   await Promise.all([
-    ...paths.artifacts.map(artifact => rm(artifact.path, { force: true })),
+    ...paths.artifacts.flatMap(artifact => [
+      rm(artifact.path, { force: true }),
+      rm(`${artifact.path}.blockmap`, { force: true }),
+    ]),
     rm(paths.unpackedDirectory, { force: true, recursive: true }),
     rm(paths.candidateDirectory, { force: true, recursive: true }),
   ])

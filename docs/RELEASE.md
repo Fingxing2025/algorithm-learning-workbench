@@ -63,6 +63,12 @@ release/candidates/0.1.2-mac-arm64-preview/
 
 `release/` 中可能仍有历史版本；只有当前候选证据目录里的 `SHA256SUMS.txt` 是本次候选的摘要来源。
 
+本地复核摘要时从 `release/` 作为工作目录运行，以便校验文件中的精确制品名正确解析：
+
+```bash
+(cd release && shasum -a 256 -c candidates/0.1.2-mac-arm64-preview/SHA256SUMS.txt)
+```
+
 ## 打包入口 smoke
 
 候选生成后必须从真实二进制分别验证全新 userData 和已经写入 V2 数据后的重启：
