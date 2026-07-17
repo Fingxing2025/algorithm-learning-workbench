@@ -5,6 +5,7 @@ import {
   Copy,
   ExternalLink,
   FileCode2,
+  FilePenLine,
   Link2,
   RefreshCw,
   Trash2,
@@ -13,6 +14,7 @@ import { useEffect, useState } from 'react'
 
 import type { Problem, RelationType, UpsertProblemRelationRequest } from '@core/contracts/problem'
 import type { TemplateActionRequest, TemplateSummary } from '@core/contracts/workspace'
+import type { FileChangeMutationResult } from '@core/contracts/template-management'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -22,12 +24,14 @@ import type { TemplateSourceState } from './use-template-source'
 import { CodeViewer } from './code-viewer'
 import { TemplateMetadataCard } from './template-metadata-card'
 import { TemplateProblemRelationDialog } from './template-problem-relation-dialog'
+import { TemplateRelocationDialog } from './template-relocation-dialog'
 
 interface AlgorithmCardProps {
   onAction: (request: TemplateActionRequest) => void
   onClearProblemError: () => void
   onDelete: (templateId: string) => Promise<boolean>
   onOpenProblem: (problemId: string) => void
+  onRelocated: (templateId: string, result: FileChangeMutationResult) => void
   onReload: () => void
   onUpsertProblemRelation: (request: UpsertProblemRelationRequest) => Promise<boolean>
   problemError: string | null
@@ -59,6 +63,7 @@ export function AlgorithmCard({
   onClearProblemError,
   onDelete,
   onOpenProblem,
+  onRelocated,
   onReload,
   onUpsertProblemRelation,
   problemError,
@@ -70,6 +75,7 @@ export function AlgorithmCard({
 }: AlgorithmCardProps) {
   const { t } = useI18n()
   const [relationDialogOpen, setRelationDialogOpen] = useState(false)
+  const [relocationOpen, setRelocationOpen] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
 
   useEffect(() => {
@@ -124,6 +130,16 @@ export function AlgorithmCard({
             </p>
           </div>
           <div className="relative flex gap-2">
+            <Button
+              aria-label={`${t('重命名或移动模板')} ${template.name}`}
+              disabled={isProblemBusy}
+              onClick={() => setRelocationOpen(true)}
+              size="icon"
+              type="button"
+              variant="ghost"
+            >
+              <FilePenLine aria-hidden="true" className="size-4 text-primary" />
+            </Button>
             {confirmDelete ? (
               <div className="flex items-center gap-2 rounded-xl border border-red-500/20 bg-red-500/5 px-2 py-1">
                 <span className="text-[11px] text-red-600 dark:text-red-300">
@@ -295,6 +311,12 @@ export function AlgorithmCard({
         onSave={onUpsertProblemRelation}
         open={relationDialogOpen}
         problems={problems}
+        template={template}
+      />
+      <TemplateRelocationDialog
+        onCompleted={onRelocated}
+        onOpenChange={setRelocationOpen}
+        open={relocationOpen}
         template={template}
       />
     </section>

@@ -214,6 +214,42 @@ Object.assign(english, {
   模板关系: 'Template relations',
   文件计划: 'File plans',
   文件计划历史列表: 'File plan history list',
+  计划记录与撤销: 'Plan records and undo',
+  '计划记录在此区域内部滚动；删除采用安全归档。':
+    'Plan records scroll inside this region. Delete uses safe archiving.',
+  一键删除计划记录: 'Delete archivable plan records',
+  '将归档 {count} 份计划：{cancelled} 份已取消，{applied} 份已执行。':
+    'Archive {count} plans: {cancelled} cancelled and {applied} applied.',
+  '只从普通列表隐藏计划；模板源码、执行记录、撤销备份和用户数据不会删除。':
+    'Plans are only hidden from the normal list. Template sources, executions, undo backups, and user data remain.',
+  确认删除计划记录: 'Confirm delete plan records',
+  删除计划记录: 'Delete plan record',
+  '暂无可归档计划记录。': 'No archivable plan records.',
+  '已从普通列表隐藏 {count} 份计划；执行记录、撤销能力和安全备份保持不变。':
+    'Hidden {count} plans from the normal list. Executions, undo, and safety backups remain unchanged.',
+  重命名或移动模板: 'Rename or move template',
+  '只允许移动到当前工作区内；确认前不会写入文件。':
+    'Moves are limited to the current workspace. No file is written before confirmation.',
+  关闭模板移动窗口: 'Close template move dialog',
+  新的文件名与相对路径: 'New file name and relative path',
+  '使用工作区内相对路径，并保留原源码扩展名；不会覆盖同名文件。':
+    'Use a workspace-relative path and keep the source extension. Existing files are never overwritten.',
+  移动预览: 'Move preview',
+  仅重命名: 'Rename only',
+  仅移动: 'Move only',
+  重命名并移动: 'Rename and move',
+  题目关联: 'Problem relations',
+  '项保持原模板 ID': 'items keep the original template ID',
+  保持不变: 'Preserved',
+  当前无元数据: 'No metadata yet',
+  '执行前会创建安全备份；文件、索引或数据库任一步失败都会恢复原路径。':
+    'A safety backup is created first. Any file, index, or database failure restores the original path.',
+  '请核对原路径、新路径和受影响数据。': 'Review the original path, new path, and affected data.',
+  '先生成只读预览。': 'Generate a read-only preview first.',
+  确认重命名或移动: 'Confirm rename or move',
+  预览变更: 'Preview change',
+  '模板已安全重命名或移动，并保留原有元数据与题目关联':
+    'Template renamed or moved safely; metadata and problem relations were preserved.',
   执行记录: 'Execution records',
   '正在诊断本地数据…': 'Diagnosing local data...',
   'SQLite 状态': 'SQLite status',

@@ -42,6 +42,9 @@ import type {
   PreviewProblemAnalysisRequest,
 } from './problem-analysis'
 import type {
+  ApplyTemplateRelocationRequest,
+  ArchiveFilePlansRequest,
+  ArchiveFilePlansResult,
   BatchImportTemplateRequest,
   BatchImportTemplateResult,
   BatchTemplateImportSource,
@@ -51,9 +54,11 @@ import type {
   ImportTemplateRequest,
   ImportTemplateResult,
   PreviewBatchTemplateClassificationRequest,
+  PreviewTemplateRelocationRequest,
   TemplateClassification,
   TemplateImportSource,
   TemplateMetadata,
+  TemplateRelocationPreview,
   UpdateTemplateMetadataRequest,
   FileChangeExecution,
   FileChangeMutationResult,
@@ -139,10 +144,14 @@ export interface DesktopApi {
     readSource: (templateId: string) => Promise<TemplateSource>
   }
   templateManagement: {
+    applyTemplateRelocation: (
+      request: ApplyTemplateRelocationRequest,
+    ) => Promise<FileChangeMutationResult>
     applyFilePlan: (request: {
       operationIds: string[]
       planId: string
     }) => Promise<FileChangeMutationResult>
+    archiveFilePlans: (request: ArchiveFilePlansRequest) => Promise<ArchiveFilePlansResult>
     auditWorkspace: () => Promise<WorkspaceAudit>
     cancelFilePlanGeneration: (requestId: string) => Promise<void>
     cancelClassification: (requestId: string) => Promise<void>
@@ -168,6 +177,9 @@ export interface DesktopApi {
       request: PreviewTemplateClassificationRequest,
     ) => Promise<AiRequestPreview>
     previewFilePlan: (request: FilePlanGenerationRequest) => Promise<AiRequestPreview>
+    previewTemplateRelocation: (
+      request: PreviewTemplateRelocationRequest,
+    ) => Promise<TemplateRelocationPreview>
     generateFilePlan: (request: FilePlanGenerationRequest) => Promise<FileChangePlan>
     listFileExecutions: () => Promise<FileChangeExecution[]>
     listFilePlans: () => Promise<FileChangePlan[]>

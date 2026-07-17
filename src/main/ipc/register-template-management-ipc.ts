@@ -17,6 +17,9 @@ import {
   templateMetadataSchema,
   updateTemplateMetadataRequestSchema,
   applyFileChangePlanRequestSchema,
+  applyTemplateRelocationRequestSchema,
+  archiveFilePlansRequestSchema,
+  archiveFilePlansResultSchema,
   cancelFilePlanGenerationRequestSchema,
   exportFilePlanDiagnosticRequestSchema,
   fileChangeExecutionListSchema,
@@ -28,7 +31,9 @@ import {
   previewFilePlanResultSchema,
   previewBatchTemplateClassificationRequestSchema,
   previewBatchTemplateClassificationResultSchema,
+  previewTemplateRelocationRequestSchema,
   rollbackFileChangeExecutionRequestSchema,
+  templateRelocationPreviewSchema,
   workspaceAuditSchema,
 } from '@core/contracts/template-management'
 import { IPC_CHANNELS } from '@core/ipc/channels'
@@ -41,6 +46,24 @@ export function registerTemplateManagementIpc(
   service: TemplateManagementService,
   getParentWindow: () => Electron.BrowserWindow | undefined,
 ): void {
+  registerValidatedHandler({
+    channel: IPC_CHANNELS.templateManagement.previewTemplateRelocation,
+    handler: request => service.previewTemplateRelocation(request),
+    inputSchema: previewTemplateRelocationRequestSchema,
+    outputSchema: templateRelocationPreviewSchema,
+  })
+  registerValidatedHandler({
+    channel: IPC_CHANNELS.templateManagement.applyTemplateRelocation,
+    handler: request => service.applyTemplateRelocation(request),
+    inputSchema: applyTemplateRelocationRequestSchema,
+    outputSchema: fileChangeMutationResultSchema,
+  })
+  registerValidatedHandler({
+    channel: IPC_CHANNELS.templateManagement.archiveFilePlans,
+    handler: request => service.archiveFilePlans(request),
+    inputSchema: archiveFilePlansRequestSchema,
+    outputSchema: archiveFilePlansResultSchema,
+  })
   registerValidatedHandler({
     channel: IPC_CHANNELS.templateManagement.chooseBatchImportFiles,
     handler: () => service.chooseBatchImportFiles(getParentWindow()),

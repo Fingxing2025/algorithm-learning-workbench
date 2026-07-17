@@ -302,7 +302,7 @@ test('rejects the whole batch when a source changes after plan generation', asyn
   await page.getByRole('button', { name: '取消计划' }).click()
 })
 
-test('applies a selected plan with backup, relation remap, and rollback', async () => {
+test('applies a selected plan with backup, stable relations, and rollback', async () => {
   await page.getByRole('button', { name: '关闭文件管理提示' }).click()
   await page.getByRole('button', { name: '生成 AI 计划' }).click()
   await expect(page.getByRole('heading', { name: '确认发送给 AI' })).toBeVisible()

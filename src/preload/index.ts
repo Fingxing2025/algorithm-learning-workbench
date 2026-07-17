@@ -87,7 +87,11 @@ const desktopApi: DesktopApi = {
     readSource: templateId => invokeResult(IPC_CHANNELS.templates.readSource, { templateId }),
   },
   templateManagement: {
+    applyTemplateRelocation: request =>
+      invokeResult(IPC_CHANNELS.templateManagement.applyTemplateRelocation, request),
     applyFilePlan: request => invokeResult(IPC_CHANNELS.templateManagement.applyFilePlan, request),
+    archiveFilePlans: request =>
+      invokeResult(IPC_CHANNELS.templateManagement.archiveFilePlans, request),
     auditWorkspace: () => invokeResult(IPC_CHANNELS.templateManagement.auditWorkspace),
     cancelFilePlanGeneration: async requestId => {
       await invokeResult<null>(IPC_CHANNELS.templateManagement.cancelFilePlanGeneration, {
@@ -125,6 +129,8 @@ const desktopApi: DesktopApi = {
       invokeResult(IPC_CHANNELS.templateManagement.previewClassification, request),
     previewFilePlan: request =>
       invokeResult(IPC_CHANNELS.templateManagement.previewFilePlan, request),
+    previewTemplateRelocation: request =>
+      invokeResult(IPC_CHANNELS.templateManagement.previewTemplateRelocation, request),
     generateFilePlan: request =>
       invokeResult(IPC_CHANNELS.templateManagement.generateFilePlan, request),
     listFileExecutions: () => invokeResult(IPC_CHANNELS.templateManagement.listFileExecutions),

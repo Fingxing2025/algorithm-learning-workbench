@@ -398,6 +398,39 @@ export const exportFilePlanDiagnosticRequestSchema = z
   .strict()
 
 export const fileChangePlanRequestSchema = z.object({ planId: z.string().uuid() }).strict()
+export const archiveFilePlansRequestSchema = z
+  .object({ planIds: z.array(z.string().uuid()).min(1).max(100) })
+  .strict()
+  .refine(request => new Set(request.planIds).size === request.planIds.length, '计划 ID 不能重复。')
+export type ArchiveFilePlansRequest = z.infer<typeof archiveFilePlansRequestSchema>
+export const archiveFilePlansResultSchema = z
+  .object({ archivedAt: z.string().datetime(), planIds: z.array(z.string().uuid()).min(1).max(100) })
+  .strict()
+export type ArchiveFilePlansResult = z.infer<typeof archiveFilePlansResultSchema>
+
+export const previewTemplateRelocationRequestSchema = z
+  .object({ targetRelativePath: relativePathSchema, templateId: templateIdSchema })
+  .strict()
+export type PreviewTemplateRelocationRequest = z.infer<
+  typeof previewTemplateRelocationRequestSchema
+>
+export const templateRelocationPreviewSchema = z
+  .object({
+    affectedMetadata: z.boolean(),
+    affectedRelationCount: z.number().int().nonnegative(),
+    changeKind: z.enum(['move', 'rename', 'rename-and-move']),
+    expiresAt: z.string().datetime(),
+    previewId: z.string().uuid(),
+    sourceRelativePath: relativePathSchema,
+    targetRelativePath: relativePathSchema,
+    templateId: templateIdSchema,
+  })
+  .strict()
+export type TemplateRelocationPreview = z.infer<typeof templateRelocationPreviewSchema>
+export const applyTemplateRelocationRequestSchema = z
+  .object({ confirmed: z.literal(true), previewId: z.string().uuid() })
+  .strict()
+export type ApplyTemplateRelocationRequest = z.infer<typeof applyTemplateRelocationRequestSchema>
 export const applyFileChangePlanRequestSchema = fileChangePlanRequestSchema
   .extend({ operationIds: z.array(z.string().uuid()).min(1).max(100) })
   .strict()

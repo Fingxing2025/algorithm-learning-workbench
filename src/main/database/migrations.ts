@@ -5,6 +5,7 @@ import problemsMigration from '../../../drizzle/0001_problems_relations.sql?raw'
 import aiProvidersMigration from '../../../drizzle/0002_ai_providers.sql?raw'
 import templateManagementMigration from '../../../drizzle/0003_template_management.sql?raw'
 import aiContextProblemStructureMigration from '../../../drizzle/0004_ai_context_problem_structure.sql?raw'
+import bugfixWorkflowsMigration from '../../../drizzle/0005_bugfix_workflows.sql?raw'
 
 const migrations = [
   { id: '0000_initial', sql: initialMigration },
@@ -12,6 +13,7 @@ const migrations = [
   { id: '0002_ai_providers', sql: aiProvidersMigration },
   { id: '0003_template_management', sql: templateManagementMigration },
   { id: '0004_ai_context_problem_structure', sql: aiContextProblemStructureMigration },
+  { id: '0005_bugfix_workflows', sql: bugfixWorkflowsMigration },
 ] as const
 
 export function runMigrations(client: BetterSqlite3.Database): void {

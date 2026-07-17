@@ -30,10 +30,16 @@ import {
   type TemplateMetadata,
   type UpdateTemplateMetadataRequest,
   applyFileChangePlanRequestSchema,
+  applyTemplateRelocationRequestSchema,
+  archiveFilePlansRequestSchema,
   filePlanGenerationRequestSchema,
   fileChangeOperationSchema,
   modelFileChangePlanSchema,
   previewBatchTemplateClassificationRequestSchema,
+  previewTemplateRelocationRequestSchema,
+  type ApplyTemplateRelocationRequest,
+  type ArchiveFilePlansRequest,
+  type ArchiveFilePlansResult,
   type BatchImportTemplateRequest,
   type BatchImportTemplateResult,
   type BatchTemplateImportSource,
@@ -45,6 +51,8 @@ import {
   type FileChangePlan,
   type FilePlanGenerationRequest,
   type TemplateMetadataFields,
+  type TemplateRelocationPreview,
+  type PreviewTemplateRelocationRequest,
   type WorkspaceAudit,
 } from '@core/contracts/template-management'
 import type { AiRequestPreview } from '@core/contracts/ai-request'
@@ -57,7 +65,7 @@ import { normalizeTemplateRelativePath } from '../security/template-path'
 import { resolveAuthorizedFile, resolveAuthorizedRoot } from '../security/path-guard'
 import type { AiProviderService } from './ai-provider-service'
 import type { AiTaskRunRegistry } from './ai-task-run-registry'
-import { createTemplateId, getLanguageForExtension } from './template-scanner'
+import { getLanguageForExtension } from './template-scanner'
 import type { WorkspaceService } from './workspace-service'
 import type { WorkspaceAiContextService } from './workspace-ai-context-service'
 import { runStructuredAiTask } from './structured-ai-task'
@@ -344,8 +352,16 @@ interface PreparedFilePlanInput {
   workspace: NonNullable<ReturnType<WorkspaceRepository['getActiveWorkspace']>>
 }
 
+interface StoredTemplateRelocationPreview extends TemplateRelocationPreview {
+  sourceModifiedAt: string
+  sourceSha256: string
+  sourceSizeBytes: number
+  workspaceId: string
+}
+
 export class TemplateManagementService {
   private lastFilePlanDiagnostic: Record<string, unknown> | null = null
+  private readonly relocationPreviews = new Map<string, StoredTemplateRelocationPreview>()
 
   constructor(
     private readonly aiProviderService: AiProviderService,
@@ -356,6 +372,216 @@ export class TemplateManagementService {
     private readonly workspaceAiContextService: WorkspaceAiContextService,
     private readonly aiTaskRunRegistry: AiTaskRunRegistry,
   ) {}
+
+  archiveFilePlans(rawRequest: ArchiveFilePlansRequest): ArchiveFilePlansResult {
+    const request = archiveFilePlansRequestSchema.parse(rawRequest)
+    const workspace = this.workspaceRepository.getActiveWorkspace()
+    if (!workspace) throw new PublicError('WORKSPACE_REQUIRED', '请先创建或选择模板工作区。')
+    try {
+      const result = this.metadataRepository.archivePlans(workspace.id, request.planIds)
+      if (!result) {
+        throw new PublicError(
+          'INVALID_REQUEST',
+          '计划状态已变化、仍是待确认草稿，或计划不属于当前工作区；未归档任何记录。',
+        )
+      }
+      return result
+    } catch (error) {
+      if (error instanceof PublicError) throw error
+      throw new PublicError('DATABASE_ERROR', '计划记录归档失败，所有记录均保持原状。')
+    }
+  }
+
+  async previewTemplateRelocation(
+    rawRequest: PreviewTemplateRelocationRequest,
+  ): Promise<TemplateRelocationPreview> {
+    const request = previewTemplateRelocationRequestSchema.parse(rawRequest)
+    const workspace = this.workspaceRepository.getActiveWorkspace()
+    const record = this.workspaceRepository.getTemplateWithWorkspace(request.templateId)
+    if (!workspace || !record || record.workspace.id !== workspace.id || !record.template.available) {
+      throw new PublicError('TEMPLATE_NOT_FOUND', '模板不存在或当前不可用，请重新扫描工作区。')
+    }
+    const root = await resolveAuthorizedRoot(workspace.rootPath)
+    const source = await resolveAuthorizedFile(root, record.template.relativePath)
+    const targetRelativePath = normalizeTemplateRelativePath(request.targetRelativePath)
+    await this.assertSafeMoveTarget(
+      root,
+      workspace.id,
+      record.template.relativePath,
+      targetRelativePath,
+    )
+    const [content, stats] = await Promise.all([readFile(source.absolutePath), lstat(source.absolutePath)])
+    const sourceDirectory = dirname(record.template.relativePath)
+    const targetDirectory = dirname(targetRelativePath)
+    const sourceName = basename(record.template.relativePath)
+    const targetName = basename(targetRelativePath)
+    const previewId = randomUUID()
+    const preview: StoredTemplateRelocationPreview = {
+      affectedMetadata: this.metadataRepository.hasMetadata(record.template.id),
+      affectedRelationCount: this.metadataRepository.countTemplateRelations(record.template.id),
+      changeKind:
+        sourceDirectory !== targetDirectory && sourceName !== targetName
+          ? 'rename-and-move'
+          : sourceDirectory !== targetDirectory
+            ? 'move'
+            : 'rename',
+      expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+      previewId,
+      sourceModifiedAt: stats.mtime.toISOString(),
+      sourceRelativePath: record.template.relativePath,
+      sourceSha256: createHash('sha256').update(content).digest('hex'),
+      sourceSizeBytes: content.length,
+      targetRelativePath,
+      templateId: record.template.id,
+      workspaceId: workspace.id,
+    }
+    for (const [id, stored] of this.relocationPreviews) {
+      if (Date.parse(stored.expiresAt) <= Date.now()) this.relocationPreviews.delete(id)
+    }
+    this.relocationPreviews.set(previewId, preview)
+    const { sourceModifiedAt, sourceSha256, sourceSizeBytes, workspaceId, ...publicPreview } = preview
+    void sourceModifiedAt
+    void sourceSha256
+    void sourceSizeBytes
+    void workspaceId
+    return publicPreview
+  }
+
+  async applyTemplateRelocation(
+    rawRequest: ApplyTemplateRelocationRequest,
+  ): Promise<FileChangeMutationResult> {
+    const request = applyTemplateRelocationRequestSchema.parse(rawRequest)
+    const preview = this.relocationPreviews.get(request.previewId)
+    this.relocationPreviews.delete(request.previewId)
+    const workspace = this.workspaceRepository.getActiveWorkspace()
+    if (
+      !preview ||
+      !workspace ||
+      preview.workspaceId !== workspace.id ||
+      Date.parse(preview.expiresAt) <= Date.now()
+    ) {
+      throw new PublicError('INVALID_REQUEST', '移动预览已过期或不属于当前工作区，请重新预览。')
+    }
+    const record = this.workspaceRepository.getTemplateWithWorkspace(preview.templateId)
+    if (
+      !record ||
+      !record.template.available ||
+      record.workspace.id !== workspace.id ||
+      record.template.relativePath !== preview.sourceRelativePath
+    ) {
+      throw new PublicError('FILE_UNAVAILABLE', '模板索引已变化，请重新预览。')
+    }
+    const root = await resolveAuthorizedRoot(workspace.rootPath)
+    const source = await resolveAuthorizedFile(root, preview.sourceRelativePath)
+    const [content, stats] = await Promise.all([readFile(source.absolutePath), lstat(source.absolutePath)])
+    if (
+      content.length !== preview.sourceSizeBytes ||
+      createHash('sha256').update(content).digest('hex') !== preview.sourceSha256 ||
+      stats.mtime.toISOString() !== preview.sourceModifiedAt
+    ) {
+      throw new PublicError('FILE_UNAVAILABLE', '源文件在确认前已变化，请重新预览。')
+    }
+    await this.assertSafeMoveTarget(
+      root,
+      workspace.id,
+      preview.sourceRelativePath,
+      preview.targetRelativePath,
+    )
+    const operation = fileChangeOperationSchema.parse({
+      alternatives: [],
+      applicability: ['用户手动确认的工作区内重命名或移动'],
+      confidence: 1,
+      evidence: ['用户在预览中确认原路径与新路径'],
+      id: randomUUID(),
+      kind: 'move',
+      precondition: {
+        metadataUpdatedAt: this.metadataRepository.getMetadata(preview.templateId)?.updatedAt ?? null,
+        sourceModifiedAt: preview.sourceModifiedAt,
+        sourceSha256: preview.sourceSha256,
+        sourceSizeBytes: preview.sourceSizeBytes,
+        targetExpectedAbsent: true,
+      },
+      reason: '用户手动重命名或移动模板文件。',
+      risk: 'medium',
+      selectedByDefault: true,
+      source: 'manual',
+      sourcePath: preview.sourceRelativePath,
+      targetPath: preview.targetRelativePath,
+      templateId: preview.templateId,
+    })
+    const plan = this.metadataRepository.createPlan(
+      workspace.id,
+      '本地手动操作',
+      'local',
+      [operation],
+      { summary: '用户确认的模板重命名或移动。' },
+    )
+    try {
+      return await this.applyFilePlan({ operationIds: [operation.id], planId: plan.id })
+    } catch (error) {
+      this.metadataRepository.cancelPlan(plan.id)
+      throw error
+    }
+  }
+
+  private async assertSafeMoveTarget(
+    root: string,
+    workspaceId: string,
+    sourceRelativePath: string,
+    rawTargetRelativePath: string,
+  ): Promise<string> {
+    const targetRelativePath = normalizeTemplateRelativePath(rawTargetRelativePath)
+    if (targetRelativePath === sourceRelativePath) {
+      throw new PublicError('INVALID_REQUEST', '新路径必须与原路径不同。')
+    }
+    if (extname(targetRelativePath).toLowerCase() !== extname(sourceRelativePath).toLowerCase()) {
+      throw new PublicError('INVALID_REQUEST', '重命名时必须保留原源码扩展名。')
+    }
+    if (!getLanguageForExtension(extname(targetRelativePath).toLowerCase())) {
+      throw new PublicError('INVALID_REQUEST', '目标文件扩展名不受支持。')
+    }
+    const normalizedTargetKey = targetRelativePath.normalize('NFC').toLocaleLowerCase('en-US')
+    const caseConflict = this.workspaceRepository
+      .listTemplates(workspaceId)
+      .find(
+        template =>
+          template.relativePath !== sourceRelativePath &&
+          template.relativePath.normalize('NFC').toLocaleLowerCase('en-US') === normalizedTargetKey,
+      )
+    if (caseConflict) {
+      throw new PublicError(
+        'FILE_ALREADY_EXISTS',
+        `目标路径与已有模板仅大小写不同：${caseConflict.relativePath}`,
+      )
+    }
+    if (
+      sourceRelativePath.normalize('NFC').toLocaleLowerCase('en-US') === normalizedTargetKey
+    ) {
+      throw new PublicError('FILE_ALREADY_EXISTS', '首版不支持仅修改文件名大小写。')
+    }
+    const targetAbsolute = join(root, ...targetRelativePath.split('/'))
+    const parentSegments = targetRelativePath.split('/').slice(0, -1)
+    let current = root
+    for (const segment of parentSegments) {
+      current = join(current, segment)
+      const stats = await lstat(current).catch(error => {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null
+        throw error
+      })
+      if (!stats) break
+      if (!stats.isDirectory() || stats.isSymbolicLink()) {
+        throw new PublicError('PATH_NOT_AUTHORIZED', '目标父目录不是安全的普通目录。')
+      }
+    }
+    const targetStats = await lstat(targetAbsolute).catch(error => {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null
+      throw error
+    })
+    if (targetStats) {
+      throw new PublicError('FILE_ALREADY_EXISTS', `目标路径已存在：${targetRelativePath}`)
+    }
+    return targetAbsolute
+  }
 
   private async createOperationPrecondition(
     rootPath: string,
@@ -1226,15 +1452,12 @@ export class TemplateManagementService {
       for (const operation of selected) {
         const source = await resolveAuthorizedFile(root, operation.sourcePath)
         if (operation.kind === 'move') {
-          const targetPath = normalizeTemplateRelativePath(operation.targetPath)
-          const targetAbsolute = join(root, ...targetPath.split('/'))
-          await lstat(targetAbsolute)
-            .then(() => {
-              throw new PublicError('FILE_ALREADY_EXISTS', `目标路径已存在：${targetPath}`)
-            })
-            .catch(error => {
-              if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
-            })
+          await this.assertSafeMoveTarget(
+            root,
+            workspace.id,
+            operation.sourcePath,
+            operation.targetPath,
+          )
         }
         if (operation.kind !== 'update-metadata') {
           await copyFile(source.absolutePath, join(backupAbsolute, `${operation.id}.backup`))
@@ -1259,7 +1482,12 @@ export class TemplateManagementService {
       for (const operation of selected) {
         const source = await resolveAuthorizedFile(root, operation.sourcePath)
         if (operation.kind === 'move') {
-          const targetAbsolute = join(root, ...operation.targetPath.split('/'))
+          const targetAbsolute = await this.assertSafeMoveTarget(
+            root,
+            workspace.id,
+            operation.sourcePath,
+            operation.targetPath,
+          )
           await mkdir(dirname(targetAbsolute), { recursive: true })
           await rename(source.absolutePath, targetAbsolute)
         } else if (operation.kind === 'delete') {
@@ -1267,19 +1495,18 @@ export class TemplateManagementService {
         }
         applied.push(operation)
       }
-      const snapshot = await this.workspaceService.rescanCurrentWorkspace()
-      const remapByPreviousId = new Map(
+      if (
+        process.env.NODE_ENV === 'test' &&
+        process.env.E2E_FILE_PLAN_FAILURE_STAGE === 'after-file-mutations'
+      ) {
+        throw new Error('Injected file plan failure after file mutations')
+      }
+      const stableIdsByRelativePath = new Map(
         selected.flatMap(operation =>
-          operation.kind === 'move'
-            ? [
-                [
-                  operation.templateId,
-                  createTemplateId(workspace.id, operation.targetPath),
-                ] as const,
-              ]
-            : [],
+          operation.kind === 'move' ? [[operation.targetPath, operation.templateId] as const] : [],
         ),
       )
+      const snapshot = await this.workspaceService.rescanCurrentWorkspace(stableIdsByRelativePath)
       this.metadataRepository.finalizeExecution({
         backupDirectory: backupRelative,
         executionId,
@@ -1288,14 +1515,14 @@ export class TemplateManagementService {
             ? [
                 {
                   fields: operation.metadata,
-                  templateId: remapByPreviousId.get(operation.templateId) ?? operation.templateId,
+                  templateId: operation.templateId,
                 },
               ]
             : [],
         ),
         operationsJson: JSON.stringify(stored),
         planId: plan.id,
-        remaps: [...remapByPreviousId].map(([previousId, nextId]) => ({ nextId, previousId })),
+        remaps: [],
       })
       const execution = this.metadataRepository
         .listExecutions(workspace.id)
@@ -1325,7 +1552,17 @@ export class TemplateManagementService {
           /* report original failure */
         }
       }
-      await this.workspaceService.rescanCurrentWorkspace().catch(() => undefined)
+      await this.workspaceService
+        .rescanCurrentWorkspace(
+          new Map(
+            selected.flatMap(operation =>
+              operation.kind === 'move'
+                ? [[operation.sourcePath, operation.templateId] as const]
+                : [],
+            ),
+          ),
+        )
+        .catch(() => undefined)
       await rm(backupAbsolute, { force: true, recursive: true }).catch(() => undefined)
       if (error instanceof PublicError) throw error
       throw new PublicError('FILE_UNAVAILABLE', '文件计划执行失败，已恢复完成的步骤。')
@@ -1428,23 +1665,22 @@ export class TemplateManagementService {
         }
         reversed.push(operation)
       }
-      const snapshot = await this.workspaceService.rescanCurrentWorkspace()
+      const snapshot = await this.workspaceService.rescanCurrentWorkspace(
+        new Map(
+          stored.flatMap(item =>
+            item.operation.kind === 'move'
+              ? [[item.operation.sourcePath, item.operation.templateId] as const]
+              : [],
+          ),
+        ),
+      )
       this.metadataRepository.finalizeRollback({
         executionId,
         metadataRestores: stored.map(item => ({
           fields: item.previousMetadata,
           templateId: item.operation.templateId,
         })),
-        remaps: stored.flatMap(item =>
-          item.operation.kind === 'move'
-            ? [
-                {
-                  nextId: item.operation.templateId,
-                  previousId: createTemplateId(workspace.id, item.operation.targetPath),
-                },
-              ]
-            : [],
-        ),
+        remaps: [],
       })
       await rm(backupAbsolute, { force: true, recursive: true }).catch(() => undefined)
       const execution = this.metadataRepository
@@ -1469,7 +1705,17 @@ export class TemplateManagementService {
           /* keep the original conflict visible */
         }
       }
-      await this.workspaceService.rescanCurrentWorkspace().catch(() => undefined)
+      await this.workspaceService
+        .rescanCurrentWorkspace(
+          new Map(
+            stored.flatMap(item =>
+              item.operation.kind === 'move'
+                ? [[item.operation.targetPath, item.operation.templateId] as const]
+                : [],
+            ),
+          ),
+        )
+        .catch(() => undefined)
       if (error instanceof PublicError) throw error
       throw new PublicError('FILE_UNAVAILABLE', '撤销未完成，已恢复到撤销前状态。')
     }

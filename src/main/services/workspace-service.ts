@@ -528,8 +528,10 @@ export class WorkspaceService {
     }
   }
 
-  async rescanCurrentWorkspace(): Promise<WorkspaceSnapshot> {
-    return this.scanAndSnapshot(this.requireWorkspace())
+  async rescanCurrentWorkspace(
+    stableIdsByRelativePath?: ReadonlyMap<string, string>,
+  ): Promise<WorkspaceSnapshot> {
+    return this.scanAndSnapshot(this.requireWorkspace(), stableIdsByRelativePath)
   }
 
   private requireWorkspace(): WorkspaceRecord {
@@ -540,12 +542,19 @@ export class WorkspaceService {
     return workspace
   }
 
-  private async scanAndSnapshot(workspace: WorkspaceRecord): Promise<WorkspaceSnapshot> {
+  private async scanAndSnapshot(
+    workspace: WorkspaceRecord,
+    stableIdsByRelativePath?: ReadonlyMap<string, string>,
+  ): Promise<WorkspaceSnapshot> {
     const scanResult = await scanTemplateWorkspace(workspace.rootPath, workspace.id)
     const scannedAt = new Date().toISOString()
+    const templates = scanResult.templates.map(template => ({
+      ...template,
+      id: stableIdsByRelativePath?.get(template.relativePath) ?? template.id,
+    }))
     this.repository.replaceTemplates(
       workspace.id,
-      scanResult.templates,
+      templates,
       scanResult.summary,
       scannedAt,
     )

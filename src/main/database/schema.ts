@@ -88,6 +88,7 @@ export const templateMetadata = sqliteTable('template_metadata', {
 export const fileChangePlans = sqliteTable(
   'file_change_plans',
   {
+    archivedAt: text('archived_at'),
     createdAt: text('created_at').notNull(),
     id: text('id').primaryKey(),
     model: text('model').notNull(),

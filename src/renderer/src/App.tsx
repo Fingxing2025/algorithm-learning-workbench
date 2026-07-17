@@ -37,6 +37,7 @@ import type {
   WorkspaceSnapshot,
 } from '@core/contracts/workspace'
 import type { ImportTemplateRequest } from '@core/contracts/template-management'
+import type { FileChangeMutationResult } from '@core/contracts/template-management'
 
 import { CommandPalette } from '@/components/command-palette'
 import { Badge } from '@/components/ui/badge'
@@ -642,6 +643,7 @@ function TemplateLibrary({
   selectedTemplateId,
   sourceState,
   onReloadSource,
+  onRelocated,
   workspace,
 }: {
   isBusy: boolean
@@ -653,6 +655,7 @@ function TemplateLibrary({
   onDeleteTemplate: (templateId: string) => Promise<boolean>
   onOpenProblem: (problemId: string) => void
   onReloadSource: () => void
+  onRelocated: (templateId: string, result: FileChangeMutationResult) => void
   onRescan: () => void
   onSelectTemplate: (templateId: string) => void
   onUpsertProblemRelation: (request: UpsertProblemRelationRequest) => Promise<boolean>
@@ -737,6 +740,7 @@ function TemplateLibrary({
             onClearProblemError={onClearProblemError}
             onOpenProblem={onOpenProblem}
             onReload={onReloadSource}
+            onRelocated={onRelocated}
             onUpsertProblemRelation={onUpsertProblemRelation}
             problemError={problemError}
             problems={problems}
@@ -1054,6 +1058,13 @@ function AppContent() {
           onDeleteTemplate={handleDeleteTemplate}
           onOpenProblem={openProblem}
           onReloadSource={source.reload}
+          onRelocated={(templateId, result) => {
+            replaceWorkspace(result.workspace)
+            setSelectedTemplateId(templateId)
+            source.reload()
+            void problemState.reload()
+            setNotice(t('模板已安全重命名或移动，并保留原有元数据与题目关联'))
+          }}
           onRescan={() => void handleRescan()}
           onSelectTemplate={templateId => {
             setRevealTemplateId(null)

@@ -50,7 +50,9 @@ export const IPC_CHANNELS = {
     readSource: 'templates:read-source',
   },
   templateManagement: {
+    applyTemplateRelocation: 'template-management:apply-template-relocation',
     applyFilePlan: 'template-management:apply-file-plan',
+    archiveFilePlans: 'template-management:archive-file-plans',
     auditWorkspace: 'template-management:audit-workspace',
     cancelFilePlanGeneration: 'template-management:cancel-file-plan-generation',
     cancelClassification: 'template-management:cancel-classification',
@@ -68,6 +70,7 @@ export const IPC_CHANNELS = {
     previewBatchClassification: 'template-management:preview-batch-classification',
     previewClassification: 'template-management:preview-classification',
     previewFilePlan: 'template-management:preview-file-plan',
+    previewTemplateRelocation: 'template-management:preview-template-relocation',
     generateFilePlan: 'template-management:generate-file-plan',
     listFileExecutions: 'template-management:list-file-executions',
     listFilePlans: 'template-management:list-file-plans',

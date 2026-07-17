@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 
-import { desc, eq } from 'drizzle-orm'
+import { and, desc, eq, isNull } from 'drizzle-orm'
 
 import {
   templateMetadataFieldsSchema,
@@ -28,7 +28,65 @@ function parseTags(value: string): string[] {
 }
 
 export class TemplateManagementRepository {
-  constructor(private readonly database: AppDatabase) {}
+  constructor(
+    private readonly database: AppDatabase,
+    private readonly archiveFailureAfter: number | null = null,
+  ) {}
+
+  archivePlans(
+    workspaceId: string,
+    planIds: string[],
+  ): { archivedAt: string; planIds: string[] } | null {
+    const archivedAt = new Date().toISOString()
+    const environmentFailureAfter =
+      process.env.NODE_ENV === 'test'
+        ? Number.parseInt(process.env.E2E_PLAN_ARCHIVE_FAILURE_AFTER ?? '', 10)
+        : Number.NaN
+    const failureAfter =
+      this.archiveFailureAfter ??
+      (Number.isInteger(environmentFailureAfter) && environmentFailureAfter > 0
+        ? environmentFailureAfter
+        : null)
+    const placeholders = planIds.map(() => '?').join(', ')
+    const transaction = this.database.client.transaction(() => {
+      const records = this.database.client
+        .prepare(
+          `SELECT id, status, archived_at AS archivedAt
+           FROM file_change_plans
+           WHERE workspace_id = ? AND id IN (${placeholders})`,
+        )
+        .all(workspaceId, ...planIds) as Array<{
+        archivedAt: string | null
+        id: string
+        status: string
+      }>
+      if (
+        records.length !== planIds.length ||
+        records.some(record => record.archivedAt || !['applied', 'cancelled'].includes(record.status))
+      ) {
+        return null
+      }
+      const archive = this.database.client.prepare(
+        'UPDATE file_change_plans SET archived_at = ?, updated_at = ? WHERE id = ? AND archived_at IS NULL',
+      )
+      for (let index = 0; index < planIds.length; index += 1) {
+        const result = archive.run(archivedAt, archivedAt, planIds[index])
+        if (result.changes !== 1) throw new Error('File plan archive state changed')
+        if (failureAfter !== null && index + 1 === failureAfter) {
+          throw new Error('Injected file plan archive failure')
+        }
+      }
+      return { archivedAt, planIds }
+    })
+    return transaction()
+  }
+
+  countTemplateRelations(templateId: string): number {
+    return this.database.client
+      .prepare('SELECT count(*) FROM template_problem_relations WHERE template_id = ?')
+      .pluck()
+      .get(templateId) as number
+  }
 
   getMetadata(templateId: string): TemplateMetadata | null {
     const record = this.database.orm
@@ -77,7 +135,9 @@ export class TemplateManagementRepository {
     providerName: string,
     model: string,
     operations: FileChangeOperationInput[],
-    options?: Pick<FileChangePlan, 'contextVersion' | 'diagnostic' | 'outputLanguage' | 'summary'>,
+    options?: Partial<
+      Pick<FileChangePlan, 'contextVersion' | 'diagnostic' | 'outputLanguage' | 'summary'>
+    >,
   ): FileChangePlan {
     const id = randomUUID()
     const timestamp = new Date().toISOString()
@@ -157,7 +217,7 @@ export class TemplateManagementRepository {
     return this.database.orm
       .select({ id: fileChangePlans.id })
       .from(fileChangePlans)
-      .where(eq(fileChangePlans.workspaceId, workspaceId))
+      .where(and(eq(fileChangePlans.workspaceId, workspaceId), isNull(fileChangePlans.archivedAt)))
       .orderBy(desc(fileChangePlans.createdAt))
       .limit(100)
       .all()
