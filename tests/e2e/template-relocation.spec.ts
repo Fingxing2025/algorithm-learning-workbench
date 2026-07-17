@@ -2,7 +2,13 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 
-import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test'
+import {
+  _electron as electron,
+  expect,
+  test,
+  type ElectronApplication,
+  type Page,
+} from '@playwright/test'
 
 let electronApp: ElectronApplication
 let page: Page
@@ -10,7 +16,10 @@ let temporaryRoot: string
 let userDataDirectory: string
 let workspaceRoot: string
 
-async function launchApplication(options?: { archiveFailureAfter?: number; fileFailure?: boolean }) {
+async function launchApplication(options?: {
+  archiveFailureAfter?: number
+  fileFailure?: boolean
+}) {
   electronApp = await electron.launch({
     args: [resolve('.')],
     env: {
@@ -39,11 +48,15 @@ async function setNextDirectorySelection(directoryPath: string) {
 
 async function currentTemplate(relativePath: string) {
   return page.evaluate(async path => {
-    const api = (globalThis as unknown as {
-      desktop: {
-        workspace: { getCurrent: () => Promise<{ templates: Array<{ id: string; relativePath: string }> }> }
+    const api = (
+      globalThis as unknown as {
+        desktop: {
+          workspace: {
+            getCurrent: () => Promise<{ templates: Array<{ id: string; relativePath: string }> }>
+          }
+        }
       }
-    }).desktop
+    ).desktop
     const workspace = await api.workspace.getCurrent()
     return workspace.templates.find(template => template.relativePath === path) ?? null
   }, relativePath)
@@ -119,7 +132,9 @@ test('renames and moves a real template with a stable ID, archives its plan, and
   expect(await readFile(join(workspaceRoot, '算法', 'a.cpp'), 'utf8')).toBe(
     'void stableTemplate() {}\n',
   )
-  await expect(readFile(join(workspaceRoot, '算法', '最短路', 'renamed.cpp'), 'utf8')).rejects.toThrow()
+  await expect(
+    readFile(join(workspaceRoot, '算法', '最短路', 'renamed.cpp'), 'utf8'),
+  ).rejects.toThrow()
   const restored = await currentTemplate('算法/a.cpp')
   expect(restored?.id).toBe(original?.id)
 })

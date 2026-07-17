@@ -125,7 +125,8 @@ export function FileManagementWorkspace({
   }, [t, workspace])
 
   useEffect(() => {
-    if (selectedHistoryPlanId && historyPlans.some(plan => plan.id === selectedHistoryPlanId)) return
+    if (selectedHistoryPlanId && historyPlans.some(plan => plan.id === selectedHistoryPlanId))
+      return
     setSelectedHistoryPlanId(historyPlans[0]?.id ?? null)
   }, [historyPlans, selectedHistoryPlanId])
 
@@ -665,7 +666,8 @@ export function FileManagementWorkspace({
                           plan => confirmArchiveIds.includes(plan.id) && plan.status === 'applied',
                         ).length,
                         cancelled: historyPlans.filter(
-                          plan => confirmArchiveIds.includes(plan.id) && plan.status === 'cancelled',
+                          plan =>
+                            confirmArchiveIds.includes(plan.id) && plan.status === 'cancelled',
                         ).length,
                         count: confirmArchiveIds.length,
                       })}

@@ -404,7 +404,10 @@ export const archiveFilePlansRequestSchema = z
   .refine(request => new Set(request.planIds).size === request.planIds.length, '计划 ID 不能重复。')
 export type ArchiveFilePlansRequest = z.infer<typeof archiveFilePlansRequestSchema>
 export const archiveFilePlansResultSchema = z
-  .object({ archivedAt: z.string().datetime(), planIds: z.array(z.string().uuid()).min(1).max(100) })
+  .object({
+    archivedAt: z.string().datetime(),
+    planIds: z.array(z.string().uuid()).min(1).max(100),
+  })
   .strict()
 export type ArchiveFilePlansResult = z.infer<typeof archiveFilePlansResultSchema>
 

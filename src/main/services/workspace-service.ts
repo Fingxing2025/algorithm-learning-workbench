@@ -552,12 +552,7 @@ export class WorkspaceService {
       ...template,
       id: stableIdsByRelativePath?.get(template.relativePath) ?? template.id,
     }))
-    this.repository.replaceTemplates(
-      workspace.id,
-      templates,
-      scanResult.summary,
-      scannedAt,
-    )
+    this.repository.replaceTemplates(workspace.id, templates, scanResult.summary, scannedAt)
     const refreshedWorkspace = this.repository.getActiveWorkspace()
     if (!refreshedWorkspace) {
       throw new PublicError('DATABASE_ERROR', '无法读取工作区索引，请重试。')

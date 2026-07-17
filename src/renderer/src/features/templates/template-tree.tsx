@@ -42,7 +42,9 @@ const EXPANSION_STORAGE_PREFIX = 'template-tree:expanded:'
 
 function readStoredExpansion(workspaceId: string, validIds: Set<string>): Set<string> {
   try {
-    const parsed = JSON.parse(localStorage.getItem(`${EXPANSION_STORAGE_PREFIX}${workspaceId}`) ?? '[]')
+    const parsed = JSON.parse(
+      localStorage.getItem(`${EXPANSION_STORAGE_PREFIX}${workspaceId}`) ?? '[]',
+    )
     if (!Array.isArray(parsed)) return new Set()
     return new Set(
       parsed.filter((value): value is string => typeof value === 'string' && validIds.has(value)),

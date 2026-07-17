@@ -62,7 +62,9 @@ export class TemplateManagementRepository {
       }>
       if (
         records.length !== planIds.length ||
-        records.some(record => record.archivedAt || !['applied', 'cancelled'].includes(record.status))
+        records.some(
+          record => record.archivedAt || !['applied', 'cancelled'].includes(record.status),
+        )
       ) {
         return null
       }

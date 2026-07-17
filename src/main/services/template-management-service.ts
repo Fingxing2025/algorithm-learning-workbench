@@ -398,7 +398,12 @@ export class TemplateManagementService {
     const request = previewTemplateRelocationRequestSchema.parse(rawRequest)
     const workspace = this.workspaceRepository.getActiveWorkspace()
     const record = this.workspaceRepository.getTemplateWithWorkspace(request.templateId)
-    if (!workspace || !record || record.workspace.id !== workspace.id || !record.template.available) {
+    if (
+      !workspace ||
+      !record ||
+      record.workspace.id !== workspace.id ||
+      !record.template.available
+    ) {
       throw new PublicError('TEMPLATE_NOT_FOUND', '模板不存在或当前不可用，请重新扫描工作区。')
     }
     const root = await resolveAuthorizedRoot(workspace.rootPath)
@@ -410,7 +415,10 @@ export class TemplateManagementService {
       record.template.relativePath,
       targetRelativePath,
     )
-    const [content, stats] = await Promise.all([readFile(source.absolutePath), lstat(source.absolutePath)])
+    const [content, stats] = await Promise.all([
+      readFile(source.absolutePath),
+      lstat(source.absolutePath),
+    ])
     const sourceDirectory = dirname(record.template.relativePath)
     const targetDirectory = dirname(targetRelativePath)
     const sourceName = basename(record.template.relativePath)
@@ -439,7 +447,8 @@ export class TemplateManagementService {
       if (Date.parse(stored.expiresAt) <= Date.now()) this.relocationPreviews.delete(id)
     }
     this.relocationPreviews.set(previewId, preview)
-    const { sourceModifiedAt, sourceSha256, sourceSizeBytes, workspaceId, ...publicPreview } = preview
+    const { sourceModifiedAt, sourceSha256, sourceSizeBytes, workspaceId, ...publicPreview } =
+      preview
     void sourceModifiedAt
     void sourceSha256
     void sourceSizeBytes
@@ -473,7 +482,10 @@ export class TemplateManagementService {
     }
     const root = await resolveAuthorizedRoot(workspace.rootPath)
     const source = await resolveAuthorizedFile(root, preview.sourceRelativePath)
-    const [content, stats] = await Promise.all([readFile(source.absolutePath), lstat(source.absolutePath)])
+    const [content, stats] = await Promise.all([
+      readFile(source.absolutePath),
+      lstat(source.absolutePath),
+    ])
     if (
       content.length !== preview.sourceSizeBytes ||
       createHash('sha256').update(content).digest('hex') !== preview.sourceSha256 ||
@@ -495,7 +507,8 @@ export class TemplateManagementService {
       id: randomUUID(),
       kind: 'move',
       precondition: {
-        metadataUpdatedAt: this.metadataRepository.getMetadata(preview.templateId)?.updatedAt ?? null,
+        metadataUpdatedAt:
+          this.metadataRepository.getMetadata(preview.templateId)?.updatedAt ?? null,
         sourceModifiedAt: preview.sourceModifiedAt,
         sourceSha256: preview.sourceSha256,
         sourceSizeBytes: preview.sourceSizeBytes,
@@ -554,9 +567,7 @@ export class TemplateManagementService {
         `目标路径与已有模板仅大小写不同：${caseConflict.relativePath}`,
       )
     }
-    if (
-      sourceRelativePath.normalize('NFC').toLocaleLowerCase('en-US') === normalizedTargetKey
-    ) {
+    if (sourceRelativePath.normalize('NFC').toLocaleLowerCase('en-US') === normalizedTargetKey) {
       throw new PublicError('FILE_ALREADY_EXISTS', '首版不支持仅修改文件名大小写。')
     }
     const targetAbsolute = join(root, ...targetRelativePath.split('/'))
