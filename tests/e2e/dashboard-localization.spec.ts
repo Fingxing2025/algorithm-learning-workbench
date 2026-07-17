@@ -171,7 +171,7 @@ test('scrolls the dashboard, opens summary cards, and persists both interface la
     await expectNoChineseInterfaceText(page)
     await page.getByRole('button', { name: 'New problem' }).click()
     await expectNoChineseInterfaceText(page)
-    await page.getByRole('button', { name: 'Close problem editor' }).click()
+    await page.getByRole('button', { name: 'Close new problem' }).click()
 
     await page.getByRole('button', { exact: true, name: 'AI Management' }).click()
     await page.getByRole('button', { name: 'Read-only scan' }).click()

@@ -51,6 +51,7 @@ test('scrolls large template and problem lists and switches the code theme', asy
       element.scrollTop = 0
     })
 
+    await page.getByPlaceholder('筛选当前工作区').fill('template_00.cpp')
     await page.getByText('template_00.cpp').click()
     const templateSummary = page.getByLabel('模板摘要')
     await expect(templateSummary).not.toContainText('时间复杂度')
