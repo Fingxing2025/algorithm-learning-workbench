@@ -620,11 +620,15 @@ export function FileManagementWorkspace({
                   </span>
                   <h2 className="text-sm font-semibold">{t('执行与撤销')}</h2>
                 </div>
-                <div className="mt-3 space-y-2">
+                <div
+                  aria-label={t('文件计划历史列表')}
+                  className="mt-3 max-h-[420px] space-y-2 overflow-y-auto pr-1 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  tabIndex={0}
+                >
                   {executions.length === 0 ? (
                     <p className="text-xs text-muted-foreground">{t('暂无文件执行记录。')}</p>
                   ) : (
-                    executions.slice(0, 6).map(execution => (
+                    executions.map(execution => (
                       <article
                         className="rounded-lg border border-border bg-background/60 p-3"
                         key={execution.id}
@@ -694,7 +698,7 @@ export function FileManagementWorkspace({
                       {t('已取消计划')}
                     </p>
                     <div className="space-y-2">
-                      {cancelledPlans.slice(0, 4).map(plan => (
+                      {cancelledPlans.map(plan => (
                         <article
                           className="flex items-center gap-2 rounded-lg border border-border bg-background/60 p-2.5"
                           key={plan.id}

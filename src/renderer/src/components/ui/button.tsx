@@ -22,7 +22,7 @@ const buttonVariants = cva(
         default: 'h-9 px-3.5',
         compact: 'h-8 rounded-md px-3 text-xs',
         close:
-          "relative size-11 rounded-none p-0 hover:translate-y-0 hover:bg-transparent before:pointer-events-none before:absolute before:inset-1 before:rounded-xl before:transition-colors before:duration-200 before:content-[''] hover:before:bg-muted/80 [&>svg]:relative",
+          'size-9 rounded-xl border border-transparent bg-muted/35 p-0 hover:translate-y-0 hover:border-border hover:bg-muted/80 active:bg-muted',
         icon: 'size-9 p-0',
       },
     },

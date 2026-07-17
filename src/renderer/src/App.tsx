@@ -265,7 +265,7 @@ function WorkspaceUnavailable({
           type="button"
         >
           <FolderOpen aria-hidden="true" className="size-4" />
-          {t('重新选择工作区')}
+          {t('切换工作区')}
         </Button>
       </section>
     </main>
@@ -637,6 +637,7 @@ function TemplateLibrary({
   onUpsertProblemRelation,
   problemError,
   problems,
+  revealTemplateId,
   selectedTemplate,
   selectedTemplateId,
   sourceState,
@@ -657,6 +658,7 @@ function TemplateLibrary({
   onUpsertProblemRelation: (request: UpsertProblemRelationRequest) => Promise<boolean>
   problemError: string | null
   problems: Problem[]
+  revealTemplateId: string | null
   selectedTemplate: TemplateSummary | null
   selectedTemplateId: string | null
   sourceState: ReturnType<typeof useTemplateSource>['state']
@@ -690,7 +692,7 @@ function TemplateLibrary({
             variant="ghost"
           >
             <FolderOpen aria-hidden="true" className="size-3.5" />
-            {t('更换目录')}
+            {t('切换工作区')}
           </Button>
           <Button
             aria-label={t('重新扫描工作区')}
@@ -713,8 +715,10 @@ function TemplateLibrary({
         <TemplateTree
           onAction={onAction}
           onSelect={onSelectTemplate}
+          revealTemplateId={revealTemplateId}
           selectedTemplateId={selectedTemplateId}
           templates={workspace.templates}
+          workspaceId={workspace.id}
         />
         <Suspense
           fallback={
@@ -760,6 +764,7 @@ function AppContent() {
   const [notice, setNotice] = useState<string | null>(null)
   const [pendingPlanCount, setPendingPlanCount] = useState(0)
   const [selectedProblemId, setSelectedProblemId] = useState<string | null>(null)
+  const [revealTemplateId, setRevealTemplateId] = useState<string | null>(null)
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null)
   const prefersReducedMotion = useReducedMotion()
   const { locale, t, toggleLocale } = useI18n()
@@ -785,6 +790,10 @@ function AppContent() {
     () => workspace?.templates.find(template => template.id === selectedTemplateId) ?? null,
     [selectedTemplateId, workspace],
   )
+
+  useEffect(() => {
+    if (currentView !== 'templates') setRevealTemplateId(null)
+  }, [currentView])
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -933,6 +942,7 @@ function AppContent() {
   }
 
   const openTemplate = (templateId: string) => {
+    setRevealTemplateId(templateId)
     setCurrentView('templates')
     setSelectedTemplateId(templateId)
   }
@@ -1045,12 +1055,16 @@ function AppContent() {
           onOpenProblem={openProblem}
           onReloadSource={source.reload}
           onRescan={() => void handleRescan()}
-          onSelectTemplate={setSelectedTemplateId}
+          onSelectTemplate={templateId => {
+            setRevealTemplateId(null)
+            setSelectedTemplateId(templateId)
+          }}
           onUpsertProblemRelation={async request =>
             Boolean(await problemState.upsertRelation(request))
           }
           problemError={problemState.error}
           problems={problemState.problems}
+          revealTemplateId={revealTemplateId}
           selectedTemplate={selectedTemplate}
           selectedTemplateId={selectedTemplateId}
           sourceState={source.state}

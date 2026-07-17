@@ -88,11 +88,19 @@ export function directoryRowId(relativePath: string): string {
 }
 
 export function getDefaultExpandedIds(root: TemplateDirectoryNode): Set<string> {
-  return new Set(
-    sortedDirectories(root).map(directory =>
-      directoryRowId(collapseDirectory(directory).endNode.relativePath),
-    ),
-  )
+  void root
+  return new Set()
+}
+
+export function getDirectoryRowIds(root: TemplateDirectoryNode): Set<string> {
+  const ids = new Set<string>()
+  const visit = (directory: TemplateDirectoryNode) => {
+    const collapsed = collapseDirectory(directory)
+    ids.add(directoryRowId(collapsed.endNode.relativePath))
+    for (const child of sortedDirectories(collapsed.endNode)) visit(child)
+  }
+  for (const directory of sortedDirectories(root)) visit(directory)
+  return ids
 }
 
 export function getExpansionIdsForTemplate(

@@ -109,6 +109,7 @@ const english: Record<string, string> = {
   运行信息暂不可用: 'Runtime information unavailable',
   重新扫描: 'Rescan',
   重新选择工作区: 'Choose workspace again',
+  切换工作区: 'Switch workspace',
   选择目录: 'Choose folder',
   选择工作区: 'Choose workspace',
   '选择一个已有模板目录，先只读扫描，不会自动改名或移动文件。':
@@ -212,6 +213,7 @@ Object.assign(english, {
   工作区: 'Workspaces',
   模板关系: 'Template relations',
   文件计划: 'File plans',
+  文件计划历史列表: 'File plan history list',
   执行记录: 'Execution records',
   '正在诊断本地数据…': 'Diagnosing local data...',
   'SQLite 状态': 'SQLite status',

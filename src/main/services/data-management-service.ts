@@ -677,7 +677,6 @@ export class DataManagementService {
       ['problems', 'problems'],
       ['templateMetadata', 'template_metadata'],
       ['templateProblemRelations', 'template_problem_relations'],
-      ['templates', 'templates'],
       ['workspaces', 'workspaces'],
     ]
     for (const [key, table] of tableMap) {
@@ -686,6 +685,12 @@ export class DataManagementService {
         .pluck()
         .get() as number
     }
+    counts.templates = this.database.client
+      .prepare(
+        "SELECT count(*) FROM templates WHERE available = 1 AND workspace_id = (SELECT value FROM app_state WHERE key = 'active_workspace_id')",
+      )
+      .pluck()
+      .get() as number
     counts.problemImageFiles = await this.countFiles(join(this.userDataPath, 'problem-images'))
     counts.filePlanBackupDirectories = await this.countDirectories(
       join(this.userDataPath, 'file-plan-backups'),

@@ -184,7 +184,15 @@ test('creates an empty workspace and the first template without allowing overwri
 
   const closeDialogButton = page.getByRole('button', { name: '关闭新建模板' })
   if (await closeDialogButton.isVisible().catch(() => false)) {
-    await closeDialogButton.click()
+    const bounds = await closeDialogButton.boundingBox()
+    expect(bounds).not.toBeNull()
+    await page.mouse.click(bounds!.x + 2, bounds!.y + bounds!.height / 2)
+    await expect(closeDialogButton).toHaveCount(0)
+
+    await page.getByRole('button', { name: '新建模板' }).click()
+    await expect(closeDialogButton).toBeVisible()
+    await closeDialogButton.click({ position: { x: 18, y: 18 } })
+    await expect(closeDialogButton).toHaveCount(0)
   }
   const closeNoticeButton = page.getByRole('button', { name: '关闭提示' })
   if (await closeNoticeButton.isVisible().catch(() => false)) {
@@ -194,9 +202,15 @@ test('creates an empty workspace and the first template without allowing overwri
 
 test('scans an existing directory read-only and opens a folded tree result by keyboard search', async () => {
   await setNextDirectorySelection(existingWorkspace)
-  await page.getByRole('button', { name: '更换目录' }).click()
+  await page.getByRole('button', { name: '切换工作区' }).click()
 
   await expect(page.getByText('基础算法 / 搜索 / BFS')).toBeVisible()
+  await expect(page.getByText('bfs.cpp', { exact: true })).toHaveCount(0)
+  await page.getByText('基础算法 / 搜索 / BFS').click()
+  await expect(page.getByText('bfs.cpp', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: '题目', exact: true }).click()
+  await page.getByRole('button', { name: '模板库', exact: true }).click()
+  await expect(page.getByText('bfs.cpp', { exact: true })).toBeVisible()
   await expect(page.getByText('2 个模板').first()).toBeVisible()
   expect(await readFile(fixtureSourcePath, 'utf8')).toBe(fixtureSourceBeforeScan)
 
@@ -454,6 +468,8 @@ test('persists the problem, image, and surviving relation across a desktop resta
   await electronApp.close()
   await launchApplication()
 
+  await page.getByRole('button', { name: '模板库', exact: true }).click()
+  await expect(page.getByText('bfs.cpp', { exact: true })).toBeVisible()
   await page.getByRole('button', { name: '题目', exact: true }).click()
   await page.getByRole('button', { name: /单源最短路径 洛谷/ }).click()
   await expect(page.getByRole('heading', { level: 2, name: '单源最短路径' })).toBeVisible()

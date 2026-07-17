@@ -19,7 +19,7 @@ import { cn } from '@/lib/utils'
 import {
   buildTemplateTree,
   flattenTemplateTree,
-  getDefaultExpandedIds,
+  getDirectoryRowIds,
   getExpansionIdsForTemplate,
   type FlatTemplateTreeRow,
 } from './template-tree-model'
@@ -27,39 +27,89 @@ import {
 interface TemplateTreeProps {
   onAction: (request: TemplateActionRequest) => void
   onSelect: (templateId: string) => void
+  revealTemplateId: string | null
   selectedTemplateId: string | null
   templates: TemplateSummary[]
+  workspaceId: string
+}
+
+interface ExpansionState {
+  ids: Set<string>
+  workspaceId: string
+}
+
+const EXPANSION_STORAGE_PREFIX = 'template-tree:expanded:'
+
+function readStoredExpansion(workspaceId: string, validIds: Set<string>): Set<string> {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(`${EXPANSION_STORAGE_PREFIX}${workspaceId}`) ?? '[]')
+    if (!Array.isArray(parsed)) return new Set()
+    return new Set(
+      parsed.filter((value): value is string => typeof value === 'string' && validIds.has(value)),
+    )
+  } catch {
+    return new Set()
+  }
 }
 
 export function TemplateTree({
   onAction,
   onSelect,
+  revealTemplateId,
   selectedTemplateId,
   templates,
+  workspaceId,
 }: TemplateTreeProps) {
   const { t } = useI18n()
   const scrollRef = useRef<HTMLDivElement>(null)
   const tree = useMemo(() => buildTemplateTree(templates), [templates])
-  const [expandedIds, setExpandedIds] = useState(() => getDefaultExpandedIds(tree))
+  const validDirectoryIds = useMemo(() => getDirectoryRowIds(tree), [tree])
+  const [expansionState, setExpansionState] = useState<ExpansionState>(() => ({
+    ids: readStoredExpansion(workspaceId, validDirectoryIds),
+    workspaceId,
+  }))
+  const [temporaryExpandedIds, setTemporaryExpandedIds] = useState<Set<string>>(new Set())
   const [focusedIndex, setFocusedIndex] = useState(0)
   const [query, setQuery] = useState('')
 
   useEffect(() => {
-    setExpandedIds(getDefaultExpandedIds(tree))
+    setExpansionState(current => {
+      if (current.workspaceId !== workspaceId) {
+        return { ids: readStoredExpansion(workspaceId, validDirectoryIds), workspaceId }
+      }
+      return {
+        ids: new Set([...current.ids].filter(id => validDirectoryIds.has(id))),
+        workspaceId,
+      }
+    })
+    setTemporaryExpandedIds(new Set())
     setFocusedIndex(0)
-  }, [tree])
+  }, [validDirectoryIds, workspaceId])
 
   useEffect(() => {
-    if (!selectedTemplateId) {
+    if (expansionState.workspaceId !== workspaceId) return
+    localStorage.setItem(
+      `${EXPANSION_STORAGE_PREFIX}${workspaceId}`,
+      JSON.stringify([...expansionState.ids].sort()),
+    )
+  }, [expansionState, workspaceId])
+
+  useEffect(() => {
+    if (!revealTemplateId) {
       return
     }
-    const selectedTemplate = templates.find(template => template.id === selectedTemplateId)
+    const selectedTemplate = templates.find(template => template.id === revealTemplateId)
     if (!selectedTemplate) {
       return
     }
     const revealIds = getExpansionIdsForTemplate(tree, selectedTemplate)
-    setExpandedIds(current => new Set([...current, ...revealIds]))
-  }, [selectedTemplateId, templates, tree])
+    setTemporaryExpandedIds(new Set(revealIds))
+  }, [revealTemplateId, templates, tree])
+
+  const expandedIds = useMemo(
+    () => new Set([...expansionState.ids, ...temporaryExpandedIds]),
+    [expansionState.ids, temporaryExpandedIds],
+  )
 
   const rows = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase('zh-CN')
@@ -104,14 +154,19 @@ export function TemplateTree({
   }, [rows, selectedTemplateId, virtualizer])
 
   const toggleDirectory = (row: Extract<FlatTemplateTreeRow, { kind: 'directory' }>) => {
-    setExpandedIds(current => {
-      const next = new Set(current)
-      if (next.has(row.id)) {
+    setExpansionState(current => {
+      const next = new Set(current.workspaceId === workspaceId ? current.ids : [])
+      if (expandedIds.has(row.id)) {
         next.delete(row.id)
+        setTemporaryExpandedIds(temporary => {
+          const nextTemporary = new Set(temporary)
+          nextTemporary.delete(row.id)
+          return nextTemporary
+        })
       } else {
         next.add(row.id)
       }
-      return next
+      return { ids: next, workspaceId }
     })
   }
 
@@ -145,13 +200,21 @@ export function TemplateTree({
       activateRow(focusedRow)
     } else if (event.key === 'ArrowRight' && focusedRow.kind === 'directory') {
       event.preventDefault()
-      setExpandedIds(current => new Set(current).add(focusedRow.id))
+      setExpansionState(current => ({
+        ids: new Set(current.workspaceId === workspaceId ? current.ids : []).add(focusedRow.id),
+        workspaceId,
+      }))
     } else if (event.key === 'ArrowLeft' && focusedRow.kind === 'directory') {
       event.preventDefault()
-      setExpandedIds(current => {
+      setTemporaryExpandedIds(current => {
         const next = new Set(current)
         next.delete(focusedRow.id)
         return next
+      })
+      setExpansionState(current => {
+        const next = new Set(current.workspaceId === workspaceId ? current.ids : [])
+        next.delete(focusedRow.id)
+        return { ids: next, workspaceId }
       })
     }
   }

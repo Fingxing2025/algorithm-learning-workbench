@@ -25,7 +25,7 @@ function template(relativePath: string, idCharacter: string): TemplateSummary {
 }
 
 describe('template tree model', () => {
-  it('folds single-child directories without changing real paths', () => {
+  it('folds single-child directories and keeps them collapsed by default', () => {
     const bfs = template('基础算法/搜索/BFS/bfs.cpp', 'a')
     const dfs = template('基础算法/搜索/DFS/dfs.cpp', 'b')
     const root = buildTemplateTree([bfs, dfs])
@@ -37,7 +37,7 @@ describe('template tree model', () => {
       label: '基础算法 / 搜索',
       relativePath: '基础算法/搜索',
     })
-    expect(expanded.has(directoryRowId('基础算法/搜索'))).toBe(true)
+    expect(expanded.has(directoryRowId('基础算法/搜索'))).toBe(false)
     expect(bfs.relativePath).toBe('基础算法/搜索/BFS/bfs.cpp')
   })
 
