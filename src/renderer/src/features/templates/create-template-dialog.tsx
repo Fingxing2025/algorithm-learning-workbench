@@ -9,7 +9,7 @@ import {
   Upload,
   X,
 } from 'lucide-react'
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 
 import type {
   BatchImportTemplateResult,
@@ -215,6 +215,7 @@ export function CreateTemplateDialog({
     null,
   )
   const [tagsText, setTagsText] = useState('')
+  const activeClassificationRequestId = useRef<string | null>(null)
 
   useEffect(() => {
     if (!open) {
@@ -320,6 +321,8 @@ export function CreateTemplateDialog({
   }
 
   const executeClassification = async () => {
+    const requestId = crypto.randomUUID()
+    activeClassificationRequestId.current = requestId
     setLocalBusy(true)
     setLocalError(null)
     setClassificationElapsedSeconds(0)
@@ -330,7 +333,9 @@ export function CreateTemplateDialog({
         fileName,
         metadata,
         outputLanguage: metadataLanguage,
+        requestId,
       })
+      if (activeClassificationRequestId.current !== requestId) return
       setRequestPreview(null)
       const nextConflicts = findTemplateMetadataConflicts(fileName, metadata, result)
       if (nextConflicts.length === 0) {
@@ -345,11 +350,27 @@ export function CreateTemplateDialog({
         >,
       )
     } catch (caught) {
+      if (activeClassificationRequestId.current !== requestId) return
+      setRequestPreview(null)
       setLocalError(caught instanceof Error ? caught.message : t('AI 元数据补全未完成。'))
     } finally {
-      setClassificationStartedAt(null)
-      setLocalBusy(false)
+      if (activeClassificationRequestId.current === requestId) {
+        activeClassificationRequestId.current = null
+        setClassificationStartedAt(null)
+        setLocalBusy(false)
+      }
     }
+  }
+
+  const cancelClassification = () => {
+    const requestId = activeClassificationRequestId.current
+    if (!requestId) return
+    activeClassificationRequestId.current = null
+    setRequestPreview(null)
+    setClassificationStartedAt(null)
+    setLocalBusy(false)
+    setLocalError(t('AI 请求已取消，迟到响应不会写入状态。'))
+    void window.desktop.templateManagement.cancelClassification(requestId)
   }
 
   const previewClassification = async () => {
@@ -701,8 +722,12 @@ export function CreateTemplateDialog({
         )}
         {requestPreview && (
           <AiRequestPreviewDialog
+            allowCancelWhileBusy
             busy={localBusy}
-            onCancel={() => setRequestPreview(null)}
+            onCancel={() => {
+              if (activeClassificationRequestId.current) cancelClassification()
+              else setRequestPreview(null)
+            }}
             onConfirm={() => void executeClassification()}
             preview={requestPreview}
             progressText={

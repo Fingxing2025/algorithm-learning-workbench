@@ -32,6 +32,7 @@ import {
   workspaceAuditSchema,
 } from '@core/contracts/template-management'
 import { IPC_CHANNELS } from '@core/ipc/channels'
+import { cancelAiRequestSchema } from '@core/contracts/ai-request'
 
 import type { TemplateManagementService } from '../services/template-management-service'
 import { registerValidatedHandler } from './register-validated-handler'
@@ -89,6 +90,15 @@ export function registerTemplateManagementIpc(
       return null
     },
     inputSchema: cancelFilePlanGenerationRequestSchema,
+    outputSchema: z.null(),
+  })
+  registerValidatedHandler({
+    channel: IPC_CHANNELS.templateManagement.cancelClassification,
+    handler: request => {
+      service.cancelClassification(request.requestId)
+      return null
+    },
+    inputSchema: cancelAiRequestSchema,
     outputSchema: z.null(),
   })
   registerValidatedHandler({

@@ -265,6 +265,20 @@ export function parseAiJson(text: string): unknown {
   throw new SyntaxError('AI response does not contain a complete JSON value')
 }
 
+export function normalizeCommonAiEnvelope(value: unknown): unknown {
+  let current = value
+  for (let depth = 0; depth < 3; depth += 1) {
+    if (!isRecord(current)) return current
+    const keys = Object.keys(current)
+    if (keys.length !== 1) return current
+    const nested = current[keys[0]!]
+    if (!['data', 'output', 'response', 'result'].includes(keys[0]!)) return current
+    if (!isRecord(nested) && !Array.isArray(nested)) return current
+    current = nested
+  }
+  return current
+}
+
 export function normalizeFilePlanEnvelope(value: unknown): unknown {
   if (Array.isArray(value)) {
     return { operations: value, summary: '' }

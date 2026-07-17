@@ -8,6 +8,25 @@ import { runStructuredAiTask } from './structured-ai-task'
 const resultSchema = z.object({ count: z.number().int().nonnegative() }).strict()
 
 describe('runStructuredAiTask', () => {
+  it('shares fenced JSON, common envelope and Zod validation across tasks', async () => {
+    const runTask = vi.fn().mockResolvedValue({
+      model: 'fixture',
+      providerName: 'Fixture',
+      text: '```json\n{"data":{"count":2}}\n```',
+    })
+    await expect(
+      runStructuredAiTask({
+        aiProviderService: { runTask } as unknown as AiProviderService,
+        invalidMessage: '结构无效',
+        request: { maxOutputTokens: 800, text: '用户输入' },
+        schema: resultSchema,
+        schemaName: 'fixture_result',
+        task: 'problem-image-analysis',
+      }),
+    ).resolves.toMatchObject({ data: { count: 2 } })
+    expect(runTask).toHaveBeenCalledTimes(1)
+  })
+
   it('performs one constrained repair after an invalid structured response', async () => {
     const runTask = vi
       .fn()
@@ -62,13 +81,38 @@ describe('runStructuredAiTask', () => {
     expect(runTask).toHaveBeenCalledTimes(2)
   })
 
+  it('reports the final safe parse stage without exposing invalid output', async () => {
+    const runTask = vi.fn().mockResolvedValue({
+      model: 'fixture',
+      providerName: 'Fixture',
+      text: 'private-invalid-fixture',
+    })
+    await expect(
+      runStructuredAiTask({
+        aiProviderService: { runTask } as unknown as AiProviderService,
+        invalidMessage: '输出格式无效，请更换模型后重试。',
+        request: { maxOutputTokens: 800, text: '用户输入' },
+        schema: resultSchema,
+        schemaName: 'fixture_result',
+        task: 'workspace-management',
+      }),
+    ).rejects.toMatchObject({
+      code: 'AI_INVALID_RESPONSE',
+      message: expect.not.stringContaining('private-invalid-fixture'),
+      stage: 'structure-repair',
+    })
+  })
+
   it('falls back to prompt-schema validation when a compatible endpoint rejects response_format', async () => {
     const runTask = vi
       .fn()
       .mockRejectedValueOnce(
         new PublicError(
           'AI_INVALID_RESPONSE',
-          'AI 服务拒绝了请求（HTTP 400）：This response_format type is unavailable now',
+          'AI 服务拒绝了请求（HTTP 400）。请检查模型是否支持当前协议和请求参数。',
+          undefined,
+          'request',
+          'structured-output-unsupported',
         ),
       )
       .mockResolvedValueOnce({ model: 'fixture', providerName: 'Fixture', text: '{"count":2}' })

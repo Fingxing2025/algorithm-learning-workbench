@@ -94,6 +94,7 @@ tests/
 - `docs/decisions/0013-workspace-file-ai-plan-v2.md`
 - `docs/decisions/0014-batch-cpp-template-intake.md`
 - `docs/decisions/0015-data-backup-diagnostics-and-restore.md`
+- `docs/decisions/0016-ai-task-reliability-and-provider-compatibility.md`
 
 安全与发布文档：
 

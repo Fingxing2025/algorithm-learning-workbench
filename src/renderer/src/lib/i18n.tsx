@@ -1190,6 +1190,42 @@ Object.assign(english, {
   '恢复提交标记当前不能清理。': 'The restore commit marker cannot currently be cleared.',
 })
 
+Object.assign(english, {
+  'AI 响应超过 1 MiB 安全上限，已停止读取。请缩短输入或降低模型输出长度。':
+    'The AI response exceeded the 1 MiB safety limit. Shorten the input or reduce the output length.',
+  'AI 流式响应中断。供应商可能已产生用量，请检查模型状态后再重试。':
+    'The AI stream was interrupted. The provider may have recorded usage; check the model status before retrying.',
+  'AI 服务返回了无法识别的协议响应，请核对 Provider 协议与模型。':
+    'The AI service returned an unrecognized protocol response. Check the provider protocol and model.',
+  'AI 鉴权失败。请在 AI 设置中检查 API Key 和自定义请求头。':
+    'AI authentication failed. Check the API key and custom headers in AI Settings.',
+  'AI 模型或接口不存在。请核对 Base URL、协议和模型 ID。':
+    'The AI model or endpoint does not exist. Check the base URL, protocol, and model ID.',
+  'AI 服务限流。应用只会有限重试；仍失败时请稍后重试或更换模型。':
+    'The AI service is rate limited. Retries are bounded; try later or switch models if it still fails.',
+  'AI 模型不存在或不可用。请核对模型 ID 与账号权限。':
+    'The AI model does not exist or is unavailable. Check the model ID and account access.',
+  'AI 请求已取消，迟到响应不会写入状态。':
+    'The AI request was cancelled. Late responses will not update state.',
+  '连接 AI 服务超时。请检查网络、Base URL 或稍后重试。':
+    'The AI connection timed out. Check the network and base URL, or retry later.',
+  '等待 AI 响应超时。供应商可能已产生用量，请检查模型状态后手动重试。':
+    'The AI response timed out. The provider may have recorded usage; check the model status before retrying manually.',
+  '读取 AI 响应时网络中断。请检查网络后手动重试。':
+    'The network was interrupted while reading the AI response. Check the network and retry manually.',
+  '无法连接 AI 服务。请检查网络和 Base URL。':
+    'Unable to connect to the AI service. Check the network and base URL.',
+  '同一 AI 请求已在运行，请勿重复提交。':
+    'The same AI request is already running. Do not submit it again.',
+  '当前任务模型不支持图片输入。请改用声明视觉能力的 Provider。':
+    'The current model does not support image input. Choose a provider that declares vision capability.',
+  取消当前及后续补全: 'Cancel current and remaining completion',
+  支持: 'Supported',
+  不支持: 'Unsupported',
+  原生支持: 'Native',
+  本地严格校验: 'Strict local validation',
+})
+
 const englishPatterns: Array<{
   pattern: RegExp
   replace: (matches: RegExpMatchArray) => string
@@ -1229,6 +1265,21 @@ const englishPatterns: Array<{
   {
     pattern: /^目标路径不能覆盖：(.+)$/u,
     replace: matches => `The target path cannot be overwritten: ${matches[1] ?? ''}`,
+  },
+  {
+    pattern: /^AI 服务暂不可用（HTTP (\d+)）。应用已限制自动重试次数。$/u,
+    replace: matches =>
+      `The AI service is temporarily unavailable (HTTP ${matches[1] ?? ''}). Automatic retries are bounded.`,
+  },
+  {
+    pattern: /^AI 服务拒绝了请求（HTTP (\d+)）。请检查模型是否支持当前协议和请求参数。$/u,
+    replace: matches =>
+      `The AI service rejected the request (HTTP ${matches[1] ?? ''}). Check whether the model supports the protocol and parameters.`,
+  },
+  {
+    pattern: /^AI 服务拒绝了请求（HTTP (\d+)）。请核对 Provider 协议和模型配置。$/u,
+    replace: matches =>
+      `The AI service rejected the request (HTTP ${matches[1] ?? ''}). Check the provider protocol and model configuration.`,
   },
   {
     pattern: /^AI 服务拒绝了请求（HTTP 400）：(.+)$/u,

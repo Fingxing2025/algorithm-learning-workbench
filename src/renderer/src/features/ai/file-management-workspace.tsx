@@ -157,10 +157,17 @@ export function FileManagementWorkspace({
     const requestId = filePlanRequestId
     const outputLanguage = filePlanPreview.outputLanguage
     void run('generate', async () => {
-      const plan = await window.desktop.templateManagement.generateFilePlan({
-        outputLanguage,
-        requestId,
-      })
+      let plan: FileChangePlan
+      try {
+        plan = await window.desktop.templateManagement.generateFilePlan({
+          outputLanguage,
+          requestId,
+        })
+      } catch (caught) {
+        setFilePlanPreview(null)
+        setFilePlanRequestId(null)
+        throw caught
+      }
       setPlans(current => [plan, ...current.filter(item => item.id !== plan.id)])
       setSelectedIds(
         new Set(

@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 import { problemFieldsSchema, relationTypeSchema } from './problem'
 import { problemAnalysisStructureSchema } from './problem'
-import { aiOutputLanguageSchema, aiRequestPreviewSchema } from './ai-request'
+import { aiOutputLanguageSchema, aiRequestIdSchema, aiRequestPreviewSchema } from './ai-request'
 
 const templateIdSchema = z.string().regex(/^[a-f0-9]{64}$/)
 
@@ -25,16 +25,24 @@ export const problemAnalysisImagesSchema = z
     '题目分析图片合计不能超过 24 MiB。',
   )
 
-export const analyzeProblemRequestSchema = z
-  .object({
-    images: problemAnalysisImagesSchema,
-    outputLanguage: aiOutputLanguageSchema,
-    text: z.string().trim().max(100_000),
-  })
+const problemAnalysisInputFields = {
+  images: problemAnalysisImagesSchema,
+  outputLanguage: aiOutputLanguageSchema,
+  text: z.string().trim().max(100_000),
+}
+const hasProblemInput = (request: { images: ProblemAnalysisImage[]; text: string }) =>
+  request.text.length > 0 || request.images.length > 0
+
+export const previewProblemAnalysisRequestSchema = z
+  .object(problemAnalysisInputFields)
   .strict()
-  .refine(request => request.text.length > 0 || request.images.length > 0, '请输入题面或添加图片。')
+  .refine(hasProblemInput, '请输入题面或添加图片。')
+export type PreviewProblemAnalysisRequest = z.infer<typeof previewProblemAnalysisRequestSchema>
+export const analyzeProblemRequestSchema = z
+  .object({ ...problemAnalysisInputFields, requestId: aiRequestIdSchema })
+  .strict()
+  .refine(hasProblemInput, '请输入题面或添加图片。')
 export type AnalyzeProblemRequest = z.infer<typeof analyzeProblemRequestSchema>
-export const previewProblemAnalysisRequestSchema = analyzeProblemRequestSchema
 export const previewProblemAnalysisResultSchema = aiRequestPreviewSchema
 
 export const problemAnalysisCandidateSchema = z

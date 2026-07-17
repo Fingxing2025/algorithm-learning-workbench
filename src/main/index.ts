@@ -19,6 +19,7 @@ import { installApplicationSecurityGuards } from './security/window-security'
 import { ProblemService } from './services/problem-service'
 import { ProblemAnalysisService } from './services/problem-analysis-service'
 import { AiProviderService } from './services/ai-provider-service'
+import { AiTaskRunRegistry } from './services/ai-task-run-registry'
 import { SecretStore } from './security/secret-store'
 import { WorkspaceService } from './services/workspace-service'
 import { TemplateManagementService } from './services/template-management-service'
@@ -28,6 +29,7 @@ import { createMainWindow } from './window/create-main-window'
 
 let mainWindow: BrowserWindow | null = null
 let appDatabase: AppDatabase | null = null
+let aiTaskRunRegistry: AiTaskRunRegistry | null = null
 
 function configureTestUserData(): void {
   const testUserDataPath = process.env.E2E_USER_DATA_DIR
@@ -61,6 +63,7 @@ async function bootstrap(): Promise<void> {
     new AiProviderRepository(appDatabase),
     new SecretStore(app.getPath('userData')),
   )
+  aiTaskRunRegistry = new AiTaskRunRegistry()
   const problemService = new ProblemService(problemRepository, app.getPath('userData'))
   const workspaceAiContextService = new WorkspaceAiContextService(
     workspaceRepository,
@@ -72,6 +75,7 @@ async function bootstrap(): Promise<void> {
     problemRepository,
     app.getPath('userData'),
     workspaceAiContextService,
+    aiTaskRunRegistry,
   )
   const templateManagementService = new TemplateManagementService(
     aiProviderService,
@@ -80,6 +84,7 @@ async function bootstrap(): Promise<void> {
     workspaceService,
     app.getPath('userData'),
     workspaceAiContextService,
+    aiTaskRunRegistry,
   )
   const dataManagementService = new DataManagementService(appDatabase, app.getPath('userData'))
   registerAppIpc()
@@ -109,6 +114,8 @@ app.on('window-all-closed', () => {
 })
 
 app.on('before-quit', () => {
+  aiTaskRunRegistry?.cancelAll()
+  aiTaskRunRegistry = null
   appDatabase?.close()
   appDatabase = null
 })

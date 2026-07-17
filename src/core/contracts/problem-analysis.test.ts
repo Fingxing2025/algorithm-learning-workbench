@@ -4,14 +4,26 @@ import { analyzeProblemRequestSchema, commitProblemAnalysisRequestSchema } from 
 
 describe('problem analysis contracts', () => {
   it('requires text or an image before analysis', () => {
+    const requestId = '10000000-0000-4000-8000-000000000001'
     expect(() =>
-      analyzeProblemRequestSchema.parse({ images: [], outputLanguage: 'zh-CN', text: '' }),
+      analyzeProblemRequestSchema.parse({
+        images: [],
+        outputLanguage: 'zh-CN',
+        requestId,
+        text: '',
+      }),
     ).toThrow()
     expect(
-      analyzeProblemRequestSchema.parse({ images: [], outputLanguage: 'zh-CN', text: '题面' }),
+      analyzeProblemRequestSchema.parse({
+        images: [],
+        outputLanguage: 'zh-CN',
+        requestId,
+        text: '题面',
+      }),
     ).toEqual({
       images: [],
       outputLanguage: 'zh-CN',
+      requestId,
       text: '题面',
     })
   })

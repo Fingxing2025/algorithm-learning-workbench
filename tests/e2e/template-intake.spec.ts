@@ -23,6 +23,10 @@ let workspaceRoot: string
 let lastTemplateMetadataSystem = ''
 const templateMetadataBodies: Array<{ response_format?: unknown }> = []
 let rejectedNativeStructuredOutput = false
+let holdNextTemplateResponse = false
+let heldTemplateResponseClosed = false
+let heldTemplateResponseStarted = false
+let invalidTemplateResponsesRemaining = 0
 
 test.describe.configure({ mode: 'serial' })
 
@@ -94,6 +98,22 @@ test.beforeAll(async () => {
       ) as { content?: unknown } | undefined
       lastTemplateMetadataSystem =
         typeof systemMessage?.content === 'string' ? systemMessage.content : ''
+      if (holdNextTemplateResponse) {
+        holdNextTemplateResponse = false
+        heldTemplateResponseStarted = true
+        response.on('close', () => {
+          heldTemplateResponseClosed = true
+        })
+        return
+      }
+      if (invalidTemplateResponsesRemaining > 0) {
+        invalidTemplateResponsesRemaining -= 1
+        response.setHeader('content-type', 'application/json')
+        response.end(
+          JSON.stringify({ choices: [{ message: { content: 'invalid-json-fixture' } }] }),
+        )
+        return
+      }
       if (parsedBody.response_format && !rejectedNativeStructuredOutput) {
         rejectedNativeStructuredOutput = true
         response.statusCode = 400
@@ -255,6 +275,19 @@ test('merges pasted-source AI metadata without overwriting user fields', async (
 
   await expect(page.getByRole('heading', { name: '确认发送给 AI' })).toBeVisible()
   await expect(page.getByText('工作区分类快照')).toBeVisible()
+  holdNextTemplateResponse = true
+  await page.getByRole('button', { name: '确认发送并生成' }).click()
+  await expect.poll(() => heldTemplateResponseStarted).toBe(true)
+  await page.getByRole('button', { name: '取消生成' }).click()
+  await expect(page.getByRole('alert')).toContainText('AI 请求已取消')
+  await expect.poll(() => heldTemplateResponseClosed).toBe(true)
+  invalidTemplateResponsesRemaining = 2
+  await page.getByRole('button', { name: '立即补全' }).click()
+  await page.getByRole('button', { name: '确认发送并生成' }).click()
+  await expect(page.getByRole('alert')).toContainText('连续两次未返回可用的模板分类')
+  expect(await readdir(workspaceRoot)).toHaveLength(0)
+  await page.getByRole('button', { name: '立即补全' }).click()
+  await expect(page.getByRole('heading', { name: '确认发送给 AI' })).toBeVisible()
   await page.getByRole('button', { name: '确认发送并生成' }).click()
 
   await expect

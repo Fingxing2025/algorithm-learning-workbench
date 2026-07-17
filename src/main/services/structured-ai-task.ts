@@ -1,9 +1,10 @@
 import { z, type ZodType } from 'zod'
 
 import type { AiTaskKind } from '@core/contracts/ai-provider'
+import type { AiErrorStage } from '@core/contracts/ipc-result'
 
 import { PublicError } from '../errors/public-error'
-import { parseAiJson } from './ai-response-json'
+import { normalizeCommonAiEnvelope, parseAiJson } from './ai-response-json'
 import type { AiProviderService } from './ai-provider-service'
 import type { AiCompletionRequest } from './ai-provider-adapters'
 
@@ -15,8 +16,14 @@ function isNativeStructuredOutputRejection(error: unknown): boolean {
   return (
     error instanceof PublicError &&
     error.code === 'AI_INVALID_RESPONSE' &&
-    error.message.includes('HTTP 400')
+    error.providerReason === 'structured-output-unsupported'
   )
+}
+
+function throwIfCancelled(signal?: AbortSignal): void {
+  if (signal?.aborted) {
+    throw new PublicError('AI_CANCELLED', 'AI 请求已取消，迟到响应不会写入状态。')
+  }
 }
 
 export async function runStructuredAiTask<Output>(args: {
@@ -60,6 +67,7 @@ export async function runStructuredAiTask<Output>(args: {
   let providerCallCount = 0
   let nativeStructuredOutputUnavailable = false
   const runStage = async (stage: StructuredAiStage, request: AiCompletionRequest) => {
+    throwIfCancelled(request.signal)
     const stageStartedAt = Date.now()
     let stageRequestCount = 0
     try {
@@ -86,6 +94,7 @@ export async function runStructuredAiTask<Output>(args: {
     }
   }
   const complete = async (request: AiCompletionRequest, stage: StructuredAiStage) => {
+    throwIfCancelled(request.signal)
     const structuredRequest = { ...request, disableThinking: true }
     const effectiveRequest = nativeStructuredOutputUnavailable
       ? { ...structuredRequest, jsonSchema: undefined }
@@ -106,21 +115,34 @@ export async function runStructuredAiTask<Output>(args: {
     },
     'initial-generation',
   )
-  const parse = (text: string): Output | null => {
+  const parse = (text: string): { data: Output | null; failureStage: AiErrorStage | null } => {
+    let parsed: unknown
     try {
-      const parsed = parseAiJson(text)
-      const result = args.schema.safeParse(args.normalize ? args.normalize(parsed) : parsed)
-      return result.success ? result.data : null
+      parsed = parseAiJson(text)
     } catch {
-      return null
+      return { data: null, failureStage: 'json-extraction' }
     }
+    let normalized: unknown
+    try {
+      const commonEnvelope = normalizeCommonAiEnvelope(parsed)
+      normalized = args.normalize ? args.normalize(commonEnvelope) : commonEnvelope
+    } catch {
+      return { data: null, failureStage: 'envelope-normalization' }
+    }
+    const result = args.schema.safeParse(normalized)
+    return result.success
+      ? { data: result.data, failureStage: null }
+      : { data: null, failureStage: 'schema-validation' }
   }
-  let data = parse(completion.text)
+  let parsed = parse(completion.text)
+  let data = parsed.data
   if (!data) {
+    throwIfCancelled(args.request.signal)
     completion = await complete(
       {
         jsonSchema,
         maxOutputTokens: args.request.maxOutputTokens,
+        signal: args.request.signal,
         system: [
           '你是 JSON 格式修复器。只修复输入的结构以符合给定 Schema。',
           '不添加新的分类、候选模板、题目事实或文件操作。',
@@ -131,9 +153,12 @@ export async function runStructuredAiTask<Output>(args: {
       },
       'structure-repair',
     )
-    data = parse(completion.text)
+    parsed = parse(completion.text)
+    data = parsed.data
   }
-  if (!data) throw new PublicError('AI_INVALID_RESPONSE', args.invalidMessage)
+  if (!data) {
+    throw new PublicError('AI_INVALID_RESPONSE', args.invalidMessage, undefined, 'structure-repair')
+  }
   const validationError = (value: Output): PublicError | null => {
     try {
       args.validate?.(value)
@@ -145,6 +170,7 @@ export async function runStructuredAiTask<Output>(args: {
   }
   const firstValidationError = validationError(data)
   if (firstValidationError) {
+    throwIfCancelled(args.request.signal)
     completion = await complete(
       {
         ...args.request,
@@ -162,15 +188,27 @@ export async function runStructuredAiTask<Output>(args: {
       },
       'semantic-retry',
     )
-    data = parse(completion.text)
+    parsed = parse(completion.text)
+    data = parsed.data
     if (!data) {
-      throw new PublicError('AI_INVALID_RESPONSE', args.invalidMessage)
+      throw new PublicError(
+        'AI_INVALID_RESPONSE',
+        args.invalidMessage,
+        undefined,
+        'schema-validation',
+      )
     }
     const secondValidationError = validationError(data)
     if (secondValidationError && !args.allowSemanticFallback) {
-      throw new PublicError('AI_INVALID_RESPONSE', args.invalidMessage)
+      throw new PublicError(
+        'AI_INVALID_RESPONSE',
+        args.invalidMessage,
+        undefined,
+        'semantic-validation',
+      )
     }
   }
+  throwIfCancelled(args.request.signal)
   return {
     data,
     diagnostic: {

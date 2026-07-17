@@ -50,6 +50,7 @@ export function BatchTemplateImportDialog({
   const { locale, t } = useI18n()
   const [busyMode, setBusyMode] = useState<BusyMode>(null)
   const cancelRequested = useRef(false)
+  const activeClassificationRequestId = useRef<string | null>(null)
   const [classifications, setClassifications] = useState<Record<string, TemplateClassification>>({})
   const [conflictChoices, setConflictChoices] = useState<Record<string, ConflictChoice>>({})
   const [conflicts, setConflicts] = useState<BatchTemplateImportConflict[]>([])
@@ -159,23 +160,34 @@ export function BatchTemplateImportDialog({
           return
         }
         const source = selectedSources[index]!
+        const requestId = crypto.randomUUID()
+        activeClassificationRequestId.current = requestId
         const result = await window.desktop.templateManagement.classify({
           content: source.content,
           fileName: source.fileName,
           metadata: emptyTemplateMetadata,
           outputLanguage,
+          requestId,
         })
+        if (cancelRequested.current || activeClassificationRequestId.current !== requestId) {
+          setError(t('批量 AI 补全已停止；尚未向工作区写入文件。'))
+          return
+        }
+        activeClassificationRequestId.current = null
         setClassifications(current => ({ ...current, [source.id]: result }))
         setTargetPaths(current => ({ ...current, [source.id]: result.suggestedRelativePath }))
         setProgress({ completed: index + 1, total: selectedSources.length })
       }
     } catch (caught) {
       setError(
-        caught instanceof Error
-          ? caught.message
-          : t('批量 AI 元数据补全未完成；尚未向工作区写入文件。'),
+        cancelRequested.current
+          ? t('批量 AI 补全已停止；尚未向工作区写入文件。')
+          : caught instanceof Error
+            ? caught.message
+            : t('批量 AI 元数据补全未完成；尚未向工作区写入文件。'),
       )
     } finally {
+      activeClassificationRequestId.current = null
       setBusyMode(null)
     }
   }
@@ -572,11 +584,15 @@ export function BatchTemplateImportDialog({
                 <Button
                   onClick={() => {
                     cancelRequested.current = true
+                    const requestId = activeClassificationRequestId.current
+                    if (requestId) {
+                      void window.desktop.templateManagement.cancelClassification(requestId)
+                    }
                   }}
                   type="button"
                   variant="outline"
                 >
-                  {t('停止后续补全')}
+                  {t('取消当前及后续补全')}
                 </Button>
               ) : (
                 <Button

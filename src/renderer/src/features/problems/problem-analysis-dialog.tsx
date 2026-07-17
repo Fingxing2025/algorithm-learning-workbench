@@ -9,7 +9,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react'
-import { useEffect, useState, type ClipboardEvent, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type ClipboardEvent, type FormEvent } from 'react'
 
 import type {
   ProblemAnalysisCandidate,
@@ -75,6 +75,7 @@ export function ProblemAnalysisDialog({
   const [selectedCandidates, setSelectedCandidates] = useState<Set<string>>(new Set())
   const [tagsText, setTagsText] = useState('')
   const [text, setText] = useState('')
+  const activeRequestId = useRef<string | null>(null)
 
   useEffect(() => {
     if (!open) return
@@ -123,14 +124,18 @@ export function ProblemAnalysisDialog({
   }
 
   const executeAnalysis = async () => {
+    const requestId = crypto.randomUUID()
+    activeRequestId.current = requestId
     setError(null)
     setIsBusy(true)
     try {
       const result = await window.desktop.problemAnalysis.analyze({
         images,
         outputLanguage,
+        requestId,
         text,
       })
+      if (activeRequestId.current !== requestId) return
       setRequestPreview(null)
       setDraft(result)
       setFields(result.fields)
@@ -142,10 +147,25 @@ export function ProblemAnalysisDialog({
         ),
       )
     } catch (caught) {
+      if (activeRequestId.current !== requestId) return
+      setRequestPreview(null)
       setError(t(errorMessage(caught)))
     } finally {
-      setIsBusy(false)
+      if (activeRequestId.current === requestId) {
+        activeRequestId.current = null
+        setIsBusy(false)
+      }
     }
+  }
+
+  const cancelAnalysis = () => {
+    const requestId = activeRequestId.current
+    if (!requestId) return
+    activeRequestId.current = null
+    setRequestPreview(null)
+    setIsBusy(false)
+    setError(t('AI 请求已取消，迟到响应不会写入状态。'))
+    void window.desktop.problemAnalysis.cancel(requestId)
   }
 
   const previewAnalysis = async () => {
@@ -738,8 +758,12 @@ export function ProblemAnalysisDialog({
       </Dialog.Portal>
       {requestPreview && (
         <AiRequestPreviewDialog
+          allowCancelWhileBusy
           busy={isBusy}
-          onCancel={() => setRequestPreview(null)}
+          onCancel={() => {
+            if (activeRequestId.current) cancelAnalysis()
+            else setRequestPreview(null)
+          }}
           onConfirm={() => void executeAnalysis()}
           preview={requestPreview}
         />

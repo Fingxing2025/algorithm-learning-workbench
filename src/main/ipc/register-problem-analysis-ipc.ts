@@ -9,6 +9,7 @@ import {
   previewProblemAnalysisResultSchema,
 } from '@core/contracts/problem-analysis'
 import { problemSchema } from '@core/contracts/problem'
+import { cancelAiRequestSchema } from '@core/contracts/ai-request'
 import { IPC_CHANNELS } from '@core/ipc/channels'
 
 import type { ProblemAnalysisService } from '../services/problem-analysis-service'
@@ -35,6 +36,15 @@ export function registerProblemAnalysisIpc(
     handler: request => service.analyze(request),
     inputSchema: analyzeProblemRequestSchema,
     outputSchema: problemAnalysisDraftSchema,
+  })
+  registerValidatedHandler({
+    channel: IPC_CHANNELS.problemAnalysis.cancel,
+    handler: request => {
+      service.cancelAnalysis(request.requestId)
+      return null
+    },
+    inputSchema: cancelAiRequestSchema,
+    outputSchema: z.null(),
   })
   registerValidatedHandler({
     channel: IPC_CHANNELS.problemAnalysis.commit,

@@ -281,7 +281,7 @@ describe('AI provider adapters', () => {
     ).resolves.toBe('流式正文')
   })
 
-  it('shows a safe provider explanation for HTTP 400 parameter errors', async () => {
+  it('uses a fixed safe message for HTTP 400 parameter errors', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(
@@ -301,7 +301,8 @@ describe('AI provider adapters', () => {
       ),
     ).rejects.toMatchObject({
       code: 'AI_INVALID_RESPONSE',
-      message: 'AI 服务拒绝了请求（HTTP 400）：Unsupported parameter: max_output_tokens',
+      message: 'AI 服务拒绝了请求（HTTP 400）。请检查模型是否支持当前协议和请求参数。',
+      providerReason: 'token-limit',
     })
   })
 

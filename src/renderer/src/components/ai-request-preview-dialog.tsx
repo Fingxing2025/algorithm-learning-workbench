@@ -67,6 +67,14 @@ export function AiRequestPreviewDialog({
                 <p className="mt-0.5 font-mono text-[11px] text-muted-foreground">
                   {preview.model}
                 </p>
+                <p className="mt-1 break-all font-mono text-[10px] text-muted-foreground">
+                  {preview.protocol} · {preview.endpointHost}
+                </p>
+                <p className="mt-1 text-[10px] text-muted-foreground">
+                  {t('视觉输入')}：{preview.capabilities.vision ? t('支持') : t('不支持')} ·{' '}
+                  {t('结构化输出')}：
+                  {preview.capabilities.structuredOutput ? t('原生支持') : t('本地严格校验')}
+                </p>
               </section>
               <section className="rounded-xl border border-border bg-background/65 p-3">
                 <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">

@@ -179,7 +179,7 @@ test('shows actionable model errors and captures light, compact, and dark provid
   await page.getByRole('button', { name: '保存更改' }).click()
   await expect(page.getByRole('status')).toContainText('Provider 配置已更新')
   await page.getByRole('button', { name: '测试连接' }).click()
-  await expect(page.getByRole('alert')).toContainText('接口或模型不存在')
+  await expect(page.getByRole('alert')).toContainText('模型或接口不存在')
 
   await page.getByRole('button', { name: '关闭 AI 提示' }).click()
   await page.getByLabel('模型名称').fill('fixture-anthropic')

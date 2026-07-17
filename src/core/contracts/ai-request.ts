@@ -1,12 +1,21 @@
 import { z } from 'zod'
 
-import { aiTaskKindSchema } from './ai-provider'
+import {
+  aiProviderCapabilitiesSchema,
+  aiProviderProtocolSchema,
+  aiTaskKindSchema,
+} from './ai-provider'
 
 export const aiOutputLanguageSchema = z.enum(['zh-CN', 'en'])
 export type AiOutputLanguage = z.infer<typeof aiOutputLanguageSchema>
 
+export const aiRequestIdSchema = z.string().uuid()
+export const cancelAiRequestSchema = z.object({ requestId: aiRequestIdSchema }).strict()
+export type CancelAiRequest = z.infer<typeof cancelAiRequestSchema>
+
 export const aiRequestPreviewSchema = z
   .object({
+    capabilities: aiProviderCapabilitiesSchema,
     cache: z
       .object({
         eligible: z.boolean(),
@@ -15,6 +24,7 @@ export const aiRequestPreviewSchema = z
       })
       .strict(),
     estimatedInputTokens: z.number().int().nonnegative(),
+    endpointHost: z.string().min(1).max(255),
     items: z
       .array(
         z
@@ -29,6 +39,7 @@ export const aiRequestPreviewSchema = z
     model: z.string().min(1).max(160),
     outputLanguage: aiOutputLanguageSchema,
     providerName: z.string().min(1).max(80),
+    protocol: aiProviderProtocolSchema,
     task: aiTaskKindSchema,
     truncated: z.boolean(),
   })

@@ -19,6 +19,10 @@ let page: Page
 let temporaryRoot: string
 let userDataDirectory: string
 let workspaceRoot: string
+let holdNextAnalysisResponse = false
+let heldAnalysisResponseClosed = false
+let heldAnalysisResponseStarted = false
+let invalidAnalysisResponsesRemaining = 0
 const requests: Array<{ body: string; headers: IncomingMessage['headers'] }> = []
 
 test.describe.configure({ mode: 'serial' })
@@ -67,7 +71,22 @@ test.beforeAll(async () => {
         relatedWorkspaceContext?: { relatedTemplates?: Array<{ id: string }> }
       }
       const template = input.relatedWorkspaceContext?.relatedTemplates?.[0]
+      if (holdNextAnalysisResponse) {
+        holdNextAnalysisResponse = false
+        heldAnalysisResponseStarted = true
+        response.on('close', () => {
+          heldAnalysisResponseClosed = true
+        })
+        return
+      }
       response.setHeader('content-type', 'application/json')
+      if (invalidAnalysisResponsesRemaining > 0) {
+        invalidAnalysisResponsesRemaining -= 1
+        response.end(
+          JSON.stringify({ choices: [{ message: { content: 'invalid-json-fixture' } }] }),
+        )
+        return
+      }
       response.end(
         JSON.stringify({
           choices: [
@@ -159,6 +178,52 @@ test('configures a visual route and keeps a cancelled AI draft out of user data'
 
   await page.getByRole('button', { name: '题目', exact: true }).click()
   await page.getByRole('button', { name: 'AI 分析题目' }).click()
+  await page.getByLabel('待分析题面').fill('取消链路测试，不得保存。')
+  await page.getByRole('button', { name: '生成草稿' }).click()
+  holdNextAnalysisResponse = true
+  await page.getByRole('button', { name: '确认发送并生成' }).click()
+  await expect.poll(() => heldAnalysisResponseStarted).toBe(true)
+  await page.getByRole('button', { name: '取消生成' }).click()
+  await expect(page.getByRole('alert')).toContainText('AI 请求已取消')
+  await page.screenshot({
+    animations: 'disabled',
+    path: resolve('output/playwright/ai-error-cancelled-light-1440x900.png'),
+  })
+  await electronApp.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0]?.setSize(1280, 720),
+  )
+  await page.screenshot({
+    animations: 'disabled',
+    path: resolve('output/playwright/ai-error-cancelled-light-1280x720.png'),
+  })
+  await page.locator('html').evaluate(root => root.classList.add('dark'))
+  await page.screenshot({
+    animations: 'disabled',
+    path: resolve('output/playwright/ai-error-cancelled-dark-1280x720.png'),
+  })
+  await electronApp.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0]?.setSize(1440, 900),
+  )
+  await page.screenshot({
+    animations: 'disabled',
+    path: resolve('output/playwright/ai-error-cancelled-dark-1440x900.png'),
+  })
+  await page.locator('html').evaluate(root => root.classList.remove('dark'))
+  await expect.poll(() => heldAnalysisResponseClosed).toBe(true)
+  await page.getByRole('button', { name: '关闭 AI 题目分析' }).click()
+  await expect(page.getByText('还没有题目卡片')).toBeVisible()
+
+  await page.getByRole('button', { name: 'AI 分析题目' }).click()
+  await page.getByLabel('待分析题面').fill('无效 JSON 不得创建题目。')
+  await page.getByRole('button', { name: '生成草稿' }).click()
+  invalidAnalysisResponsesRemaining = 2
+  await page.getByRole('button', { name: '确认发送并生成' }).click()
+  await expect(page.getByRole('alert')).toContainText('连续两次未返回完整的结构化题目草稿')
+  await page.getByRole('button', { name: '关闭 AI 题目分析' }).click()
+  await expect(page.getByText('还没有题目卡片')).toBeVisible()
+  await expect(readdir(join(userDataDirectory, 'problem-images'))).rejects.toThrow()
+
+  await page.getByRole('button', { name: 'AI 分析题目' }).click()
   await page.getByLabel('待分析题面').fill('求最短路径和最短路径方案数，n 不超过 2000。')
   await setNextFileSelection(fixtureImagePath)
   await page.getByRole('button', { name: '选择截图' }).click()
@@ -166,7 +231,10 @@ test('configures a visual route and keeps a cancelled AI draft out of user data'
   await page.getByRole('button', { name: '生成草稿' }).click()
   await expect(page.getByRole('heading', { name: '确认发送给 AI' })).toBeVisible()
   await expect(page.getByText('原始题面文本')).toBeVisible()
-  expect(requests).toHaveLength(0)
+  await expect(
+    page.getByText(`openai-chat-completions · ${new URL(mockBaseUrl).host}`),
+  ).toBeVisible()
+  const requestCountBeforeConfirmation = requests.length
   await page.getByRole('button', { name: '确认发送并生成' }).click()
   await expect(page.getByRole('heading', { name: '确认 AI 题目草稿' })).toBeVisible()
   await expect(page.getByLabel('AI 草稿题目标题')).toHaveValue('最短路计数')
@@ -178,6 +246,7 @@ test('configures a visual route and keeps a cancelled AI draft out of user data'
   expect(requests.at(-1)?.headers.authorization).toBe('Bearer analysis-e2e-secret')
   expect(requests.at(-1)?.body).toContain('image_url')
   expect(requests.at(-1)?.body).not.toContain('analysis-e2e-secret')
+  expect(requests).toHaveLength(requestCountBeforeConfirmation + 1)
 
   await page.getByRole('button', { name: '关闭 AI 题目分析' }).click()
   await expect(page.getByText('还没有题目卡片')).toBeVisible()

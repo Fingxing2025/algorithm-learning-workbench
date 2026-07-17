@@ -14,6 +14,7 @@ async function invokeResult<Value>(channel: string, input?: unknown): Promise<Va
     throw Object.assign(new Error(result.error.message), {
       code: result.error.code,
       retryAfterMs: result.error.retryAfterMs,
+      stage: result.error.stage,
     })
   }
   return result.value
@@ -71,6 +72,9 @@ const desktopApi: DesktopApi = {
   },
   problemAnalysis: {
     analyze: request => invokeResult(IPC_CHANNELS.problemAnalysis.analyze, request),
+    cancel: async requestId => {
+      await invokeResult<null>(IPC_CHANNELS.problemAnalysis.cancel, { requestId })
+    },
     chooseImages: () => invokeResult(IPC_CHANNELS.problemAnalysis.chooseImages),
     commit: request => invokeResult(IPC_CHANNELS.problemAnalysis.commit, request),
     preview: request => invokeResult(IPC_CHANNELS.problemAnalysis.preview, request),
@@ -87,6 +91,11 @@ const desktopApi: DesktopApi = {
     auditWorkspace: () => invokeResult(IPC_CHANNELS.templateManagement.auditWorkspace),
     cancelFilePlanGeneration: async requestId => {
       await invokeResult<null>(IPC_CHANNELS.templateManagement.cancelFilePlanGeneration, {
+        requestId,
+      })
+    },
+    cancelClassification: async requestId => {
+      await invokeResult<null>(IPC_CHANNELS.templateManagement.cancelClassification, {
         requestId,
       })
     },

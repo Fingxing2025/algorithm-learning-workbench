@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 import { workspaceSnapshotSchema } from './workspace'
-import { aiOutputLanguageSchema, aiRequestPreviewSchema } from './ai-request'
+import { aiOutputLanguageSchema, aiRequestIdSchema, aiRequestPreviewSchema } from './ai-request'
 
 const templateIdSchema = z.string().regex(/^[a-f0-9]{64}$/)
 const relativePathSchema = z
@@ -99,7 +99,7 @@ export type InspectBatchTemplateImportResult = z.infer<
 export const templateMetadataLanguageSchema = z.enum(['zh-CN', 'en']).default('zh-CN')
 export type TemplateMetadataLanguage = z.infer<typeof templateMetadataLanguageSchema>
 
-export const classifyTemplateRequestSchema = z
+export const previewTemplateClassificationRequestSchema = z
   .object({
     content: z
       .string()
@@ -110,8 +110,13 @@ export const classifyTemplateRequestSchema = z
     outputLanguage: templateMetadataLanguageSchema,
   })
   .strict()
+export type PreviewTemplateClassificationRequest = z.infer<
+  typeof previewTemplateClassificationRequestSchema
+>
+export const classifyTemplateRequestSchema = previewTemplateClassificationRequestSchema.extend({
+  requestId: aiRequestIdSchema,
+})
 export type ClassifyTemplateRequest = z.infer<typeof classifyTemplateRequestSchema>
-export const previewTemplateClassificationRequestSchema = classifyTemplateRequestSchema
 export const previewTemplateClassificationResultSchema = aiRequestPreviewSchema.extend({
   outputLanguage: aiOutputLanguageSchema,
 })
@@ -381,12 +386,12 @@ export function parseStoredFileChangePlanPayload(stored: unknown): FileChangePla
 }
 
 export const filePlanGenerationRequestSchema = z
-  .object({ outputLanguage: aiOutputLanguageSchema, requestId: z.string().uuid() })
+  .object({ outputLanguage: aiOutputLanguageSchema, requestId: aiRequestIdSchema })
   .strict()
 export type FilePlanGenerationRequest = z.infer<typeof filePlanGenerationRequestSchema>
 export const previewFilePlanResultSchema = aiRequestPreviewSchema
 export const cancelFilePlanGenerationRequestSchema = z
-  .object({ requestId: z.string().uuid() })
+  .object({ requestId: aiRequestIdSchema })
   .strict()
 export const exportFilePlanDiagnosticRequestSchema = z
   .object({ planId: z.string().uuid().nullable() })

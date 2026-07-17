@@ -29,6 +29,8 @@ const RESTRICTED_HEADERS = new Set([
 ])
 const HEADER_NAME_PATTERN = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/
 const LOOPBACK_HOSTS = new Set(['127.0.0.1', '::1', 'localhost'])
+const MAX_NETWORK_ATTEMPTS = 3
+const MAX_RETRY_DELAY_MS = 10_000
 const OUTPUT_TOKEN_FALLBACKS = [32_768, 16_384, 8_192, 4_096, 2_048] as const
 
 function outputTokenBudgets(requested: number): number[] {
@@ -39,9 +41,7 @@ function isOutputTokenBudgetRejection(error: unknown): boolean {
   return (
     error instanceof PublicError &&
     error.code === 'AI_INVALID_RESPONSE' &&
-    /(?:max(?:imum)?[ _-]?(?:output[ _-]?)?tokens?|context[ _-]?(?:length|window)|token[ _-]?limit|too many tokens|exceeds?[^.]{0,80}tokens?|最大[^。]{0,40}token|输出[^。]{0,40}上限|上下文[^。]{0,40}长度)/iu.test(
-      error.message,
-    )
+    error.providerReason === 'token-limit'
   )
 }
 
@@ -105,11 +105,18 @@ async function waitForRetry(delayMs: number, signal?: AbortSignal): Promise<void
     await new Promise(resolve => setTimeout(resolve, delayMs))
     return
   }
-  if (signal.aborted) throw new PublicError('AI_CANCELLED', 'AI 请求已取消。')
+  if (signal.aborted) throw new PublicError('AI_CANCELLED', 'AI 请求已取消，迟到响应不会写入状态。')
   await new Promise<void>((resolve, reject) => {
     const onAbort = () => {
       clearTimeout(timer)
-      reject(new PublicError('AI_CANCELLED', 'AI 请求已取消。'))
+      reject(
+        new PublicError(
+          'AI_CANCELLED',
+          'AI 请求已取消，迟到响应不会写入状态。',
+          undefined,
+          'retry-wait',
+        ),
+      )
     }
     const timer = setTimeout(() => {
       signal.removeEventListener('abort', onAbort)
@@ -155,8 +162,10 @@ export class AiProviderService {
 
   getTaskTarget(task: AiTaskRoute['task']): {
     capabilities: AiProviderProfile['capabilities']
+    endpointHost: string
     id: string
     model: string
+    protocol: AiProviderProfile['protocol']
     providerName: string
   } {
     const record = this.repository.getProviderForTask(task)
@@ -168,8 +177,10 @@ export class AiProviderService {
     }
     return {
       capabilities: toAdapterProfile(record).capabilities,
+      endpointHost: new URL(record.baseUrl).host,
       id: record.id,
       model: record.model,
+      protocol: record.protocol as AiProviderProfile['protocol'],
       providerName: record.name,
     }
   }
@@ -187,7 +198,12 @@ export class AiProviderService {
     }
     const profile = toAdapterProfile(record)
     if (request.images?.length && !profile.capabilities.vision) {
-      throw new PublicError('AI_CAPABILITY_UNSUPPORTED', '当前任务模型不支持图片输入。')
+      throw new PublicError(
+        'AI_CAPABILITY_UNSUPPORTED',
+        '当前任务模型不支持图片输入。请改用声明视觉能力的 Provider。',
+        undefined,
+        'capability-check',
+      )
     }
     const apiKey = await this.secretStore.read(record.secretRef)
     const budgets = outputTokenBudgets(request.maxOutputTokens)
@@ -195,8 +211,11 @@ export class AiProviderService {
     for (const [budgetIndex, maxOutputTokens] of budgets.entries()) {
       const budgetedRequest =
         maxOutputTokens === request.maxOutputTokens ? request : { ...request, maxOutputTokens }
-      for (let attempt = 0; attempt < 3; attempt += 1) {
+      for (let attempt = 0; attempt < MAX_NETWORK_ATTEMPTS; attempt += 1) {
         try {
+          if (request.signal?.aborted) {
+            throw new PublicError('AI_CANCELLED', 'AI 请求已取消，迟到响应不会写入状态。')
+          }
           budgetedRequest.onAttempt?.({ maxOutputTokens })
           const text = await getAiProviderAdapter(profile.protocol).complete(
             profile,
@@ -211,10 +230,16 @@ export class AiProviderService {
           }
           const retryable =
             error instanceof PublicError &&
-            ['AI_NETWORK_ERROR', 'AI_RATE_LIMITED', 'AI_TIMEOUT'].includes(error.code)
-          if (!retryable || attempt === 2) throw error
+            (error.code === 'AI_RATE_LIMITED' ||
+              error.code === 'AI_SERVICE_UNAVAILABLE' ||
+              error.code === 'AI_CONNECTION_TIMEOUT' ||
+              (error.code === 'AI_NETWORK_ERROR' && error.stage === 'connection'))
+          if (!retryable || attempt === MAX_NETWORK_ATTEMPTS - 1) throw error
           const retryAfterMs = error instanceof PublicError ? error.retryAfterMs : undefined
-          await waitForRetry(Math.min(10_000, retryAfterMs ?? 250 * 2 ** attempt), request.signal)
+          await waitForRetry(
+            Math.min(MAX_RETRY_DELAY_MS, retryAfterMs ?? 250 * 2 ** attempt),
+            request.signal,
+          )
         }
       }
     }

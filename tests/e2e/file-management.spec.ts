@@ -18,6 +18,10 @@ let page: Page
 let temporaryRoot: string
 let userDataDirectory: string
 let workspaceRoot: string
+let holdNextFilePlanResponse = false
+let heldFilePlanResponseClosed = false
+let heldFilePlanResponseStarted = false
+let invalidFilePlanResponsesRemaining = 0
 
 test.describe.configure({ mode: 'serial' })
 
@@ -69,6 +73,22 @@ test.beforeAll(async () => {
     request.on('end', () => {
       const requestBody = JSON.parse(Buffer.concat(chunks).toString('utf8')) as {
         messages: Array<{ content: string }>
+      }
+      if (holdNextFilePlanResponse) {
+        holdNextFilePlanResponse = false
+        heldFilePlanResponseStarted = true
+        response.on('close', () => {
+          heldFilePlanResponseClosed = true
+        })
+        return
+      }
+      if (invalidFilePlanResponsesRemaining > 0) {
+        invalidFilePlanResponsesRemaining -= 1
+        response.setHeader('content-type', 'application/json')
+        response.end(
+          JSON.stringify({ choices: [{ message: { content: 'invalid-json-fixture' } }] }),
+        )
+        return
       }
       const input = JSON.parse(requestBody.messages.at(-1)?.content ?? '{}') as {
         audit: { issues: Array<{ kind: string; paths: string[] }> }
@@ -222,6 +242,23 @@ test('cancels a generated plan without changing files', async () => {
   await page.getByRole('button', { name: '只读扫描' }).click()
   await expect(page.getByRole('status').filter({ hasText: '只读扫描完成' })).toBeVisible()
   await page.getByRole('button', { name: '关闭文件管理提示' }).click()
+  await page.getByRole('button', { name: '生成 AI 计划' }).click()
+  await expect(page.getByRole('heading', { name: '确认发送给 AI' })).toBeVisible()
+  holdNextFilePlanResponse = true
+  await page.getByRole('button', { name: '确认发送并生成' }).click()
+  await expect.poll(() => heldFilePlanResponseStarted).toBe(true)
+  await page.getByRole('button', { name: '取消生成' }).click()
+  await expect.poll(() => heldFilePlanResponseClosed).toBe(true)
+  await expect(page.getByRole('button', { name: '生成 AI 计划' })).toBeEnabled()
+  await expect(page.getByText('移动 / 重命名', { exact: true })).toHaveCount(0)
+
+  invalidFilePlanResponsesRemaining = 2
+  await page.getByRole('button', { name: '生成 AI 计划' }).click()
+  await page.getByRole('button', { name: '确认发送并生成' }).click()
+  await expect(page.getByRole('alert')).toContainText('连续两次未返回完整的结构化文件计划')
+  await expect(page.getByText('移动 / 重命名', { exact: true })).toHaveCount(0)
+  expect(await pathExists(join(workspaceRoot, '整理', '旧名称.cpp'))).toBe(false)
+
   await page.getByRole('button', { name: '生成 AI 计划' }).click()
   await expect(page.getByRole('heading', { name: '确认发送给 AI' })).toBeVisible()
   await page.getByRole('button', { name: '确认发送并生成' }).click()

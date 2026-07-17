@@ -39,6 +39,7 @@ import type {
   CommitProblemAnalysisRequest,
   ProblemAnalysisDraft,
   ProblemAnalysisImage,
+  PreviewProblemAnalysisRequest,
 } from './problem-analysis'
 import type {
   BatchImportTemplateRequest,
@@ -59,6 +60,7 @@ import type {
   FileChangePlan,
   FilePlanGenerationRequest,
   WorkspaceAudit,
+  PreviewTemplateClassificationRequest,
 } from './template-management'
 import type {
   CreateProblemRequest,
@@ -91,9 +93,10 @@ export interface DesktopApi {
   }
   problemAnalysis: {
     analyze: (request: AnalyzeProblemRequest) => Promise<ProblemAnalysisDraft>
+    cancel: (requestId: string) => Promise<void>
     chooseImages: () => Promise<ProblemAnalysisImage[]>
     commit: (request: CommitProblemAnalysisRequest) => Promise<Problem>
-    preview: (request: AnalyzeProblemRequest) => Promise<AiRequestPreview>
+    preview: (request: PreviewProblemAnalysisRequest) => Promise<AiRequestPreview>
   }
   app: {
     getRuntimeInfo: () => Promise<RuntimeInfo>
@@ -142,6 +145,7 @@ export interface DesktopApi {
     }) => Promise<FileChangeMutationResult>
     auditWorkspace: () => Promise<WorkspaceAudit>
     cancelFilePlanGeneration: (requestId: string) => Promise<void>
+    cancelClassification: (requestId: string) => Promise<void>
     cancelFilePlan: (planId: string) => Promise<FileChangePlan>
     chooseBatchImportDirectory: () => Promise<BatchTemplateImportSource[]>
     chooseBatchImportFiles: () => Promise<BatchTemplateImportSource[]>
@@ -160,7 +164,9 @@ export interface DesktopApi {
     previewBatchClassification: (
       request: PreviewBatchTemplateClassificationRequest,
     ) => Promise<AiRequestPreview>
-    previewClassification: (request: ClassifyTemplateRequest) => Promise<AiRequestPreview>
+    previewClassification: (
+      request: PreviewTemplateClassificationRequest,
+    ) => Promise<AiRequestPreview>
     previewFilePlan: (request: FilePlanGenerationRequest) => Promise<AiRequestPreview>
     generateFilePlan: (request: FilePlanGenerationRequest) => Promise<FileChangePlan>
     listFileExecutions: () => Promise<FileChangeExecution[]>

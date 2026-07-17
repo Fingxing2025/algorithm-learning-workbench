@@ -39,6 +39,7 @@ export const IPC_CHANNELS = {
   },
   problemAnalysis: {
     analyze: 'problem-analysis:analyze',
+    cancel: 'problem-analysis:cancel',
     chooseImages: 'problem-analysis:choose-images',
     commit: 'problem-analysis:commit',
     preview: 'problem-analysis:preview',
@@ -52,6 +53,7 @@ export const IPC_CHANNELS = {
     applyFilePlan: 'template-management:apply-file-plan',
     auditWorkspace: 'template-management:audit-workspace',
     cancelFilePlanGeneration: 'template-management:cancel-file-plan-generation',
+    cancelClassification: 'template-management:cancel-classification',
     cancelFilePlan: 'template-management:cancel-file-plan',
     chooseBatchImportDirectory: 'template-management:choose-batch-import-directory',
     chooseBatchImportFiles: 'template-management:choose-batch-import-files',

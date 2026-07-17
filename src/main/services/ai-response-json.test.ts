@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   normalizeFilePlanEnvelope,
+  normalizeCommonAiEnvelope,
   normalizeTemplateClassificationEnvelope,
   parseAiJson,
 } from './ai-response-json'
@@ -28,6 +29,14 @@ describe('AI JSON response parsing', () => {
     expect(normalizeFilePlanEnvelope({ data: { operations: [], summary: '整理建议' } })).toEqual({
       operations: [],
       summary: '整理建议',
+    })
+  })
+
+  it('unwraps single-key provider envelopes without discarding sibling metadata', () => {
+    expect(normalizeCommonAiEnvelope({ data: { count: 2 } })).toEqual({ count: 2 })
+    expect(normalizeCommonAiEnvelope({ data: { count: 2 }, summary: 'keep' })).toEqual({
+      data: { count: 2 },
+      summary: 'keep',
     })
   })
 
