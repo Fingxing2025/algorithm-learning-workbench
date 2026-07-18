@@ -685,7 +685,7 @@ export function FileManagementWorkspace({
               <section className="rounded-2xl border border-border bg-panel p-4 shadow-panel">
                 <div className="flex items-center gap-2">
                   <span className="grid size-8 place-items-center rounded-lg bg-primary/10 text-primary">
-                    <RotateCcw className="size-4" />
+                    <RotateCcw className="size-3.5" strokeWidth={1.8} />
                   </span>
                   <div>
                     <h2 className="text-sm font-semibold">{t('计划记录与撤销')}</h2>
