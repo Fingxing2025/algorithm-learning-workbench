@@ -18,6 +18,7 @@ export function AiRequestPreviewDialog({
   allowCancelWhileBusy = false,
   busy,
   onCancel,
+  onClose,
   onConfirm,
   preview,
   progressText,
@@ -26,6 +27,7 @@ export function AiRequestPreviewDialog({
   allowCancelWhileBusy?: boolean
   busy: boolean
   onCancel: () => void
+  onClose?: () => void
   onConfirm: () => void
   preview: AiRequestPreview
   progressText?: string
@@ -33,7 +35,10 @@ export function AiRequestPreviewDialog({
 }) {
   const { t } = useI18n()
   return (
-    <Dialog.Root onOpenChange={open => !open && (!busy || allowCancelWhileBusy) && onCancel()} open>
+    <Dialog.Root
+      onOpenChange={open => !open && (!busy || allowCancelWhileBusy) && (onClose ?? onCancel)()}
+      open
+    >
       <Dialog.Portal>
         <Dialog.Overlay className="dialog-overlay fixed inset-0 z-[80] bg-overlay/75 backdrop-blur-[4px]" />
         <Dialog.Content
@@ -54,7 +59,7 @@ export function AiRequestPreviewDialog({
               aria-label={t('关闭 AI 发送预览')}
               className="ml-auto"
               disabled={busy && !allowCancelWhileBusy}
-              onClick={onCancel}
+              onClick={onClose ?? onCancel}
               size="close"
               type="button"
               variant="ghost"

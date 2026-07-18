@@ -292,6 +292,71 @@ test('uses one new-problem entry and supports side-effect-free close plus manual
   await expect(page.getByText('主算法')).toBeVisible()
 })
 
+test('closes the whole problem card from the AI preview X before and during generation', async () => {
+  const newProblemTrigger = page.getByRole('button', { name: '新建题目' })
+  const closeProblemButton = page.getByRole('button', { name: '关闭新建题目' })
+  const closePreviewButton = page.getByRole('button', { name: '关闭 AI 发送预览' })
+
+  await newProblemTrigger.click()
+  await page.getByLabel('题目标题').fill('预览关闭不保存')
+  await page.getByLabel('原始题面').fill('打开 AI 发送预览后直接关闭整个题目卡片。')
+  await page.getByRole('button', { name: 'AI 分析并补全' }).click()
+  await expect(page.getByRole('heading', { name: '确认发送给 AI' })).toBeVisible()
+  await closePreviewButton.click()
+  await expect(closePreviewButton).toHaveCount(0)
+  await expect(closeProblemButton).toHaveCount(0)
+  await expect(newProblemTrigger).toBeFocused()
+  await expect(page.getByText('预览关闭不保存')).toHaveCount(0)
+
+  await newProblemTrigger.click()
+  await page.getByLabel('原始题面').fill('AI 发送预览打开时按 Escape 退出整个题目卡片。')
+  await page.getByRole('button', { name: 'AI 分析并补全' }).click()
+  await expect(page.getByRole('heading', { name: '确认发送给 AI' })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(closePreviewButton).toHaveCount(0)
+  await expect(closeProblemButton).toHaveCount(0)
+  await expect(newProblemTrigger).toBeFocused()
+
+  heldAnalysisResponseClosed = false
+  heldAnalysisResponseStarted = false
+  holdNextAnalysisResponse = true
+  await newProblemTrigger.click()
+  await page.getByLabel('题目标题').fill('生成中关闭不保存')
+  await page.getByLabel('原始题面').fill('AI 生成进行中点击 X 必须先取消请求再退出。')
+  await page.getByRole('button', { name: 'AI 分析并补全' }).click()
+  await page.getByRole('button', { name: '确认发送并生成' }).click()
+  await expect.poll(() => heldAnalysisResponseStarted).toBe(true)
+
+  const closeIconBounds = await closePreviewButton.locator('svg').boundingBox()
+  expect(closeIconBounds).not.toBeNull()
+  const closeIconCenter = {
+    x: closeIconBounds!.x + closeIconBounds!.width / 2,
+    y: closeIconBounds!.y + closeIconBounds!.height / 2,
+  }
+  expect(
+    await page.evaluate(point => {
+      const browser = globalThis as unknown as {
+        document: {
+          elementFromPoint: (x: number, y: number) => { tagName: string } | null
+        }
+      }
+      return browser.document.elementFromPoint(point.x, point.y)?.tagName
+    }, closeIconCenter),
+  ).toBe('BUTTON')
+  await expect(closePreviewButton).toHaveCSS('cursor', 'pointer')
+  await page.screenshot({
+    animations: 'disabled',
+    path: resolve('output/playwright/problem-ai-busy-close-1440x900.png'),
+  })
+  await page.mouse.click(closeIconCenter.x, closeIconCenter.y)
+
+  await expect(closePreviewButton).toHaveCount(0)
+  await expect(closeProblemButton).toHaveCount(0)
+  await expect(newProblemTrigger).toBeFocused()
+  await expect.poll(() => heldAnalysisResponseClosed).toBe(true)
+  await expect(page.getByText('生成中关闭不保存')).toHaveCount(0)
+})
+
 test('creates a pure-text AI draft with one validated local candidate', async () => {
   await page.getByRole('button', { name: '新建题目' }).click()
   await page.getByLabel('原始题面').fill('单一算法：使用 Dijkstra 求非负权最短路。')
@@ -315,8 +380,10 @@ test('preserves manual fields after cancellation and invalid JSON so creation ca
   await page.getByLabel('题目标题').fill('取消后手动创建')
   await page.getByLabel('原始题面').fill('取消链路测试，不得清空字段。')
   await addManualRelation('dsu · 数据结构/dsu.cpp')
-  await page.getByRole('button', { name: 'AI 分析并补全' }).click()
+  heldAnalysisResponseClosed = false
+  heldAnalysisResponseStarted = false
   holdNextAnalysisResponse = true
+  await page.getByRole('button', { name: 'AI 分析并补全' }).click()
   await page.getByRole('button', { name: '确认发送并生成' }).click()
   await expect.poll(() => heldAnalysisResponseStarted).toBe(true)
   await page.getByRole('button', { name: '取消生成' }).click()

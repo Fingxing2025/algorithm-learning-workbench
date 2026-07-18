@@ -153,6 +153,7 @@ export function ProblemAnalysisDialog({
   const [fields, setFields] = useState<CreateProblemRequest>(emptyFields)
   const [images, setImages] = useState<ProblemAnalysisImage[]>([])
   const [isBusy, setIsBusy] = useState(false)
+  const [isCommitting, setIsCommitting] = useState(false)
   const [outputLanguage, setOutputLanguage] = useState<AiOutputLanguage>('zh-CN')
   const [relationDrafts, setRelationDrafts] = useState<RelationDraft[]>([])
   const [requestPreview, setRequestPreview] = useState<AiRequestPreview | null>(null)
@@ -174,6 +175,7 @@ export function ProblemAnalysisDialog({
     setFields(emptyFields())
     setImages([])
     setIsBusy(false)
+    setIsCommitting(false)
     setOutputLanguage(localeRef.current)
     setRelationDrafts([])
     setRequestPreview(null)
@@ -285,14 +287,26 @@ export function ProblemAnalysisDialog({
     }
   }
 
-  const cancelAnalysis = () => {
+  const cancelAnalysis = (announce = true) => {
     const requestId = activeRequestId.current
     if (!requestId) return
     activeRequestId.current = null
     setRequestPreview(null)
     setIsBusy(false)
-    setError(t('AI 请求已取消，已填写的题目内容和模板选择均已保留。'))
+    if (announce) {
+      setError(t('AI 请求已取消，已填写的题目内容和模板选择均已保留。'))
+    }
     void window.desktop.problemAnalysis.cancel(requestId)
+  }
+
+  const closeDialog = () => {
+    if (isCommitting) return
+    if (activeRequestId.current) cancelAnalysis(false)
+    else {
+      setRequestPreview(null)
+      setIsBusy(false)
+    }
+    onOpenChange(false)
   }
 
   const previewAnalysis = async () => {
@@ -318,6 +332,7 @@ export function ProblemAnalysisDialog({
     event.preventDefault()
     setError(null)
     setIsBusy(true)
+    setIsCommitting(true)
     try {
       const tags = [
         ...new Set(
@@ -343,6 +358,7 @@ export function ProblemAnalysisDialog({
     } catch (caught) {
       setError(t(errorMessage(caught)))
     } finally {
+      setIsCommitting(false)
       setIsBusy(false)
     }
   }
@@ -392,7 +408,13 @@ export function ProblemAnalysisDialog({
     'mt-1.5 h-9 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring'
 
   return (
-    <Dialog.Root onOpenChange={value => !isBusy && onOpenChange(value)} open={open}>
+    <Dialog.Root
+      onOpenChange={value => {
+        if (value) onOpenChange(true)
+        else closeDialog()
+      }}
+      open={open}
+    >
       <Dialog.Portal>
         <Dialog.Overlay className="dialog-overlay fixed inset-0 z-50 bg-overlay/60 backdrop-blur-[3px]" />
         <Dialog.Content
@@ -422,8 +444,8 @@ export function ProblemAnalysisDialog({
             <Button
               aria-label={t('关闭新建题目')}
               className="ml-auto"
-              disabled={isBusy}
-              onClick={() => onOpenChange(false)}
+              disabled={isCommitting}
+              onClick={closeDialog}
               size="close"
               type="button"
               variant="ghost"
@@ -679,7 +701,7 @@ export function ProblemAnalysisDialog({
                     </Button>
                     {activeRequestId.current ? (
                       <Button
-                        onClick={cancelAnalysis}
+                        onClick={() => cancelAnalysis()}
                         size="compact"
                         type="button"
                         variant="outline"
@@ -900,7 +922,7 @@ export function ProblemAnalysisDialog({
               </p>
               <div className="flex gap-2">
                 <Dialog.Close asChild>
-                  <Button disabled={isBusy} type="button" variant="outline">
+                  <Button disabled={isCommitting} type="button" variant="outline">
                     {t('取消')}
                   </Button>
                 </Dialog.Close>
@@ -921,6 +943,7 @@ export function ProblemAnalysisDialog({
             if (activeRequestId.current) cancelAnalysis()
             else setRequestPreview(null)
           }}
+          onClose={closeDialog}
           onConfirm={() => void executeAnalysis()}
           preview={requestPreview}
           returnFocusTo={previewReturnFocusRef.current}
