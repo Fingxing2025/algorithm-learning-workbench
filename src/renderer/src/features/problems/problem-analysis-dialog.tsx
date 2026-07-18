@@ -153,7 +153,6 @@ export function ProblemAnalysisDialog({
   const [fields, setFields] = useState<CreateProblemRequest>(emptyFields)
   const [images, setImages] = useState<ProblemAnalysisImage[]>([])
   const [isBusy, setIsBusy] = useState(false)
-  const [isCommitting, setIsCommitting] = useState(false)
   const [outputLanguage, setOutputLanguage] = useState<AiOutputLanguage>('zh-CN')
   const [relationDrafts, setRelationDrafts] = useState<RelationDraft[]>([])
   const [requestPreview, setRequestPreview] = useState<AiRequestPreview | null>(null)
@@ -175,7 +174,6 @@ export function ProblemAnalysisDialog({
     setFields(emptyFields())
     setImages([])
     setIsBusy(false)
-    setIsCommitting(false)
     setOutputLanguage(localeRef.current)
     setRelationDrafts([])
     setRequestPreview(null)
@@ -300,7 +298,6 @@ export function ProblemAnalysisDialog({
   }
 
   const closeDialog = () => {
-    if (isCommitting) return
     if (activeRequestId.current) cancelAnalysis(false)
     else {
       setRequestPreview(null)
@@ -332,7 +329,6 @@ export function ProblemAnalysisDialog({
     event.preventDefault()
     setError(null)
     setIsBusy(true)
-    setIsCommitting(true)
     try {
       const tags = [
         ...new Set(
@@ -358,7 +354,6 @@ export function ProblemAnalysisDialog({
     } catch (caught) {
       setError(t(errorMessage(caught)))
     } finally {
-      setIsCommitting(false)
       setIsBusy(false)
     }
   }
@@ -444,7 +439,6 @@ export function ProblemAnalysisDialog({
             <Button
               aria-label={t('关闭新建题目')}
               className="ml-auto"
-              disabled={isCommitting}
               onClick={closeDialog}
               size="close"
               type="button"
@@ -922,7 +916,7 @@ export function ProblemAnalysisDialog({
               </p>
               <div className="flex gap-2">
                 <Dialog.Close asChild>
-                  <Button disabled={isCommitting} type="button" variant="outline">
+                  <Button type="button" variant="outline">
                     {t('取消')}
                   </Button>
                 </Dialog.Close>

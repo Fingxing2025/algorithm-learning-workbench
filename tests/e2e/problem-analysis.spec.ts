@@ -326,6 +326,8 @@ test('closes the whole problem card from the AI preview X before and during gene
   await page.getByRole('button', { name: 'AI 分析并补全' }).click()
   await page.getByRole('button', { name: '确认发送并生成' }).click()
   await expect.poll(() => heldAnalysisResponseStarted).toBe(true)
+  await expect(closePreviewButton).toBeEnabled()
+  await expect(page.locator('button[aria-label="关闭新建题目"]')).toBeEnabled()
 
   const closeIconBounds = await closePreviewButton.locator('svg').boundingBox()
   expect(closeIconBounds).not.toBeNull()
