@@ -73,7 +73,38 @@ test('preserves an existing V2 workspace across packaged app relaunch', async ()
     }, workspaceDirectory)
     await page.getByRole('button', { name: '创建工作区' }).click()
     await expect(page.getByRole('heading', { level: 1, name: '模板库' })).toBeVisible()
-    await page.getByRole('button', { name: '新建模板' }).click()
+    const createTemplateTrigger = page.getByRole('button', { name: '新建模板' })
+    const closeNewTemplateFromIconCenter = async () => {
+      const dialog = page.getByRole('dialog')
+      const closeButton = page.getByRole('button', { name: '关闭新建模板' })
+      await expect(closeButton).toBeEnabled()
+      await expect(dialog).toHaveCSS('-webkit-app-region', 'no-drag')
+      const iconBounds = await closeButton.locator('svg').boundingBox()
+      expect(iconBounds).not.toBeNull()
+      const center = {
+        x: iconBounds!.x + iconBounds!.width / 2,
+        y: iconBounds!.y + iconBounds!.height / 2,
+      }
+      expect(
+        await page.evaluate(point => {
+          const browser = globalThis as unknown as {
+            document: { elementFromPoint: (x: number, y: number) => { tagName: string } | null }
+          }
+          return browser.document.elementFromPoint(point.x, point.y)?.tagName.toLowerCase()
+        }, center),
+      ).toBe('button')
+      await page.mouse.click(center.x, center.y)
+      await expect(dialog).toHaveCount(0)
+      await expect(createTemplateTrigger).toBeFocused()
+    }
+
+    await createTemplateTrigger.click()
+    await closeNewTemplateFromIconCenter()
+    await createTemplateTrigger.click()
+    await page.getByLabel('补全语言').selectOption('en')
+    await closeNewTemplateFromIconCenter()
+
+    await createTemplateTrigger.click()
     await page.getByLabel('文件名').fill('release-smoke.cpp')
     await page
       .getByRole('textbox', { name: '模板源码', exact: true })

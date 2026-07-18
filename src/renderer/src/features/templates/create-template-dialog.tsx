@@ -377,6 +377,17 @@ export function CreateTemplateDialog({
     void window.desktop.templateManagement.cancelClassification(requestId)
   }
 
+  const closeDialog = () => {
+    if (activeClassificationRequestId.current) {
+      cancelClassification()
+    } else {
+      setRequestPreview(null)
+      setClassificationStartedAt(null)
+      setLocalBusy(false)
+    }
+    onOpenChange(false)
+  }
+
   const previewClassification = async () => {
     previewReturnFocusRef.current = activeElementOrNull()
     setLocalBusy(true)
@@ -402,7 +413,13 @@ export function CreateTemplateDialog({
 
   return (
     <>
-      <Dialog.Root onOpenChange={onOpenChange} open={open}>
+      <Dialog.Root
+        onOpenChange={nextOpen => {
+          if (!nextOpen) closeDialog()
+          else onOpenChange(true)
+        }}
+        open={open}
+      >
         <Dialog.Portal>
           <Dialog.Overlay className="dialog-overlay fixed inset-0 z-50 bg-overlay/60 backdrop-blur-[3px]" />
           <Dialog.Content
@@ -419,17 +436,16 @@ export function CreateTemplateDialog({
                   {t('粘贴源码即可请求 AI；所有元数据都能在写入前编辑和确认。')}
                 </Dialog.Description>
               </div>
-              <Dialog.Close asChild>
-                <Button
-                  aria-label={t('关闭新建模板')}
-                  className="ml-auto"
-                  size="close"
-                  type="button"
-                  variant="ghost"
-                >
-                  <X aria-hidden="true" className="size-4" />
-                </Button>
-              </Dialog.Close>
+              <Button
+                aria-label={t('关闭新建模板')}
+                className="ml-auto"
+                onClick={closeDialog}
+                size="close"
+                type="button"
+                variant="ghost"
+              >
+                <X aria-hidden="true" className="size-4" />
+              </Button>
             </header>
 
             <form className="flex min-h-0 flex-1 flex-col" onSubmit={handleSubmit}>
@@ -696,11 +712,9 @@ export function CreateTemplateDialog({
                   {t('创建前不会写入文件；同名文件永远不会被覆盖。')}
                 </p>
                 <div className="flex gap-2">
-                  <Dialog.Close asChild>
-                    <Button type="button" variant="outline">
-                      {t('取消')}
-                    </Button>
-                  </Dialog.Close>
+                  <Button onClick={closeDialog} type="button" variant="outline">
+                    {t('取消')}
+                  </Button>
                   <Button
                     disabled={isBusy || localBusy || !fileName.trim() || !content.trim()}
                     type="submit"

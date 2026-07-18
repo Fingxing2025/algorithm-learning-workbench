@@ -719,6 +719,11 @@ body {
   animation: dialog-overlay-out 140ms ease-in;
 }
 
+.dialog-overlay,
+.dialog-surface {
+  -webkit-app-region: no-drag;
+}
+
 .dialog-surface {
   transform-origin: center top;
   border-color: color-mix(in oklab, var(--border-strong) 66%, transparent);

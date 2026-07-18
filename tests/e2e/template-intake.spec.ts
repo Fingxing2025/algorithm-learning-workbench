@@ -369,6 +369,41 @@ test('allows manual metadata correction and persists it after restart', async ()
   await expect(page.getByText('这是用户确认后的本地笔记。')).toBeVisible()
 })
 
+test('keeps the new-template close action outside the native title-bar drag region', async () => {
+  const trigger = page.getByRole('button', { name: '新建模板' })
+  const assertIconCenterCloses = async () => {
+    const dialog = page.getByRole('dialog')
+    const closeButton = page.getByRole('button', { name: '关闭新建模板' })
+    await expect(closeButton).toBeEnabled()
+    await expect(dialog).toHaveCSS('-webkit-app-region', 'no-drag')
+
+    const closeIconBox = await closeButton.locator('svg').boundingBox()
+    expect(closeIconBox).not.toBeNull()
+    const closeIconCenter = {
+      x: closeIconBox!.x + closeIconBox!.width / 2,
+      y: closeIconBox!.y + closeIconBox!.height / 2,
+    }
+    expect(
+      await page.evaluate(point => {
+        const browser = globalThis as unknown as {
+          document: { elementFromPoint: (x: number, y: number) => { tagName: string } | null }
+        }
+        return browser.document.elementFromPoint(point.x, point.y)?.tagName.toLowerCase()
+      }, closeIconCenter),
+    ).toBe('button')
+    await page.mouse.click(closeIconCenter.x, closeIconCenter.y)
+    await expect(dialog).toHaveCount(0)
+    await expect(trigger).toBeFocused()
+  }
+
+  await trigger.click()
+  await assertIconCenterCloses()
+
+  await trigger.click()
+  await page.getByLabel('补全语言').selectOption('en')
+  await assertIconCenterCloses()
+})
+
 test('regenerates untouched AI metadata after switching completion language', async () => {
   await page.getByRole('button', { name: '新建模板' }).click()
   await page
