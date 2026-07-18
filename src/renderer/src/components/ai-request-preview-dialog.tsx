@@ -4,6 +4,7 @@ import { Braces, Database, FileText, Image, KeyRound, LoaderCircle, X } from 'lu
 import type { AiRequestPreview } from '@core/contracts/ai-request'
 
 import { Button } from '@/components/ui/button'
+import { restoreFocusAfterDialog } from '@/lib/focus-management'
 import { useI18n } from '@/lib/i18n'
 
 const itemIcons = {
@@ -20,6 +21,7 @@ export function AiRequestPreviewDialog({
   onConfirm,
   preview,
   progressText,
+  returnFocusTo,
 }: {
   allowCancelWhileBusy?: boolean
   busy: boolean
@@ -27,13 +29,17 @@ export function AiRequestPreviewDialog({
   onConfirm: () => void
   preview: AiRequestPreview
   progressText?: string
+  returnFocusTo?: HTMLElement | null
 }) {
   const { t } = useI18n()
   return (
     <Dialog.Root onOpenChange={open => !open && (!busy || allowCancelWhileBusy) && onCancel()} open>
       <Dialog.Portal>
         <Dialog.Overlay className="dialog-overlay fixed inset-0 z-[80] bg-overlay/75 backdrop-blur-[4px]" />
-        <Dialog.Content className="dialog-surface fixed left-1/2 top-1/2 z-[81] flex max-h-[min(760px,calc(100vh-32px))] w-[min(760px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-3xl border border-primary/20 bg-panel shadow-2xl outline-none ring-1 ring-white/8">
+        <Dialog.Content
+          className="dialog-surface fixed left-1/2 top-1/2 z-[81] flex max-h-[min(760px,calc(100vh-32px))] w-[min(760px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-3xl border border-primary/20 bg-panel shadow-2xl outline-none ring-1 ring-white/8"
+          onCloseAutoFocus={event => restoreFocusAfterDialog(event, returnFocusTo)}
+        >
           <header className="flex items-start gap-3 border-b border-border px-5 py-4">
             <span className="grid size-9 place-items-center rounded-xl bg-primary/10 text-primary">
               <Braces className="size-4" />

@@ -13,7 +13,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react'
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 
 import type {
   CreateProblemRequest,
@@ -30,6 +30,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ResizableLayout } from '@/components/resizable-layout'
 import { layoutPreferenceKeys } from '@/hooks/use-layout-preference'
+import { activeElementOrNull } from '@/lib/focus-management'
 import { useI18n } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 
@@ -98,6 +99,7 @@ export function ProblemWorkspace({
   const [query, setQuery] = useState('')
   const [relationEditorOpen, setRelationEditorOpen] = useState(false)
   const [editingRelation, setEditingRelation] = useState<ProblemTemplateRelation | null>(null)
+  const dialogReturnFocusRef = useRef<HTMLElement | null>(null)
 
   useEffect(() => {
     setConfirmDeleteProblem(false)
@@ -137,6 +139,7 @@ export function ProblemWorkspace({
   }, [editingRelation, selectedProblem, templates])
 
   const openCreateEditor = () => {
+    dialogReturnFocusRef.current = activeElementOrNull()
     onClearError()
     setAnalysisOpen(true)
   }
@@ -145,6 +148,7 @@ export function ProblemWorkspace({
     if (!selectedProblem) {
       return
     }
+    dialogReturnFocusRef.current = activeElementOrNull()
     onClearError()
     setEditingProblem(selectedProblem)
     setEditorOpen(true)
@@ -161,6 +165,7 @@ export function ProblemWorkspace({
   }
 
   const openRelationEditor = (relation: ProblemTemplateRelation | null) => {
+    dialogReturnFocusRef.current = activeElementOrNull()
     onClearError()
     setEditingRelation(relation)
     setRelationEditorOpen(true)
@@ -699,6 +704,7 @@ export function ProblemWorkspace({
         onSave={handleSaveProblem}
         open={editorOpen}
         problem={editingProblem}
+        returnFocusTo={dialogReturnFocusRef.current}
       />
       {selectedProblem && (
         <RelationDialog
@@ -715,6 +721,7 @@ export function ProblemWorkspace({
           onSave={handleSaveRelation}
           open={relationEditorOpen}
           problemId={selectedProblem.id}
+          returnFocusTo={dialogReturnFocusRef.current}
           templates={relationTemplates}
         />
       )}
@@ -727,6 +734,7 @@ export function ProblemWorkspace({
             }}
             onOpenChange={setAnalysisOpen}
             open={analysisOpen}
+            returnFocusTo={dialogReturnFocusRef.current}
             templates={templates}
           />
         </Suspense>

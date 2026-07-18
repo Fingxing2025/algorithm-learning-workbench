@@ -6,6 +6,7 @@ import type { Problem, RelationType, UpsertProblemRelationRequest } from '@core/
 import type { TemplateSummary } from '@core/contracts/workspace'
 
 import { Button } from '@/components/ui/button'
+import { restoreFocusAfterDialog } from '@/lib/focus-management'
 import { useI18n } from '@/lib/i18n'
 
 import { relationTypeLabels } from '../problems/problem-labels'
@@ -17,6 +18,7 @@ interface TemplateProblemRelationDialogProps {
   onSave: (request: UpsertProblemRelationRequest) => Promise<boolean>
   open: boolean
   problems: Problem[]
+  returnFocusTo?: HTMLElement | null
   template: TemplateSummary
 }
 
@@ -27,6 +29,7 @@ export function TemplateProblemRelationDialog({
   onSave,
   open,
   problems,
+  returnFocusTo,
   template,
 }: TemplateProblemRelationDialogProps) {
   const { t } = useI18n()
@@ -63,7 +66,10 @@ export function TemplateProblemRelationDialog({
     <Dialog.Root onOpenChange={onOpenChange} open={open}>
       <Dialog.Portal>
         <Dialog.Overlay className="dialog-overlay fixed inset-0 z-[60] bg-overlay/60 backdrop-blur-[3px]" />
-        <Dialog.Content className="dialog-surface fixed left-1/2 top-1/2 z-[60] w-[min(540px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-3xl border border-primary/18 bg-panel shadow-2xl outline-none ring-1 ring-white/8">
+        <Dialog.Content
+          className="dialog-surface fixed left-1/2 top-1/2 z-[60] w-[min(540px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-3xl border border-primary/18 bg-panel shadow-2xl outline-none ring-1 ring-white/8"
+          onCloseAutoFocus={event => restoreFocusAfterDialog(event, returnFocusTo)}
+        >
           <header className="flex items-start border-b border-border px-5 py-4">
             <span className="mr-3 grid size-9 place-items-center rounded-xl bg-primary/10 text-primary">
               <Link2 aria-hidden="true" className="size-4" />
@@ -113,6 +119,7 @@ export function TemplateProblemRelationDialog({
                   {t('选择题目')}
                 </label>
                 <select
+                  autoFocus
                   className={inputClass}
                   disabled={isBusy}
                   id="template-relation-problem"

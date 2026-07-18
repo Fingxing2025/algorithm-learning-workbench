@@ -22,6 +22,7 @@ import type { AiRequestPreview } from '@core/contracts/ai-request'
 
 import { AiRequestPreviewDialog } from '@/components/ai-request-preview-dialog'
 import { Button } from '@/components/ui/button'
+import { activeElementOrNull, restoreFocusAfterDialog } from '@/lib/focus-management'
 import { useI18n } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 
@@ -45,6 +46,7 @@ interface CreateTemplateDialogProps {
   onCreate: (request: ImportTemplateRequest) => Promise<boolean>
   onOpenChange: (open: boolean) => void
   open: boolean
+  returnFocusTo?: HTMLElement | null
 }
 
 function MetadataConflictDialog({
@@ -192,6 +194,7 @@ export function CreateTemplateDialog({
   onCreate,
   onOpenChange,
   open,
+  returnFocusTo,
 }: CreateTemplateDialogProps) {
   const { locale, t } = useI18n()
   const [batchOpen, setBatchOpen] = useState(false)
@@ -211,6 +214,7 @@ export function CreateTemplateDialog({
   const [metadata, setMetadata] = useState<TemplateMetadataFields>(emptyTemplateMetadata)
   const [metadataLanguage, setMetadataLanguage] = useState<TemplateMetadataLanguage>(locale)
   const [requestPreview, setRequestPreview] = useState<AiRequestPreview | null>(null)
+  const previewReturnFocusRef = useRef<HTMLElement | null>(null)
   const [pendingClassification, setPendingClassification] = useState<TemplateClassification | null>(
     null,
   )
@@ -374,6 +378,7 @@ export function CreateTemplateDialog({
   }
 
   const previewClassification = async () => {
+    previewReturnFocusRef.current = activeElementOrNull()
     setLocalBusy(true)
     setLocalError(null)
     try {
@@ -400,7 +405,10 @@ export function CreateTemplateDialog({
       <Dialog.Root onOpenChange={onOpenChange} open={open}>
         <Dialog.Portal>
           <Dialog.Overlay className="dialog-overlay fixed inset-0 z-50 bg-overlay/60 backdrop-blur-[3px]" />
-          <Dialog.Content className="dialog-surface fixed left-1/2 top-1/2 z-50 flex h-[min(820px,calc(100vh-32px))] w-[min(1120px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-3xl border border-primary/18 bg-panel shadow-2xl outline-none ring-1 ring-white/8">
+          <Dialog.Content
+            className="dialog-surface fixed left-1/2 top-1/2 z-50 flex h-[min(820px,calc(100vh-32px))] w-[min(1120px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-3xl border border-primary/18 bg-panel shadow-2xl outline-none ring-1 ring-white/8"
+            onCloseAutoFocus={event => restoreFocusAfterDialog(event, returnFocusTo)}
+          >
             <header className="flex items-start border-b border-border px-5 py-4">
               <span className="mr-3 grid size-9 place-items-center rounded-xl bg-primary/10 text-primary">
                 <FilePlus2 aria-hidden="true" className="size-4" />
@@ -730,6 +738,7 @@ export function CreateTemplateDialog({
             }}
             onConfirm={() => void executeClassification()}
             preview={requestPreview}
+            returnFocusTo={previewReturnFocusRef.current}
             progressText={
               classificationStartedAt === null
                 ? undefined

@@ -7,6 +7,7 @@ import type { TemplateSummary } from '@core/contracts/workspace'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { restoreFocusAfterDialog } from '@/lib/focus-management'
 import { useI18n } from '@/lib/i18n'
 
 interface CommandPaletteProps {
@@ -15,6 +16,7 @@ interface CommandPaletteProps {
   onSelectTemplate: (templateId: string) => void
   open: boolean
   problems: Problem[]
+  returnFocusTo?: HTMLElement | null
   templates: TemplateSummary[]
 }
 
@@ -27,6 +29,7 @@ export function CommandPalette({
   onSelectTemplate,
   open,
   problems,
+  returnFocusTo,
   templates,
 }: CommandPaletteProps) {
   const { t } = useI18n()
@@ -75,7 +78,10 @@ export function CommandPalette({
     <Dialog.Root onOpenChange={onOpenChange} open={open}>
       <Dialog.Portal>
         <Dialog.Overlay className="dialog-overlay fixed inset-0 z-50 bg-overlay/58 backdrop-blur-[3px]" />
-        <Dialog.Content className="dialog-surface fixed left-1/2 top-[13%] z-50 w-[min(700px,calc(100vw-32px))] -translate-x-1/2 overflow-hidden rounded-3xl border border-primary/18 bg-panel shadow-[0_32px_80px_-32px_var(--shadow-color)] outline-none ring-1 ring-white/8">
+        <Dialog.Content
+          className="dialog-surface fixed left-1/2 top-[13%] z-50 w-[min(700px,calc(100vw-32px))] -translate-x-1/2 overflow-hidden rounded-3xl border border-primary/18 bg-panel shadow-[0_32px_80px_-32px_var(--shadow-color)] outline-none ring-1 ring-white/8"
+          onCloseAutoFocus={event => restoreFocusAfterDialog(event, returnFocusTo)}
+        >
           <div className="flex items-center gap-3 border-b border-border bg-surface-subtle/55 px-4">
             <span className="grid size-8 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary ring-1 ring-primary/10">
               <Search aria-hidden="true" className="size-4" />

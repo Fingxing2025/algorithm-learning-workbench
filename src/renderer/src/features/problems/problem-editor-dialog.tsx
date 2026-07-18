@@ -9,6 +9,7 @@ import {
 } from '@core/contracts/problem'
 
 import { Button } from '@/components/ui/button'
+import { restoreFocusAfterDialog } from '@/lib/focus-management'
 import { useI18n } from '@/lib/i18n'
 
 import { problemStatusLabels } from './problem-labels'
@@ -20,6 +21,7 @@ interface ProblemEditorDialogProps {
   onSave: (fields: CreateProblemRequest) => Promise<boolean>
   open: boolean
   problem: Problem | null
+  returnFocusTo?: HTMLElement | null
 }
 
 function emptyFields(): CreateProblemRequest {
@@ -50,6 +52,7 @@ export function ProblemEditorDialog({
   onSave,
   open,
   problem,
+  returnFocusTo,
 }: ProblemEditorDialogProps) {
   const { t } = useI18n()
   const [fields, setFields] = useState<CreateProblemRequest>(emptyFields)
@@ -101,7 +104,10 @@ export function ProblemEditorDialog({
     <Dialog.Root onOpenChange={onOpenChange} open={open}>
       <Dialog.Portal>
         <Dialog.Overlay className="dialog-overlay fixed inset-0 z-50 bg-overlay/60 backdrop-blur-[3px]" />
-        <Dialog.Content className="dialog-surface fixed left-1/2 top-1/2 z-50 flex h-[min(780px,calc(100vh-32px))] w-[min(820px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-3xl border border-success/18 bg-panel shadow-2xl outline-none ring-1 ring-white/8">
+        <Dialog.Content
+          className="dialog-surface fixed left-1/2 top-1/2 z-50 flex h-[min(780px,calc(100vh-32px))] w-[min(820px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-3xl border border-success/18 bg-panel shadow-2xl outline-none ring-1 ring-white/8"
+          onCloseAutoFocus={event => restoreFocusAfterDialog(event, returnFocusTo)}
+        >
           <header className="flex items-start border-b border-border px-5 py-4">
             <span className="mr-3 grid size-9 place-items-center rounded-xl bg-success/11 text-success ring-1 ring-success/12">
               <BookOpenText aria-hidden="true" className="size-4" />

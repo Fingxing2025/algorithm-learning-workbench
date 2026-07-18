@@ -180,6 +180,12 @@ export function TemplateTree({
     }
   }
 
+  const focusRow = (index: number) => {
+    const nextIndex = Math.min(rows.length - 1, Math.max(0, index))
+    setFocusedIndex(nextIndex)
+    virtualizer.scrollToIndex(nextIndex, { align: 'auto' })
+  }
+
   const handleTreeKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (rows.length === 0) {
       return
@@ -187,9 +193,12 @@ export function TemplateTree({
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault()
       const delta = event.key === 'ArrowDown' ? 1 : -1
-      const nextIndex = Math.min(rows.length - 1, Math.max(0, focusedIndex + delta))
-      setFocusedIndex(nextIndex)
-      virtualizer.scrollToIndex(nextIndex, { align: 'auto' })
+      focusRow(focusedIndex + delta)
+      return
+    }
+    if (event.key === 'Home' || event.key === 'End') {
+      event.preventDefault()
+      focusRow(event.key === 'Home' ? 0 : rows.length - 1)
       return
     }
 
@@ -202,22 +211,36 @@ export function TemplateTree({
       activateRow(focusedRow)
     } else if (event.key === 'ArrowRight' && focusedRow.kind === 'directory') {
       event.preventDefault()
-      setExpansionState(current => ({
-        ids: new Set(current.workspaceId === workspaceId ? current.ids : []).add(focusedRow.id),
-        workspaceId,
-      }))
-    } else if (event.key === 'ArrowLeft' && focusedRow.kind === 'directory') {
+      if (expandedIds.has(focusedRow.id)) {
+        const firstChild = rows[focusedIndex + 1]
+        if (firstChild && firstChild.depth > focusedRow.depth) focusRow(focusedIndex + 1)
+      } else {
+        setExpansionState(current => ({
+          ids: new Set(current.workspaceId === workspaceId ? current.ids : []).add(focusedRow.id),
+          workspaceId,
+        }))
+      }
+    } else if (event.key === 'ArrowLeft') {
       event.preventDefault()
-      setTemporaryExpandedIds(current => {
-        const next = new Set(current)
-        next.delete(focusedRow.id)
-        return next
-      })
-      setExpansionState(current => {
-        const next = new Set(current.workspaceId === workspaceId ? current.ids : [])
-        next.delete(focusedRow.id)
-        return { ids: next, workspaceId }
-      })
+      if (focusedRow.kind === 'directory' && expandedIds.has(focusedRow.id)) {
+        setTemporaryExpandedIds(current => {
+          const next = new Set(current)
+          next.delete(focusedRow.id)
+          return next
+        })
+        setExpansionState(current => {
+          const next = new Set(current.workspaceId === workspaceId ? current.ids : [])
+          next.delete(focusedRow.id)
+          return { ids: next, workspaceId }
+        })
+      } else {
+        for (let index = focusedIndex - 1; index >= 0; index -= 1) {
+          if (rows[index]!.depth < focusedRow.depth) {
+            focusRow(index)
+            break
+          }
+        }
+      }
     }
   }
 

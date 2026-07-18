@@ -10,7 +10,7 @@ import {
   RefreshCw,
   Trash2,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import type { Problem, RelationType, UpsertProblemRelationRequest } from '@core/contracts/problem'
 import type { TemplateActionRequest, TemplateSummary } from '@core/contracts/workspace'
@@ -18,6 +18,7 @@ import type { FileChangeMutationResult } from '@core/contracts/template-manageme
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { activeElementOrNull } from '@/lib/focus-management'
 import { useI18n } from '@/lib/i18n'
 
 import type { TemplateSourceState } from './use-template-source'
@@ -77,6 +78,7 @@ export function AlgorithmCard({
   const [relationDialogOpen, setRelationDialogOpen] = useState(false)
   const [relocationOpen, setRelocationOpen] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const relationReturnFocusRef = useRef<HTMLElement | null>(null)
 
   useEffect(() => {
     setConfirmDelete(false)
@@ -264,6 +266,7 @@ export function AlgorithmCard({
             <Button
               disabled={isProblemBusy || problems.length === 0}
               onClick={() => {
+                relationReturnFocusRef.current = activeElementOrNull()
                 onClearProblemError()
                 setRelationDialogOpen(true)
               }}
@@ -311,6 +314,7 @@ export function AlgorithmCard({
         onSave={onUpsertProblemRelation}
         open={relationDialogOpen}
         problems={problems}
+        returnFocusTo={relationReturnFocusRef.current}
         template={template}
       />
       <TemplateRelocationDialog

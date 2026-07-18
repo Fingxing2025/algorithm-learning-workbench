@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Archive,
   ArchiveRestore,
@@ -95,6 +95,13 @@ export function DataManagementWorkspace() {
   const [confirmRestore, setConfirmRestore] = useState(false)
   const [operation, setOperation] = useState<Operation | null>(null)
   const [message, setMessage] = useState<string | null>(null)
+  const [messageKind, setMessageKind] = useState<'error' | 'success'>('success')
+  const restoreConfirmationRef = useRef<HTMLInputElement>(null)
+
+  const setSuccessMessage = (nextMessage: string) => {
+    setMessageKind('success')
+    setMessage(nextMessage)
+  }
 
   const run = async (nextOperation: Operation, task: () => Promise<void>) => {
     setOperation(nextOperation)
@@ -102,6 +109,7 @@ export function DataManagementWorkspace() {
     try {
       await task()
     } catch (error) {
+      setMessageKind('error')
       setMessage(error instanceof Error ? t(error.message) : t('数据操作未完成。'))
     } finally {
       setOperation(null)
@@ -145,6 +153,10 @@ export function DataManagementWorkspace() {
     void refreshDiagnostics()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  useEffect(() => {
+    if (restorePreview?.canRestore) restoreConfirmationRef.current?.focus()
+  }, [restorePreview])
 
   const counts = diagnostics?.counts
   const issueCount = diagnostics?.issues.reduce((total, issue) => total + issue.count, 0) ?? 0
@@ -309,8 +321,14 @@ export function DataManagementWorkspace() {
         <div className="mx-auto grid max-w-[1120px] gap-4">
           {message && (
             <div
-              role="alert"
-              className="rounded-xl border border-warning/30 bg-warning/10 p-3 text-sm text-warning"
+              aria-atomic="true"
+              aria-live={messageKind === 'error' ? 'assertive' : 'polite'}
+              role={messageKind === 'error' ? 'alert' : 'status'}
+              className={
+                messageKind === 'error'
+                  ? 'rounded-xl border border-warning/30 bg-warning/10 p-3 text-sm text-warning'
+                  : 'rounded-xl border border-success/25 bg-success/8 p-3 text-sm text-success'
+              }
             >
               {message}
             </div>
@@ -611,7 +629,7 @@ export function DataManagementWorkspace() {
                               setDiagnostics(await window.desktop.dataManagement.diagnose())
                               setInterruptedPreview(null)
                               setConfirmInterruptedRecovery(false)
-                              setMessage(t('异常操作已按预览安全处理。'))
+                              setSuccessMessage(t('异常操作已按预览安全处理。'))
                             })
                           }
                           type="button"
@@ -785,7 +803,9 @@ export function DataManagementWorkspace() {
                               setSelectedCandidateIds([])
                               setCleanupPreview(null)
                               setConfirmQuarantine(false)
-                              setMessage(t('所选项目已移入隔离区，可以撤销；没有永久删除文件。'))
+                              setSuccessMessage(
+                                t('所选项目已移入隔离区，可以撤销；没有永久删除文件。'),
+                              )
                             })
                           }
                           type="button"
@@ -827,7 +847,7 @@ export function DataManagementWorkspace() {
                                   })
                                   setLifecycle(result.inventory)
                                   setDiagnostics(await window.desktop.dataManagement.diagnose())
-                                  setMessage(
+                                  setSuccessMessage(
                                     t('已从隔离区恢复 {count} 项；未覆盖任何后续文件。', {
                                       count: result.restoredCount,
                                     }),
@@ -913,7 +933,7 @@ export function DataManagementWorkspace() {
                               setDiagnostics(await window.desktop.dataManagement.diagnose())
                               setQuarantineReleasePreview(null)
                               setConfirmQuarantineRelease(false)
-                              setMessage(
+                              setSuccessMessage(
                                 t('隔离记录已移交系统废纸篓；永久清空仍由操作系统和你决定。'),
                               )
                             })
@@ -949,6 +969,7 @@ export function DataManagementWorkspace() {
               </div>
               <label className="flex items-center gap-2 rounded-xl border border-border px-3 py-2 text-xs">
                 <input
+                  aria-label={t('包含模板源码副本')}
                   checked={includeTemplateSources}
                   className="size-4 accent-[hsl(var(--primary))]"
                   onChange={event => setIncludeTemplateSources(event.currentTarget.checked)}
@@ -967,7 +988,7 @@ export function DataManagementWorkspace() {
                     })
                     setExportResult(result)
                     setVerification(result?.verification ?? null)
-                    if (result) setMessage(t('备份已导出并通过校验。'))
+                    if (result) setSuccessMessage(t('备份已导出并通过校验。'))
                   })
                 }
                 type="button"
@@ -1071,6 +1092,7 @@ export function DataManagementWorkspace() {
                         checked={confirmRestore}
                         className="mt-0.5 size-4 accent-[hsl(var(--warning))]"
                         onChange={event => setConfirmRestore(event.currentTarget.checked)}
+                        ref={restoreConfirmationRef}
                         type="checkbox"
                       />
                       <span>{t('我已确认恢复预览，并允许应用恢复 userData 中的数据副本。')}</span>
@@ -1088,7 +1110,7 @@ export function DataManagementWorkspace() {
                           })
                           setRestoreResult(result)
                           setDiagnostics(await window.desktop.dataManagement.diagnose())
-                          setMessage(
+                          setSuccessMessage(
                             result.providerSecretsNeedReentry
                               ? t('恢复完成。Provider 密钥未恢复，请重新配置密钥。')
                               : t('恢复完成。恢复前自动备份已保存。'),

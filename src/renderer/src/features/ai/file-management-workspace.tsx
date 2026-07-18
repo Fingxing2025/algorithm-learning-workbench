@@ -12,7 +12,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 
 import type { AiRequestPreview } from '@core/contracts/ai-request'
 import type {
@@ -26,6 +26,7 @@ import type { WorkspaceSnapshot } from '@core/contracts/workspace'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { AiRequestPreviewDialog } from '@/components/ai-request-preview-dialog'
+import { activeElementOrNull } from '@/lib/focus-management'
 import { useI18n } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 
@@ -99,6 +100,9 @@ export function FileManagementWorkspace({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [selectedHistoryPlanId, setSelectedHistoryPlanId] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+  const confirmApplyButtonRef = useRef<HTMLButtonElement>(null)
+  const confirmApplyTriggerRef = useRef<HTMLButtonElement>(null)
+  const previewReturnFocusRef = useRef<HTMLElement | null>(null)
   const draftPlan = useMemo(() => plans.find(plan => plan.status === 'draft') ?? null, [plans])
   const historyPlans = useMemo(() => plans.filter(plan => plan.status !== 'draft'), [plans])
   const operationGroups = useMemo(() => {
@@ -137,7 +141,12 @@ export function FileManagementWorkspace({
     try {
       await operation()
     } catch (caught) {
-      setError(t(errorMessage(caught)))
+      const message = errorMessage(caught)
+      if (action === 'generate' && message.includes('取消')) {
+        setSuccess(t('AI 生成已取消，未创建计划或修改文件。'))
+      } else {
+        setError(t(message))
+      }
     } finally {
       setBusyAction(null)
     }
@@ -150,8 +159,9 @@ export function FileManagementWorkspace({
       setSuccess(t('只读扫描完成：发现 {count} 项建议。', { count: value.issues.length }))
     })
 
-  const previewPlan = () =>
-    run('preview', async () => {
+  const previewPlan = () => {
+    previewReturnFocusRef.current = activeElementOrNull()
+    return run('preview', async () => {
       const requestId = crypto.randomUUID()
       const preview = await window.desktop.templateManagement.previewFilePlan({
         outputLanguage: locale,
@@ -160,6 +170,38 @@ export function FileManagementWorkspace({
       setFilePlanRequestId(requestId)
       setFilePlanPreview(preview)
     })
+  }
+
+  useEffect(() => {
+    if (confirmApply) confirmApplyButtonRef.current?.focus()
+  }, [confirmApply])
+
+  const closeApplyConfirmation = () => {
+    setConfirmApply(false)
+    window.requestAnimationFrame(() => confirmApplyTriggerRef.current?.focus())
+  }
+
+  const handlePlanHistoryKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.target !== event.currentTarget) return
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault()
+      event.currentTarget.scrollBy({
+        behavior: 'auto',
+        top: event.key === 'ArrowDown' ? 48 : -48,
+      })
+    } else if (event.key === 'Home' || event.key === 'End') {
+      event.preventDefault()
+      event.currentTarget.scrollTop = event.key === 'Home' ? 0 : event.currentTarget.scrollHeight
+    } else if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault()
+      const selector = selectedHistoryPlanId
+        ? `[data-plan-select="${selectedHistoryPlanId}"]`
+        : '[data-plan-select]'
+      const planButton = event.currentTarget.querySelector<HTMLButtonElement>(selector)
+      planButton?.focus()
+      planButton?.click()
+    }
+  }
 
   const generatePlan = () => {
     if (!filePlanRequestId || !filePlanPreview) return
@@ -345,6 +387,8 @@ export function FileManagementWorkspace({
         <div className="relative mx-auto max-w-[1180px]">
           {busyAction === 'generate' && (
             <div
+              aria-atomic="true"
+              aria-live="polite"
               className="mb-4 flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/6 px-3 py-2.5 text-xs"
               role="status"
             >
@@ -359,6 +403,8 @@ export function FileManagementWorkspace({
           )}
           {(error || success) && (
             <div
+              aria-atomic="true"
+              aria-live={error ? 'assertive' : 'polite'}
               className={cn(
                 'mb-4 flex flex-wrap items-center gap-2 rounded-xl border px-3 py-2.5 text-xs',
                 error
@@ -564,6 +610,7 @@ export function FileManagementWorkspace({
                       <Button
                         disabled={Boolean(busyAction) || selectedIds.size === 0}
                         onClick={applyPlan}
+                        ref={confirmApplyButtonRef}
                         size="compact"
                         type="button"
                       >
@@ -571,7 +618,7 @@ export function FileManagementWorkspace({
                         {t('确认执行')}
                       </Button>
                       <Button
-                        onClick={() => setConfirmApply(false)}
+                        onClick={closeApplyConfirmation}
                         size="compact"
                         type="button"
                         variant="outline"
@@ -583,6 +630,7 @@ export function FileManagementWorkspace({
                     <Button
                       disabled={selectedIds.size === 0 || Boolean(busyAction)}
                       onClick={() => setConfirmApply(true)}
+                      ref={confirmApplyTriggerRef}
                       size="compact"
                       type="button"
                       variant="outline"
@@ -701,6 +749,8 @@ export function FileManagementWorkspace({
                 <div
                   aria-label={t('文件计划历史列表')}
                   className="mt-3 max-h-64 space-y-2 overflow-y-auto pr-1 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  onKeyDown={handlePlanHistoryKeyDown}
+                  role="region"
                   tabIndex={0}
                 >
                   {historyPlans.length === 0 ? (
@@ -721,6 +771,7 @@ export function FileManagementWorkspace({
                         <button
                           aria-pressed={selectedHistoryPlanId === plan.id}
                           className="flex min-w-0 flex-1 items-center gap-2 rounded outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          data-plan-select={plan.id}
                           onClick={() => setSelectedHistoryPlanId(plan.id)}
                           type="button"
                         >
@@ -848,6 +899,7 @@ export function FileManagementWorkspace({
           }}
           onConfirm={generatePlan}
           preview={filePlanPreview}
+          returnFocusTo={previewReturnFocusRef.current}
         />
       )}
     </main>

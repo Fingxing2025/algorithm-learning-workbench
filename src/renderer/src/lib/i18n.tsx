@@ -7,6 +7,8 @@ const LOCALE_STORAGE_KEY = 'ui:locale'
 const english: Record<string, string> = {
   'AI 变更先预览': 'Preview AI changes first',
   'AI 管理': 'AI Management',
+  'AI 生成已取消，未创建计划或修改文件。':
+    'AI generation cancelled. No plan was created and no files were changed.',
   'AI 设置': 'AI Settings',
   个模板: 'templates',
   '个模板 · 本地索引': 'templates · local index',
@@ -45,6 +47,7 @@ const english: Record<string, string> = {
   当前工作区: 'Current workspace',
   当前工作区页面: 'Current workspace page',
   当前索引: 'Current index',
+  '已切换到 {page}': 'Switched to {page}',
   当前没有待处理变更: 'No pending changes',
   待确认计划: 'Pending plans',
   '待确认计划，打开 AI 管理': 'Pending plans, open AI Management',

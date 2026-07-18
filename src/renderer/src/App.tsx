@@ -28,7 +28,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import type { Problem, UpsertProblemRelationRequest } from '@core/contracts/problem'
 import type {
@@ -41,6 +41,7 @@ import type { ImportTemplateRequest } from '@core/contracts/template-management'
 import type { FileChangeMutationResult } from '@core/contracts/template-management'
 
 import { CommandPalette } from '@/components/command-palette'
+import { LiveRegion } from '@/components/live-region'
 import { ResizableLayout } from '@/components/resizable-layout'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -54,6 +55,7 @@ import { WorkspaceOnboarding } from '@/features/templates/workspace-onboarding'
 import { useRuntimeInfo } from '@/hooks/use-runtime-info'
 import { layoutPreferenceKeys, resetLayoutPreferences } from '@/hooks/use-layout-preference'
 import { useTheme } from '@/hooks/use-theme'
+import { activeElementOrNull } from '@/lib/focus-management'
 import { cn } from '@/lib/utils'
 import { I18nProvider, useI18n } from '@/lib/i18n'
 
@@ -781,9 +783,12 @@ function AppContent() {
   const [currentView, setCurrentView] = useState<AppView>('dashboard')
   const [notice, setNotice] = useState<string | null>(null)
   const [pendingPlanCount, setPendingPlanCount] = useState(0)
+  const [pageAnnouncement, setPageAnnouncement] = useState<string | null>(null)
   const [selectedProblemId, setSelectedProblemId] = useState<string | null>(null)
   const [revealTemplateId, setRevealTemplateId] = useState<string | null>(null)
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null)
+  const commandReturnFocusRef = useRef<HTMLElement | null>(null)
+  const createReturnFocusRef = useRef<HTMLElement | null>(null)
   const prefersReducedMotion = useReducedMotion()
   const { locale, t, toggleLocale } = useI18n()
   const runtimeState = useRuntimeInfo()
@@ -804,6 +809,16 @@ function AppContent() {
   } = useWorkspace()
   const source = useTemplateSource(selectedTemplateId)
 
+  const openCommandPalette = useCallback(() => {
+    commandReturnFocusRef.current = activeElementOrNull()
+    setCommandOpen(true)
+  }, [])
+
+  const openCreateDialog = useCallback(() => {
+    createReturnFocusRef.current = activeElementOrNull()
+    setCreateOpen(true)
+  }, [])
+
   const selectedTemplate = useMemo(
     () => workspace?.templates.find(template => template.id === selectedTemplateId) ?? null,
     [selectedTemplateId, workspace],
@@ -817,7 +832,7 @@ function AppContent() {
     const handleKeyDown = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
         event.preventDefault()
-        setCommandOpen(true)
+        openCommandPalette()
         return
       }
 
@@ -831,7 +846,7 @@ function AppContent() {
       const key = event.key.toLowerCase()
       if (event.shiftKey && key === 'n' && workspace?.available) {
         event.preventDefault()
-        setCreateOpen(true)
+        openCreateDialog()
         return
       }
 
@@ -851,7 +866,19 @@ function AppContent() {
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [workspace?.available])
+  }, [openCommandPalette, openCreateDialog, workspace?.available])
+
+  useEffect(() => {
+    const viewLabel: Record<AppView, string> = {
+      ai: 'AI 管理',
+      dashboard: '工作台',
+      data: '数据管理',
+      problems: '题目',
+      settings: 'AI 设置',
+      templates: '模板库',
+    }
+    setPageAnnouncement(t('已切换到 {page}', { page: t(viewLabel[currentView]) }))
+  }, [currentView, t])
 
   useEffect(() => {
     if (
@@ -1068,7 +1095,7 @@ function AppContent() {
           onAction={request => void handleTemplateAction(request)}
           onChangeWorkspace={() => void handleChooseWorkspace({ intent: 'open' })}
           onClearProblemError={problemState.clearError}
-          onCreateTemplate={() => setCreateOpen(true)}
+          onCreateTemplate={openCreateDialog}
           onDeleteTemplate={handleDeleteTemplate}
           onOpenProblem={openProblem}
           onReloadSource={source.reload}
@@ -1123,7 +1150,7 @@ function AppContent() {
 
     return (
       <Dashboard
-        onCreateTemplate={() => setCreateOpen(true)}
+        onCreateTemplate={openCreateDialog}
         onOpenAi={() => setCurrentView('ai')}
         onOpenProblem={openProblem}
         onOpenProblems={() => setCurrentView('problems')}
@@ -1138,6 +1165,7 @@ function AppContent() {
 
   return (
     <Tooltip.Provider delayDuration={300}>
+      <LiveRegion message={pageAnnouncement} testId="page-announcement" />
       <div className="app-shell grid h-screen min-h-[640px] grid-rows-[60px_minmax(0,1fr)_30px] overflow-hidden text-foreground">
         <header
           className={cn(
@@ -1161,7 +1189,7 @@ function AppContent() {
             <button
               aria-label={t('打开全局搜索')}
               className="glass-search hidden h-9 min-w-60 items-center gap-2 rounded-xl border px-3 text-xs text-muted-foreground shadow-xs outline-none transition-all hover:-translate-y-0.5 hover:border-primary/30 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring md:flex"
-              onClick={() => setCommandOpen(true)}
+              onClick={openCommandPalette}
               type="button"
             >
               <Search aria-hidden="true" className="size-3.5" />
@@ -1288,7 +1316,7 @@ function AppContent() {
               <button
                 aria-label={t('搜索知识库')}
                 className="quick-action-row group"
-                onClick={() => setCommandOpen(true)}
+                onClick={openCommandPalette}
                 type="button"
               >
                 <Search aria-hidden="true" className="size-3.5 text-primary" />
@@ -1301,7 +1329,7 @@ function AppContent() {
                 aria-label={t('打开模板创建窗口')}
                 className="quick-action-row group"
                 disabled={!workspace?.available}
-                onClick={() => setCreateOpen(true)}
+                onClick={openCreateDialog}
                 type="button"
               >
                 <Plus aria-hidden="true" className="size-3.5 text-accent-cyan" />
@@ -1363,6 +1391,8 @@ function AppContent() {
                 >
                   <motion.div
                     animate={{ y: 0 }}
+                    aria-atomic="true"
+                    aria-live={workspaceError ? 'assertive' : 'polite'}
                     className={cn(
                       'glass-floating flex items-center gap-2 rounded-xl border px-3 py-2 text-xs shadow-panel',
                       workspaceError
@@ -1425,6 +1455,7 @@ function AppContent() {
         onSelectTemplate={openTemplate}
         open={commandOpen}
         problems={problemState.problems}
+        returnFocusTo={commandReturnFocusRef.current}
         templates={workspace?.templates ?? []}
       />
       <CreateTemplateDialog
@@ -1444,6 +1475,7 @@ function AppContent() {
           }
         }}
         open={createOpen}
+        returnFocusTo={createReturnFocusRef.current}
       />
     </Tooltip.Provider>
   )

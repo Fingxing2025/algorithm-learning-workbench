@@ -166,7 +166,7 @@ test('exports and verifies a blank user data backup, then rejects tampering', as
   const backupPath = join(temporaryRoot, 'blank-export.awb-backup')
   await setNextSavePath(backupPath)
   await page.getByRole('button', { name: '导出备份' }).click()
-  await expect(page.getByRole('alert')).toContainText('备份已导出并通过校验')
+  await expect(page.getByRole('status')).toContainText('备份已导出并通过校验')
   await expect(page.getByText('备份包校验通过')).toBeVisible()
 
   const manifest = JSON.parse(await readFile(join(backupPath, 'manifest.json'), 'utf8')) as {
@@ -192,7 +192,7 @@ test('restores a verified backup with a preflight backup and skips external temp
   const blankBackupPath = join(temporaryRoot, 'blank-restore.awb-backup')
   await setNextSavePath(blankBackupPath)
   await page.getByRole('button', { name: '导出备份' }).click()
-  await expect(page.getByRole('alert')).toContainText('备份已导出并通过校验')
+  await expect(page.getByRole('status')).toContainText('备份已导出并通过校验')
 
   const workspacePath = join(temporaryRoot, 'restore-workspace')
   const imagePath = join(temporaryRoot, 'restore-image.png')
@@ -211,7 +211,7 @@ test('restores a verified backup with a preflight backup and skips external temp
   const populatedBackupPath = join(temporaryRoot, 'populated-restore.awb-backup')
   await setNextSavePath(populatedBackupPath)
   await page.getByRole('button', { name: '导出备份' }).click()
-  await expect(page.getByRole('alert')).toContainText('备份已导出并通过校验')
+  await expect(page.getByRole('status')).toContainText('备份已导出并通过校验')
   const populatedManifest = JSON.parse(
     await readFile(join(populatedBackupPath, 'manifest.json'), 'utf8'),
   ) as {
@@ -265,6 +265,9 @@ test('restores a verified backup with a preflight backup and skips external temp
   await setNextSelection(populatedBackupPath)
   await page.getByRole('button', { name: '恢复预览' }).click()
   await expect(page.getByText('恢复预览可继续')).toBeVisible()
+  await expect(
+    page.getByLabel('我已确认恢复预览，并允许应用恢复 userData 中的数据副本。'),
+  ).toBeFocused()
   await page.getByText('恢复预览可继续').scrollIntoViewIfNeeded()
   await page.screenshot({
     fullPage: true,
@@ -299,7 +302,7 @@ test('restores a verified backup with a preflight backup and skips external temp
 
   await page.getByLabel('我已确认恢复预览，并允许应用恢复 userData 中的数据副本。').check()
   await page.getByRole('button', { name: '确认恢复' }).click()
-  await expect(page.getByRole('alert')).toContainText('Provider 密钥未恢复')
+  await expect(page.getByRole('status')).toContainText('Provider 密钥未恢复')
 
   const restoredDiagnostics = await page.evaluate(() => window.desktop.dataManagement.diagnose())
   expect(restoredDiagnostics.counts.workspaces).toBe(populatedManifest.counts.workspaces)
@@ -326,7 +329,7 @@ test('restores a verified backup with a preflight backup and skips external temp
   await expect(page.getByText('恢复预览可继续')).toBeVisible()
   await page.getByLabel('我已确认恢复预览，并允许应用恢复 userData 中的数据副本。').check()
   await page.getByRole('button', { name: '确认恢复' }).click()
-  await expect(page.getByRole('alert')).toContainText('恢复完成')
+  await expect(page.getByRole('status')).toContainText('恢复完成')
   const blankDiagnostics = await page.evaluate(() => window.desktop.dataManagement.diagnose())
   expect(blankDiagnostics.counts.problems).toBe(0)
   expect(blankDiagnostics.counts.templates).toBe(0)
@@ -382,14 +385,14 @@ test('previews, quarantines, and undoes user-selected lifecycle items', async ()
   await expect(page.getByText(/将移动 2 项/)).toBeVisible()
   await page.getByLabel('我已核对清单，并允许应用把所选项目移入隔离区。').check()
   await page.getByRole('button', { name: '确认移入隔离区' }).click()
-  await expect(page.getByRole('alert')).toContainText('没有永久删除文件')
+  await expect(page.getByRole('status')).toContainText('没有永久删除文件')
   await expect(stat(batchBackup)).rejects.toThrow()
   await expect(stat(imageTrash)).rejects.toThrow()
   const quarantineOperations = await readdir(join(userDataDirectory, 'data-management-quarantine'))
   expect(quarantineOperations).toHaveLength(1)
 
   await page.getByRole('button', { name: '撤销隔离' }).click()
-  await expect(page.getByRole('alert')).toContainText('已从隔离区恢复 2 项')
+  await expect(page.getByRole('status')).toContainText('已从隔离区恢复 2 项')
   await expect(stat(batchBackup)).resolves.toBeTruthy()
   await expect(stat(imageTrash)).resolves.toBeTruthy()
 
@@ -401,7 +404,7 @@ test('previews, quarantines, and undoes user-selected lifecycle items', async ()
   await expect(page.getByText('废纸篓移交预览可继续')).toBeVisible()
   await page.getByLabel('我已核对隔离记录，并允许应用将其移交系统废纸篓。').check()
   await page.getByRole('button', { name: '确认移入系统废纸篓' }).click()
-  await expect(page.getByRole('alert')).toContainText('隔离记录已移交系统废纸篓')
+  await expect(page.getByRole('status')).toContainText('隔离记录已移交系统废纸篓')
   expect(await readdir(join(userDataDirectory, 'data-management-quarantine'))).toHaveLength(0)
 })
 
@@ -415,7 +418,7 @@ test('rolls back current data when restore fails after file swap', async () => {
   const blankBackupPath = join(temporaryRoot, 'rollback-blank.awb-backup')
   await setNextSavePath(blankBackupPath)
   await page.getByRole('button', { name: '导出备份' }).click()
-  await expect(page.getByRole('alert')).toContainText('备份已导出并通过校验')
+  await expect(page.getByRole('status')).toContainText('备份已导出并通过校验')
 
   const workspacePath = join(temporaryRoot, 'rollback-workspace')
   const imagePath = join(temporaryRoot, 'rollback-image.png')
@@ -534,7 +537,7 @@ test('recovers an interrupted cleanup from the real Data Management entry', asyn
 
   await page.getByLabel('我已核对异常恢复预览，并允许应用执行所示安全恢复操作。').check()
   await page.getByRole('button', { name: '确认异常恢复' }).click()
-  await expect(page.getByRole('alert')).toContainText('异常操作已按预览安全处理')
+  await expect(page.getByRole('status')).toContainText('异常操作已按预览安全处理')
   await expect(stat(first)).resolves.toBeTruthy()
   await expect(stat(second)).resolves.toBeTruthy()
   const inventory = await page.evaluate(() =>
@@ -553,7 +556,7 @@ test('recovers old data after a restore interruption before SQLite commit', asyn
   const blankBackupPath = join(temporaryRoot, 'interrupted-restore-blank.awb-backup')
   await setNextSavePath(blankBackupPath)
   await page.getByRole('button', { name: '导出备份' }).click()
-  await expect(page.getByRole('alert')).toContainText('备份已导出并通过校验')
+  await expect(page.getByRole('status')).toContainText('备份已导出并通过校验')
 
   const workspacePath = join(temporaryRoot, 'interrupted-restore-workspace')
   const imagePath = join(temporaryRoot, 'interrupted-restore-image.png')
@@ -580,7 +583,7 @@ test('recovers old data after a restore interruption before SQLite commit', asyn
   await page.getByRole('button', { name: '预览异常恢复' }).click()
   await page.getByLabel('我已核对异常恢复预览，并允许应用执行所示安全恢复操作。').check()
   await page.getByRole('button', { name: '确认异常恢复' }).click()
-  await expect(page.getByRole('alert')).toContainText('异常操作已按预览安全处理')
+  await expect(page.getByRole('status')).toContainText('异常操作已按预览安全处理')
 
   const after = await page.evaluate(() => window.desktop.dataManagement.diagnose())
   expect(after.counts.problems).toBe(before.counts.problems)
@@ -630,7 +633,7 @@ test('finishes cleanup after a restore interruption following SQLite commit', as
   await expect(page.getByText(/完成已提交恢复的收尾/)).toBeVisible()
   await page.getByLabel('我已核对异常恢复预览，并允许应用执行所示安全恢复操作。').check()
   await page.getByRole('button', { name: '确认异常恢复' }).click()
-  await expect(page.getByRole('alert')).toContainText('异常操作已按预览安全处理')
+  await expect(page.getByRole('status')).toContainText('异常操作已按预览安全处理')
   const inventory = await page.evaluate(() =>
     window.desktop.dataManagement.inspectBackupLifecycle({ retentionPolicy: 'forever' }),
   )

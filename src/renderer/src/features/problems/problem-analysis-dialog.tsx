@@ -30,6 +30,7 @@ import type { TemplateSummary } from '@core/contracts/workspace'
 import { AiRequestPreviewDialog } from '@/components/ai-request-preview-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { activeElementOrNull, restoreFocusAfterDialog } from '@/lib/focus-management'
 import { useI18n } from '@/lib/i18n'
 
 import { problemStatusLabels, relationTypeLabels } from './problem-labels'
@@ -38,6 +39,7 @@ interface ProblemAnalysisDialogProps {
   onCreated: (problem: Problem) => void
   onOpenChange: (open: boolean) => void
   open: boolean
+  returnFocusTo?: HTMLElement | null
   templates: TemplateSummary[]
 }
 
@@ -140,6 +142,7 @@ export function ProblemAnalysisDialog({
   onCreated,
   onOpenChange,
   open,
+  returnFocusTo,
   templates,
 }: ProblemAnalysisDialogProps) {
   const { locale, t } = useI18n()
@@ -153,6 +156,7 @@ export function ProblemAnalysisDialog({
   const [outputLanguage, setOutputLanguage] = useState<AiOutputLanguage>('zh-CN')
   const [relationDrafts, setRelationDrafts] = useState<RelationDraft[]>([])
   const [requestPreview, setRequestPreview] = useState<AiRequestPreview | null>(null)
+  const previewReturnFocusRef = useRef<HTMLElement | null>(null)
   const [selectedCandidates, setSelectedCandidates] = useState<Set<string>>(new Set())
   const [selectedManualTemplateId, setSelectedManualTemplateId] = useState('')
   const [tagsText, setTagsText] = useState('')
@@ -292,6 +296,7 @@ export function ProblemAnalysisDialog({
   }
 
   const previewAnalysis = async () => {
+    previewReturnFocusRef.current = activeElementOrNull()
     setError(null)
     setIsBusy(true)
     try {
@@ -393,6 +398,7 @@ export function ProblemAnalysisDialog({
         <Dialog.Content
           aria-describedby="problem-create-description"
           className="dialog-surface fixed left-1/2 top-1/2 z-50 flex h-[min(870px,calc(100vh-24px))] w-[min(1120px,calc(100vw-24px))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-3xl border border-primary/18 bg-panel shadow-2xl outline-none ring-1 ring-white/8"
+          onCloseAutoFocus={event => restoreFocusAfterDialog(event, returnFocusTo)}
           onInteractOutside={event => isBusy && event.preventDefault()}
         >
           <header className="flex items-start border-b border-border px-5 py-4">
@@ -918,6 +924,7 @@ export function ProblemAnalysisDialog({
           }}
           onConfirm={() => void executeAnalysis()}
           preview={requestPreview}
+          returnFocusTo={previewReturnFocusRef.current}
         />
       )}
     </Dialog.Root>

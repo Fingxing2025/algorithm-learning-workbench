@@ -156,3 +156,31 @@ test('falls back from invalid persisted values and resets all layouts without da
     ),
   ).toEqual({ navigation: null, problems: null, templates: null, theme: 'light' })
 })
+
+test('announces page changes and restores focus after search, template, and problem dialogs', async () => {
+  await page.getByRole('button', { name: '数据管理', exact: true }).click()
+  await expect(page.getByTestId('page-announcement')).toHaveText('已切换到 数据管理')
+
+  const searchTrigger = page.getByRole('button', { name: '打开全局搜索' })
+  await searchTrigger.focus()
+  await page.keyboard.press('Enter')
+  await expect(page.getByRole('textbox', { name: '搜索模板、题目或操作' })).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(searchTrigger).toBeFocused()
+
+  await page.getByRole('button', { name: '模板库', exact: true }).click()
+  const templateTrigger = page.getByRole('main').getByRole('button', { name: '新建模板' })
+  await templateTrigger.focus()
+  await page.keyboard.press('Enter')
+  await expect(page.getByLabel('文件名')).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(templateTrigger).toBeFocused()
+
+  await page.getByRole('button', { name: '题目', exact: true }).click()
+  const problemTrigger = page.getByRole('button', { name: '新建题目' })
+  await problemTrigger.focus()
+  await page.keyboard.press('Enter')
+  await expect(page.getByLabel('题目标题')).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(problemTrigger).toBeFocused()
+})

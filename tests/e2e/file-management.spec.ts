@@ -242,14 +242,18 @@ test('cancels a generated plan without changing files', async () => {
   await page.getByRole('button', { name: '只读扫描' }).click()
   await expect(page.getByRole('status').filter({ hasText: '只读扫描完成' })).toBeVisible()
   await page.getByRole('button', { name: '关闭文件管理提示' }).click()
-  await page.getByRole('button', { name: '生成 AI 计划' }).click()
+  const generatePlanButton = page.getByRole('button', { name: '生成 AI 计划' })
+  await generatePlanButton.focus()
+  await page.keyboard.press('Enter')
   await expect(page.getByRole('heading', { name: '确认发送给 AI' })).toBeVisible()
   holdNextFilePlanResponse = true
   await page.getByRole('button', { name: '确认发送并生成' }).click()
   await expect.poll(() => heldFilePlanResponseStarted).toBe(true)
   await page.getByRole('button', { name: '取消生成' }).click()
   await expect.poll(() => heldFilePlanResponseClosed).toBe(true)
-  await expect(page.getByRole('button', { name: '生成 AI 计划' })).toBeEnabled()
+  await expect(generatePlanButton).toBeEnabled()
+  await expect(generatePlanButton).toBeFocused()
+  await expect(page.getByRole('status')).toContainText('AI 生成已取消')
   await expect(page.getByText('移动 / 重命名', { exact: true })).toHaveCount(0)
 
   invalidFilePlanResponsesRemaining = 2
