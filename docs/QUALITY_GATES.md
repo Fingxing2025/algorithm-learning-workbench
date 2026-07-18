@@ -96,5 +96,5 @@
 | `npm run test:e2e`               | 通过：50 项常规 Electron E2E；2 项 packaged 因未重新生成目录包按条件跳过                                |
 | 长图与执行记录定向 Electron E2E  | `app.spec.ts` 9 项、`file-management.spec.ts` 4 项通过；真实 Main/Preload/Renderer 与 SQLite 路径均覆盖 |
 | Repository/契约                  | 9 项定向测试通过；覆盖 UUID 去重/边界、工作区/状态全量校验和删除中途失败的事务回滚                      |
-| 截图                             | `output/playwright/` 下 5 张长图/删除/数据同步关键图已人工复核                                          |
+| 截图                             | `output/playwright/` 下 6 张长图/亮暗删除确认/数据同步关键图已人工复核                                  |
 | migration / 打包 / Renderer 权限 | 无 migration、无新系统权限、无打包；新增 IPC 只接受执行 UUID，Renderer 仍无 Node/SQLite/文件系统权限    |

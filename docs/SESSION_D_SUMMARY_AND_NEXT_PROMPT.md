@@ -26,7 +26,8 @@ Session D 已完成，随后从 `8071970` 基线补齐题目长图滚动/整图�
 6. `58a89a0 docs: hand off session d accessibility evidence`
 7. `8071970 fix: balance file history icon size`
 8. `b5f657c feat: improve image preview and execution history cleanup`
-9. 本文所在提交：质量基线、视觉证据、用户指南和下一 Session 交接
+9. `f9d9f9e docs: record long image and execution cleanup evidence`
+10. 本文所在提交：暗色执行删除确认态截图与最终交接同步
 
 所有提交均为本地小提交；没有推送远程仓库。
 
@@ -183,6 +184,7 @@ Session D 新增/加强证据：
 - `/Users/ffxx/Desktop/项目/智能算法学习助手-v2/output/playwright/problem-image-long-preview-fit-window-1280x720.png`
 - `/Users/ffxx/Desktop/项目/智能算法学习助手-v2/output/playwright/problem-image-long-preview-fit-window-200-percent.png`
 - `/Users/ffxx/Desktop/项目/智能算法学习助手-v2/output/playwright/file-execution-delete-confirm-light-1440x900.png`
+- `/Users/ffxx/Desktop/项目/智能算法学习助手-v2/output/playwright/file-execution-delete-confirm-dark-1440x900.png`
 - `/Users/ffxx/Desktop/项目/智能算法学习助手-v2/output/playwright/file-execution-delete-data-sync-light-1440x900.png`
 
 人工结论：

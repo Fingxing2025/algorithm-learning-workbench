@@ -476,6 +476,12 @@ test('applies a selected plan with backup, stable relations, and rollback', asyn
     animations: 'disabled',
     path: resolve('output/playwright/file-execution-delete-confirm-light-1440x900.png'),
   })
+  await page.locator('html').evaluate(root => root.classList.add('dark'))
+  await page.screenshot({
+    animations: 'disabled',
+    path: resolve('output/playwright/file-execution-delete-confirm-dark-1440x900.png'),
+  })
+  await page.locator('html').evaluate(root => root.classList.remove('dark'))
   await page.getByRole('button', { name: '确认删除执行记录' }).click()
   await expect(page.getByRole('status')).toContainText('数据管理统计已同步')
   await expect(page.getByText('暂无文件执行记录。')).toBeVisible()

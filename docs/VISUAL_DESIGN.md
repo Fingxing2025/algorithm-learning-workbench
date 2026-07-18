@@ -6,7 +6,7 @@
 - 预览工具栏固定在图片上方，文件名安全截断；紧凑/200% 视口只隐藏重复按钮文字而保留 Lucide 图标和完整 accessible name，关闭按钮始终可达。
 - “执行与撤销”沿用现有琥珀风险语义和普通内容面，不增加玻璃、渐变或动画；单条/批量删除使用 Trash 图标、二次确认和文字后果说明。
 - 只有已撤销记录显示删除入口；仍可从备份撤销的记录不通过禁用色暗示可删，而是保持删除入口不可用。删除反馈同时使用文字 `status`，不只依赖列表消失或颜色。
-- 新增截图已人工复核：`output/playwright/problem-image-long-preview-1280x720.png`、`problem-image-long-preview-fit-window-1280x720.png`、`problem-image-long-preview-fit-window-200-percent.png`、`file-execution-delete-confirm-light-1440x900.png` 和 `file-execution-delete-data-sync-light-1440x900.png`。
+- 新增截图已人工复核：`output/playwright/problem-image-long-preview-1280x720.png`、`problem-image-long-preview-fit-window-1280x720.png`、`problem-image-long-preview-fit-window-200-percent.png`、`file-execution-delete-confirm-{light,dark}-1440x900.png` 和 `file-execution-delete-data-sync-light-1440x900.png`。
 
 ## 2026-07-18 Session D：窗口适配与可访问交互
 
