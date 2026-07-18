@@ -40,16 +40,12 @@ test('scrolls large template and problem lists and switches the code theme', asy
 
     const templateTree = page.getByRole('tree', { name: '模板树' })
     await expect(templateTree).toBeVisible()
-    expect(
-      await templateTree.evaluate(element => element.scrollHeight > element.clientHeight),
-    ).toBe(true)
-    await templateTree.evaluate(element => {
-      element.scrollTop = element.scrollHeight
-    })
-    expect(await templateTree.evaluate(element => element.scrollTop)).toBeGreaterThan(0)
-    await templateTree.evaluate(element => {
-      element.scrollTop = 0
-    })
+    await templateTree.focus()
+    await page.keyboard.press('End')
+    await expect(page.getByRole('treeitem', { name: '分类-47' })).toBeVisible()
+    await expect.poll(() => templateTree.evaluate(element => element.scrollTop)).toBeGreaterThan(0)
+    await page.keyboard.press('Home')
+    await expect(page.getByRole('treeitem', { name: '分类-00' })).toBeVisible()
 
     await page.getByPlaceholder('筛选当前工作区').fill('template_00.cpp')
     await page.getByText('template_00.cpp').click()
@@ -155,7 +151,7 @@ test('scrolls large template and problem lists and switches the code theme', asy
     })
     await page.reload()
     await page.getByRole('button', { name: '题目', exact: true }).click()
-    const problemList = page.getByLabel('题目列表')
+    const problemList = page.getByLabel('题目列表', { exact: true })
     await expect(problemList).toBeVisible()
     expect(await problemList.evaluate(element => element.scrollHeight > element.clientHeight)).toBe(
       true,

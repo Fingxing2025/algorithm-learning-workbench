@@ -245,7 +245,7 @@ export function TemplateTree({
   }
 
   return (
-    <section className="flex min-h-0 flex-col border-r border-border bg-sidebar/75">
+    <section className="flex h-full min-h-0 flex-col border-r border-border bg-sidebar/75">
       <div className="border-b border-border px-3 py-3.5">
         <div className="mb-2.5 flex items-center justify-between px-1">
           <span className="text-[10px] font-semibold uppercase tracking-[0.11em] text-muted-foreground">

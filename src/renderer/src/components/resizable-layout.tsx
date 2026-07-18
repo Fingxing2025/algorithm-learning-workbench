@@ -148,7 +148,11 @@ export function ResizableLayout({
       ref={containerRef}
       style={style}
     >
-      <div aria-label={primaryLabel} className="min-h-0 min-w-0" id={primaryId}>
+      <div
+        aria-label={primaryLabel}
+        className="h-full min-h-0 min-w-0 overflow-hidden"
+        id={primaryId}
+      >
         {primary}
       </div>
       {!forceCompact && (
@@ -178,7 +182,11 @@ export function ResizableLayout({
           />
         </div>
       )}
-      <div aria-label={secondaryLabel} className="min-h-0 min-w-0" id={secondaryId}>
+      <div
+        aria-label={secondaryLabel}
+        className="h-full min-h-0 min-w-0 overflow-hidden"
+        id={secondaryId}
+      >
         {secondary}
       </div>
     </div>

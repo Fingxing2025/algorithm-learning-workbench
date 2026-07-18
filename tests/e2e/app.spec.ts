@@ -179,7 +179,9 @@ test('creates an empty workspace and the first template without allowing overwri
   await page.getByLabel('文件名').fill('dijkstra.cpp')
   await page.getByRole('textbox', { name: '模板源码', exact: true }).fill('overwritten')
   await page.getByRole('button', { name: '确认创建' }).click()
-  await expect(page.getByRole('alert')).toContainText('同名文件已经存在，未覆盖原文件')
+  await expect(page.getByRole('dialog').getByRole('alert')).toContainText(
+    '同名文件已经存在，未覆盖原文件',
+  )
   expect(await readFile(join(blankWorkspace, 'dijkstra.cpp'), 'utf8')).toBe('void dijkstra() {}\n')
 
   const closeDialogButton = page.getByRole('button', { name: '关闭新建模板' })
