@@ -120,153 +120,159 @@ export function ProblemEditorDialog({
                 {t('题目和备注保存在本地数据库；模板关联可在保存后继续编辑。')}
               </Dialog.Description>
             </div>
-            <Dialog.Close asChild>
-              <Button
-                aria-label={t('关闭题目编辑器')}
-                className="ml-auto"
-                size="close"
-                type="button"
-                variant="ghost"
-              >
-                <X aria-hidden="true" className="size-4" />
-              </Button>
-            </Dialog.Close>
+            <Button
+              aria-label={t('关闭题目编辑器')}
+              className="ml-auto"
+              onClick={() => onOpenChange(false)}
+              size="close"
+              type="button"
+              variant="ghost"
+            >
+              <X aria-hidden="true" className="pointer-events-none size-4" />
+            </Button>
           </header>
 
-          <form className="min-h-0 flex-1 overflow-y-auto p-5" onSubmit={handleSubmit}>
-            {error && (
-              <div
-                className="mb-4 flex items-start gap-2 rounded-xl border border-red-500/25 bg-red-500/8 px-3 py-2.5 text-xs text-red-700 dark:text-red-300"
-                role="alert"
-              >
-                <AlertCircle aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
-                <span>{t(error)}</span>
-              </div>
-            )}
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className="sm:col-span-2 text-xs font-semibold">
-                {t('题目标题')}
-                <input
-                  autoFocus
-                  className={inputClass}
-                  maxLength={200}
-                  onChange={event =>
-                    setFields(current => ({ ...current, title: event.target.value }))
-                  }
-                  placeholder={t('例如 最短路计数')}
-                  required
-                  value={fields.title}
-                />
-              </label>
-              <label className="text-xs font-semibold">
-                {t('平台')}
-                <input
-                  className={inputClass}
-                  maxLength={80}
-                  onChange={event => updateText('platform', event.target.value)}
-                  placeholder={t('洛谷、Codeforces…')}
-                  value={fields.platform ?? ''}
-                />
-              </label>
-              <label className="text-xs font-semibold">
-                {t('题号')}
-                <input
-                  className={inputClass}
-                  maxLength={80}
-                  onChange={event => updateText('problemCode', event.target.value)}
-                  placeholder="P3371"
-                  value={fields.problemCode ?? ''}
-                />
-              </label>
-              <label className="text-xs font-semibold">
-                {t('难度')}
-                <input
-                  className={inputClass}
-                  maxLength={40}
-                  onChange={event => updateText('difficulty', event.target.value)}
-                  placeholder={t('普及+/提高、1600…')}
-                  value={fields.difficulty ?? ''}
-                />
-              </label>
-              <label className="text-xs font-semibold">
-                {t('状态')}
-                <select
-                  className={inputClass}
-                  onChange={event =>
-                    setFields(current => ({
-                      ...current,
-                      status: event.target.value as CreateProblemRequest['status'],
-                    }))
-                  }
-                  value={fields.status}
+          <form className="flex min-h-0 flex-1 flex-col" onSubmit={handleSubmit}>
+            <div
+              aria-label={t(problem ? '编辑题目卡片' : '新建题目卡片')}
+              className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-5 outline-none [scrollbar-gutter:stable] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+              role="region"
+              tabIndex={0}
+            >
+              {error && (
+                <div
+                  className="mb-4 flex items-start gap-2 rounded-xl border border-red-500/25 bg-red-500/8 px-3 py-2.5 text-xs text-red-700 dark:text-red-300"
+                  role="alert"
                 >
-                  {Object.entries(problemStatusLabels).map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {t(label)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="sm:col-span-2 text-xs font-semibold">
-                {t('题目链接')}
-                <input
-                  className={inputClass}
-                  maxLength={2048}
-                  onChange={event => updateText('url', event.target.value)}
-                  placeholder="https://…"
-                  type="url"
-                  value={fields.url ?? ''}
-                />
-              </label>
-              <label className="sm:col-span-2 text-xs font-semibold">
-                {t('标签')}
-                <input
-                  className={inputClass}
-                  onChange={event => setTagsText(event.target.value)}
-                  placeholder={t('最短路, 图论, Dijkstra')}
-                  value={tagsText}
-                />
-                <span className="mt-1 block text-[10px] font-normal text-muted-foreground">
-                  {t('使用逗号分隔，最多 20 个标签。')}
-                </span>
-              </label>
-              <label className="sm:col-span-2 text-xs font-semibold">
-                {t('原始题面')}
-                <textarea
-                  className="mt-1.5 min-h-32 w-full resize-y rounded-xl border border-border bg-background px-3 py-2.5 text-sm leading-6 outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring"
-                  onChange={event =>
-                    setFields(current => ({ ...current, statement: event.target.value }))
-                  }
-                  placeholder={t('记录原始题面、输入输出和数据范围…')}
-                  value={fields.statement}
-                />
-              </label>
-              <label className="sm:col-span-2 text-xs font-semibold">
-                {t('AI 题目摘要')}
-                <textarea
-                  className="mt-1.5 min-h-24 w-full resize-y rounded-xl border border-border bg-background px-3 py-2.5 text-sm leading-6 outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring"
-                  onChange={event =>
-                    setFields(current => ({ ...current, aiSummary: event.target.value }))
-                  }
-                  placeholder={t('可选：题目的简洁结构化摘要…')}
-                  value={fields.aiSummary}
-                />
-              </label>
-              <label className="sm:col-span-2 text-xs font-semibold">
-                {t('本地备注')}
-                <textarea
-                  className="mt-1.5 min-h-28 w-full resize-y rounded-xl border border-border bg-background px-3 py-2.5 text-sm leading-6 outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring"
-                  onChange={event =>
-                    setFields(current => ({ ...current, notes: event.target.value }))
-                  }
-                  placeholder={t('记录思路、错误原因或复盘…')}
-                  value={fields.notes}
-                />
-              </label>
+                  <AlertCircle aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+                  <span>{t(error)}</span>
+                </div>
+              )}
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="sm:col-span-2 text-xs font-semibold">
+                  {t('题目标题')}
+                  <input
+                    autoFocus
+                    className={inputClass}
+                    maxLength={200}
+                    onChange={event =>
+                      setFields(current => ({ ...current, title: event.target.value }))
+                    }
+                    placeholder={t('例如 最短路计数')}
+                    required
+                    value={fields.title}
+                  />
+                </label>
+                <label className="text-xs font-semibold">
+                  {t('平台')}
+                  <input
+                    className={inputClass}
+                    maxLength={80}
+                    onChange={event => updateText('platform', event.target.value)}
+                    placeholder={t('洛谷、Codeforces…')}
+                    value={fields.platform ?? ''}
+                  />
+                </label>
+                <label className="text-xs font-semibold">
+                  {t('题号')}
+                  <input
+                    className={inputClass}
+                    maxLength={80}
+                    onChange={event => updateText('problemCode', event.target.value)}
+                    placeholder="P3371"
+                    value={fields.problemCode ?? ''}
+                  />
+                </label>
+                <label className="text-xs font-semibold">
+                  {t('难度')}
+                  <input
+                    className={inputClass}
+                    maxLength={40}
+                    onChange={event => updateText('difficulty', event.target.value)}
+                    placeholder={t('普及+/提高、1600…')}
+                    value={fields.difficulty ?? ''}
+                  />
+                </label>
+                <label className="text-xs font-semibold">
+                  {t('状态')}
+                  <select
+                    className={inputClass}
+                    onChange={event =>
+                      setFields(current => ({
+                        ...current,
+                        status: event.target.value as CreateProblemRequest['status'],
+                      }))
+                    }
+                    value={fields.status}
+                  >
+                    {Object.entries(problemStatusLabels).map(([value, label]) => (
+                      <option key={value} value={value}>
+                        {t(label)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="sm:col-span-2 text-xs font-semibold">
+                  {t('题目链接')}
+                  <input
+                    className={inputClass}
+                    maxLength={2048}
+                    onChange={event => updateText('url', event.target.value)}
+                    placeholder="https://…"
+                    type="url"
+                    value={fields.url ?? ''}
+                  />
+                </label>
+                <label className="sm:col-span-2 text-xs font-semibold">
+                  {t('标签')}
+                  <input
+                    className={inputClass}
+                    onChange={event => setTagsText(event.target.value)}
+                    placeholder={t('最短路, 图论, Dijkstra')}
+                    value={tagsText}
+                  />
+                  <span className="mt-1 block text-[10px] font-normal text-muted-foreground">
+                    {t('使用逗号分隔，最多 20 个标签。')}
+                  </span>
+                </label>
+                <label className="sm:col-span-2 text-xs font-semibold">
+                  {t('原始题面')}
+                  <textarea
+                    className="mt-1.5 min-h-32 w-full resize-y rounded-xl border border-border bg-background px-3 py-2.5 text-sm leading-6 outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring"
+                    onChange={event =>
+                      setFields(current => ({ ...current, statement: event.target.value }))
+                    }
+                    placeholder={t('记录原始题面、输入输出和数据范围…')}
+                    value={fields.statement}
+                  />
+                </label>
+                <label className="sm:col-span-2 text-xs font-semibold">
+                  {t('AI 题目摘要')}
+                  <textarea
+                    className="mt-1.5 min-h-24 w-full resize-y rounded-xl border border-border bg-background px-3 py-2.5 text-sm leading-6 outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring"
+                    onChange={event =>
+                      setFields(current => ({ ...current, aiSummary: event.target.value }))
+                    }
+                    placeholder={t('可选：题目的简洁结构化摘要…')}
+                    value={fields.aiSummary}
+                  />
+                </label>
+                <label className="sm:col-span-2 text-xs font-semibold">
+                  {t('本地备注')}
+                  <textarea
+                    className="mt-1.5 min-h-28 w-full resize-y rounded-xl border border-border bg-background px-3 py-2.5 text-sm leading-6 outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring"
+                    onChange={event =>
+                      setFields(current => ({ ...current, notes: event.target.value }))
+                    }
+                    placeholder={t('记录思路、错误原因或复盘…')}
+                    value={fields.notes}
+                  />
+                </label>
+              </div>
             </div>
 
-            <footer className="mt-5 flex items-center justify-between gap-4 border-t border-border pt-4">
+            <footer className="flex shrink-0 items-center justify-between gap-4 border-t border-border px-5 py-4">
               <p className="text-[11px] text-muted-foreground">{t('所有内容默认只保存在本机。')}</p>
               <div className="flex gap-2">
                 <Dialog.Close asChild>

@@ -365,7 +365,32 @@ test('creates a problem, associates multiple templates, stores an image, and saf
 
   await page.getByRole('button', { name: '题目', exact: true }).click()
   await expect(page.getByText('还没有题目卡片')).toBeVisible()
-  await page.getByRole('button', { name: '新建题目' }).click()
+  const newProblemTrigger = page.getByRole('button', { name: '新建题目' })
+  await newProblemTrigger.click()
+  const closeNewProblemButton = page.getByRole('button', { name: '关闭新建题目' })
+  await expect(closeNewProblemButton).toBeVisible()
+  const closeNewProblemIconBounds = await closeNewProblemButton.locator('svg').boundingBox()
+  expect(closeNewProblemIconBounds).not.toBeNull()
+  const closeNewProblemIconCenter = {
+    x: closeNewProblemIconBounds!.x + closeNewProblemIconBounds!.width / 2,
+    y: closeNewProblemIconBounds!.y + closeNewProblemIconBounds!.height / 2,
+  }
+  expect(
+    await page.evaluate(point => {
+      const browser = globalThis as unknown as {
+        document: {
+          elementFromPoint: (x: number, y: number) => { tagName: string } | null
+        }
+      }
+      return browser.document.elementFromPoint(point.x, point.y)?.tagName
+    }, closeNewProblemIconCenter),
+  ).toBe('BUTTON')
+  await expect(closeNewProblemButton).toHaveCSS('cursor', 'pointer')
+  await page.mouse.click(closeNewProblemIconCenter.x, closeNewProblemIconCenter.y)
+  await expect(closeNewProblemButton).toHaveCount(0)
+  await expect(newProblemTrigger).toBeFocused()
+
+  await newProblemTrigger.click()
   await page.getByLabel('题目标题').fill('单源最短路径')
   await page.getByLabel('平台').fill('洛谷')
   await page.getByLabel('题号').fill('P3371')

@@ -2,7 +2,40 @@ import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 
-import { _electron as electron, expect, test } from '@playwright/test'
+import { _electron as electron, expect, test, type Locator, type Page } from '@playwright/test'
+
+async function scrollWithMouseWheel(page: Page, region: Locator) {
+  await region.evaluate(element => {
+    element.scrollTop = 0
+  })
+  const bounds = await region.boundingBox()
+  expect(bounds).not.toBeNull()
+  await page.mouse.move(bounds!.x + bounds!.width / 2, bounds!.y + bounds!.height / 2)
+  await page.mouse.wheel(0, 600)
+  await expect.poll(() => region.evaluate(element => element.scrollTop)).toBeGreaterThan(0)
+}
+
+async function dragVerticalScrollbar(page: Page, region: Locator) {
+  await region.evaluate(element => {
+    element.scrollTop = 0
+  })
+  const [bounds, metrics] = await Promise.all([
+    region.boundingBox(),
+    region.evaluate(element => ({
+      clientHeight: element.clientHeight,
+      scrollHeight: element.scrollHeight,
+    })),
+  ])
+  expect(bounds).not.toBeNull()
+  expect(metrics.scrollHeight).toBeGreaterThan(metrics.clientHeight)
+  const thumbHeight = Math.max(24, (bounds!.height * metrics.clientHeight) / metrics.scrollHeight)
+  const scrollbarX = bounds!.x + bounds!.width - 5
+  await page.mouse.move(scrollbarX, bounds!.y + thumbHeight / 2)
+  await page.mouse.down()
+  await page.mouse.move(scrollbarX, bounds!.y + bounds!.height - thumbHeight / 2, { steps: 12 })
+  await page.mouse.up()
+  await expect.poll(() => region.evaluate(element => element.scrollTop)).toBeGreaterThan(0)
+}
 
 test('scrolls large template and problem lists and switches the code theme', async () => {
   const temporaryRoot = await mkdtemp(join(tmpdir(), 'algorithm-workbench-scroll-e2e-'))
@@ -141,13 +174,19 @@ test('scrolls large template and problem lists and switches the code theme', asy
           notes: '',
           platform: '滚动测试',
           problemCode: `SCROLL-${index}`,
-          statement: '用于验证题目列表的独立滚动区域。',
+          statement:
+            index === 35
+              ? `用于验证题目卡片详情的独立滚动区域。${'长题面内容'.repeat(600)}`
+              : '用于验证题目列表的独立滚动区域。',
           status: 'unattempted',
           tags: ['滚动'],
           title: `滚动测试题 ${String(index).padStart(2, '0')}`,
           url: null,
         })
       }
+    })
+    await electronApp.evaluate(({ BrowserWindow }) => {
+      BrowserWindow.getAllWindows()[0]?.setSize(1024, 640)
     })
     await page.reload()
     await page.getByRole('button', { name: '题目', exact: true }).click()
@@ -156,14 +195,61 @@ test('scrolls large template and problem lists and switches the code theme', asy
     expect(await problemList.evaluate(element => element.scrollHeight > element.clientHeight)).toBe(
       true,
     )
+    await scrollWithMouseWheel(page, problemList)
+    await dragVerticalScrollbar(page, problemList)
     await problemList.evaluate(element => {
-      element.scrollTop = element.scrollHeight
+      element.scrollTop = 0
     })
-    expect(await problemList.evaluate(element => element.scrollTop)).toBeGreaterThan(0)
+
+    const longProblem = problemList.getByRole('button', { name: /滚动测试题 35/ })
+    await longProblem.scrollIntoViewIfNeeded()
+    await longProblem.click()
+    const problemDetails = page.getByRole('region', { name: '题目详情面板' })
+    await expect(problemDetails).toBeVisible()
+    expect(
+      await problemDetails.evaluate(element => element.scrollHeight > element.clientHeight),
+    ).toBe(true)
+    await scrollWithMouseWheel(page, problemDetails)
+    await dragVerticalScrollbar(page, problemDetails)
+    await problemDetails.evaluate(element => {
+      element.scrollTop = 0
+    })
+
+    const editTrigger = page.getByRole('button', { name: '编辑', exact: true })
+    await editTrigger.click()
+    const editorScrollRegion = page.getByRole('region', { name: '编辑题目卡片' })
+    await expect(editorScrollRegion).toBeVisible()
+    await scrollWithMouseWheel(page, editorScrollRegion)
+    await dragVerticalScrollbar(page, editorScrollRegion)
+    await page.screenshot({
+      animations: 'disabled',
+      path: resolve('output/playwright/problem-editor-scroll-and-close-1024x640.png'),
+    })
+
+    const closeEditorButton = page.getByRole('button', { name: '关闭题目编辑器' })
+    const closeIconBounds = await closeEditorButton.locator('svg').boundingBox()
+    expect(closeIconBounds).not.toBeNull()
+    const closeIconCenter = {
+      x: closeIconBounds!.x + closeIconBounds!.width / 2,
+      y: closeIconBounds!.y + closeIconBounds!.height / 2,
+    }
+    expect(
+      await page.evaluate(point => {
+        const browser = globalThis as unknown as {
+          document: {
+            elementFromPoint: (x: number, y: number) => { tagName: string } | null
+          }
+        }
+        return browser.document.elementFromPoint(point.x, point.y)?.tagName
+      }, closeIconCenter),
+    ).toBe('BUTTON')
+    await page.mouse.click(closeIconCenter.x, closeIconCenter.y)
+    await expect(closeEditorButton).toHaveCount(0)
+    await expect(editTrigger).toBeFocused()
 
     await page.screenshot({
       animations: 'disabled',
-      path: resolve('output/playwright/scroll-and-code-theme-1280x720.png'),
+      path: resolve('output/playwright/problem-card-detail-scroll-1024x640.png'),
     })
   } finally {
     await electronApp.close()

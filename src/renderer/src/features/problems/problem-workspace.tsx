@@ -272,7 +272,12 @@ export function ProblemWorkspace({
               </div>
             </div>
           ) : (
-            <div aria-label={t('题目列表')} className="min-h-0 flex-1 overflow-y-auto p-2.5">
+            <div
+              aria-label={t('题目列表')}
+              className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-2.5 outline-none [scrollbar-gutter:stable] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+              role="region"
+              tabIndex={0}
+            >
               {filteredProblems.map(problem => {
                 const selected = problem.id === selectedProblemId
                 return (
@@ -337,7 +342,12 @@ export function ProblemWorkspace({
             </div>
           </section>
         ) : (
-          <section className="min-h-0 overflow-y-auto bg-background/75">
+          <section
+            aria-label={t('题目详情面板')}
+            className="h-full min-h-0 overflow-y-auto overscroll-contain bg-background/75 outline-none [scrollbar-gutter:stable] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+            role="region"
+            tabIndex={0}
+          >
             <header className="relative overflow-hidden border-b border-success/12 bg-panel px-6 py-5 shadow-xs">
               <div aria-hidden="true" className="absolute inset-y-0 left-0 w-1 bg-success" />
               <div

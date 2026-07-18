@@ -419,18 +419,17 @@ export function ProblemAnalysisDialog({
                   : t('手动填写，或在同一窗口中加入图文并请求 AI 补全。')}
               </Dialog.Description>
             </div>
-            <Dialog.Close asChild>
-              <Button
-                aria-label={t('关闭新建题目')}
-                className="ml-auto"
-                disabled={isBusy}
-                size="close"
-                type="button"
-                variant="ghost"
-              >
-                <X aria-hidden="true" className="size-4" />
-              </Button>
-            </Dialog.Close>
+            <Button
+              aria-label={t('关闭新建题目')}
+              className="ml-auto"
+              disabled={isBusy}
+              onClick={() => onOpenChange(false)}
+              size="close"
+              type="button"
+              variant="ghost"
+            >
+              <X aria-hidden="true" className="pointer-events-none size-4" />
+            </Button>
           </header>
 
           {error && (
