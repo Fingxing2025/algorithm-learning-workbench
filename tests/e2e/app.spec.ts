@@ -1,6 +1,7 @@
 import { mkdtemp, mkdir, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
+import { deflateSync } from 'node:zlib'
 
 import {
   _electron as electron,
@@ -18,8 +19,50 @@ let secondFixtureImagePath: string
 let fixtureSourcePath: string
 let fixtureSourceBeforeScan: string
 let page: Page
+let tallFixtureImagePath: string
 let temporaryRoot: string
 let userDataDirectory: string
+
+function crc32(value: Buffer): number {
+  let crc = 0xffffffff
+  for (const byte of value) {
+    crc ^= byte
+    for (let bit = 0; bit < 8; bit += 1) {
+      crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1))
+    }
+  }
+  return (crc ^ 0xffffffff) >>> 0
+}
+
+function pngChunk(type: string, data: Buffer): Buffer {
+  const typeBuffer = Buffer.from(type, 'ascii')
+  const chunk = Buffer.alloc(data.length + 12)
+  chunk.writeUInt32BE(data.length, 0)
+  typeBuffer.copy(chunk, 4)
+  data.copy(chunk, 8)
+  chunk.writeUInt32BE(crc32(Buffer.concat([typeBuffer, data])), data.length + 8)
+  return chunk
+}
+
+function createTallPng(width = 600, height = 4000): Buffer {
+  const header = Buffer.alloc(13)
+  header.writeUInt32BE(width, 0)
+  header.writeUInt32BE(height, 4)
+  header[8] = 8
+  header[9] = 0
+  const rows = Buffer.alloc((width + 1) * height, 236)
+  for (let row = 0; row < height; row += 1) {
+    const offset = row * (width + 1)
+    rows[offset] = 0
+    if (row % 180 < 8) rows.fill(72, offset + 1, offset + width + 1)
+  }
+  return Buffer.concat([
+    Buffer.from('89504e470d0a1a0a', 'hex'),
+    pngChunk('IHDR', header),
+    pngChunk('IDAT', deflateSync(rows)),
+    pngChunk('IEND', Buffer.alloc(0)),
+  ])
+}
 
 async function setNextDirectorySelection(directoryPath: string) {
   await electronApp.evaluate(({ dialog }, selectedDirectory) => {
@@ -55,6 +98,7 @@ test.beforeAll(async () => {
   existingWorkspace = join(temporaryRoot, 'existing-workspace')
   fixtureImagePath = join(temporaryRoot, 'problem.png')
   secondFixtureImagePath = join(temporaryRoot, 'problem-2.png')
+  tallFixtureImagePath = join(temporaryRoot, 'long-problem.png')
   fixtureSourcePath = join(existingWorkspace, '基础算法', '搜索', 'BFS', 'bfs.cpp')
 
   await mkdir(userDataDirectory)
@@ -72,6 +116,7 @@ test.beforeAll(async () => {
     ),
   )
   await writeFile(secondFixtureImagePath, await readFile(fixtureImagePath))
+  await writeFile(tallFixtureImagePath, createTallPng())
   await symlink(join(temporaryRoot, 'outside.cpp'), join(existingWorkspace, 'linked.cpp'))
   fixtureSourceBeforeScan = await readFile(fixtureSourcePath, 'utf8')
 
@@ -333,7 +378,7 @@ test('creates a problem, associates multiple templates, stores an image, and saf
 
   await setNextDirectorySelection(fixtureImagePath)
   await page.getByRole('button', { name: '添加图片' }).click()
-  await expect(page.getByRole('img', { name: 'problem.png' })).toBeVisible()
+  await expect(page.getByRole('img', { exact: true, name: 'problem.png' })).toBeVisible()
   await page.getByRole('button', { name: '预览图片 problem.png' }).click()
   await expect(page.getByRole('dialog', { name: '预览题目图片：problem.png' })).toBeVisible()
   await expect(
@@ -344,6 +389,92 @@ test('creates a problem, associates multiple templates, stores an image, and saf
   await page.keyboard.press('Escape')
   await expect(page.getByRole('button', { name: '关闭图片预览' })).toHaveCount(0)
 
+  await setNextDirectorySelection(tallFixtureImagePath)
+  await page.getByRole('button', { name: '添加图片' }).click()
+  const tallPreviewTrigger = page.getByRole('button', { name: '预览图片 long-problem.png' })
+  await expect(tallPreviewTrigger).toBeVisible()
+  await electronApp.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0]?.setSize(1280, 720),
+  )
+  await tallPreviewTrigger.click()
+  const tallPreviewDialog = page.getByRole('dialog', {
+    name: '预览题目图片：long-problem.png',
+  })
+  const tallPreviewRegion = tallPreviewDialog.getByRole('region', {
+    name: '题目图片滚动预览',
+  })
+  const tallPreviewImage = tallPreviewDialog.getByRole('img', { name: 'long-problem.png' })
+  await expect(tallPreviewImage).toHaveAttribute('data-preview-mode', 'fit-width')
+  expect(
+    await tallPreviewRegion.evaluate(element => element.scrollHeight > element.clientHeight),
+  ).toBe(true)
+  await tallPreviewRegion.focus()
+  await page.keyboard.press('End')
+  await expect
+    .poll(() => tallPreviewRegion.evaluate(element => element.scrollTop))
+    .toBeGreaterThan(0)
+  await page.screenshot({
+    animations: 'disabled',
+    path: resolve('output/playwright/problem-image-long-preview-1280x720.png'),
+  })
+  await tallPreviewDialog.getByRole('button', { name: '适合窗口' }).click()
+  await expect(tallPreviewImage).toHaveAttribute('data-preview-mode', 'fit-screen')
+  const [regionBounds, imageBounds] = await Promise.all([
+    tallPreviewRegion.boundingBox(),
+    tallPreviewImage.boundingBox(),
+  ])
+  expect(regionBounds).not.toBeNull()
+  expect(imageBounds).not.toBeNull()
+  expect(imageBounds!.x).toBeGreaterThanOrEqual(regionBounds!.x)
+  expect(imageBounds!.y).toBeGreaterThanOrEqual(regionBounds!.y)
+  expect(imageBounds!.x + imageBounds!.width).toBeLessThanOrEqual(
+    regionBounds!.x + regionBounds!.width,
+  )
+  expect(imageBounds!.y + imageBounds!.height).toBeLessThanOrEqual(
+    regionBounds!.y + regionBounds!.height,
+  )
+  await page.screenshot({
+    animations: 'disabled',
+    path: resolve('output/playwright/problem-image-long-preview-fit-window-1280x720.png'),
+  })
+  await electronApp.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0]?.webContents.setZoomFactor(2),
+  )
+  await expect(tallPreviewDialog.getByRole('button', { name: '按宽度查看' })).toBeInViewport()
+  await expect(tallPreviewDialog.getByRole('button', { name: '适合窗口' })).toBeInViewport()
+  await expect(tallPreviewDialog.getByRole('button', { name: '关闭图片预览' })).toBeInViewport()
+  const [zoomRegionBounds, zoomImageBounds] = await Promise.all([
+    tallPreviewRegion.boundingBox(),
+    tallPreviewImage.boundingBox(),
+  ])
+  expect(zoomRegionBounds).not.toBeNull()
+  expect(zoomImageBounds).not.toBeNull()
+  expect(zoomImageBounds!.x).toBeGreaterThanOrEqual(zoomRegionBounds!.x)
+  expect(zoomImageBounds!.y).toBeGreaterThanOrEqual(zoomRegionBounds!.y)
+  expect(zoomImageBounds!.x + zoomImageBounds!.width).toBeLessThanOrEqual(
+    zoomRegionBounds!.x + zoomRegionBounds!.width,
+  )
+  expect(zoomImageBounds!.y + zoomImageBounds!.height).toBeLessThanOrEqual(
+    zoomRegionBounds!.y + zoomRegionBounds!.height,
+  )
+  const zoomScreenshotBase64 = await electronApp.evaluate(async ({ BrowserWindow }) => {
+    const window = BrowserWindow.getAllWindows()[0]
+    if (!window) throw new Error('expected Electron window for zoom screenshot')
+    return (await window.webContents.capturePage()).toPNG().toString('base64')
+  })
+  await writeFile(
+    resolve('output/playwright/problem-image-long-preview-fit-window-200-percent.png'),
+    Buffer.from(zoomScreenshotBase64, 'base64'),
+  )
+  await electronApp.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0]?.webContents.setZoomFactor(1),
+  )
+  await page.keyboard.press('Escape')
+  await expect(tallPreviewTrigger).toBeFocused()
+  await electronApp.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0]?.setSize(1440, 900),
+  )
+
   await setNextDirectorySelection(secondFixtureImagePath)
   await page.getByRole('button', { name: '添加图片' }).click()
   await expect(page.getByRole('img', { name: 'problem-2.png' })).toBeVisible()
@@ -353,7 +484,7 @@ test('creates a problem, associates multiple templates, stores an image, and saf
   const storedImages = await readdir(join(userDataDirectory, 'problem-images'), {
     recursive: true,
   })
-  expect(storedImages.filter(path => path.endsWith('.png'))).toHaveLength(1)
+  expect(storedImages.filter(path => path.endsWith('.png'))).toHaveLength(2)
 
   await page.getByRole('button', { name: '解除与模板的关联 dfs' }).click()
   await page.getByRole('button', { name: '确认解除' }).click()
@@ -476,7 +607,7 @@ test('persists the problem, image, and surviving relation across a desktop resta
   await page.getByRole('button', { name: /单源最短路径 洛谷/ }).click()
   await expect(page.getByRole('heading', { level: 2, name: '单源最短路径' })).toBeVisible()
   await expect(page.getByText('1 个已确认关联')).toBeVisible()
-  await expect(page.getByRole('img', { name: 'problem.png' })).toBeVisible()
+  await expect(page.getByRole('img', { exact: true, name: 'problem.png' })).toBeVisible()
 
   await page.keyboard.press(process.platform === 'darwin' ? 'Meta+K' : 'Control+K')
   const searchInput = page.getByRole('textbox', { name: '搜索模板、题目或操作' })

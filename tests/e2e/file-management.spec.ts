@@ -11,6 +11,10 @@ import {
   type Page,
 } from '@playwright/test'
 
+import type { DesktopApi } from '@core/contracts/desktop-api'
+
+declare const window: { desktop: DesktopApi }
+
 let electronApp: ElectronApplication
 let mockBaseUrl: string
 let mockServer: Server
@@ -337,6 +341,21 @@ test('applies a selected plan with backup, stable relations, and rollback', asyn
   await page.getByRole('button', { name: '预览并执行' }).click()
   await page.getByRole('button', { name: '确认执行' }).click()
   await expect(page.getByRole('status').filter({ hasText: '保留撤销备份' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '一键删除执行记录' })).toBeDisabled()
+  const appliedExecutionId = await page.evaluate(async () => {
+    const execution = (await window.desktop.templateManagement.listFileExecutions())[0]
+    if (!execution) throw new Error('expected applied execution')
+    return execution.id
+  })
+  const appliedDeleteError = await page.evaluate(async executionId => {
+    try {
+      await window.desktop.templateManagement.deleteFileExecutions({ executionIds: [executionId] })
+      return null
+    } catch (error) {
+      return error instanceof Error ? error.message : String(error)
+    }
+  }, appliedExecutionId)
+  expect(appliedDeleteError).toContain('仍可撤销的记录请先从备份撤销')
 
   expect(await pathExists(join(workspaceRoot, 'Old Name.cpp'))).toBe(false)
   expect(await pathExists(join(workspaceRoot, '整理', '旧名称.cpp'))).toBe(true)
@@ -409,11 +428,66 @@ test('applies a selected plan with backup, stable relations, and rollback', asyn
   await page.locator('html').evaluate(root => root.classList.remove('dark'))
   await page.getByRole('button', { name: '取消', exact: true }).click()
   await page.getByRole('button', { name: '切换到英文界面' }).click()
-  await expect(page.getByText('Undone')).toBeVisible()
+  await expect(page.getByText('Undone', { exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Copy as new plan' }).first()).toBeVisible()
   await expect(page.getByText('已撤销')).toHaveCount(0)
   await page.screenshot({
     animations: 'disabled',
     path: resolve('output/playwright/file-history-en-1440x900.png'),
   })
+  await page.getByRole('button', { name: 'Switch to Chinese' }).click()
+
+  const rolledBackExecutionId = await page.evaluate(async () => {
+    const execution = (await window.desktop.templateManagement.listFileExecutions())[0]
+    if (!execution || execution.status !== 'rolled-back') {
+      throw new Error('expected rolled-back execution')
+    }
+    return execution.id
+  })
+  const mixedDeleteError = await page.evaluate(async executionId => {
+    try {
+      await window.desktop.templateManagement.deleteFileExecutions({
+        executionIds: [executionId, '40000000-0000-4000-8000-000000000099'],
+      })
+      return null
+    } catch (error) {
+      return error instanceof Error ? error.message : String(error)
+    }
+  }, rolledBackExecutionId)
+  expect(mixedDeleteError).toContain('只有当前工作区中已撤销的执行记录可以删除')
+  await expect
+    .poll(() => page.evaluate(() => window.desktop.templateManagement.listFileExecutions()))
+    .toHaveLength(1)
+
+  await page.getByRole('button', { name: '数据管理', exact: true }).click()
+  await expect(page.getByTestId('data-count-file-executions')).toContainText('1')
+  await page.getByRole('button', { name: 'AI 管理', exact: true }).click()
+
+  const singleExecutionDelete = page.getByRole('button', { name: /^删除执行记录 ·/ })
+  await singleExecutionDelete.click()
+  await expect(page.getByRole('button', { name: '确认删除执行记录' })).toBeFocused()
+  await page.getByRole('button', { name: '取消', exact: true }).click()
+  await expect(singleExecutionDelete).toBeFocused()
+
+  await page.getByRole('button', { name: '一键删除执行记录' }).click()
+  await expect(page.getByText('将删除 1 条已撤销执行记录。')).toBeVisible()
+  await expect(page.getByRole('button', { name: '确认删除执行记录' })).toBeFocused()
+  await page.screenshot({
+    animations: 'disabled',
+    path: resolve('output/playwright/file-execution-delete-confirm-light-1440x900.png'),
+  })
+  await page.getByRole('button', { name: '确认删除执行记录' }).click()
+  await expect(page.getByRole('status')).toContainText('数据管理统计已同步')
+  await expect(page.getByText('暂无文件执行记录。')).toBeVisible()
+  await expect
+    .poll(() => page.evaluate(() => window.desktop.templateManagement.listFileExecutions()))
+    .toHaveLength(0)
+
+  await page.getByRole('button', { name: '数据管理', exact: true }).click()
+  await expect(page.getByTestId('data-count-file-executions')).toContainText('0')
+  await page.screenshot({
+    animations: 'disabled',
+    path: resolve('output/playwright/file-execution-delete-data-sync-light-1440x900.png'),
+  })
+  expect(await readFile(join(workspaceRoot, 'Old Name.cpp'), 'utf8')).toBe('void oldName() {}\n')
 })

@@ -91,6 +91,7 @@ export function FileManagementWorkspace({
   const [busyAction, setBusyAction] = useState<string | null>(null)
   const [confirmApply, setConfirmApply] = useState(false)
   const [confirmArchiveIds, setConfirmArchiveIds] = useState<string[] | null>(null)
+  const [confirmDeleteExecutionIds, setConfirmDeleteExecutionIds] = useState<string[] | null>(null)
   const [confirmRollbackId, setConfirmRollbackId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [executions, setExecutions] = useState<FileChangeExecution[]>([])
@@ -102,8 +103,15 @@ export function FileManagementWorkspace({
   const [success, setSuccess] = useState<string | null>(null)
   const confirmApplyButtonRef = useRef<HTMLButtonElement>(null)
   const confirmApplyTriggerRef = useRef<HTMLButtonElement>(null)
+  const confirmDeleteExecutionButtonRef = useRef<HTMLButtonElement>(null)
+  const executionDeleteReturnFocusRef = useRef<HTMLButtonElement | null>(null)
+  const executionSectionRef = useRef<HTMLDivElement>(null)
   const previewReturnFocusRef = useRef<HTMLElement | null>(null)
   const draftPlan = useMemo(() => plans.find(plan => plan.status === 'draft') ?? null, [plans])
+  const deletableExecutions = useMemo(
+    () => executions.filter(execution => execution.status === 'rolled-back'),
+    [executions],
+  )
   const historyPlans = useMemo(() => plans.filter(plan => plan.status !== 'draft'), [plans])
   const operationGroups = useMemo(() => {
     const groups = new Map<string, FileChangeOperation[]>()
@@ -175,6 +183,28 @@ export function FileManagementWorkspace({
   useEffect(() => {
     if (confirmApply) confirmApplyButtonRef.current?.focus()
   }, [confirmApply])
+
+  useEffect(() => {
+    if (confirmDeleteExecutionIds) confirmDeleteExecutionButtonRef.current?.focus()
+  }, [confirmDeleteExecutionIds])
+
+  const restoreExecutionDeleteFocus = () => {
+    window.requestAnimationFrame(() => {
+      const trigger = executionDeleteReturnFocusRef.current
+      if (trigger?.isConnected && !trigger.disabled) trigger.focus()
+      else executionSectionRef.current?.focus()
+    })
+  }
+
+  const openExecutionDeleteConfirmation = (executionIds: string[], trigger: HTMLButtonElement) => {
+    executionDeleteReturnFocusRef.current = trigger
+    setConfirmDeleteExecutionIds(executionIds)
+  }
+
+  const closeExecutionDeleteConfirmation = () => {
+    setConfirmDeleteExecutionIds(null)
+    restoreExecutionDeleteFocus()
+  }
 
   const closeApplyConfirmation = () => {
     setConfirmApply(false)
@@ -311,6 +341,19 @@ export function FileManagementWorkspace({
           count: planIds.length,
         }),
       )
+    })
+
+  const deleteExecutions = (executionIds: string[]) =>
+    run('delete-executions', async () => {
+      await window.desktop.templateManagement.deleteFileExecutions({ executionIds })
+      await refreshHistory()
+      setConfirmDeleteExecutionIds(null)
+      setSuccess(
+        t('已删除 {count} 条已撤销执行记录；数据管理统计已同步。', {
+          count: executionIds.length,
+        }),
+      )
+      restoreExecutionDeleteFocus()
     })
 
   if (!workspace) {
@@ -808,10 +851,67 @@ export function FileManagementWorkspace({
                   )}
                 </div>
 
-                <div className="mt-3 border-t border-border pt-3">
-                  <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                    {t('执行与撤销')}
-                  </p>
+                <div
+                  className="mt-3 border-t border-border pt-3 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  ref={executionSectionRef}
+                  tabIndex={-1}
+                >
+                  <div className="mb-2 flex flex-wrap items-center gap-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      {t('执行与撤销')}
+                    </p>
+                    <Button
+                      className="ml-auto"
+                      disabled={Boolean(busyAction) || deletableExecutions.length === 0}
+                      onClick={event =>
+                        openExecutionDeleteConfirmation(
+                          deletableExecutions.map(execution => execution.id),
+                          event.currentTarget,
+                        )
+                      }
+                      size="compact"
+                      type="button"
+                      variant="ghost"
+                    >
+                      <Trash2 aria-hidden="true" className="size-3.5" />
+                      {t('一键删除执行记录')}
+                    </Button>
+                  </div>
+                  {confirmDeleteExecutionIds && (
+                    <div className="mb-3 rounded-xl border border-warning/25 bg-warning/7 p-3 text-[11px] leading-5">
+                      <p className="font-semibold text-foreground">
+                        {t('将删除 {count} 条已撤销执行记录。', {
+                          count: confirmDeleteExecutionIds.length,
+                        })}
+                      </p>
+                      <p className="mt-1 text-muted-foreground">
+                        {t(
+                          '只删除已撤销的历史记录；模板、题目、关系和源码不变。对应的复制为新计划入口将消失，数据管理统计会同步减少。',
+                        )}
+                      </p>
+                      <div className="mt-2 flex gap-2">
+                        <Button
+                          disabled={Boolean(busyAction)}
+                          onClick={() => void deleteExecutions(confirmDeleteExecutionIds)}
+                          ref={confirmDeleteExecutionButtonRef}
+                          size="compact"
+                          type="button"
+                          variant="outline"
+                        >
+                          {t('确认删除执行记录')}
+                        </Button>
+                        <Button
+                          disabled={Boolean(busyAction)}
+                          onClick={closeExecutionDeleteConfirmation}
+                          size="compact"
+                          type="button"
+                          variant="ghost"
+                        >
+                          {t('取消')}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                   <div className="max-h-56 space-y-2 overflow-y-auto pr-1">
                     {executions.length === 0 ? (
                       <p className="text-xs text-muted-foreground">{t('暂无文件执行记录。')}</p>
@@ -864,17 +964,33 @@ export function FileManagementWorkspace({
                               </Button>
                             ))}
                           {execution.status === 'rolled-back' && (
-                            <Button
-                              className="mt-2"
-                              disabled={Boolean(busyAction) || Boolean(draftPlan)}
-                              onClick={() => void redraft(execution.planId)}
-                              size="compact"
-                              type="button"
-                              variant="ghost"
-                            >
-                              <FileClock className="size-3.5" />
-                              {t('复制为新计划')}
-                            </Button>
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              <Button
+                                disabled={Boolean(busyAction) || Boolean(draftPlan)}
+                                onClick={() => void redraft(execution.planId)}
+                                size="compact"
+                                type="button"
+                                variant="ghost"
+                              >
+                                <FileClock aria-hidden="true" className="size-3.5" />
+                                {t('复制为新计划')}
+                              </Button>
+                              <Button
+                                aria-label={`${t('删除执行记录')} · ${new Date(execution.createdAt).toLocaleString(locale)}`}
+                                disabled={Boolean(busyAction)}
+                                onClick={event =>
+                                  openExecutionDeleteConfirmation(
+                                    [execution.id],
+                                    event.currentTarget,
+                                  )
+                                }
+                                size="icon"
+                                type="button"
+                                variant="ghost"
+                              >
+                                <Trash2 aria-hidden="true" className="size-3.5 text-red-500" />
+                              </Button>
+                            </div>
                           )}
                         </article>
                       ))

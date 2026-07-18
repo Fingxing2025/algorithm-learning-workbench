@@ -32,6 +32,7 @@ import {
   applyFileChangePlanRequestSchema,
   applyTemplateRelocationRequestSchema,
   archiveFilePlansRequestSchema,
+  deleteFileExecutionsRequestSchema,
   filePlanGenerationRequestSchema,
   fileChangeOperationSchema,
   modelFileChangePlanSchema,
@@ -40,6 +41,8 @@ import {
   type ApplyTemplateRelocationRequest,
   type ArchiveFilePlansRequest,
   type ArchiveFilePlansResult,
+  type DeleteFileExecutionsRequest,
+  type DeleteFileExecutionsResult,
   type BatchImportTemplateRequest,
   type BatchImportTemplateResult,
   type BatchTemplateImportSource,
@@ -389,6 +392,28 @@ export class TemplateManagementService {
     } catch (error) {
       if (error instanceof PublicError) throw error
       throw new PublicError('DATABASE_ERROR', '计划记录归档失败，所有记录均保持原状。')
+    }
+  }
+
+  deleteFileExecutions(rawRequest: DeleteFileExecutionsRequest): DeleteFileExecutionsResult {
+    const request = deleteFileExecutionsRequestSchema.parse(rawRequest)
+    const workspace = this.workspaceRepository.getActiveWorkspace()
+    if (!workspace) throw new PublicError('WORKSPACE_REQUIRED', '请先创建或选择模板工作区。')
+    try {
+      const result = this.metadataRepository.deleteRolledBackExecutions(
+        workspace.id,
+        request.executionIds,
+      )
+      if (!result) {
+        throw new PublicError(
+          'INVALID_REQUEST',
+          '只有当前工作区中已撤销的执行记录可以删除；仍可撤销的记录请先从备份撤销。',
+        )
+      }
+      return result
+    } catch (error) {
+      if (error instanceof PublicError) throw error
+      throw new PublicError('DATABASE_ERROR', '执行记录删除失败，所有记录均保持原状。')
     }
   }
 

@@ -113,6 +113,8 @@ const desktopApi: DesktopApi = {
     classify: request => invokeResult(IPC_CHANNELS.templateManagement.classify, request),
     deleteTemplate: templateId =>
       invokeResult(IPC_CHANNELS.templateManagement.deleteTemplate, { templateId }),
+    deleteFileExecutions: request =>
+      invokeResult(IPC_CHANNELS.templateManagement.deleteFileExecutions, request),
     exportFilePlanDiagnostic: planId =>
       invokeResult(IPC_CHANNELS.templateManagement.exportFilePlanDiagnostic, { planId }),
     getMetadata: templateId =>

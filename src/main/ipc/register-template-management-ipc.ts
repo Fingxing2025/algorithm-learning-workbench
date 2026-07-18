@@ -21,6 +21,8 @@ import {
   archiveFilePlansRequestSchema,
   archiveFilePlansResultSchema,
   cancelFilePlanGenerationRequestSchema,
+  deleteFileExecutionsRequestSchema,
+  deleteFileExecutionsResultSchema,
   exportFilePlanDiagnosticRequestSchema,
   fileChangeExecutionListSchema,
   fileChangeMutationResultSchema,
@@ -153,6 +155,12 @@ export function registerTemplateManagementIpc(
     handler: () => service.listFileExecutions(),
     inputSchema: z.void(),
     outputSchema: fileChangeExecutionListSchema,
+  })
+  registerValidatedHandler({
+    channel: IPC_CHANNELS.templateManagement.deleteFileExecutions,
+    handler: request => service.deleteFileExecutions(request),
+    inputSchema: deleteFileExecutionsRequestSchema,
+    outputSchema: deleteFileExecutionsResultSchema,
   })
   registerValidatedHandler({
     channel: IPC_CHANNELS.templateManagement.rollbackFileExecution,

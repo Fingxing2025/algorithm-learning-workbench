@@ -2,10 +2,43 @@ import { describe, expect, it } from 'vitest'
 
 import {
   batchImportTemplateRequestSchema,
+  deleteFileExecutionsRequestSchema,
+  deleteFileExecutionsResultSchema,
   fileChangePlanPayloadSchema,
   inspectBatchTemplateImportResultSchema,
   parseStoredFileChangePlanPayload,
 } from './template-management'
+
+describe('file execution deletion contracts', () => {
+  const firstExecutionId = '40000000-0000-4000-8000-000000000017'
+  const secondExecutionId = '40000000-0000-4000-8000-000000000018'
+
+  it('accepts distinct execution UUIDs and a bounded deletion result', () => {
+    expect(
+      deleteFileExecutionsRequestSchema.parse({
+        executionIds: [firstExecutionId, secondExecutionId],
+      }),
+    ).toEqual({ executionIds: [firstExecutionId, secondExecutionId] })
+    expect(
+      deleteFileExecutionsResultSchema.parse({
+        deletedAt: '2026-07-18T10:00:00.000Z',
+        deletedExecutionIds: [firstExecutionId, secondExecutionId],
+      }),
+    ).toMatchObject({ deletedExecutionIds: [firstExecutionId, secondExecutionId] })
+  })
+
+  it('rejects duplicate, empty, and non-UUID execution identifiers', () => {
+    expect(() =>
+      deleteFileExecutionsRequestSchema.parse({
+        executionIds: [firstExecutionId, firstExecutionId],
+      }),
+    ).toThrow()
+    expect(() => deleteFileExecutionsRequestSchema.parse({ executionIds: [] })).toThrow()
+    expect(() =>
+      deleteFileExecutionsRequestSchema.parse({ executionIds: ['not-an-execution-id'] }),
+    ).toThrow()
+  })
+})
 
 describe('batch template import contracts', () => {
   const sourceId = '40000000-0000-4000-8000-000000000016'

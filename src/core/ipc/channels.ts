@@ -62,6 +62,7 @@ export const IPC_CHANNELS = {
     chooseImportSource: 'template-management:choose-import-source',
     classify: 'template-management:classify',
     deleteTemplate: 'template-management:delete-template',
+    deleteFileExecutions: 'template-management:delete-file-executions',
     exportFilePlanDiagnostic: 'template-management:export-file-plan-diagnostic',
     getMetadata: 'template-management:get-metadata',
     importTemplate: 'template-management:import-template',

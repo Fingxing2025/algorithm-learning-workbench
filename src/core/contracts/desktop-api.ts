@@ -45,6 +45,8 @@ import type {
   ApplyTemplateRelocationRequest,
   ArchiveFilePlansRequest,
   ArchiveFilePlansResult,
+  DeleteFileExecutionsRequest,
+  DeleteFileExecutionsResult,
   BatchImportTemplateRequest,
   BatchImportTemplateResult,
   BatchTemplateImportSource,
@@ -161,6 +163,9 @@ export interface DesktopApi {
     chooseImportSource: () => Promise<TemplateImportSource | null>
     classify: (request: ClassifyTemplateRequest) => Promise<TemplateClassification>
     deleteTemplate: (templateId: string) => Promise<FileChangeMutationResult>
+    deleteFileExecutions: (
+      request: DeleteFileExecutionsRequest,
+    ) => Promise<DeleteFileExecutionsResult>
     exportFilePlanDiagnostic: (planId: string | null) => Promise<boolean>
     getMetadata: (templateId: string) => Promise<TemplateMetadata | null>
     importTemplate: (request: ImportTemplateRequest) => Promise<ImportTemplateResult>

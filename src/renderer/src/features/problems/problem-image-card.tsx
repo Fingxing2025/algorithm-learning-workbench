@@ -1,11 +1,12 @@
 import * as Dialog from '@radix-ui/react-dialog'
-import { AlertCircle, ImageIcon, Maximize2, Trash2, X } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { AlertCircle, ImageIcon, Maximize2, Minimize2, Trash2, X } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 
 import type { ProblemImage } from '@core/contracts/problem'
 
 import { Button } from '@/components/ui/button'
 import { useI18n } from '@/lib/i18n'
+import { cn } from '@/lib/utils'
 
 interface ProblemImageCardProps {
   image: ProblemImage
@@ -14,12 +15,16 @@ interface ProblemImageCardProps {
 }
 
 type ImageState = { status: 'error' } | { status: 'loading' } | { dataUrl: string; status: 'ready' }
+type PreviewMode = 'fit-screen' | 'fit-width'
 
 export function ProblemImageCard({ image, isBusy, onRemove }: ProblemImageCardProps) {
   const { t } = useI18n()
   const [confirming, setConfirming] = useState(false)
   const [previewOpen, setPreviewOpen] = useState(false)
+  const [previewMode, setPreviewMode] = useState<PreviewMode>('fit-width')
   const [state, setState] = useState<ImageState>({ status: 'loading' })
+  const previewScrollRef = useRef<HTMLDivElement>(null)
+  const previewTriggerRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
     let isActive = true
@@ -41,6 +46,16 @@ export function ProblemImageCard({ image, isBusy, onRemove }: ProblemImageCardPr
     }
   }, [image.id])
 
+  useEffect(() => {
+    if (!previewOpen) return
+    previewScrollRef.current?.scrollTo({ left: 0, top: 0 })
+  }, [previewMode, previewOpen])
+
+  const handlePreviewOpenChange = (open: boolean) => {
+    if (open) setPreviewMode('fit-width')
+    setPreviewOpen(open)
+  }
+
   return (
     <article className="group overflow-hidden rounded-xl border border-border bg-panel">
       <div className="relative grid aspect-video place-items-center overflow-hidden bg-muted/45">
@@ -52,7 +67,8 @@ export function ProblemImageCard({ image, isBusy, onRemove }: ProblemImageCardPr
           <button
             aria-label={`${t('预览图片')} ${image.originalName}`}
             className="group/preview relative size-full cursor-zoom-in outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
-            onClick={() => setPreviewOpen(true)}
+            onClick={() => handlePreviewOpenChange(true)}
+            ref={previewTriggerRef}
             type="button"
           >
             <img
@@ -108,35 +124,108 @@ export function ProblemImageCard({ image, isBusy, onRemove }: ProblemImageCardPr
         )}
       </div>
       {state.status === 'ready' && (
-        <Dialog.Root onOpenChange={setPreviewOpen} open={previewOpen}>
+        <Dialog.Root onOpenChange={handlePreviewOpenChange} open={previewOpen}>
           <Dialog.Portal>
             <Dialog.Overlay className="dialog-overlay fixed inset-0 z-[80] bg-overlay/85 backdrop-blur-md" />
-            <Dialog.Content className="fixed inset-4 z-[81] grid place-items-center overflow-hidden rounded-2xl border border-white/10 bg-[#080b12] p-4 shadow-2xl outline-none sm:inset-8">
+            <Dialog.Content
+              className="fixed inset-4 z-[81] flex min-h-0 flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#080b12] shadow-2xl outline-none sm:inset-8"
+              onCloseAutoFocus={event => {
+                event.preventDefault()
+                previewTriggerRef.current?.focus()
+              }}
+            >
               <Dialog.Title className="sr-only">
                 {t('预览题目图片：{name}', { name: image.originalName })}
               </Dialog.Title>
               <Dialog.Description className="sr-only">
-                {t('放大查看本地保存的题目图片，按 Escape 关闭预览。')}
+                {t('按宽度查看可上下滚动完整长图，也可切换为适合窗口；按 Escape 关闭预览。')}
               </Dialog.Description>
-              <img
-                alt={image.originalName}
-                className="max-h-full max-w-full object-contain"
-                src={state.dataUrl}
-              />
-              <div className="absolute left-4 top-4 max-w-[calc(100%-5rem)] truncate rounded-lg bg-black/55 px-3 py-2 text-xs text-white backdrop-blur-sm">
-                {image.originalName}
-              </div>
-              <Dialog.Close asChild>
-                <Button
-                  aria-label={t('关闭图片预览')}
-                  className="absolute right-4 top-4 border-white/15 bg-black/55 text-white hover:bg-black/75"
-                  size="close"
-                  type="button"
-                  variant="outline"
+              <header className="flex min-h-14 shrink-0 items-center gap-3 border-b border-white/10 bg-black/45 px-3 py-2 text-white sm:px-4">
+                <p className="min-w-0 flex-1 truncate text-xs" title={image.originalName}>
+                  {image.originalName}
+                </p>
+                <div
+                  aria-label={t('图片预览方式')}
+                  className="flex shrink-0 items-center gap-1.5"
+                  role="group"
                 >
-                  <X aria-hidden="true" className="size-4" />
-                </Button>
-              </Dialog.Close>
+                  <Button
+                    aria-label={t('按宽度查看')}
+                    aria-pressed={previewMode === 'fit-width'}
+                    className={cn(
+                      'border-white/15 bg-black/35 text-white hover:bg-black/65 hover:text-white',
+                      previewMode === 'fit-width' && 'bg-white/15',
+                    )}
+                    onClick={() => setPreviewMode('fit-width')}
+                    size="compact"
+                    type="button"
+                    variant="outline"
+                  >
+                    <Maximize2 aria-hidden="true" className="size-3.5" />
+                    <span className="hidden md:inline">{t('按宽度查看')}</span>
+                  </Button>
+                  <Button
+                    aria-label={t('适合窗口')}
+                    aria-pressed={previewMode === 'fit-screen'}
+                    className={cn(
+                      'border-white/15 bg-black/35 text-white hover:bg-black/65 hover:text-white',
+                      previewMode === 'fit-screen' && 'bg-white/15',
+                    )}
+                    onClick={() => setPreviewMode('fit-screen')}
+                    size="compact"
+                    type="button"
+                    variant="outline"
+                  >
+                    <Minimize2 aria-hidden="true" className="size-3.5" />
+                    <span className="hidden md:inline">{t('适合窗口')}</span>
+                  </Button>
+                  <Dialog.Close asChild>
+                    <Button
+                      aria-label={t('关闭图片预览')}
+                      className="border-white/15 bg-black/35 text-white hover:bg-black/65 hover:text-white"
+                      size="close"
+                      type="button"
+                      variant="outline"
+                    >
+                      <X aria-hidden="true" className="size-4" />
+                    </Button>
+                  </Dialog.Close>
+                </div>
+              </header>
+              <div
+                aria-label={t('题目图片滚动预览')}
+                className="relative min-h-0 flex-1 overflow-auto bg-[#080b12] p-3 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white/70 sm:p-4"
+                ref={previewScrollRef}
+                role="region"
+                tabIndex={0}
+              >
+                <div
+                  className={
+                    previewMode === 'fit-screen'
+                      ? 'grid place-items-center'
+                      : 'mx-auto w-full max-w-[1200px]'
+                  }
+                >
+                  <img
+                    alt={image.originalName}
+                    className={
+                      previewMode === 'fit-screen'
+                        ? 'block h-auto w-auto object-contain'
+                        : 'block h-auto w-full max-w-none'
+                    }
+                    data-preview-mode={previewMode}
+                    src={state.dataUrl}
+                    style={
+                      previewMode === 'fit-screen'
+                        ? {
+                            maxHeight: 'calc(100vh - 9rem)',
+                            maxWidth: 'calc(100vw - 6rem)',
+                          }
+                        : undefined
+                    }
+                  />
+                </div>
+              </div>
             </Dialog.Content>
           </Dialog.Portal>
         </Dialog.Root>

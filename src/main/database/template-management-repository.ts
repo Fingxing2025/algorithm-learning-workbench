@@ -90,6 +90,41 @@ export class TemplateManagementRepository {
       .get(templateId) as number
   }
 
+  deleteRolledBackExecutions(
+    workspaceId: string,
+    executionIds: string[],
+  ): { deletedAt: string; deletedExecutionIds: string[] } | null {
+    if (executionIds.length === 0) return null
+    const deletedAt = new Date().toISOString()
+    const placeholders = executionIds.map(() => '?').join(', ')
+    const transaction = this.database.client.transaction(() => {
+      const records = this.database.client
+        .prepare(
+          `SELECT e.id, e.status
+           FROM file_change_executions e
+           INNER JOIN file_change_plans p ON p.id = e.plan_id
+           WHERE p.workspace_id = ? AND e.id IN (${placeholders})`,
+        )
+        .all(workspaceId, ...executionIds) as Array<{ id: string; status: string }>
+      if (
+        records.length !== executionIds.length ||
+        records.some(record => record.status !== 'rolled-back')
+      ) {
+        return null
+      }
+
+      const remove = this.database.client.prepare(
+        "DELETE FROM file_change_executions WHERE id = ? AND status = 'rolled-back'",
+      )
+      for (const executionId of executionIds) {
+        const result = remove.run(executionId)
+        if (result.changes !== 1) throw new Error('File execution delete state changed')
+      }
+      return { deletedAt, deletedExecutionIds: executionIds }
+    })
+    return transaction()
+  }
+
   getMetadata(templateId: string): TemplateMetadata | null {
     const record = this.database.orm
       .select()

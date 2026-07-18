@@ -263,6 +263,14 @@ Object.assign(english, {
     'Plans are only hidden from the normal list. Template sources, executions, undo backups, and user data remain.',
   确认删除计划记录: 'Confirm delete plan records',
   删除计划记录: 'Delete plan record',
+  一键删除执行记录: 'Delete undone execution records',
+  删除执行记录: 'Delete execution record',
+  确认删除执行记录: 'Confirm delete execution records',
+  '将删除 {count} 条已撤销执行记录。': 'Delete {count} undone execution records.',
+  '只删除已撤销的历史记录；模板、题目、关系和源码不变。对应的复制为新计划入口将消失，数据管理统计会同步减少。':
+    'Only undone history is deleted. Templates, problems, relations, and source files remain unchanged. The corresponding copy-as-new-plan action disappears, and the Data Management count decreases in sync.',
+  '已删除 {count} 条已撤销执行记录；数据管理统计已同步。':
+    'Deleted {count} undone execution records. Data Management statistics are now in sync.',
   关闭新建题目: 'Close new problem',
   'AI 已补全草稿：{provider} · {model}。你仍可修改后一次保存。':
     'AI filled the draft with {provider} · {model}. You can still edit it and save once.',
@@ -798,8 +806,8 @@ Object.assign(english, {
     'Link “{name}” to an existing problem. Neither the problem nor the template will be copied or moved.',
   '当前题库中的题目都已经关联到该模板。你可以在下方的关联题目卡片中打开题目，修改关系类型或解除关联。':
     'Every problem in the library is already linked to this template. Open a related problem below to change or remove the relation.',
-  '放大查看本地保存的题目图片，按 Escape 关闭预览。':
-    'View the locally stored problem image at full size. Press Escape to close.',
+  '按宽度查看可上下滚动完整长图，也可切换为适合窗口；按 Escape 关闭预览。':
+    'Fit the image to the preview width and scroll through a tall image, or fit the whole image to the window. Press Escape to close.',
   '无法读取粘贴的图片。': 'Unable to read the pasted image.',
   '普及+/提高、1600…': 'Easy/Intermediate, 1600…',
   '最短路, 图论, Dijkstra': 'Shortest Path, Graph Theory, Dijkstra',
@@ -812,6 +820,10 @@ Object.assign(english, {
   选择题目: 'Select a problem',
   预览图片: 'Preview image',
   '预览题目图片：{name}': 'Preview problem image: {name}',
+  图片预览方式: 'Image preview mode',
+  按宽度查看: 'Fit width',
+  适合窗口: 'Fit window',
+  题目图片滚动预览: 'Scrollable problem image preview',
   高亮模板源码: 'Highlighted template source',
   '单张题目图片不能超过 8 MiB。': 'Each problem image must be no larger than 8 MiB.',
   '操作未完成，请重试。': 'The operation did not finish. Please try again.',
@@ -1018,6 +1030,10 @@ Object.assign(english, {
   '文件计划执行失败，已恢复完成的步骤。': 'The file plan failed. Completed steps were restored.',
   '该执行记录不可撤销。': 'This execution record cannot be undone.',
   '执行记录损坏，无法安全撤销。': 'The execution record is damaged and cannot be undone safely.',
+  '只有当前工作区中已撤销的执行记录可以删除；仍可撤销的记录请先从备份撤销。':
+    'Only undone execution records in the current workspace can be deleted. Undo records that still have a backup first.',
+  '执行记录删除失败，所有记录均保持原状。':
+    'Execution record deletion failed. All records remain unchanged.',
   '撤销未完成，已恢复到撤销前状态。': 'Undo did not finish. The pre-undo state was restored.',
   '模板源码必须是小于 2 MiB 的普通文件。':
     'Template source must be a regular file smaller than 2 MiB.',

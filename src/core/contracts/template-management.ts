@@ -453,6 +453,21 @@ export const fileChangeExecutionListSchema = z.array(fileChangeExecutionSchema).
 export const rollbackFileChangeExecutionRequestSchema = z
   .object({ executionId: z.string().uuid() })
   .strict()
+export const deleteFileExecutionsRequestSchema = z
+  .object({ executionIds: z.array(z.string().uuid()).min(1).max(100) })
+  .strict()
+  .refine(
+    request => new Set(request.executionIds).size === request.executionIds.length,
+    '执行记录 ID 不能重复。',
+  )
+export type DeleteFileExecutionsRequest = z.infer<typeof deleteFileExecutionsRequestSchema>
+export const deleteFileExecutionsResultSchema = z
+  .object({
+    deletedAt: z.string().datetime(),
+    deletedExecutionIds: z.array(z.string().uuid()).min(1).max(100),
+  })
+  .strict()
+export type DeleteFileExecutionsResult = z.infer<typeof deleteFileExecutionsResultSchema>
 export const fileChangeMutationResultSchema = z
   .object({ execution: fileChangeExecutionSchema.nullable(), workspace: workspaceSnapshotSchema })
   .strict()
