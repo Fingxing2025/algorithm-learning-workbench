@@ -18,6 +18,7 @@ import {
   Moon,
   Plus,
   RefreshCw,
+  RotateCcw,
   Search,
   Settings2,
   ShieldCheck,
@@ -40,6 +41,7 @@ import type { ImportTemplateRequest } from '@core/contracts/template-management'
 import type { FileChangeMutationResult } from '@core/contracts/template-management'
 
 import { CommandPalette } from '@/components/command-palette'
+import { ResizableLayout } from '@/components/resizable-layout'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ProblemWorkspace } from '@/features/problems/problem-workspace'
@@ -50,6 +52,7 @@ import { useTemplateSource } from '@/features/templates/use-template-source'
 import { useWorkspace } from '@/features/templates/use-workspace'
 import { WorkspaceOnboarding } from '@/features/templates/workspace-onboarding'
 import { useRuntimeInfo } from '@/hooks/use-runtime-info'
+import { layoutPreferenceKeys, resetLayoutPreferences } from '@/hooks/use-layout-preference'
 import { useTheme } from '@/hooks/use-theme'
 import { cn } from '@/lib/utils'
 import { I18nProvider, useI18n } from '@/lib/i18n'
@@ -714,7 +717,18 @@ function TemplateLibrary({
         </div>
       </header>
 
-      <div className="grid min-h-0 flex-1 grid-cols-[minmax(260px,310px)_minmax(0,1fr)]">
+      <ResizableLayout
+        className="min-h-0 flex-1"
+        defaultPrimarySize={292}
+        maximumPrimarySize={420}
+        minimumPrimarySize={220}
+        minimumSecondarySize={360}
+        primaryLabel={t('模板树面板')}
+        secondaryLabel={t('模板详情面板')}
+        separatorLabel={t('调整模板树宽度')}
+        storageKey={layoutPreferenceKeys.templateLibrary}
+        valueText={size => t('模板树宽度 {size} 像素', { size })}
+      >
         <TemplateTree
           onAction={onAction}
           onSelect={onSelectTemplate}
@@ -725,7 +739,7 @@ function TemplateLibrary({
         />
         <Suspense
           fallback={
-            <section className="grid min-h-0 place-items-center bg-background">
+            <section className="grid h-full min-h-0 place-items-center bg-background">
               <div className="text-center">
                 <LoaderCircle className="mx-auto size-5 animate-spin text-primary" />
                 <p className="mt-2 text-xs text-muted-foreground">{t('正在准备源码查看器…')}</p>
@@ -756,7 +770,7 @@ function TemplateLibrary({
             template={selectedTemplate}
           />
         </Suspense>
-      </div>
+      </ResizableLayout>
     </main>
   )
 }
@@ -1208,8 +1222,19 @@ function AppContent() {
           </div>
         </header>
 
-        <div className="grid min-h-0 grid-cols-[224px_minmax(0,1fr)]">
-          <aside className="glass-sidebar flex min-h-0 flex-col border-r px-3 py-4">
+        <ResizableLayout
+          className="min-h-0"
+          defaultPrimarySize={216}
+          maximumPrimarySize={296}
+          minimumPrimarySize={184}
+          minimumSecondarySize={640}
+          primaryLabel={t('应用导航面板')}
+          secondaryLabel={t('当前工作区页面')}
+          separatorLabel={t('调整导航宽度')}
+          storageKey={layoutPreferenceKeys.appNavigation}
+          valueText={size => t('导航宽度 {size} 像素', { size })}
+        >
+          <aside className="glass-sidebar flex h-full min-h-0 flex-col px-3 py-4">
             <div className="mb-2 px-3 text-[9px] font-semibold uppercase tracking-[0.13em] text-muted-foreground/75">
               {t('知识工作台')}
             </div>
@@ -1285,6 +1310,18 @@ function AppContent() {
                   {createShortcutLabel}
                 </kbd>
               </button>
+              <button
+                aria-label={t('重置布局')}
+                className="quick-action-row group"
+                onClick={() => {
+                  resetLayoutPreferences()
+                  setNotice(t('布局已恢复默认值'))
+                }}
+                type="button"
+              >
+                <RotateCcw aria-hidden="true" className="size-3.5 text-primary" />
+                <span>{t('重置布局')}</span>
+              </button>
             </section>
 
             <div className="glass-floating mt-auto overflow-hidden rounded-2xl border shadow-panel">
@@ -1309,7 +1346,6 @@ function AppContent() {
               </div>
             </div>
           </aside>
-
           <motion.div
             animate={{ opacity: 1, y: 0 }}
             className="relative h-full min-h-0 overflow-hidden"
@@ -1361,7 +1397,7 @@ function AppContent() {
             </AnimatePresence>
             {renderContent()}
           </motion.div>
-        </div>
+        </ResizableLayout>
 
         <footer className="glass-toolbar flex items-center border-t px-3 text-[10px] text-muted-foreground">
           <span className="inline-flex items-center gap-1.5">

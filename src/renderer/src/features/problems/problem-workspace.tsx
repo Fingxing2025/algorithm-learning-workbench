@@ -28,6 +28,8 @@ import type { TemplateSummary } from '@core/contracts/workspace'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { ResizableLayout } from '@/components/resizable-layout'
+import { layoutPreferenceKeys } from '@/hooks/use-layout-preference'
 import { useI18n } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 
@@ -206,8 +208,19 @@ export function ProblemWorkspace({
         </div>
       )}
 
-      <div className="grid min-h-0 flex-1 grid-cols-[minmax(280px,330px)_minmax(0,1fr)]">
-        <section className="flex min-h-0 flex-col border-r border-border bg-sidebar/75">
+      <ResizableLayout
+        className="min-h-0 flex-1"
+        defaultPrimarySize={312}
+        maximumPrimarySize={440}
+        minimumPrimarySize={232}
+        minimumSecondarySize={360}
+        primaryLabel={t('题目列表面板')}
+        secondaryLabel={t('题目详情面板')}
+        separatorLabel={t('调整题目列表宽度')}
+        storageKey={layoutPreferenceKeys.problemWorkspace}
+        valueText={size => t('题目列表宽度 {size} 像素', { size })}
+      >
+        <section className="flex h-full min-h-0 flex-col bg-sidebar/75">
           <div className="border-b border-border px-3 py-3.5">
             <div className="mb-2.5 flex items-center justify-between px-1">
               <span className="text-[10px] font-semibold uppercase tracking-[0.11em] text-muted-foreground">
@@ -302,7 +315,6 @@ export function ProblemWorkspace({
             </div>
           )}
         </section>
-
         {!selectedProblem ? (
           <section className="relative grid min-h-0 place-items-center overflow-hidden bg-background p-8 text-center">
             <div
@@ -673,7 +685,7 @@ export function ProblemWorkspace({
             </div>
           </section>
         )}
-      </div>
+      </ResizableLayout>
 
       <ProblemEditorDialog
         error={error}
