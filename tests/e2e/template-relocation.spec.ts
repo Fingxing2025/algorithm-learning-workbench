@@ -128,9 +128,7 @@ test('renames and moves a real template with a stable ID, archives its plan, and
   await expect(page.getByRole('button', { name: '从备份撤销' })).toBeVisible()
   await page.getByRole('button', { name: '从备份撤销' }).click()
   await page.getByRole('button', { name: '确认撤销' }).click()
-  await expect(
-    page.getByRole('status').filter({ hasText: '已从备份撤销文件计划。' }),
-  ).toBeVisible()
+  await expect(page.getByRole('status').filter({ hasText: '已从备份撤销文件计划。' })).toBeVisible()
 
   expect(await readFile(join(workspaceRoot, '算法', 'a.cpp'), 'utf8')).toBe(
     'void stableTemplate() {}\n',

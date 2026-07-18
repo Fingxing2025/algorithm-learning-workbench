@@ -10,7 +10,7 @@
 
 ## 1. 结论
 
-Session D 已完成，随后从 `8071970` 基线补齐题目长图滚动/整图预览、已撤销执行记录安全删除，以及题目详情/编辑器的真实纵向滚动和题目专属 `X` 命中。导航、列表/树和详情工作区在 1440×900、1280×720、真实 1024×640 与 200% 缩放下可以调整、恢复、重置并用键盘完成核心流程；页面切换、异步状态、AI 取消和恢复结果具有不泄露正文的状态播报；减少动效、长内容、亮暗主题和焦点回归已有自动化与截图证据。
+Session D 已完成，随后从 `8071970` 基线补齐题目长图滚动/整图预览、已撤销执行记录安全删除、题目详情/编辑器的真实纵向滚动，以及 AI 发送预览 `X`/Escape 退出整张题目卡片的语义。导航、列表/树和详情工作区在 1440×900、1280×720、真实 1024×640 与 200% 缩放下可以调整、恢复、重置并用键盘完成核心流程；页面切换、异步状态、AI 取消和恢复结果具有不泄露正文的状态播报；减少动效、长内容、亮暗主题和焦点回归已有自动化与截图证据。
 
 原 Session D 没有增加产品模块、数据库 schema、migration、IPC、系统权限或密钥边界。后续修复新增 ADR-0019 和最小 `delete-file-executions` IPC/Preload 白名单，只接受已撤销执行记录 UUID；仍无 schema/migration/系统权限变化。布局偏好仍属于纯 Renderer 展示状态，不进入数据库或备份。
 
@@ -30,7 +30,9 @@ Session D 已完成，随后从 `8071970` 基线补齐题目长图滚动/整图�
 10. `3e6898a test: capture dark execution cleanup confirmation`
 11. `8ccb0c4 fix: make icon buttons fully clickable`
 12. `452f0f8 fix: restore problem card scrolling`
-13. 本文所在提交：同步题目滚动、关闭命中、重新打包与最终交接证据
+13. `9820110 docs: record problem card interaction evidence`
+14. `3219661 fix: close problem card from ai preview`
+15. 本文所在提交：同步 AI 预览退出、重新打包与最终交接证据
 
 所有提交均为本地小提交；没有推送远程仓库。
 
@@ -59,6 +61,7 @@ Session D 已完成，随后从 `8071970` 基线补齐题目长图滚动/整图�
 - 键盘可以创建题目、打开关联窗口、保存关联，再通过全局搜索选择长路径模板。
 - 长图默认按宽度在独立区域滚动，可切换整图概览；工具栏在 200% 下仍可达，Escape 后焦点回到图片触发器。
 - 公共按钮内图标不再截获指针；真实鼠标点击新建模板、新建题目、编辑题目和长图预览的 `X` 笔画中心会命中完整按钮、退出浮层并恢复焦点。
+- AI 发送预览右上角 `X` 和 Escape 退出整张题目卡片；底部“返回修改/取消生成”继续保留草稿。生成中点击 `X` 会先取消请求并关闭连接，不创建题目。
 
 ### AI 管理与 AI 设置
 
@@ -147,7 +150,7 @@ Session D 已完成，随后从 `8071970` 基线补齐题目长图滚动/整图�
 
 通过：
 
-- 50 项常规 Electron E2E
+- 51 项常规 Electron E2E
 - 2 项 packaged 测试按条件跳过
 - 最终全量重跑总耗时约 2.5 分钟
 
@@ -161,10 +164,11 @@ Session D 新增/加强证据：
 - `prefers-reduced-motion` 下摘要卡 hover 不产生位移/缩放，过渡降至 0.01ms。
 - 48 个虚拟目录和 36 个题目分别在树/列表内部滚动。
 - 36 道题的列表、长题面详情与编辑器字段区均通过真实滚轮和滚动条拖动；新建/编辑题目 `X` 中心点击均命中 `BUTTON` 并恢复焦点。
+- AI 发送预览空闲 `X`、Escape 和生成中 `X` 均退出整张题目卡片；生成中 `X` 取消本地连接、零写入并回焦，“取消生成”仍保留草稿。
 - 600×4000 长图在 1280×720 下按宽度滚到底、切换整图并通过 200% 控件可达检查。
 - 执行记录未撤销/混合批次整批拒绝；删除已撤销记录后数据管理计数由 1 同步为 0，模板源码保持撤销后的原状。
 
-本轮从源码提交 `452f0f8` 重新执行 `npm run package:dir`，并单独通过全新 userData 与已有 V2 工作区重启的 2 项 packaged smoke。Session C 的旧候选摘要没有被当作本轮目录包证据；macOS 正式签名/公证状态仍未完成。
+本轮从源码提交 `3219661` 重新执行 `npm run package:dir`，并单独通过全新 userData 与已有 V2 工作区重启的 2 项 packaged smoke。Session C 的旧候选摘要没有被当作本轮目录包证据；macOS 正式签名/公证状态仍未完成。
 
 ## 8. 截图证据
 
@@ -188,6 +192,7 @@ Session D 新增/加强证据：
 - `_contact-ai-management.png`
 - `_contact-data-management.png`
 - `/Users/ffxx/Desktop/项目/智能算法学习助手-v2/output/playwright/problem-image-long-preview-1280x720.png`
+- `/Users/ffxx/Desktop/项目/智能算法学习助手-v2/output/playwright/problem-ai-busy-close-1440x900.png`
 - `/Users/ffxx/Desktop/项目/智能算法学习助手-v2/output/playwright/problem-card-detail-scroll-1024x640.png`
 - `/Users/ffxx/Desktop/项目/智能算法学习助手-v2/output/playwright/problem-editor-scroll-and-close-1024x640.png`
 - `/Users/ffxx/Desktop/项目/智能算法学习助手-v2/output/playwright/problem-image-long-preview-fit-window-1280x720.png`

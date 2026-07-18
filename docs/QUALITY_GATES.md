@@ -9,7 +9,7 @@
 - 受影响的 Playwright E2E 通过。
 - Electron 可以从开发入口真实启动。
 
-当前累计基线（2026-07-18，Session D 后续 `0.1.2` 开发快照）：27 个 Vitest 文件中的 195 项测试与 3 项发布脚本测试通过；常规真实 Electron E2E 50 项通过，2 项 packaged 测试在未设置 `PACKAGED_APP_PATH` 时按条件跳过。Session C 曾对当时的目录包单独通过 2 项 packaged smoke，但任何重新打包都必须重新运行，不能沿用旧摘要。测试数量随功能增长会变化，发布判断以当次命令结果为准。
+当前累计基线（2026-07-18，Session D 后续 `0.1.2` 开发快照）：27 个 Vitest 文件中的 195 项测试与 3 项发布脚本测试通过；常规真实 Electron E2E 51 项通过，2 项 packaged 测试在未设置 `PACKAGED_APP_PATH` 时按条件跳过。当前目录包已另行通过 2 项 packaged smoke；测试数量随功能增长会变化，发布判断以当次命令结果为准。
 
 ## 核心 E2E 场景
 
@@ -46,6 +46,7 @@
 - `tests/e2e/file-management.spec.ts` 验证键盘聚焦并确认计划、取消生成零写入、外部修改整批拒绝、执行/备份/关系稳定与回滚。
 - `tests/e2e/app.spec.ts` 使用真实 600×4000 PNG 验证长图默认按宽度滚动到底、整图概览、200% 工具栏可达和 Escape 焦点回归。
 - `tests/e2e/app.spec.ts` 直接点击新建模板、新建题目和长图预览的 `X` 图标中心；滚动 E2E 同样点击编辑题目的 `X` 中心，验证 `elementFromPoint` 命中按钮、pointer 光标、退出成功和焦点回归。
+- `tests/e2e/problem-analysis.spec.ts` 7 项通过：AI 发送预览空闲时点击 `X`、按 Escape，以及生成中点击 `X` 均退出整张题目卡片；生成中退出会关闭本地 mock 连接且零题目写入，“取消生成”仍保留草稿。
 - `tests/e2e/file-management.spec.ts` 另验证未撤销执行不可删除、混合批次整批拒绝、单条/批量确认焦点，以及删除后数据管理执行记录计数从 1 同步为 0。
 - 最终截图目录：`/Users/ffxx/Desktop/项目/智能算法学习助手-v2/output/playwright/session-d-final/`。
 - 必须人工复核四页面 1440×900、1280×720、1024×640 的亮暗主题以及 200% 关键状态；联系图只能辅助浏览，不能替代原始截图。
@@ -95,10 +96,11 @@
 | 命令/证据                       | 结果                                                                                                    |
 | ------------------------------- | ------------------------------------------------------------------------------------------------------- |
 | `npm run check`                 | 通过：TypeScript、ESLint 0 warnings、Prettier、27 个 Vitest 文件/195 项测试、3 项发布脚本测试           |
-| `npm run test:e2e`              | 通过：50 项常规 Electron E2E；2 项 packaged 因未重新生成目录包按条件跳过                                |
+| `npm run test:e2e`              | 通过：51 项常规 Electron E2E；2 项 packaged 未设置路径时按条件跳过；最终全量重跑约 2.9 分钟             |
 | 长图与执行记录定向 Electron E2E | `app.spec.ts` 9 项、`file-management.spec.ts` 4 项通过；真实 Main/Preload/Renderer 与 SQLite 路径均覆盖 |
 | 题目卡片滚动与关闭 Electron E2E | 题目列表、详情、编辑表单均通过滚轮和滚动条拖动；新建/编辑 `X` 中心点击命中按钮、关闭并恢复焦点          |
+| AI 发送预览关闭 Electron E2E    | 预览 `X`/Escape 退出整卡；生成中 `X` 命中按钮、取消连接、零写入并回焦；底部取消继续保留草稿             |
 | Repository/契约                 | 9 项定向测试通过；覆盖 UUID 去重/边界、工作区/状态全量校验和删除中途失败的事务回滚                      |
 | 截图                            | 新增 2 张 1024×640 题目详情/编辑滚动图；原 6 张长图/亮暗删除确认/数据同步关键图继续保留并人工复核       |
 | migration / Renderer 权限       | 本次滚动/关闭修复无 migration、IPC、系统权限或 ADR；Renderer 仍无 Node/SQLite/文件系统权限              |
-| 目录包                          | `npm run package:dir` 成功；全新与已有 V2 userData packaged smoke 2 项通过，未复用 Session C 候选摘要   |
+| 目录包                          | 从 `3219661` 执行 `package:dir`；全新与已有 V2 userData packaged smoke 2 项通过，未复用旧候选摘要       |

@@ -126,6 +126,7 @@ Session D 后续修复（基线 `8071970`）：
 - 题目详情补齐面板高度约束，长题面不再把详情撑高后被外层裁切；题目列表、详情与编辑字段区均支持真实鼠标滚轮和滚动条拖动，滚动区域可聚焦且使用稳定滚动条槽。
 - 编辑题目卡片改为固定头部/底部操作区与中间独立滚动；1024×640 下关闭、取消、保存和错误信息保持可达。
 - 新建/编辑题目的右上角关闭按钮使用显式受控关闭，Lucide `X` 明确不参与指针命中；真实鼠标点击两个 `X` 图标中心均命中 `BUTTON`、退出并恢复焦点。
+- AI 发送预览的 `X`/Escape 不再与底部“返回修改/取消生成”共用动作：前者退出整张题目卡片，后者保留草稿。生成中点击 `X` 会先复用既有取消 IPC 关闭连接再退出，最终原子提交期间仍阻止关闭，避免误报零写入。
 - 题目长图预览默认按可读宽度显示，在可聚焦区域内纵向滚动；可切换为整图适配。重新打开或切换模式回到顶部，Escape/关闭后焦点返回图片触发器。
 - 共享 `Button` 内的 Lucide SVG 使用 `pointer-events: none`，完整按钮负责命中；真实鼠标点击新建模板和图片预览的 `X` 笔画中心均可关闭，且可用按钮显示 pointer 光标。
 - “执行与撤销”新增单条与批量删除；只允许删除当前工作区中已撤销的执行记录。仍有撤销备份的 `applied` 记录必须先撤销，不能绕过恢复能力保护。
@@ -133,9 +134,10 @@ Session D 后续修复（基线 `8071970`）：
 - 没有数据库字段或 migration；撤销流程原本已清理对应备份目录，因此删除已撤销记录不删除任何文件。数据管理继续直接统计 `file_change_executions`，删除后计数同步减少。
 - Electron E2E 使用 600×4000 PNG 覆盖按宽度滚动、整图、200% 与焦点回归，并覆盖未撤销拒绝、混合批次拒绝、确认焦点、用户文件不变和数据管理计数 1→0。
 - Electron E2E 另使用 36 道题和长题面验证列表/详情/编辑器的滚轮及滚动条拖动；截图为 `problem-card-detail-scroll-1024x640.png` 与 `problem-editor-scroll-and-close-1024x640.png`。
+- 题目 AI E2E 使用受控慢响应验证空闲预览 `X`、Escape 与生成中 `X`；关闭后触发器回焦、连接关闭且题目零写入。截图为 `problem-ai-busy-close-1440x900.png`。
 - 截图位于 `/Users/ffxx/Desktop/项目/智能算法学习助手-v2/output/playwright/`，其余文件名以 `problem-image-long-preview-` 和 `file-execution-delete-` 开头。
 
-当前 macOS arm64 目录包已从源码提交 `452f0f8` 使用 `package:dir` 重新生成，位于 `release/mac-arm64/算法学习工作台.app`；全新/已有 V2 userData 的 packaged smoke 2 项通过。`release/candidates/0.1.2-mac-arm64-preview/` 仍是 Session C 历史候选证据，没有被本轮复用或重写。`release/` 已被 Git 忽略，目录包不属于源码提交；该 App 未正式签名或公证，只能用于本机预览与验收。
+当前 macOS arm64 目录包已从源码提交 `3219661` 使用 `package:dir` 重新生成，位于 `release/mac-arm64/算法学习工作台.app`；全新/已有 V2 userData 的 packaged smoke 2 项通过。`release/candidates/0.1.2-mac-arm64-preview/` 仍是 Session C 历史候选证据，没有被本轮复用或重写。`release/` 已被 Git 忽略，目录包不属于源码提交；该 App 未正式签名或公证，只能用于本机预览与验收。
 
 ## 1. 结论先行
 
@@ -153,7 +155,7 @@ V2 已经完成从零开始使用所需的核心纵向流程，不再是界面�
 | AI Provider 稳定性 | Session B 完成 |        95% | 五类协议统一结构化管线、阶段错误、取消、有限重试与主要失败矩阵                         |
 | UI 与交互          | Session D 完成 |        92% | 布局记忆、全键盘、焦点回归、状态播报、1024×640、200% 与减少动效均有自动化和截图证据    |
 | 性能与大型工作区   | 未充分证明     |        65% | 有虚拟树和上下文上限，但没有大型工作区基准与增量相似度索引                             |
-| 测试与工程质量     | 良好           |        98% | 195 项 Vitest、3 项发布脚本测试、50 项常规 Electron E2E 通过；2 项 packaged 按条件跳过 |
+| 测试与工程质量     | 良好           |        98% | 195 项 Vitest、3 项发布脚本测试、51 项常规 Electron E2E 通过；2 项 packaged 按条件跳过 |
 | 公开发布准备       | 外部门禁待完成 |        65% | 可重复候选与证据已完成；macOS 未签名/公证，Windows 未实机安装验证                      |
 
 这些百分比用于安排优先级，不是发布承诺。公开发布必须按质量门禁逐项提供证据。
@@ -284,8 +286,8 @@ Main
 | ESLint（0 warnings）               | 通过                                                                                                                      |
 | Prettier check                     | 通过                                                                                                                      |
 | Vitest                             | 27 个文件，195 项通过；新增执行删除契约/事务测试，并保持布局、五协议、数据恢复和发布逻辑回归                              |
-| 统一题目 Electron E2E              | 6 项通过；覆盖纯手动、文本/图文 AI、取消、无效 JSON、多方向候选、空候选、零写入关闭和重启持久化                           |
-| `npm run test:e2e`                 | 50 项常规 Electron E2E 通过，2 项 packaged 按条件跳过；最终全量重跑总耗时约 2.5 分钟                                      |
+| 统一题目 Electron E2E              | 7 项通过；覆盖纯手动、文本/图文 AI、取消、预览 X/Escape、忙碌 X 取消连接、空候选、零写入和重启持久化                      |
+| `npm run test:e2e`                 | 51 项常规 Electron E2E 通过，2 项 packaged 按条件跳过；最终全量重跑总耗时约 2.9 分钟                                      |
 | 数据管理 Electron E2E              | 8 项通过；导出/恢复、隔离/撤销、提交前后中断恢复和故障回滚全部保持通过                                                    |
 | 打包入口 smoke test                | 最终 macOS arm64 候选以全新 userData 启动，并写入工作区/模板后用同一 userData 重启，2 项通过                              |
 | `npm audit --audit-level=moderate` | 通过，0 个漏洞                                                                                                            |

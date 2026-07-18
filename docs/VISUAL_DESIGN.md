@@ -4,12 +4,13 @@
 
 - 题目详情必须继承 ResizableLayout 的可用高度；长题面在详情面板内部滚动，不得先按内容高度撑开后被外层裁切。题目列表、详情和编辑内容均保留稳定滚动条槽与 overscroll 边界，支持滚轮和直接拖动滚动条。
 - 编辑题目卡片使用固定标题栏与底部操作栏，中间字段独立滚动；1024×640 下 `X`、取消、保存和表单错误不会因长题面变得不可达。
+- “确认发送给 AI”浮层的右上角 `X` 与底部“返回修改/取消生成”具有不同且可预期的语义：`X`/Escape 退出整张题目卡片，底部操作只返回草稿或取消生成并保留草稿。生成中退出会先取消请求；最终原子保存提交期间仍短暂锁定关闭。
 - 题目图片预览默认“按宽度查看”，长图保持可读宽度并在独立、可聚焦区域纵向滚动；“适合窗口”提供整图概览，切换模式和重新打开时回到顶部。
 - 预览工具栏固定在图片上方，文件名安全截断；紧凑/200% 视口只隐藏重复按钮文字而保留 Lucide 图标和完整 accessible name，关闭按钮始终可达。
 - “执行与撤销”沿用现有琥珀风险语义和普通内容面，不增加玻璃、渐变或动画；单条/批量删除使用 Trash 图标、二次确认和文字后果说明。
 - 只有已撤销记录显示删除入口；仍可从备份撤销的记录不通过禁用色暗示可删，而是保持删除入口不可用。删除反馈同时使用文字 `status`，不只依赖列表消失或颜色。
 - 公共按钮内的 Lucide 图标不参与指针命中，鼠标位于 `X` 笔画、图标空白或按钮边缘时都由完整按钮区域处理；题目新建/编辑器关闭按钮还使用显式受控关闭，可用按钮统一显示 pointer 光标。
-- 新增截图已人工复核：`output/playwright/problem-card-detail-scroll-1024x640.png`、`problem-editor-scroll-and-close-1024x640.png`、`problem-image-long-preview-1280x720.png`、`problem-image-long-preview-fit-window-1280x720.png`、`problem-image-long-preview-fit-window-200-percent.png`、`file-execution-delete-confirm-{light,dark}-1440x900.png` 和 `file-execution-delete-data-sync-light-1440x900.png`。
+- 新增截图已人工复核：`output/playwright/problem-ai-busy-close-1440x900.png`、`problem-card-detail-scroll-1024x640.png`、`problem-editor-scroll-and-close-1024x640.png`、`problem-image-long-preview-1280x720.png`、`problem-image-long-preview-fit-window-1280x720.png`、`problem-image-long-preview-fit-window-200-percent.png`、`file-execution-delete-confirm-{light,dark}-1440x900.png` 和 `file-execution-delete-data-sync-light-1440x900.png`。
 
 ## 2026-07-18 Session D：窗口适配与可访问交互
 
