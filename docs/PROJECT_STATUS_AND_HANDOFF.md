@@ -1,18 +1,18 @@
 # 项目状态、审计与多 Session 交接
 
 - 更新日期：2026-07-18
-- Session C 实际开发基线：`cd4c795 docs: add next session launch prompt`
+- Session D 实际开发基线：`613980b docs: hand off session c release evidence`
 - 本次交接提交：本文所在提交
 - 源码版本：`0.1.2` 开发快照
-- 产品阶段：0.1.2 功能闭环、Session A/B、九项 Bugfix 与 Session C 发布候选工程均完成；正式签名和 Windows 实机验收仍受外部条件阻塞
+- 产品阶段：0.1.2 功能闭环、Session A/B、九项 Bugfix、Session C 发布候选工程与 Session D UX/可访问性均完成；正式签名和 Windows 实机验收仍受外部条件阻塞
 
 ## 0. 新阶段入口
 
 本阶段基于 0.1.2 功能冻结基线继续建设发布可信度。后续不再横向增加 AI 页面或临时补丁；当前目标是让已经承载用户模板、题目、图片、关系和 AI 配置的 V2 数据可恢复，AI 任务可诊断、可取消并在五类协议下具有一致边界。
 
-当前状态：**Session A：数据可靠性与恢复、Session B：AI 稳定性与兼容矩阵、九项 Bugfix Session、Session C：可审计发布候选工程均已完成。当前没有 Apple Developer ID/notarization 凭据或 Windows 实机，因此签名、公证和 Windows 安装验收仍明确未完成；无外部条件时下一主线建议 Session D：UX、可访问性与窗口适配。**
+当前状态：**Session A：数据可靠性与恢复、Session B：AI 稳定性与兼容矩阵、九项 Bugfix Session、Session C：可审计发布候选工程、Session D：UX、可访问性与窗口适配均已完成。当前没有 Apple Developer ID/notarization 凭据或 Windows 实机，因此签名、公证和 Windows 安装验收仍明确未完成；无外部条件时下一主线建议 Session E：性能与大型工作区。**
 
-Session C 的候选摘要、平台限制和可直接复制的下一 Session 提示词见 `docs/SESSION_C_SUMMARY_AND_NEXT_PROMPT.md`。
+Session D 的布局、键盘、焦点、状态播报、截图结论和可直接复制的下一 Session 提示词见 `docs/SESSION_D_SUMMARY_AND_NEXT_PROMPT.md`；Session C 候选证据仍保留在 `docs/SESSION_C_SUMMARY_AND_NEXT_PROMPT.md`，但没有被本 Session 重新打包或复用为新候选摘要。
 
 Session A 已交付四条可运行纵向切片：第一切片完成备份 ADR、版本化数据管理契约、只读一致性诊断、`.awb-backup` 目录备份包导出、全包 SHA-256 验证、损坏包拒绝和只读恢复预览；第二切片开放恢复执行、恢复前自动预备份以及 SQLite/userData 事务式恢复和故障回滚；第三切片补齐备份保留建议、空间统计、异常残留保护、逐项清理预览、应用隔离区和可撤销回滚；最终切片用版本化 journal、SQLite 事务提交标记和内容指纹完成异常中断后的人工安全恢复，并允许把已验证隔离记录移交系统废纸篓。
 
@@ -109,6 +109,18 @@ Session C 新增事实：
 - `scripts/release/windows-acceptance.ps1` 可在真实 Windows 主机验证摘要、Authenticode、NSIS 安装、启动、已有 V2 数据、快捷方式、卸载和 userData 保留，并输出不含用户路径的证据 JSON。
 - 最终本机候选来自干净提交 `5817eab`；macOS signed 预检在 `0 valid identities found` 时按设计失败，preview 候选则完整通过。
 
+Session D 新增事实：
+
+- 通用 `ResizableLayout` 只用于真正的多面板工作区；导航、模板树、题目列表和 Provider 列表支持鼠标拖动、方向键、Shift 加速、Home/End、Enter/Space 和双击重置。
+- 布局偏好仅保存在 Renderer `localStorage`，前缀为 `ui:layout:v1:`，稳定 key 为 `app-navigation`、`template-library`、`problem-workspace`、`ai-provider-workspace`；不保存绝对路径，不进入数据库、备份或跨进程 IPC。
+- 全局“重置布局”只移除上述 UI 偏好；缺失、非数字和越界值自动回退到安全默认值。旧 V2 userData 无需 migration，新用户直接使用默认宽度。
+- 对话框首项焦点、Escape/取消/右上角关闭和触发器焦点回归已统一；焦点恢复只在当前焦点空闲时发生，不覆盖用户刚刚移动到的新控件。
+- 页面切换、成功、失败、AI 取消、计划状态和恢复结果使用不包含题面或源码正文的 `status` / `alert` / `aria-live` 播报；模板树和文件计划历史补齐标准方向键、Home/End、Enter/Space 行为。
+- Electron 最小窗口恢复为真实 1024×640；200% 缩放时导航变为 72 px 图标栏，六个入口仍保留。长工作区名、长路径、长题目、600–900 字符连续题面和 16 个长标签均有自动化证据。
+- ResizableLayout 面板和模板树被约束到容器高度，大型虚拟树和题目列表在各自区域内部滚动，不再撑高或滚动整个工作区。
+- 本 Session 没有新增数据库字段、migration、IPC、系统权限或 ADR；Main/Preload/Renderer 安全边界和 Session C 发布脚本保持不变。
+- 最终截图目录为 `/Users/ffxx/Desktop/项目/智能算法学习助手-v2/output/playwright/session-d-final/`，覆盖模板库、题目、AI 管理、数据管理的 1440×900、1280×720、1024×640、亮暗主题与 200% 关键状态，并包含减少动效和可见分隔条焦点证据。
+
 本次阶段交付的 macOS arm64 预览候选位于 `release/mac-arm64/算法学习工作台.app`，候选证据位于 `release/candidates/0.1.2-mac-arm64-preview/`。`release/` 已被 Git 忽略，产物不属于源码提交；该 App 为 ad-hoc、无 TeamIdentifier、未公证且 Gatekeeper 不接受，只能用于本机预览与验收。
 
 ## 1. 结论先行
@@ -119,23 +131,23 @@ V2 已经完成从零开始使用所需的核心纵向流程，不再是界面�
 
 按不同维度估算当前完成度：
 
-| 维度               | 状态           | 估算完成度 | 判断                                                                              |
-| ------------------ | -------------- | ---------: | --------------------------------------------------------------------------------- |
-| 产品规格核心范围   | 基本完成       |        90% | 规格中的模板、题目、关联、AI 和文件计划均有真实桌面入口                           |
-| 桌面架构与安全边界 | 稳定           |        85% | Main/Preload/Renderer 分层清楚，仍有发布供应链与文件竞态尾项                      |
-| 数据可靠性         | Session A 完成 |        95% | 已有可验证导出/恢复、提交方向判定、中断恢复、保留建议、隔离、撤销和系统废纸篓移交 |
-| AI Provider 稳定性 | Session B 完成 |        95% | 五类协议统一结构化管线、阶段错误、取消、有限重试与主要失败矩阵                    |
-| UI 与交互          | 较完整         |        82% | 双主题、滚动、代码主题和核心状态已覆盖，布局记忆与可访问性仍需系统验收            |
-| 性能与大型工作区   | 未充分证明     |        65% | 有虚拟树和上下文上限，但没有大型工作区基准与增量相似度索引                        |
-| 测试与工程质量     | 良好           |        97% | 187 项 Vitest、3 项发布脚本测试、43 项常规 Electron E2E 与 2 项打包 smoke 通过    |
-| 公开发布准备       | 外部门禁待完成 |        65% | 可重复候选与证据已完成；macOS 未签名/公证，Windows 未实机安装验证                 |
+| 维度               | 状态           | 估算完成度 | 判断                                                                                   |
+| ------------------ | -------------- | ---------: | -------------------------------------------------------------------------------------- |
+| 产品规格核心范围   | 基本完成       |        90% | 规格中的模板、题目、关联、AI 和文件计划均有真实桌面入口                                |
+| 桌面架构与安全边界 | 稳定           |        85% | Main/Preload/Renderer 分层清楚，仍有发布供应链与文件竞态尾项                           |
+| 数据可靠性         | Session A 完成 |        95% | 已有可验证导出/恢复、提交方向判定、中断恢复、保留建议、隔离、撤销和系统废纸篓移交      |
+| AI Provider 稳定性 | Session B 完成 |        95% | 五类协议统一结构化管线、阶段错误、取消、有限重试与主要失败矩阵                         |
+| UI 与交互          | Session D 完成 |        92% | 布局记忆、全键盘、焦点回归、状态播报、1024×640、200% 与减少动效均有自动化和截图证据    |
+| 性能与大型工作区   | 未充分证明     |        65% | 有虚拟树和上下文上限，但没有大型工作区基准与增量相似度索引                             |
+| 测试与工程质量     | 良好           |        98% | 190 项 Vitest、3 项发布脚本测试、50 项常规 Electron E2E 通过；2 项 packaged 按条件跳过 |
+| 公开发布准备       | 外部门禁待完成 |        65% | 可重复候选与证据已完成；macOS 未签名/公证，Windows 未实机安装验证                      |
 
 这些百分比用于安排优先级，不是发布承诺。公开发布必须按质量门禁逐项提供证据。
 
 ## 2. 当前 Git 与工作区规则
 
 - 当前分支：`main`。
-- 本 Session 阶段前 HEAD：`cd4c795`；候选源码提交为 `5817eab`，本交接完成后以本文所在提交为新基线。
+- 本 Session 阶段前 HEAD：`613980b`；Session C 候选源码提交仍为 `5817eab`，本交接完成后以本文所在提交为新基线。
 - 用户保护内容：`.codex/config.toml`、`问题反馈.txt`；本切片开始与结束时前者保持未修改，后者保持未跟踪。
 - 上述两个文件未被本切片覆盖、回滚、格式化、暂存或纳入提交，后续 Session 仍须继续排除。
 - `C++高亮测试/代码高亮综合测试.cpp` 是本阶段保留的人工代码高亮验收夹具，已纳入源码提交。
@@ -146,34 +158,34 @@ V2 已经完成从零开始使用所需的核心纵向流程，不再是界面�
 
 ### 3.1 完整闭环
 
-| 模块          | 已实现内容                                                                          | 主要证据                                                                                    |
-| ------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| 首次启动      | 创建空白工作区、选择已有目录、只读首扫、空状态                                      | `workspace-service.ts`、`workspace-onboarding.tsx`、`app.spec.ts`                           |
-| 模板库        | 树形浏览、单子目录折叠、虚拟滚动、筛选、全局搜索、右键操作                          | `template-tree.tsx`、`template-tree-model.ts`                                               |
-| 源码查看      | CodeMirror 6、C++ 高亮、VS Code 风格主题、独立主题记忆、聚焦大窗口                  | `code-viewer.tsx`、`scroll-and-code-viewer.spec.ts`                                         |
-| 模板入库      | 中英文 AI 补全、批量 `.cpp` 选择/扫描、默认全选、无 AI 直导、逐项跳过/改名/备份覆盖 | `create-template-dialog.tsx`、`batch-template-import-dialog.tsx`、`template-intake.spec.ts` |
-| 算法卡片      | 元数据、源码、题目关系、编辑和备份后删除                                            | `algorithm-card.tsx`、`template-metadata-card.tsx`                                          |
-| 题目卡片      | 创建/编辑、状态、题面、备注、图片、大图预览、安全删除                               | `problem-workspace.tsx`、`problem-image-card.tsx`                                           |
-| 模板题目关联  | 双向查看、从两侧新增/编辑/解除，多对多持久化                                        | `problem-repository.ts`、两类 relation dialog                                               |
-| 题目 AI 分析  | 中英文结构化分析、原题面/摘要分离、整库候选证据、可编辑草稿后入库                   | `problem-analysis-service.ts`、`problem-analysis.spec.ts`                                   |
-| AI 请求预览   | Provider/模型、输出语言、发送范围、截断状态、Token 粗估与缓存键                     | `ai-request-preview-dialog.tsx`、两类 AI E2E                                                |
-| AI 设置       | 五类协议、Provider 增删改、密钥安全存储、连接测试、任务路由                         | `ai-provider-service.ts`、`ai-provider-workspace.tsx`                                       |
-| Provider 预设 | DeepSeek、阿里云百炼快捷配置                                                        | `provider-presets.ts`                                                                       |
-| AI 文件管理   | 只读审计、重复/相似检测、AI 计划、Diff、选择执行、备份、撤销、重新草拟              | `template-management-service.ts`、`file-management.spec.ts`                                 |
-| 主题与视觉    | 亮暗主题、四色语义系统、克制玻璃、环境光、微交互、减少动效                          | `globals.css`、`VISUAL_DESIGN.md`                                                           |
+| 模块               | 已实现内容                                                                          | 主要证据                                                                                    |
+| ------------------ | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| 首次启动           | 创建空白工作区、选择已有目录、只读首扫、空状态                                      | `workspace-service.ts`、`workspace-onboarding.tsx`、`app.spec.ts`                           |
+| 模板库             | 树形浏览、单子目录折叠、虚拟滚动、筛选、全局搜索、右键操作                          | `template-tree.tsx`、`template-tree-model.ts`                                               |
+| 源码查看           | CodeMirror 6、C++ 高亮、VS Code 风格主题、独立主题记忆、聚焦大窗口                  | `code-viewer.tsx`、`scroll-and-code-viewer.spec.ts`                                         |
+| 模板入库           | 中英文 AI 补全、批量 `.cpp` 选择/扫描、默认全选、无 AI 直导、逐项跳过/改名/备份覆盖 | `create-template-dialog.tsx`、`batch-template-import-dialog.tsx`、`template-intake.spec.ts` |
+| 算法卡片           | 元数据、源码、题目关系、编辑和备份后删除                                            | `algorithm-card.tsx`、`template-metadata-card.tsx`                                          |
+| 题目卡片           | 创建/编辑、状态、题面、备注、图片、大图预览、安全删除                               | `problem-workspace.tsx`、`problem-image-card.tsx`                                           |
+| 模板题目关联       | 双向查看、从两侧新增/编辑/解除，多对多持久化                                        | `problem-repository.ts`、两类 relation dialog                                               |
+| 题目 AI 分析       | 中英文结构化分析、原题面/摘要分离、整库候选证据、可编辑草稿后入库                   | `problem-analysis-service.ts`、`problem-analysis.spec.ts`                                   |
+| AI 请求预览        | Provider/模型、输出语言、发送范围、截断状态、Token 粗估与缓存键                     | `ai-request-preview-dialog.tsx`、两类 AI E2E                                                |
+| AI 设置            | 五类协议、Provider 增删改、密钥安全存储、连接测试、任务路由                         | `ai-provider-service.ts`、`ai-provider-workspace.tsx`                                       |
+| Provider 预设      | DeepSeek、阿里云百炼快捷配置                                                        | `provider-presets.ts`                                                                       |
+| AI 文件管理        | 只读审计、重复/相似检测、AI 计划、Diff、选择执行、备份、撤销、重新草拟              | `template-management-service.ts`、`file-management.spec.ts`                                 |
+| 主题与视觉         | 亮暗主题、四色语义系统、克制玻璃、环境光、微交互、减少动效                          | `globals.css`、`VISUAL_DESIGN.md`                                                           |
+| 桌面布局与可访问性 | 可调整面板、布局恢复/重置、全键盘、焦点回归、状态播报、紧凑窗口和 200% 缩放         | `resizable-layout.tsx`、`accessibility-layout.spec.ts`、Session D 截图矩阵                  |
 
 ### 3.2 功能存在，但还没有达到发布级完整度
 
-| 模块           | 当前能力                                                                          | 仍缺少的细节                                                                             |
-| -------------- | --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| V2 数据保护    | 可验证导出/恢复、原子回滚、中断恢复、空间统计、保留建议、逐项隔离/撤销/废纸篓移交 | 定时备份、用户可选压缩包格式和跨设备兼容验证                                             |
-| AI JSON 稳定性 | 三类任务统一 JSON 提取、envelope、Schema、一次结构修复和安全阶段错误              | 复杂供应商专属 tool-call envelope 尚未纳入首批协议边界                                   |
-| Provider 兼容  | 五类 Adapter 已覆盖统一成功与主要失败契约矩阵                                     | 尚未使用五个真实云端账号做外部集成认证；当前证据为本地 mock 契约                         |
-| 错误处理       | 鉴权、模型、限流、网络、连接/响应超时、取消、能力、超大响应和流中断可操作提示     | 仍缺统一离线检测和跨应用重启的远端任务恢复；首版明确不恢复远端生成任务                   |
-| 桌面布局       | 1280×720 与 1440×900 可用，模板和题目区域可滚动                                   | 导航/列表/详情面板不可拖动，面板尺寸没有记忆，与仓库级 UI 约束仍有差距                   |
-| 可访问性       | Radix 对话框、可见焦点、树键盘导航、Escape、减少动效                              | 缺全页面 Tab 顺序、屏幕阅读器、实时状态播报、对比度和 200% 缩放审计                      |
-| 大型工作区     | 模板树虚拟化、读取与 AI 上下文有限额                                              | 相似度只分析前 500 个可读取文件，审计最多遍历前 2000 个模板，文件计划相关候选最多 250 个 |
-| 发布           | macOS arm64 开发包、本地真实入口 smoke、Windows CI 构建配置                       | macOS Developer ID/notarization、Windows 实机安装/升级/卸载、正式校验和与发布渠道        |
+| 模块             | 当前能力                                                                          | 仍缺少的细节                                                                                     |
+| ---------------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| V2 数据保护      | 可验证导出/恢复、原子回滚、中断恢复、空间统计、保留建议、逐项隔离/撤销/废纸篓移交 | 定时备份、用户可选压缩包格式和跨设备兼容验证                                                     |
+| AI JSON 稳定性   | 三类任务统一 JSON 提取、envelope、Schema、一次结构修复和安全阶段错误              | 复杂供应商专属 tool-call envelope 尚未纳入首批协议边界                                           |
+| Provider 兼容    | 五类 Adapter 已覆盖统一成功与主要失败契约矩阵                                     | 尚未使用五个真实云端账号做外部集成认证；当前证据为本地 mock 契约                                 |
+| 错误处理         | 鉴权、模型、限流、网络、连接/响应超时、取消、能力、超大响应和流中断可操作提示     | 仍缺统一离线检测和跨应用重启的远端任务恢复；首版明确不恢复远端生成任务                           |
+| 辅助技术人工验收 | 语义树、键盘、焦点、live region、减少动效和 200% 已自动化并人工查看截图           | macOS VoiceOver 仅完成语义/键盘证据，未做长期真人任务审计；Windows Narrator/高对比模式未实机验证 |
+| 大型工作区       | 模板树虚拟化、读取与 AI 上下文有限额                                              | 相似度只分析前 500 个可读取文件，审计最多遍历前 2000 个模板，文件计划相关候选最多 250 个         |
+| 发布             | macOS arm64 开发包、本地真实入口 smoke、Windows CI 构建配置                       | macOS Developer ID/notarization、Windows 实机安装/升级/卸载、正式校验和与发布渠道                |
 
 ### 3.3 尚未实现
 
@@ -183,7 +195,7 @@ V2 已经完成从零开始使用所需的核心纵向流程，不再是界面�
 - macOS/Windows 正式签名流程。
 - 完整的大型工作区性能基准和后台增量索引。
 - Provider 精确计费/成本估算和本地隐私历史（已有粗略 Token 估算与发送预览）。
-- 全面的可访问性自动化与人工审计。
+- macOS VoiceOver 长流程人工使用审计，以及 Windows Narrator、高对比模式和真实 Windows 200% 缩放验收。
 
 账号、云同步、在线判题、社区市场和移动端是明确暂不扩展的范围，不应被误报为缺陷。
 
@@ -249,30 +261,31 @@ Main
 
 ## 6. 当前验证基线
 
-2026-07-18 在 Session C 最终工作区和候选提交重新执行：
+2026-07-18 在 Session D 最终工作区重新执行；这是当前源码事实，不替代 Session C 候选的历史打包证据：
 
-| 检查                               | 结果                                                                                                               |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `npm run check`                    | 通过；另含 3 项 Node 发布脚本测试                                                                                  |
-| TypeScript                         | 通过                                                                                                               |
-| ESLint（0 warnings）               | 通过                                                                                                               |
-| Prettier check                     | 通过                                                                                                               |
-| Vitest                             | 25 个文件，187 项通过；包含五协议兼容矩阵、统一结构化管线、候选作用契约、中文检索、重试和取消注册表测试            |
-| 统一题目 Electron E2E              | 6 项通过；覆盖纯手动、文本/图文 AI、取消、无效 JSON、多方向候选、空候选、零写入关闭和重启持久化                    |
-| `npm run test:e2e`                 | 43 项通过，2 项打包入口测试按条件跳过；全量重跑总耗时约 2.0 分钟                                                   |
-| 数据管理 Electron E2E              | 8 项通过；导出/恢复、隔离/撤销、提交前后中断恢复和故障回滚全部保持通过                                             |
-| 打包入口 smoke test                | 最终 macOS arm64 候选以全新 userData 启动，并写入工作区/模板后用同一 userData 重启，2 项通过                       |
-| `npm audit --audit-level=moderate` | 通过，0 个漏洞                                                                                                     |
-| Renderer 生产构建                  | 通过；主入口约 318 kB，CodeMirror 延迟块约 386 kB                                                                  |
-| 亮暗/紧凑截图                      | 已生成人工题目手动/AI 多候选、文件计划内部滚动/删除确认、模板树初始/恢复等 1440×900 与 1280×720 亮暗截图并人工复核 |
-| 图标与打包                         | 源 PNG 与打包 `icon.icns` 均为 1024×1024、带 alpha；App 与 `better_sqlite3.node` 均为 arm64                        |
-| 候选制品                           | DMG `992ec6…d64`（138,091,048 B）；ZIP `5cf108…164`（137,555,476 B）；`hdiutil verify` 与摘要复核通过              |
-| 签名/公证                          | ad-hoc、无 Authority/TeamIdentifier、未 staple、Gatekeeper 不接受；signed 预检因无 Developer ID 按设计失败         |
-| 备份与隐私复核                     | 扫描 10,739 个 ASAR 条目和 316 个 App 文件；用户数据、密钥形态、个人绝对路径和禁用文件命中均为 0                   |
+| 检查                               | 结果                                                                                                                      |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `npm run check`                    | 通过；另含 3 项 Node 发布脚本测试                                                                                         |
+| TypeScript                         | 通过                                                                                                                      |
+| ESLint（0 warnings）               | 通过                                                                                                                      |
+| Prettier check                     | 通过                                                                                                                      |
+| Vitest                             | 26 个文件，190 项通过；新增可调整布局偏好、边界和重置测试，并保持五协议、数据恢复和发布逻辑回归                           |
+| 统一题目 Electron E2E              | 6 项通过；覆盖纯手动、文本/图文 AI、取消、无效 JSON、多方向候选、空候选、零写入关闭和重启持久化                           |
+| `npm run test:e2e`                 | 50 项常规 Electron E2E 通过，2 项 packaged 按条件跳过；全量重跑总耗时约 2.3 分钟                                          |
+| 数据管理 Electron E2E              | 8 项通过；导出/恢复、隔离/撤销、提交前后中断恢复和故障回滚全部保持通过                                                    |
+| 打包入口 smoke test                | 最终 macOS arm64 候选以全新 userData 启动，并写入工作区/模板后用同一 userData 重启，2 项通过                              |
+| `npm audit --audit-level=moderate` | 通过，0 个漏洞                                                                                                            |
+| Renderer 生产构建                  | 通过；主入口约 327 kB，CodeMirror 延迟块约 386 kB                                                                         |
+| Session D 布局/键盘 E2E            | 7 项通过；覆盖鼠标/键盘 resize、重启恢复、异常值回退、重置、焦点回归、live region、长内容、真实 1024×640、200% 和减少动效 |
+| 亮暗/紧凑截图                      | `output/playwright/session-d-final/` 中 32 张四页面尺寸/主题/200% 截图，另含减少动效、分隔条焦点和 4 张联系图；已人工复核 |
+| 图标与打包                         | 源 PNG 与打包 `icon.icns` 均为 1024×1024、带 alpha；App 与 `better_sqlite3.node` 均为 arm64                               |
+| 候选制品                           | DMG `992ec6…d64`（138,091,048 B）；ZIP `5cf108…164`（137,555,476 B）；`hdiutil verify` 与摘要复核通过                     |
+| 签名/公证                          | ad-hoc、无 Authority/TeamIdentifier、未 staple、Gatekeeper 不接受；signed 预检因无 Developer ID 按设计失败                |
+| 备份与隐私复核                     | 扫描 10,739 个 ASAR 条目和 316 个 App 文件；用户数据、密钥形态、个人绝对路径和禁用文件命中均为 0                          |
 
 说明：打包入口 smoke test 需要先生成 `release/mac-arm64` 目录包并设置 `PACKAGED_APP_PATH`，因此常规 E2E 中 2 项跳过是预期行为。本次已对最终候选单独执行并通过；任何新候选仍必须重新运行，不能沿用本次摘要。
 
-现有截图显示视觉系统已显著丰富，信息层级总体清楚。仍需注意：工作台首屏 Hero 在小窗口占用较高；内容区卡片密度和纵向节奏在空数据/少数据状态下仍可更紧凑；玻璃与环境光应继续限定在导航、浮层和重点状态，不能扩散到长文本或表格主体。
+Session D 截图显示 1024×640 下导航、列表/树、详情和页头主操作仍可达；200% 下使用紧凑图标导航，主操作通过在视口断言。首页在窄视口隐藏重复装饰并压缩 Hero，但不隐藏三个核心入口。玻璃与环境光仍须限定在导航、浮层和重点状态，不能扩散到长文本或表格主体。
 
 ## 7. 风险和细节债务
 
@@ -285,8 +298,8 @@ Main
 
 1. 在发布候选使用实际计划支持的云端账号做人工 Provider smoke；Session B 的自动化矩阵使用本地 mock，不代表外部账号、配额和区域权限认证。
 2. 为文件计划执行与回滚增加故障注入单元/集成测试，覆盖第 N 步失败、磁盘满、目标占用和数据库提交失败；外部修改整批拒绝已覆盖。
-3. 实现面板拖动与尺寸记忆；补齐小窗口、200% 缩放、长标题、长路径、长题面和超多标签状态。
-4. 做全页面键盘和屏幕阅读器审计，增加状态播报和稳定的焦点回归测试。
+3. 在 macOS 上做 VoiceOver 长流程真人审计，并在真实 Windows 上验证 Narrator、高对比模式和 200% 缩放；当前仅有语义树、键盘自动化和 macOS 截图证据。
+4. 建立大型工作区基准、增量索引和后台任务；不要直接提高现有 500/2000/250 等安全上限。
 5. 拆分超大组件和服务，避免在同一提交混入新功能与视觉重构。
 6. 为批量导入增加直接恢复到工作区的用户可见撤销；其备份统计、保留建议和隔离入口已完成。
 
@@ -409,11 +422,11 @@ Main
 
 > 阅读 AGENTS.md、docs/RELEASE.md 与 docs/PROJECT_STATUS_AND_HANDOFF.md，恢复 Session C 外部平台验收。只使用受保护环境中的 Apple Developer ID/notarization 或 Windows Authenticode 凭据，不在聊天中传递私钥；不要把 CI 构建成功当作 Windows 实机通过，所有签名、摘要和安装证据必须来自同一候选。
 
-### Session D：UX、可访问性与窗口适配
+### Session D：UX、可访问性与窗口适配（已完成）
 
-目标：把当前精美界面打磨为稳定、高效、可键盘完成核心工作的桌面工具。
+状态：已完成。没有新增产品模块、IPC、migration、系统权限或 ADR；完整证据和下一 Session 提示见 `docs/SESSION_D_SUMMARY_AND_NEXT_PROMPT.md`。
 
-主要范围：
+已完成范围：
 
 - 可拖动导航/列表/详情面板和布局记忆。
 - 1280×720、小于推荐尺寸、200% 缩放、长文本和超多标签。
@@ -421,16 +434,14 @@ Main
 - 空、加载、失败、离线、禁用和减少动效状态统一。
 - 调整首页 Hero 和卡片密度，但保留当前四色语义与克制玻璃方向。
 
-验收：
+已通过验收：
 
 - 不使用鼠标可以完成搜索、选模板、建题、关联、关闭对话框和确认计划。
 - 面板尺寸重启后恢复，极端尺寸有安全下限和重置布局入口。
 - 亮暗主题对比度、200% 缩放和减少动效通过人工检查。
 - Playwright 保留核心窗口截图并加入键盘/焦点测试。
 
-启动提示：
-
-> 阅读 AGENTS.md、docs/VISUAL_DESIGN.md 与 docs/PROJECT_STATUS_AND_HANDOFF.md，执行 Session D：UX、可访问性与窗口适配。保持现有视觉语言，重点完成面板拖动与记忆、全键盘操作、状态播报、小窗口和 200% 缩放验收，不扩展产品功能。
+限制：macOS VoiceOver 未做长时间真人任务审计；Windows Narrator、高对比模式和 Windows 实机缩放仍未验证。
 
 ### Session E：性能与大型工作区
 
@@ -484,14 +495,14 @@ Session A 数据可靠性
   -> Session C 候选自动化
      -> 签名/公证/Windows 实机（等待外部条件）
 
-Session D UX/可访问性 ─┐
-Session E 性能         ├-> Session F 代码健康与文档发布候选
-Session A/B/C          ┘
+Session D UX/可访问性（完成） ─┐
+Session E 性能                 ├-> Session F 代码健康与文档发布候选
+Session A/B/C                  ┘
 ```
 
-- Session A、B 与 Session C 自动化均已完成；签名、公证和 Windows 实机证据等待证书、账号与硬件。
-- 无外部发布条件时，Session D 现在是推荐主线；若条件齐备则先恢复 Session C 的外部门禁。
-- Session D 与 E 可独立分支进行；合并时分别处理 UI 与 Main/数据库冲突。
+- Session A、B、C 自动化与 Session D 均已完成；签名、公证和 Windows 实机证据等待证书、账号与硬件。
+- 无外部发布条件时，Session E 现在是推荐主线；若条件齐备则先恢复 Session C 的外部门禁。
+- Session D 已成为当前基线；Session E 必须保持其布局、键盘、focus/live 与 200% 回归测试通过。
 - Session F 最后执行，避免在结构仍频繁变化时反复拆分。
 
 ## 11. 每个 Session 的统一交接格式
