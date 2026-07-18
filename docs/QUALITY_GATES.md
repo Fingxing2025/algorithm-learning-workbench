@@ -46,7 +46,7 @@
 - `tests/e2e/file-management.spec.ts` 验证键盘聚焦并确认计划、取消生成零写入、外部修改整批拒绝、执行/备份/关系稳定与回滚。
 - `tests/e2e/app.spec.ts` 使用真实 600×4000 PNG 验证长图默认按宽度滚动到底、整图概览、200% 工具栏可达和 Escape 焦点回归。
 - `tests/e2e/app.spec.ts` 直接点击新建模板、新建题目和长图预览的 `X` 图标中心；滚动 E2E 同样点击编辑题目的 `X` 中心，验证 `elementFromPoint` 命中按钮、pointer 光标、退出成功和焦点回归。
-- `tests/e2e/problem-analysis.spec.ts` 7 项通过：AI 发送预览空闲时点击 `X`、按 Escape，以及生成中点击 `X` 均退出整张题目卡片；生成中退出会关闭本地 mock 连接且零题目写入，“取消生成”仍保留草稿。
+- `tests/e2e/problem-analysis.spec.ts` 7 项通过：AI 发送预览空闲时点击 `X`、按 Escape，以及生成中点击 `X` 均退出整张题目卡片；题目主 `X` 与预览 `X` 在忙碌状态均断言为 enabled，生成中退出会关闭本地 mock 连接且零题目写入，“取消生成”仍保留草稿。
 - `tests/e2e/file-management.spec.ts` 另验证未撤销执行不可删除、混合批次整批拒绝、单条/批量确认焦点，以及删除后数据管理执行记录计数从 1 同步为 0。
 - 最终截图目录：`/Users/ffxx/Desktop/项目/智能算法学习助手-v2/output/playwright/session-d-final/`。
 - 必须人工复核四页面 1440×900、1280×720、1024×640 的亮暗主题以及 200% 关键状态；联系图只能辅助浏览，不能替代原始截图。
@@ -103,4 +103,4 @@
 | Repository/契约                 | 9 项定向测试通过；覆盖 UUID 去重/边界、工作区/状态全量校验和删除中途失败的事务回滚                      |
 | 截图                            | 新增 2 张 1024×640 题目详情/编辑滚动图；原 6 张长图/亮暗删除确认/数据同步关键图继续保留并人工复核       |
 | migration / Renderer 权限       | 本次滚动/关闭修复无 migration、IPC、系统权限或 ADR；Renderer 仍无 Node/SQLite/文件系统权限              |
-| 目录包                          | 从 `3219661` 执行 `package:dir`；全新与已有 V2 userData packaged smoke 2 项通过，未复用旧候选摘要       |
+| 目录包                          | 从 `3b97ae6` 执行 `package:dir`；全新与已有 V2 userData packaged smoke 2 项通过，未复用旧候选摘要       |
