@@ -121,6 +121,15 @@ Session D 新增事实：
 - 本 Session 没有新增数据库字段、migration、IPC、系统权限或 ADR；Main/Preload/Renderer 安全边界和 Session C 发布脚本保持不变。
 - 最终截图目录为 `/Users/ffxx/Desktop/项目/智能算法学习助手-v2/output/playwright/session-d-final/`，覆盖模板库、题目、AI 管理、数据管理的 1440×900、1280×720、1024×640、亮暗主题与 200% 关键状态，并包含减少动效和可见分隔条焦点证据。
 
+Session D 后续修复（基线 `8071970`）：
+
+- 题目长图预览默认按可读宽度显示，在可聚焦区域内纵向滚动；可切换为整图适配。重新打开或切换模式回到顶部，Escape/关闭后焦点返回图片触发器。
+- “执行与撤销”新增单条与批量删除；只允许删除当前工作区中已撤销的执行记录。仍有撤销备份的 `applied` 记录必须先撤销，不能绕过恢复能力保护。
+- 新增 ADR-0019、命名 `delete-file-executions` IPC 与 Zod 契约；Renderer 只提交不重复 UUID。Repository 在单个 SQLite 事务内先验证全部工作区/状态，再批量删除；失败整批回滚。
+- 没有数据库字段或 migration；撤销流程原本已清理对应备份目录，因此删除已撤销记录不删除任何文件。数据管理继续直接统计 `file_change_executions`，删除后计数同步减少。
+- Electron E2E 使用 600×4000 PNG 覆盖按宽度滚动、整图、200% 与焦点回归，并覆盖未撤销拒绝、混合批次拒绝、确认焦点、用户文件不变和数据管理计数 1→0。
+- 截图位于 `/Users/ffxx/Desktop/项目/智能算法学习助手-v2/output/playwright/`，文件名以 `problem-image-long-preview-` 和 `file-execution-delete-` 开头。
+
 本次阶段交付的 macOS arm64 预览候选位于 `release/mac-arm64/算法学习工作台.app`，候选证据位于 `release/candidates/0.1.2-mac-arm64-preview/`。`release/` 已被 Git 忽略，产物不属于源码提交；该 App 为 ad-hoc、无 TeamIdentifier、未公证且 Gatekeeper 不接受，只能用于本机预览与验收。
 
 ## 1. 结论先行
@@ -139,7 +148,7 @@ V2 已经完成从零开始使用所需的核心纵向流程，不再是界面�
 | AI Provider 稳定性 | Session B 完成 |        95% | 五类协议统一结构化管线、阶段错误、取消、有限重试与主要失败矩阵                         |
 | UI 与交互          | Session D 完成 |        92% | 布局记忆、全键盘、焦点回归、状态播报、1024×640、200% 与减少动效均有自动化和截图证据    |
 | 性能与大型工作区   | 未充分证明     |        65% | 有虚拟树和上下文上限，但没有大型工作区基准与增量相似度索引                             |
-| 测试与工程质量     | 良好           |        98% | 190 项 Vitest、3 项发布脚本测试、50 项常规 Electron E2E 通过；2 项 packaged 按条件跳过 |
+| 测试与工程质量     | 良好           |        98% | 195 项 Vitest、3 项发布脚本测试、50 项常规 Electron E2E 通过；2 项 packaged 按条件跳过 |
 | 公开发布准备       | 外部门禁待完成 |        65% | 可重复候选与证据已完成；macOS 未签名/公证，Windows 未实机安装验证                      |
 
 这些百分比用于安排优先级，不是发布承诺。公开发布必须按质量门禁逐项提供证据。
@@ -165,13 +174,13 @@ V2 已经完成从零开始使用所需的核心纵向流程，不再是界面�
 | 源码查看           | CodeMirror 6、C++ 高亮、VS Code 风格主题、独立主题记忆、聚焦大窗口                  | `code-viewer.tsx`、`scroll-and-code-viewer.spec.ts`                                         |
 | 模板入库           | 中英文 AI 补全、批量 `.cpp` 选择/扫描、默认全选、无 AI 直导、逐项跳过/改名/备份覆盖 | `create-template-dialog.tsx`、`batch-template-import-dialog.tsx`、`template-intake.spec.ts` |
 | 算法卡片           | 元数据、源码、题目关系、编辑和备份后删除                                            | `algorithm-card.tsx`、`template-metadata-card.tsx`                                          |
-| 题目卡片           | 创建/编辑、状态、题面、备注、图片、大图预览、安全删除                               | `problem-workspace.tsx`、`problem-image-card.tsx`                                           |
+| 题目卡片           | 创建/编辑、状态、题面、备注、图片、长图滚动/整图预览、安全删除                      | `problem-workspace.tsx`、`problem-image-card.tsx`                                           |
 | 模板题目关联       | 双向查看、从两侧新增/编辑/解除，多对多持久化                                        | `problem-repository.ts`、两类 relation dialog                                               |
 | 题目 AI 分析       | 中英文结构化分析、原题面/摘要分离、整库候选证据、可编辑草稿后入库                   | `problem-analysis-service.ts`、`problem-analysis.spec.ts`                                   |
 | AI 请求预览        | Provider/模型、输出语言、发送范围、截断状态、Token 粗估与缓存键                     | `ai-request-preview-dialog.tsx`、两类 AI E2E                                                |
 | AI 设置            | 五类协议、Provider 增删改、密钥安全存储、连接测试、任务路由                         | `ai-provider-service.ts`、`ai-provider-workspace.tsx`                                       |
 | Provider 预设      | DeepSeek、阿里云百炼快捷配置                                                        | `provider-presets.ts`                                                                       |
-| AI 文件管理        | 只读审计、重复/相似检测、AI 计划、Diff、选择执行、备份、撤销、重新草拟              | `template-management-service.ts`、`file-management.spec.ts`                                 |
+| AI 文件管理        | 只读审计、AI 计划、Diff、选择执行、备份、撤销、重新草拟、已撤销执行记录安全删除     | `template-management-service.ts`、`file-management.spec.ts`                                 |
 | 主题与视觉         | 亮暗主题、四色语义系统、克制玻璃、环境光、微交互、减少动效                          | `globals.css`、`VISUAL_DESIGN.md`                                                           |
 | 桌面布局与可访问性 | 可调整面板、布局恢复/重置、全键盘、焦点回归、状态播报、紧凑窗口和 200% 缩放         | `resizable-layout.tsx`、`accessibility-layout.spec.ts`、Session D 截图矩阵                  |
 
@@ -269,13 +278,13 @@ Main
 | TypeScript                         | 通过                                                                                                                      |
 | ESLint（0 warnings）               | 通过                                                                                                                      |
 | Prettier check                     | 通过                                                                                                                      |
-| Vitest                             | 26 个文件，190 项通过；新增可调整布局偏好、边界和重置测试，并保持五协议、数据恢复和发布逻辑回归                           |
+| Vitest                             | 27 个文件，195 项通过；新增执行删除契约/事务测试，并保持布局、五协议、数据恢复和发布逻辑回归                              |
 | 统一题目 Electron E2E              | 6 项通过；覆盖纯手动、文本/图文 AI、取消、无效 JSON、多方向候选、空候选、零写入关闭和重启持久化                           |
-| `npm run test:e2e`                 | 50 项常规 Electron E2E 通过，2 项 packaged 按条件跳过；全量重跑总耗时约 2.3 分钟                                          |
+| `npm run test:e2e`                 | 50 项常规 Electron E2E 通过，2 项 packaged 按条件跳过；最终全量重跑总耗时约 2.4 分钟                                      |
 | 数据管理 Electron E2E              | 8 项通过；导出/恢复、隔离/撤销、提交前后中断恢复和故障回滚全部保持通过                                                    |
 | 打包入口 smoke test                | 最终 macOS arm64 候选以全新 userData 启动，并写入工作区/模板后用同一 userData 重启，2 项通过                              |
 | `npm audit --audit-level=moderate` | 通过，0 个漏洞                                                                                                            |
-| Renderer 生产构建                  | 通过；主入口约 327 kB，CodeMirror 延迟块约 386 kB                                                                         |
+| Renderer 生产构建                  | 通过；主入口约 330 kB，CodeMirror 延迟块约 386 kB                                                                         |
 | Session D 布局/键盘 E2E            | 7 项通过；覆盖鼠标/键盘 resize、重启恢复、异常值回退、重置、焦点回归、live region、长内容、真实 1024×640、200% 和减少动效 |
 | 亮暗/紧凑截图                      | `output/playwright/session-d-final/` 中 32 张四页面尺寸/主题/200% 截图，另含减少动效、分隔条焦点和 4 张联系图；已人工复核 |
 | 图标与打包                         | 源 PNG 与打包 `icon.icns` 均为 1024×1024、带 alpha；App 与 `better_sqlite3.node` 均为 arm64                               |

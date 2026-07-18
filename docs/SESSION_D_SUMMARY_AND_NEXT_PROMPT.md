@@ -10,9 +10,9 @@
 
 ## 1. 结论
 
-Session D 已完成。导航、列表/树和详情工作区在 1440×900、1280×720、真实 1024×640 与 200% 缩放下可以调整、恢复、重置并用键盘完成核心流程；页面切换、异步状态、AI 取消和恢复结果具有不泄露正文的状态播报；减少动效、长内容、亮暗主题和焦点回归已有自动化与截图证据。
+Session D 已完成，随后从 `8071970` 基线补齐题目长图滚动/整图预览和已撤销执行记录安全删除。导航、列表/树和详情工作区在 1440×900、1280×720、真实 1024×640 与 200% 缩放下可以调整、恢复、重置并用键盘完成核心流程；页面切换、异步状态、AI 取消和恢复结果具有不泄露正文的状态播报；减少动效、长内容、亮暗主题和焦点回归已有自动化与截图证据。
 
-本 Session 没有增加产品模块，没有修改数据库 schema、migration、IPC、Preload 白名单、系统权限或密钥边界，因此没有新增 ADR。布局偏好属于纯 Renderer 展示状态，不进入数据库或备份。
+原 Session D 没有增加产品模块、数据库 schema、migration、IPC、系统权限或密钥边界。后续修复新增 ADR-0019 和最小 `delete-file-executions` IPC/Preload 白名单，只接受已撤销执行记录 UUID；仍无 schema/migration/系统权限变化。布局偏好仍属于纯 Renderer 展示状态，不进入数据库或备份。
 
 ## 2. 本地提交
 
@@ -23,7 +23,10 @@ Session D 已完成。导航、列表/树和详情工作区在 1440×900、1280�
 3. `3443c19 feat: adapt workbench for compact windows`
 4. `a416f91 test: verify zoom and reduced motion accessibility`
 5. `8f477f4 fix: constrain resizable pane scroll regions`
-6. 本文所在提交：Session D 文档、质量基线和下一 Session 交接
+6. `58a89a0 docs: hand off session d accessibility evidence`
+7. `8071970 fix: balance file history icon size`
+8. `b5f657c feat: improve image preview and execution history cleanup`
+9. 本文所在提交：质量基线、视觉证据、用户指南和下一 Session 交接
 
 所有提交均为本地小提交；没有推送远程仓库。
 
@@ -48,6 +51,7 @@ Session D 已完成。导航、列表/树和详情工作区在 1440×900、1280�
 - 题目列表/详情分隔条支持调整、恢复和重置。
 - 900 字符连续题面、16 个长标签和长标题不会产生 document 横向溢出或挤掉编辑/删除等主操作。
 - 键盘可以创建题目、打开关联窗口、保存关联，再通过全局搜索选择长路径模板。
+- 长图默认按宽度在独立区域滚动，可切换整图概览；工具栏在 200% 下仍可达，Escape 后焦点回到图片触发器。
 
 ### AI 管理与 AI 设置
 
@@ -55,6 +59,7 @@ Session D 已完成。导航、列表/树和详情工作区在 1440×900、1280�
 - 文件计划确认可以聚焦后按 Enter；计划历史支持方向键、Home/End、Enter/Space。
 - AI 取消播报安全状态并在可用时回到“生成 AI 计划”。
 - Provider 设置的列表/详情加入同一可调整布局契约。
+- 执行历史只允许删除已撤销记录；单条/批量操作均二次确认，确认首项聚焦，取消回到触发器，成功后使用不泄露正文的 `status` 播报数据管理计数同步。
 
 ### 数据管理
 
@@ -128,7 +133,7 @@ Session D 已完成。导航、列表/树和详情工作区在 1440×900、1280�
 - TypeScript
 - ESLint，0 warnings
 - Prettier check
-- Vitest：26 个文件，190 项通过
+- Vitest：27 个文件，195 项通过
 - 发布脚本：3 项通过
 
 ### `npm run test:e2e`
@@ -137,7 +142,7 @@ Session D 已完成。导航、列表/树和详情工作区在 1440×900、1280�
 
 - 50 项常规 Electron E2E
 - 2 项 packaged 测试按条件跳过
-- 总耗时约 2.3 分钟
+- 最终全量重跑总耗时约 2.4 分钟
 
 Session D 新增/加强证据：
 
@@ -148,6 +153,8 @@ Session D 新增/加强证据：
 - 200% 下六个导航入口存在，每页主操作可见且位于视口内，无 document 横向溢出。
 - `prefers-reduced-motion` 下摘要卡 hover 不产生位移/缩放，过渡降至 0.01ms。
 - 48 个虚拟目录和 36 个题目分别在树/列表内部滚动。
+- 600×4000 长图在 1280×720 下按宽度滚到底、切换整图并通过 200% 控件可达检查。
+- 执行记录未撤销/混合批次整批拒绝；删除已撤销记录后数据管理计数由 1 同步为 0，模板源码保持撤销后的原状。
 
 本 Session 没有重新打包。Session C 的旧候选摘要没有被当作本 Session 的候选证据；若后续重新打包，只能运行 `npm run package:dir` 并重新单独执行 2 项 packaged smoke。
 
@@ -172,6 +179,11 @@ Session D 新增/加强证据：
 - `_contact-problems.png`
 - `_contact-ai-management.png`
 - `_contact-data-management.png`
+- `/Users/ffxx/Desktop/项目/智能算法学习助手-v2/output/playwright/problem-image-long-preview-1280x720.png`
+- `/Users/ffxx/Desktop/项目/智能算法学习助手-v2/output/playwright/problem-image-long-preview-fit-window-1280x720.png`
+- `/Users/ffxx/Desktop/项目/智能算法学习助手-v2/output/playwright/problem-image-long-preview-fit-window-200-percent.png`
+- `/Users/ffxx/Desktop/项目/智能算法学习助手-v2/output/playwright/file-execution-delete-confirm-light-1440x900.png`
+- `/Users/ffxx/Desktop/项目/智能算法学习助手-v2/output/playwright/file-execution-delete-data-sync-light-1440x900.png`
 
 人工结论：
 
@@ -230,7 +242,7 @@ Session E：性能与大型工作区
 4. 旧项目 ../智能算法学习助手 仅可只读参考，不得修改，不做旧版迁移。
 5. 先建立可重复性能基准和当前指标，再修改架构；不要直接调高 500/2000/250 等安全上限来掩盖问题。
 6. 保持 Renderer 无 Node/文件系统/数据库/密钥权限；若新增后台任务 IPC、数据库索引/字段、持久化任务状态或取消协议，先新增/更新 ADR 和 migration。
-7. 保持 Session D 的 ResizableLayout、布局 localStorage key、全键盘、焦点回归、aria-live、1024×640、200% 和减少动效测试通过。
+7. 保持 Session D 的 ResizableLayout、布局 localStorage key、全键盘、焦点回归、aria-live、1024×640、200%、减少动效、长图完整预览和已撤销执行记录安全删除测试通过。
 8. 使用小而完整的本地提交，不推送远程仓库。
 
 目标：

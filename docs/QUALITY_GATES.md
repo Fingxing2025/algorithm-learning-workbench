@@ -9,7 +9,7 @@
 - 受影响的 Playwright E2E 通过。
 - Electron 可以从开发入口真实启动。
 
-当前累计基线（2026-07-18，Session D 最终 `0.1.2` 开发快照）：26 个 Vitest 文件中的 190 项测试与 3 项发布脚本测试通过；常规真实 Electron E2E 50 项通过，2 项 packaged 测试在未设置 `PACKAGED_APP_PATH` 时按条件跳过。Session C 曾对当时的目录包单独通过 2 项 packaged smoke，但任何重新打包都必须重新运行，不能沿用旧摘要。测试数量随功能增长会变化，发布判断以当次命令结果为准。
+当前累计基线（2026-07-18，Session D 后续 `0.1.2` 开发快照）：27 个 Vitest 文件中的 195 项测试与 3 项发布脚本测试通过；常规真实 Electron E2E 50 项通过，2 项 packaged 测试在未设置 `PACKAGED_APP_PATH` 时按条件跳过。Session C 曾对当时的目录包单独通过 2 项 packaged smoke，但任何重新打包都必须重新运行，不能沿用旧摘要。测试数量随功能增长会变化，发布判断以当次命令结果为准。
 
 ## 核心 E2E 场景
 
@@ -43,6 +43,8 @@
 - `tests/e2e/accessibility-layout.spec.ts` 7 项通过：鼠标/键盘 resize、安全边界、真实重启恢复、异常值回退、重置、焦点回归、页面播报、长内容全键盘流程、真实 1024×640、200% 主操作在视口内和减少动效。
 - `tests/e2e/scroll-and-code-viewer.spec.ts` 验证 48 个虚拟目录使用 End/Home 在模板树内部滚动，36 个题目在独立列表区域滚动；面板不得撑高整个工作区。
 - `tests/e2e/file-management.spec.ts` 验证键盘聚焦并确认计划、取消生成零写入、外部修改整批拒绝、执行/备份/关系稳定与回滚。
+- `tests/e2e/app.spec.ts` 使用真实 600×4000 PNG 验证长图默认按宽度滚动到底、整图概览、200% 工具栏可达和 Escape 焦点回归。
+- `tests/e2e/file-management.spec.ts` 另验证未撤销执行不可删除、混合批次整批拒绝、单条/批量确认焦点，以及删除后数据管理执行记录计数从 1 同步为 0。
 - 最终截图目录：`/Users/ffxx/Desktop/项目/智能算法学习助手-v2/output/playwright/session-d-final/`。
 - 必须人工复核四页面 1440×900、1280×720、1024×640 的亮暗主题以及 200% 关键状态；联系图只能辅助浏览，不能替代原始截图。
 - 当前屏幕阅读器限制：已有语义树、accessible name、键盘和 live region 自动化；macOS VoiceOver 长流程真人审计、Windows Narrator 与高对比模式仍未完成，不能宣称跨平台辅助技术完全通过。
@@ -85,3 +87,14 @@
 | Session D 定向 E2E | 7 项布局/可访问性、4 项文件计划、滚动/代码查看和应用主流程均通过                                             |
 | 截图矩阵           | 32 张四页面尺寸/主题/200% 原图，加减少动效、分隔条焦点和 4 张联系图，已人工复核                              |
 | 打包               | 本 Session 未重新打包；没有复用 Session C 旧候选摘要，Session C 发布脚本仍由 `npm run check` 的 3 项测试保护 |
+
+## Session D 后续修复实测（2026-07-18）
+
+| 命令/证据                        | 结果                                                                                                    |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `npm run check`                  | 通过：TypeScript、ESLint 0 warnings、Prettier、27 个 Vitest 文件/195 项测试、3 项发布脚本测试           |
+| `npm run test:e2e`               | 通过：50 项常规 Electron E2E；2 项 packaged 因未重新生成目录包按条件跳过                                |
+| 长图与执行记录定向 Electron E2E  | `app.spec.ts` 9 项、`file-management.spec.ts` 4 项通过；真实 Main/Preload/Renderer 与 SQLite 路径均覆盖 |
+| Repository/契约                  | 9 项定向测试通过；覆盖 UUID 去重/边界、工作区/状态全量校验和删除中途失败的事务回滚                      |
+| 截图                             | `output/playwright/` 下 5 张长图/删除/数据同步关键图已人工复核                                          |
+| migration / 打包 / Renderer 权限 | 无 migration、无新系统权限、无打包；新增 IPC 只接受执行 UUID，Renderer 仍无 Node/SQLite/文件系统权限    |
