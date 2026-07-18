@@ -42,10 +42,10 @@
 ### Session D 自动化与截图证据
 
 - `tests/e2e/accessibility-layout.spec.ts` 7 项通过：鼠标/键盘 resize、安全边界、真实重启恢复、异常值回退、重置、焦点回归、页面播报、长内容全键盘流程、真实 1024×640、200% 主操作在视口内和减少动效。
-- `tests/e2e/scroll-and-code-viewer.spec.ts` 验证 48 个虚拟目录使用 End/Home 在模板树内部滚动，36 个题目在独立列表区域滚动；面板不得撑高整个工作区。
+- `tests/e2e/scroll-and-code-viewer.spec.ts` 验证 48 个虚拟目录使用 End/Home 在模板树内部滚动；36 个题目的列表、长题面详情和编辑字段区分别使用真实鼠标滚轮与滚动条拖动，面板不得按内容高度撑开后被外层裁切。
 - `tests/e2e/file-management.spec.ts` 验证键盘聚焦并确认计划、取消生成零写入、外部修改整批拒绝、执行/备份/关系稳定与回滚。
 - `tests/e2e/app.spec.ts` 使用真实 600×4000 PNG 验证长图默认按宽度滚动到底、整图概览、200% 工具栏可达和 Escape 焦点回归。
-- `tests/e2e/app.spec.ts` 直接点击新建模板和长图预览的 `X` 图标中心，验证 `elementFromPoint` 命中共享按钮、pointer 光标、退出成功和关闭遮罩卸载。
+- `tests/e2e/app.spec.ts` 直接点击新建模板、新建题目和长图预览的 `X` 图标中心；滚动 E2E 同样点击编辑题目的 `X` 中心，验证 `elementFromPoint` 命中按钮、pointer 光标、退出成功和焦点回归。
 - `tests/e2e/file-management.spec.ts` 另验证未撤销执行不可删除、混合批次整批拒绝、单条/批量确认焦点，以及删除后数据管理执行记录计数从 1 同步为 0。
 - 最终截图目录：`/Users/ffxx/Desktop/项目/智能算法学习助手-v2/output/playwright/session-d-final/`。
 - 必须人工复核四页面 1440×900、1280×720、1024×640 的亮暗主题以及 200% 关键状态；联系图只能辅助浏览，不能替代原始截图。
@@ -92,11 +92,13 @@
 
 ## Session D 后续修复实测（2026-07-18）
 
-| 命令/证据                        | 结果                                                                                                    |
-| -------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| `npm run check`                  | 通过：TypeScript、ESLint 0 warnings、Prettier、27 个 Vitest 文件/195 项测试、3 项发布脚本测试           |
-| `npm run test:e2e`               | 通过：50 项常规 Electron E2E；2 项 packaged 因未重新生成目录包按条件跳过                                |
-| 长图与执行记录定向 Electron E2E  | `app.spec.ts` 9 项、`file-management.spec.ts` 4 项通过；真实 Main/Preload/Renderer 与 SQLite 路径均覆盖 |
-| Repository/契约                  | 9 项定向测试通过；覆盖 UUID 去重/边界、工作区/状态全量校验和删除中途失败的事务回滚                      |
-| 截图                             | `output/playwright/` 下 6 张长图/亮暗删除确认/数据同步关键图已人工复核                                  |
-| migration / 打包 / Renderer 权限 | 无 migration、无新系统权限、无打包；新增 IPC 只接受执行 UUID，Renderer 仍无 Node/SQLite/文件系统权限    |
+| 命令/证据                       | 结果                                                                                                    |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `npm run check`                 | 通过：TypeScript、ESLint 0 warnings、Prettier、27 个 Vitest 文件/195 项测试、3 项发布脚本测试           |
+| `npm run test:e2e`              | 通过：50 项常规 Electron E2E；2 项 packaged 因未重新生成目录包按条件跳过                                |
+| 长图与执行记录定向 Electron E2E | `app.spec.ts` 9 项、`file-management.spec.ts` 4 项通过；真实 Main/Preload/Renderer 与 SQLite 路径均覆盖 |
+| 题目卡片滚动与关闭 Electron E2E | 题目列表、详情、编辑表单均通过滚轮和滚动条拖动；新建/编辑 `X` 中心点击命中按钮、关闭并恢复焦点          |
+| Repository/契约                 | 9 项定向测试通过；覆盖 UUID 去重/边界、工作区/状态全量校验和删除中途失败的事务回滚                      |
+| 截图                            | 新增 2 张 1024×640 题目详情/编辑滚动图；原 6 张长图/亮暗删除确认/数据同步关键图继续保留并人工复核       |
+| migration / Renderer 权限       | 本次滚动/关闭修复无 migration、IPC、系统权限或 ADR；Renderer 仍无 Node/SQLite/文件系统权限              |
+| 目录包                          | `npm run package:dir` 成功；全新与已有 V2 userData packaged smoke 2 项通过，未复用 Session C 候选摘要   |

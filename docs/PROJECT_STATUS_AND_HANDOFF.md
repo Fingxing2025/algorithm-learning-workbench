@@ -123,15 +123,19 @@ Session D 新增事实：
 
 Session D 后续修复（基线 `8071970`）：
 
+- 题目详情补齐面板高度约束，长题面不再把详情撑高后被外层裁切；题目列表、详情与编辑字段区均支持真实鼠标滚轮和滚动条拖动，滚动区域可聚焦且使用稳定滚动条槽。
+- 编辑题目卡片改为固定头部/底部操作区与中间独立滚动；1024×640 下关闭、取消、保存和错误信息保持可达。
+- 新建/编辑题目的右上角关闭按钮使用显式受控关闭，Lucide `X` 明确不参与指针命中；真实鼠标点击两个 `X` 图标中心均命中 `BUTTON`、退出并恢复焦点。
 - 题目长图预览默认按可读宽度显示，在可聚焦区域内纵向滚动；可切换为整图适配。重新打开或切换模式回到顶部，Escape/关闭后焦点返回图片触发器。
 - 共享 `Button` 内的 Lucide SVG 使用 `pointer-events: none`，完整按钮负责命中；真实鼠标点击新建模板和图片预览的 `X` 笔画中心均可关闭，且可用按钮显示 pointer 光标。
 - “执行与撤销”新增单条与批量删除；只允许删除当前工作区中已撤销的执行记录。仍有撤销备份的 `applied` 记录必须先撤销，不能绕过恢复能力保护。
 - 新增 ADR-0019、命名 `delete-file-executions` IPC 与 Zod 契约；Renderer 只提交不重复 UUID。Repository 在单个 SQLite 事务内先验证全部工作区/状态，再批量删除；失败整批回滚。
 - 没有数据库字段或 migration；撤销流程原本已清理对应备份目录，因此删除已撤销记录不删除任何文件。数据管理继续直接统计 `file_change_executions`，删除后计数同步减少。
 - Electron E2E 使用 600×4000 PNG 覆盖按宽度滚动、整图、200% 与焦点回归，并覆盖未撤销拒绝、混合批次拒绝、确认焦点、用户文件不变和数据管理计数 1→0。
-- 截图位于 `/Users/ffxx/Desktop/项目/智能算法学习助手-v2/output/playwright/`，文件名以 `problem-image-long-preview-` 和 `file-execution-delete-` 开头。
+- Electron E2E 另使用 36 道题和长题面验证列表/详情/编辑器的滚轮及滚动条拖动；截图为 `problem-card-detail-scroll-1024x640.png` 与 `problem-editor-scroll-and-close-1024x640.png`。
+- 截图位于 `/Users/ffxx/Desktop/项目/智能算法学习助手-v2/output/playwright/`，其余文件名以 `problem-image-long-preview-` 和 `file-execution-delete-` 开头。
 
-本次阶段交付的 macOS arm64 预览候选位于 `release/mac-arm64/算法学习工作台.app`，候选证据位于 `release/candidates/0.1.2-mac-arm64-preview/`。`release/` 已被 Git 忽略，产物不属于源码提交；该 App 为 ad-hoc、无 TeamIdentifier、未公证且 Gatekeeper 不接受，只能用于本机预览与验收。
+当前 macOS arm64 目录包已从源码提交 `452f0f8` 使用 `package:dir` 重新生成，位于 `release/mac-arm64/算法学习工作台.app`；全新/已有 V2 userData 的 packaged smoke 2 项通过。`release/candidates/0.1.2-mac-arm64-preview/` 仍是 Session C 历史候选证据，没有被本轮复用或重写。`release/` 已被 Git 忽略，目录包不属于源码提交；该 App 未正式签名或公证，只能用于本机预览与验收。
 
 ## 1. 结论先行
 
