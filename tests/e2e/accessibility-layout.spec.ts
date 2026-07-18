@@ -13,6 +13,7 @@ import {
 const storageKeys = {
   navigation: 'ui:layout:v1:app-navigation',
   problems: 'ui:layout:v1:problem-workspace',
+  providers: 'ui:layout:v1:ai-provider-workspace',
   templates: 'ui:layout:v1:template-library',
 }
 
@@ -117,6 +118,7 @@ test('falls back from invalid persisted values and resets all layouts without da
   await page.evaluate(keys => {
     localStorage.setItem(keys.navigation, '9999')
     localStorage.setItem(keys.problems, 'not-a-number')
+    localStorage.setItem(keys.providers, '9999')
     localStorage.setItem(keys.templates, '-25')
     localStorage.setItem('ui:theme', 'light')
   }, storageKeys)
@@ -137,9 +139,13 @@ test('falls back from invalid persisted values and resets all layouts without da
   await page.getByRole('button', { name: '题目', exact: true }).click()
   await page.getByRole('separator', { name: '调整题目列表宽度' }).focus()
   await page.keyboard.press('ArrowRight')
+  await page.getByRole('button', { name: 'AI 设置', exact: true }).click()
+  await page.getByRole('separator', { name: '调整 Provider 列表宽度' }).focus()
+  await page.keyboard.press('ArrowRight')
   await page.getByRole('button', { name: '重置布局' }).click()
 
   await expect(page.getByRole('status')).toContainText('布局已恢复默认值')
+  await page.getByRole('button', { name: '题目', exact: true }).click()
   await expect(page.getByRole('separator', { name: '调整题目列表宽度' })).toHaveAttribute(
     'aria-valuenow',
     '312',
@@ -149,12 +155,13 @@ test('falls back from invalid persisted values and resets all layouts without da
       keys => ({
         navigation: localStorage.getItem(keys.navigation),
         problems: localStorage.getItem(keys.problems),
+        providers: localStorage.getItem(keys.providers),
         templates: localStorage.getItem(keys.templates),
         theme: localStorage.getItem('ui:theme'),
       }),
       storageKeys,
     ),
-  ).toEqual({ navigation: null, problems: null, templates: null, theme: 'light' })
+  ).toEqual({ navigation: null, problems: null, providers: null, templates: null, theme: 'light' })
 })
 
 test('announces page changes and restores focus after search, template, and problem dialogs', async () => {
@@ -183,4 +190,121 @@ test('announces page changes and restores focus after search, template, and prob
   await expect(page.getByLabel('题目标题')).toBeFocused()
   await page.keyboard.press('Escape')
   await expect(problemTrigger).toBeFocused()
+})
+
+test('creates, searches, selects, and relates long content without a mouse', async () => {
+  const longTemplateName = `超长路径与按钮可达性模板${'最短路'.repeat(12)}`
+  const longProblemTitle = `超长题目标题${'算法工作台'.repeat(14)}`
+
+  const templatesNavigation = page.getByRole('button', { name: '模板库', exact: true })
+  await templatesNavigation.focus()
+  await page.keyboard.press('Enter')
+  const templateTrigger = page.getByRole('main').getByRole('button', { name: '新建模板' })
+  await templateTrigger.focus()
+  await page.keyboard.press('Enter')
+  await page.getByLabel('文件名').fill(`${longTemplateName}.cpp`)
+  await page
+    .getByRole('textbox', { name: '模板源码', exact: true })
+    .fill('void long_content_fixture() {}\n')
+  await page.getByRole('button', { name: '确认创建' }).focus()
+  await page.keyboard.press('Enter')
+  await expect(page.getByRole('heading', { name: longTemplateName })).toBeVisible()
+
+  const problemsNavigation = page.getByRole('button', { name: '题目', exact: true })
+  await problemsNavigation.focus()
+  await page.keyboard.press('Enter')
+  await page.getByRole('button', { name: '新建题目' }).focus()
+  await page.keyboard.press('Enter')
+  await page.getByLabel('题目标题').fill(longProblemTitle)
+  await page
+    .getByLabel('标签')
+    .fill(Array.from({ length: 16 }, (_, index) => `超长标签${index + 1}算法分类`).join(', '))
+  await page.getByLabel('原始题面').fill(`题面${'A'.repeat(900)}`)
+  await page.getByRole('button', { name: '创建题目' }).focus()
+  await page.keyboard.press('Enter')
+  await expect(page.getByRole('heading', { name: longProblemTitle })).toBeVisible()
+
+  const relationTrigger = page.getByRole('button', { name: '添加关联' })
+  await relationTrigger.focus()
+  await page.keyboard.press('Enter')
+  await expect(page.getByLabel('算法模板', { exact: true })).toBeFocused()
+  await page.getByRole('button', { name: '保存关联' }).focus()
+  await page.keyboard.press('Enter')
+  await expect(page.getByText('1 个已确认关联')).toBeVisible()
+
+  await page.keyboard.press(process.platform === 'darwin' ? 'Meta+K' : 'Control+K')
+  const searchInput = page.getByRole('textbox', { name: '搜索模板、题目或操作' })
+  await searchInput.fill('超长路径与按钮可达性')
+  await page.keyboard.press('Enter')
+  await expect(page.getByRole('heading', { name: longTemplateName })).toBeVisible()
+})
+
+test('uses the real 1024x640 window and keeps core controls reachable at 200 percent zoom', async () => {
+  await app.evaluate(({ BrowserWindow }) => {
+    const window = BrowserWindow.getAllWindows()[0]
+    window?.webContents.setZoomFactor(1)
+    window?.setSize(1024, 640)
+  })
+  await expect
+    .poll(async () =>
+      app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.getSize()),
+    )
+    .toEqual([1024, 640])
+
+  await app.evaluate(({ BrowserWindow }) => {
+    const window = BrowserWindow.getAllWindows()[0]
+    window?.setSize(1440, 900)
+    window?.webContents.setZoomFactor(2)
+  })
+  await expect(page.locator('.app-shell')).toHaveAttribute('data-compact-navigation', 'true')
+
+  for (const [navigationLabel, heading] of [
+    ['工作台', '工作台'],
+    ['模板库', '模板库'],
+    ['题目', '题目卡片'],
+    ['AI 管理', '总体文件 AI 管理'],
+    ['数据管理', '数据管理'],
+  ] as const) {
+    await page.getByRole('button', { name: navigationLabel, exact: true }).focus()
+    await page.keyboard.press('Enter')
+    await expect(page.getByRole('heading', { name: heading, exact: true })).toBeVisible()
+    expect(
+      await page.evaluate(() => ({
+        clientWidth: (
+          globalThis as unknown as {
+            document: { documentElement: { clientWidth: number } }
+          }
+        ).document.documentElement.clientWidth,
+        scrollWidth: (
+          globalThis as unknown as {
+            document: { documentElement: { scrollWidth: number } }
+          }
+        ).document.documentElement.scrollWidth,
+      })),
+    ).toEqual({ clientWidth: 720, scrollWidth: 720 })
+
+    const clientWidth = 720
+    const visibleButtons = page.locator('button:visible')
+    const offscreenButtons: string[] = []
+    for (let index = 0; index < (await visibleButtons.count()); index += 1) {
+      const button = visibleButtons.nth(index)
+      const bounds = await button.boundingBox()
+      if (bounds && (bounds.x < -1 || bounds.x + bounds.width > clientWidth + 1)) {
+        offscreenButtons.push(
+          (await button.getAttribute('aria-label')) ?? (await button.innerText()),
+        )
+      }
+    }
+    expect(offscreenButtons).toEqual([])
+  }
+
+  for (const label of ['工作台', '模板库', '题目', 'AI 管理', '数据管理', 'AI 设置']) {
+    await expect(page.getByRole('button', { name: label, exact: true })).toBeVisible()
+  }
+
+  await app.evaluate(({ BrowserWindow }) => {
+    const window = BrowserWindow.getAllWindows()[0]
+    window?.webContents.setZoomFactor(1)
+    window?.setSize(1280, 720)
+  })
 })

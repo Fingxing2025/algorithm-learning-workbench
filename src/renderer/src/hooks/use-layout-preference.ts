@@ -5,6 +5,7 @@ export const LAYOUT_RESET_EVENT = 'algorithm-workbench:reset-layout'
 
 export const layoutPreferenceKeys = {
   appNavigation: 'app-navigation',
+  aiProviderWorkspace: 'ai-provider-workspace',
   problemWorkspace: 'problem-workspace',
   templateLibrary: 'template-library',
 } as const

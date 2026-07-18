@@ -54,6 +54,7 @@ import { useWorkspace } from '@/features/templates/use-workspace'
 import { WorkspaceOnboarding } from '@/features/templates/workspace-onboarding'
 import { useRuntimeInfo } from '@/hooks/use-runtime-info'
 import { layoutPreferenceKeys, resetLayoutPreferences } from '@/hooks/use-layout-preference'
+import { useMediaQuery } from '@/hooks/use-media-query'
 import { useTheme } from '@/hooks/use-theme'
 import { activeElementOrNull } from '@/lib/focus-management'
 import { cn } from '@/lib/utils'
@@ -167,7 +168,7 @@ function NavigationButton({
           strokeWidth={1.8}
         />
       </span>
-      <span>{t(item.label)}</span>
+      <span className="navigation-label">{t(item.label)}</span>
       {item.disabled && (
         <span className="ml-auto text-[10px] font-medium uppercase">{t('稍后')}</span>
       )}
@@ -308,7 +309,7 @@ function Dashboard({
   return (
     <main
       aria-label={t('工作台')}
-      className="relative h-full min-h-0 overflow-y-auto overscroll-contain px-5 py-5 lg:px-8 lg:py-7"
+      className="dashboard-scroll relative h-full min-h-0 overflow-y-auto overscroll-contain px-5 py-5 lg:px-8 lg:py-7"
       data-testid="dashboard-scroll-region"
     >
       <div
@@ -344,17 +345,17 @@ function Dashboard({
               >
                 {t('让算法知识有清晰的节奏')}
               </h1>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+              <p className="dashboard-hero-description mt-2 text-sm leading-6 text-muted-foreground">
                 {t('管理本地模板、题目关联和 AI 文件计划。')}
               </p>
-              <div className="mt-4 flex flex-wrap gap-2">
+              <div className="dashboard-hero-chips mt-4 flex flex-wrap gap-2">
                 <span className="dashboard-hero-chip">
                   <span className="size-1.5 rounded-full bg-cyan-300" /> {t('本地优先')}
                 </span>
                 <span className="dashboard-hero-chip">{t('模板与题目双向关联')}</span>
                 <span className="dashboard-hero-chip">{t('AI 变更先预览')}</span>
               </div>
-              <div className="mt-5 flex flex-wrap gap-2">
+              <div className="dashboard-hero-actions mt-5 flex flex-wrap gap-2">
                 <Button
                   className="dashboard-hero-action"
                   onClick={onOpenProblems}
@@ -429,7 +430,7 @@ function Dashboard({
         <motion.section
           animate="show"
           aria-label={t('知识库概览')}
-          className="mt-6 grid gap-3 sm:grid-cols-3"
+          className="dashboard-summary-grid mt-6 grid gap-3 sm:grid-cols-3"
           initial="hidden"
           transition={{ delayChildren: 0.12, staggerChildren: 0.06 }}
         >
@@ -679,7 +680,7 @@ function TemplateLibrary({
         <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-accent-cyan/12 text-accent-cyan ring-1 ring-accent-cyan/14">
           <FileCode2 aria-hidden="true" className="size-4.5" />
         </span>
-        <div className="min-w-0">
+        <div className="min-w-[220px] flex-1">
           <div className="flex items-center gap-2">
             <h1 className="truncate text-[15px] font-semibold tracking-tight">{t('模板库')}</h1>
             <Badge tone="accent">
@@ -691,7 +692,7 @@ function TemplateLibrary({
             {workspace.name} · {t('本地索引')}
           </p>
         </div>
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
           <Button
             disabled={isBusy}
             onClick={onChangeWorkspace}
@@ -790,6 +791,7 @@ function AppContent() {
   const commandReturnFocusRef = useRef<HTMLElement | null>(null)
   const createReturnFocusRef = useRef<HTMLElement | null>(null)
   const prefersReducedMotion = useReducedMotion()
+  const compactNavigation = useMediaQuery('(max-width: 820px)')
   const { locale, t, toggleLocale } = useI18n()
   const runtimeState = useRuntimeInfo()
   const { theme, toggleTheme } = useTheme()
@@ -1166,10 +1168,13 @@ function AppContent() {
   return (
     <Tooltip.Provider delayDuration={300}>
       <LiveRegion message={pageAnnouncement} testId="page-announcement" />
-      <div className="app-shell grid h-screen min-h-[640px] grid-rows-[60px_minmax(0,1fr)_30px] overflow-hidden text-foreground">
+      <div
+        className="app-shell grid h-screen grid-rows-[60px_minmax(0,1fr)_30px] overflow-hidden text-foreground"
+        data-compact-navigation={compactNavigation ? 'true' : 'false'}
+      >
         <header
           className={cn(
-            'glass-toolbar window-drag relative flex items-center border-b pr-4',
+            'app-header glass-toolbar window-drag relative flex items-center border-b pr-4',
             platform === 'darwin' ? 'pl-[86px]' : 'pl-4',
           )}
         >
@@ -1177,10 +1182,10 @@ function AppContent() {
             <span className="brand-mark grid size-8 shrink-0 place-items-center rounded-xl text-white ring-1 ring-white/15">
               <Boxes aria-hidden="true" className="size-4" strokeWidth={2} />
             </span>
-            <span className="truncate text-[14px] font-semibold tracking-[-0.02em]">
+            <span className="app-title truncate text-[14px] font-semibold tracking-[-0.02em]">
               {t('算法学习工作台')}
             </span>
-            <Badge className="hidden sm:inline-flex" tone="accent">
+            <Badge className="app-version hidden sm:inline-flex" tone="accent">
               V2 · {runtimeState.status === 'ready' ? runtimeState.value.appVersion : '…'}
             </Badge>
           </div>
@@ -1252,18 +1257,25 @@ function AppContent() {
 
         <ResizableLayout
           className="min-h-0"
+          compactPrimarySize={72}
           defaultPrimarySize={216}
           maximumPrimarySize={296}
           minimumPrimarySize={184}
           minimumSecondarySize={640}
+          forceCompact={compactNavigation}
           primaryLabel={t('应用导航面板')}
           secondaryLabel={t('当前工作区页面')}
           separatorLabel={t('调整导航宽度')}
           storageKey={layoutPreferenceKeys.appNavigation}
           valueText={size => t('导航宽度 {size} 像素', { size })}
         >
-          <aside className="glass-sidebar flex h-full min-h-0 flex-col px-3 py-4">
-            <div className="mb-2 px-3 text-[9px] font-semibold uppercase tracking-[0.13em] text-muted-foreground/75">
+          <aside
+            className={cn(
+              'glass-sidebar flex h-full min-h-0 flex-col px-3 py-4',
+              compactNavigation && 'compact-navigation',
+            )}
+          >
+            <div className="sidebar-section-label mb-2 px-3 text-[9px] font-semibold uppercase tracking-[0.13em] text-muted-foreground/75">
               {t('知识工作台')}
             </div>
             <nav aria-label={t('主导航')} className="space-y-1">
@@ -1278,9 +1290,9 @@ function AppContent() {
               ))}
             </nav>
 
-            <Separator.Root className="my-4 h-px bg-border" decorative />
+            <Separator.Root className="sidebar-separator my-4 h-px bg-border" decorative />
 
-            <div className="mb-2 px-3 text-[9px] font-semibold uppercase tracking-[0.13em] text-muted-foreground/75">
+            <div className="sidebar-section-label mb-2 px-3 text-[9px] font-semibold uppercase tracking-[0.13em] text-muted-foreground/75">
               {t('模型与服务')}
             </div>
 
@@ -1296,10 +1308,10 @@ function AppContent() {
               onClick={() => setCurrentView('settings')}
               type="button"
             >
-              <span className="grid size-7 place-items-center rounded-lg bg-accent-blue/10 text-accent-blue">
+              <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-accent-blue/10 text-accent-blue">
                 <Settings2 aria-hidden="true" className="size-4" strokeWidth={1.8} />
               </span>
-              {t('AI 设置')}
+              <span className="navigation-label">{t('AI 设置')}</span>
               <kbd className="nav-shortcut ml-auto font-sans text-[9px] font-medium">
                 {shortcutPrefix},
               </kbd>
@@ -1309,7 +1321,7 @@ function AppContent() {
               aria-label={t('快捷操作')}
               className="quick-action-panel mt-4 rounded-2xl border p-2"
             >
-              <div className="flex items-center gap-2 px-2 pb-1.5 pt-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-muted-foreground/75">
+              <div className="quick-action-heading flex items-center gap-2 px-2 pb-1.5 pt-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-muted-foreground/75">
                 <Command aria-hidden="true" className="size-3" />
                 {t('快捷操作')}
               </div>
@@ -1320,7 +1332,7 @@ function AppContent() {
                 type="button"
               >
                 <Search aria-hidden="true" className="size-3.5 text-primary" />
-                <span>{t('搜索知识库')}</span>
+                <span className="quick-action-label">{t('搜索知识库')}</span>
                 <kbd className="ml-auto font-sans text-[9px] text-muted-foreground">
                   {shortcutLabel}
                 </kbd>
@@ -1333,7 +1345,7 @@ function AppContent() {
                 type="button"
               >
                 <Plus aria-hidden="true" className="size-3.5 text-accent-cyan" />
-                <span>{t('新建模板')}</span>
+                <span className="quick-action-label">{t('新建模板')}</span>
                 <kbd className="ml-auto font-sans text-[9px] text-muted-foreground">
                   {createShortcutLabel}
                 </kbd>
@@ -1348,11 +1360,11 @@ function AppContent() {
                 type="button"
               >
                 <RotateCcw aria-hidden="true" className="size-3.5 text-primary" />
-                <span>{t('重置布局')}</span>
+                <span className="quick-action-label">{t('重置布局')}</span>
               </button>
             </section>
 
-            <div className="glass-floating mt-auto overflow-hidden rounded-2xl border shadow-panel">
+            <div className="workspace-status-card glass-floating mt-auto overflow-hidden rounded-2xl border shadow-panel">
               <div className="border-b border-border bg-surface-subtle/70 px-3.5 py-2.5 text-[9px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
                 {t('当前工作区')}
               </div>
@@ -1385,7 +1397,7 @@ function AppContent() {
               {(workspaceError || notice) && workspace && (
                 <motion.div
                   animate={{ opacity: 1 }}
-                  className="absolute left-1/2 top-3 z-40 w-max max-w-[min(640px,calc(100%-32px))] -translate-x-1/2"
+                  className="workspace-notice-container absolute left-1/2 top-3 z-40 w-max max-w-[min(640px,calc(100%-32px))] -translate-x-1/2"
                   exit={prefersReducedMotion ? undefined : { opacity: 0 }}
                   initial={prefersReducedMotion ? false : { opacity: 0 }}
                 >
@@ -1394,7 +1406,7 @@ function AppContent() {
                     aria-atomic="true"
                     aria-live={workspaceError ? 'assertive' : 'polite'}
                     className={cn(
-                      'glass-floating flex items-center gap-2 rounded-xl border px-3 py-2 text-xs shadow-panel',
+                      'workspace-notice glass-floating flex items-center gap-2 rounded-xl border px-3 py-2 text-xs shadow-panel',
                       workspaceError
                         ? 'border-red-500/25 text-red-700 dark:text-red-300'
                         : 'border-success/20 text-foreground',
@@ -1429,18 +1441,18 @@ function AppContent() {
           </motion.div>
         </ResizableLayout>
 
-        <footer className="glass-toolbar flex items-center border-t px-3 text-[10px] text-muted-foreground">
+        <footer className="app-footer glass-toolbar flex items-center border-t px-3 text-[10px] text-muted-foreground">
           <span className="inline-flex items-center gap-1.5">
             <span className="size-1.5 rounded-full bg-success" />
             {t('桌面运行时')}
           </span>
-          <span className="ml-3 border-l border-border pl-3">
+          <span className="runtime-details ml-3 border-l border-border pl-3">
             {runtimeState.status === 'loading' && t('正在读取运行信息…')}
             {runtimeState.status === 'error' && t('运行信息暂不可用')}
             {runtimeState.status === 'ready' &&
               `Electron ${runtimeState.value.electronVersion} · ${runtimeState.value.platform}`}
           </span>
-          <span className="ml-auto inline-flex items-center gap-2">
+          <span className="workspace-counts ml-auto inline-flex items-center gap-2">
             <ShieldCheck aria-hidden="true" className="size-3" />
             {workspace
               ? `${workspace.summary.templateCount} ${t('个模板')} · ${problemState.problems.length} ${t('道题')}`

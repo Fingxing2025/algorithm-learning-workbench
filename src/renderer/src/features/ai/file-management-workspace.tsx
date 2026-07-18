@@ -329,11 +329,11 @@ export function FileManagementWorkspace({
 
   return (
     <main className="workspace-stage flex h-full min-h-0 flex-col overflow-hidden">
-      <header className="glass-section-header flex min-h-[62px] items-center gap-3 border-b border-warning/16 px-5 py-2.5">
+      <header className="glass-section-header flex min-h-[62px] flex-wrap items-center gap-3 border-b border-warning/16 px-5 py-2.5">
         <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-warning/12 text-warning ring-1 ring-warning/15">
           <Sparkles aria-hidden="true" className="size-4.5" />
         </span>
-        <div>
+        <div className="min-w-[220px] flex-1">
           <div className="flex items-center gap-2">
             <h1 className="text-[15px] font-semibold tracking-tight">{t('总体文件 AI 管理')}</h1>
             <Badge tone="warning">
@@ -344,7 +344,7 @@ export function FileManagementWorkspace({
             {t('AI 仅接收路径、元数据和受限源码片段；文件操作始终需要二次确认')}
           </p>
         </div>
-        <div className="ml-auto flex gap-2">
+        <div className="ml-auto flex flex-wrap justify-end gap-2">
           <Button onClick={onOpenSettings} size="compact" type="button" variant="ghost">
             <Settings2 className="size-3.5" />
             {t('AI 设置')}
@@ -580,7 +580,7 @@ export function FileManagementWorkspace({
                 </div>
               )}
               {draftPlan && (
-                <footer className="mt-4 flex items-center justify-between border-t border-border pt-4">
+                <footer className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
                   <div className="flex items-center gap-2">
                     <Button
                       disabled={Boolean(busyAction)}

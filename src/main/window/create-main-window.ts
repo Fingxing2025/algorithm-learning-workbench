@@ -6,7 +6,7 @@ export function createMainWindow(): BrowserWindow {
   const window = new BrowserWindow({
     backgroundColor: nativeTheme.shouldUseDarkColors ? '#111318' : '#f7f7f5',
     height: 900,
-    minHeight: 680,
+    minHeight: 640,
     minWidth: 1024,
     show: false,
     title: '智能算法学习助手 V2',

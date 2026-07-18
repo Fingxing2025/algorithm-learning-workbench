@@ -6,10 +6,16 @@ export function restoreFocusAfterDialog(event: Event, target: HTMLElement | null
   if (!target?.isConnected) return
   event.preventDefault()
 
-  const focus = () => {
-    if (target.isConnected && !target.matches(':disabled')) target.focus()
+  const focusIfIdle = () => {
+    const activeElement = document.activeElement
+    const focusIsIdle =
+      !activeElement?.isConnected ||
+      activeElement === document.body ||
+      activeElement === document.documentElement
+    if (focusIsIdle && target.isConnected && !target.matches(':disabled')) target.focus()
   }
-  focus()
-  window.requestAnimationFrame(focus)
-  window.setTimeout(focus, 80)
+  window.setTimeout(() => {
+    focusIfIdle()
+    if (document.activeElement !== target) window.setTimeout(focusIfIdle, 80)
+  }, 0)
 }

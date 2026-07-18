@@ -288,8 +288,10 @@ test('rejects the whole batch when a source changes after plan generation', asyn
   await expect(page.getByText('移动 / 重命名', { exact: true })).toBeVisible()
 
   await writeFile(join(workspaceRoot, 'Old Name.cpp'), 'void changedOutsideApp() {}\n', 'utf8')
-  await page.getByRole('button', { name: '预览并执行' }).click()
-  await page.getByRole('button', { name: '确认执行' }).click()
+  await page.getByRole('button', { name: '预览并执行' }).focus()
+  await page.keyboard.press('Enter')
+  await expect(page.getByRole('button', { name: '确认执行' })).toBeFocused()
+  await page.keyboard.press('Enter')
   await expect(page.getByRole('alert')).toContainText('文件或元数据已在计划生成后变更')
 
   expect(await pathExists(join(workspaceRoot, 'copy.cpp'))).toBe(true)
@@ -374,6 +376,8 @@ test('applies a selected plan with backup, stable relations, and rollback', asyn
   await history.focus()
   await page.keyboard.press('End')
   await expect.poll(() => history.evaluate(element => element.scrollTop)).toBeGreaterThan(0)
+  await page.keyboard.press('Enter')
+  await expect(page.locator('[data-plan-select]:focus')).toHaveCount(1)
   await page
     .getByRole('button', { name: /删除计划记录 File Management Test/ })
     .first()

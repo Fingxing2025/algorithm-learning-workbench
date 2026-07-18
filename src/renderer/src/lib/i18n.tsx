@@ -10,6 +10,9 @@ const english: Record<string, string> = {
   'AI 生成已取消，未创建计划或修改文件。':
     'AI generation cancelled. No plan was created and no files were changed.',
   'AI 设置': 'AI Settings',
+  'Provider 列表面板': 'Provider list panel',
+  'Provider 详情面板': 'Provider details panel',
+  'Provider 列表宽度 {size} 像素': 'Provider list width: {size} pixels',
   个模板: 'templates',
   '个模板 · 本地索引': 'templates · local index',
   '个模板 · {problemCount} 道题': 'templates · {problemCount} problems',
@@ -129,6 +132,7 @@ const english: Record<string, string> = {
     'Choose an existing template folder. The first scan is read-only and never renames or moves files.',
   选择一份算法模板: 'Select an algorithm template',
   调整导航宽度: 'Resize navigation',
+  '调整 Provider 列表宽度': 'Resize Provider list',
   调整模板树宽度: 'Resize template tree',
   调整题目列表宽度: 'Resize problem list',
   '导航宽度 {size} 像素': 'Navigation width: {size} pixels',

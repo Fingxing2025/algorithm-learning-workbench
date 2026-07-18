@@ -1,6 +1,6 @@
 import * as Dialog from '@radix-ui/react-dialog'
 import { ArrowRight, BookOpenText, FileCode2, Search, X } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import type { Problem } from '@core/contracts/problem'
 import type { TemplateSummary } from '@core/contracts/workspace'
@@ -34,10 +34,10 @@ export function CommandPalette({
 }: CommandPaletteProps) {
   const { t } = useI18n()
   const [query, setQuery] = useState('')
+  const restoreFocusOnCloseRef = useRef(true)
   useEffect(() => {
-    if (!open) {
-      setQuery('')
-    }
+    if (open) restoreFocusOnCloseRef.current = true
+    else setQuery('')
   }, [open])
 
   const results = useMemo<SearchResult[]>(() => {
@@ -66,6 +66,7 @@ export function CommandPalette({
   }, [problems, query, templates])
 
   const selectResult = (result: SearchResult) => {
+    restoreFocusOnCloseRef.current = false
     if (result.kind === 'template') {
       onSelectTemplate(result.value.id)
     } else {
@@ -80,7 +81,10 @@ export function CommandPalette({
         <Dialog.Overlay className="dialog-overlay fixed inset-0 z-50 bg-overlay/58 backdrop-blur-[3px]" />
         <Dialog.Content
           className="dialog-surface fixed left-1/2 top-[13%] z-50 w-[min(700px,calc(100vw-32px))] -translate-x-1/2 overflow-hidden rounded-3xl border border-primary/18 bg-panel shadow-[0_32px_80px_-32px_var(--shadow-color)] outline-none ring-1 ring-white/8"
-          onCloseAutoFocus={event => restoreFocusAfterDialog(event, returnFocusTo)}
+          onCloseAutoFocus={event => {
+            if (restoreFocusOnCloseRef.current) restoreFocusAfterDialog(event, returnFocusTo)
+            else event.preventDefault()
+          }}
         >
           <div className="flex items-center gap-3 border-b border-border bg-surface-subtle/55 px-4">
             <span className="grid size-8 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary ring-1 ring-primary/10">
@@ -93,7 +97,9 @@ export function CommandPalette({
               onChange={event => setQuery(event.target.value)}
               onKeyDown={event => {
                 if (event.key === 'Enter' && results[0]) {
-                  selectResult(results[0])
+                  event.preventDefault()
+                  const firstResult = results[0]
+                  window.setTimeout(() => selectResult(firstResult), 0)
                 }
               }}
               placeholder={t('搜索模板名称、路径、题目或标签…')}

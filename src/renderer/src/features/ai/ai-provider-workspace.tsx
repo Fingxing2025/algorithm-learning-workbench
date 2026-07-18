@@ -25,6 +25,8 @@ import type {
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { ResizableLayout } from '@/components/resizable-layout'
+import { layoutPreferenceKeys } from '@/hooks/use-layout-preference'
 import { useI18n } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 
@@ -266,11 +268,11 @@ export function AiProviderWorkspace() {
 
   return (
     <main className="workspace-stage flex h-full min-h-0 flex-col overflow-hidden">
-      <header className="glass-section-header flex min-h-[62px] items-center gap-3 border-b border-primary/16 px-5 py-2.5">
+      <header className="glass-section-header flex min-h-[62px] flex-wrap items-center gap-3 border-b border-primary/16 px-5 py-2.5">
         <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-primary/11 text-primary ring-1 ring-primary/12">
           <ServerCog aria-hidden="true" className="size-4.5" />
         </span>
-        <div>
+        <div className="min-w-[220px] flex-1">
           <div className="flex items-center gap-2">
             <h1 className="text-[15px] font-semibold tracking-tight">{t('AI 设置')}</h1>
             <Badge tone="accent">
@@ -287,8 +289,19 @@ export function AiProviderWorkspace() {
         </Button>
       </header>
 
-      <div className="grid min-h-0 flex-1 grid-cols-[minmax(260px,310px)_minmax(0,1fr)]">
-        <aside className="min-h-0 overflow-y-auto border-r border-border bg-sidebar/75 p-3">
+      <ResizableLayout
+        className="min-h-0 flex-1"
+        defaultPrimarySize={284}
+        maximumPrimarySize={420}
+        minimumPrimarySize={220}
+        minimumSecondarySize={360}
+        primaryLabel={t('Provider 列表面板')}
+        secondaryLabel={t('Provider 详情面板')}
+        separatorLabel={t('调整 Provider 列表宽度')}
+        storageKey={layoutPreferenceKeys.aiProviderWorkspace}
+        valueText={size => t('Provider 列表宽度 {size} 像素', { size })}
+      >
+        <aside className="h-full min-h-0 overflow-y-auto bg-sidebar/75 p-3">
           <div className="mb-3 flex items-center justify-between px-1">
             <span className="text-[10px] font-semibold uppercase tracking-[0.11em] text-muted-foreground">
               {t('Provider 配置')}
@@ -726,7 +739,7 @@ export function AiProviderWorkspace() {
             </div>
           </form>
         </section>
-      </div>
+      </ResizableLayout>
     </main>
   )
 }

@@ -116,7 +116,7 @@ export function AlgorithmCard({
           className="absolute -right-12 -top-20 size-52 rounded-full bg-primary/8 blur-3xl"
         />
         <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="relative min-w-0">
+          <div className="relative min-w-[180px] flex-1">
             <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.11em] text-primary">
               {t('当前模板')}
             </div>
@@ -131,7 +131,7 @@ export function AlgorithmCard({
               {template.relativePath}
             </p>
           </div>
-          <div className="relative flex gap-2">
+          <div className="relative flex max-w-full flex-wrap justify-end gap-2">
             <Button
               aria-label={`${t('重命名或移动模板')} ${template.name}`}
               disabled={isProblemBusy}

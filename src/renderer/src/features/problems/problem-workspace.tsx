@@ -176,11 +176,11 @@ export function ProblemWorkspace({
 
   return (
     <main className="workspace-stage flex h-full min-h-0 flex-col overflow-hidden">
-      <header className="glass-section-header flex min-h-[62px] items-center gap-3 border-b px-5 py-2.5">
+      <header className="glass-section-header flex min-h-[62px] flex-wrap items-center gap-3 border-b px-5 py-2.5">
         <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-success/11 text-success ring-1 ring-success/12">
           <BookOpenText aria-hidden="true" className="size-4.5" />
         </span>
-        <div>
+        <div className="min-w-[180px] flex-1">
           <div className="flex items-center gap-2">
             <h1 className="text-[15px] font-semibold tracking-tight">{t('题目卡片')}</h1>
             <Badge tone="success">
@@ -344,13 +344,13 @@ export function ProblemWorkspace({
                 aria-hidden="true"
                 className="absolute -right-16 -top-20 size-56 rounded-full bg-success/8 blur-3xl"
               />
-              <div className="flex items-start gap-4">
+              <div className="flex flex-wrap items-start gap-4">
                 <div className="relative min-w-0 flex-1">
                   <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.11em] text-success">
                     {t('当前题目')}
                   </p>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="text-xl font-semibold tracking-tight">
+                  <div className="flex min-w-0 flex-wrap items-center gap-2">
+                    <h2 className="min-w-0 break-words text-xl font-semibold tracking-tight [overflow-wrap:anywhere]">
                       {selectedProblem.title}
                     </h2>
                     <Badge tone={selectedProblem.status === 'solved' ? 'success' : 'accent'}>
@@ -367,7 +367,7 @@ export function ProblemWorkspace({
                       .join(' · ') || t('尚未补充平台、题号和难度')}
                   </p>
                 </div>
-                <div className="relative flex items-center gap-2">
+                <div className="relative flex flex-wrap items-center gap-2">
                   {confirmDeleteProblem ? (
                     <>
                       <span className="text-[11px] text-red-600 dark:text-red-300">
@@ -443,7 +443,7 @@ export function ProblemWorkspace({
                     <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                       {t('原始题面')}
                     </p>
-                    <p className="mt-2 whitespace-pre-wrap text-sm leading-6">
+                    <p className="mt-2 whitespace-pre-wrap text-sm leading-6 [overflow-wrap:anywhere]">
                       {selectedProblem.statement || t('尚未记录原始题面。')}
                     </p>
                   </div>
@@ -451,7 +451,7 @@ export function ProblemWorkspace({
                     <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                       {t('AI 题目摘要')}
                     </p>
-                    <p className="mt-2 whitespace-pre-wrap text-sm leading-6">
+                    <p className="mt-2 whitespace-pre-wrap text-sm leading-6 [overflow-wrap:anywhere]">
                       {selectedProblem.aiSummary || t('尚未生成 AI 题目摘要。')}
                     </p>
                   </div>
@@ -459,7 +459,7 @@ export function ProblemWorkspace({
                     <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                       {t('本地备注')}
                     </p>
-                    <p className="mt-2 whitespace-pre-wrap text-sm leading-6">
+                    <p className="mt-2 whitespace-pre-wrap text-sm leading-6 [overflow-wrap:anywhere]">
                       {selectedProblem.notes || t('尚未添加本地备注。')}
                     </p>
                   </div>
