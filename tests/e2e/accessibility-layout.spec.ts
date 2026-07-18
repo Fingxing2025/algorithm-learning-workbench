@@ -81,7 +81,9 @@ test('resizes navigation and template panels with keyboard and pointer using saf
   expect(bounds).not.toBeNull()
   await page.mouse.move(bounds!.x + bounds!.width / 2, bounds!.y + bounds!.height / 2)
   await page.mouse.down()
-  await page.mouse.move(bounds!.x + bounds!.width / 2 + 48, bounds!.y + bounds!.height / 2)
+  await page.mouse.move(bounds!.x + bounds!.width / 2 + 48, bounds!.y + bounds!.height / 2, {
+    steps: 6,
+  })
   await page.mouse.up()
   await expect
     .poll(async () => Number(await templateSeparator.getAttribute('aria-valuenow')))
@@ -258,12 +260,12 @@ test('uses the real 1024x640 window and keeps core controls reachable at 200 per
   })
   await expect(page.locator('.app-shell')).toHaveAttribute('data-compact-navigation', 'true')
 
-  for (const [navigationLabel, heading] of [
-    ['工作台', '工作台'],
-    ['模板库', '模板库'],
-    ['题目', '题目卡片'],
-    ['AI 管理', '总体文件 AI 管理'],
-    ['数据管理', '数据管理'],
+  for (const [navigationLabel, heading, coreActions] of [
+    ['工作台', '工作台', ['浏览题目', '浏览模板库', '新建模板']],
+    ['模板库', '模板库', ['切换工作区', '重新扫描工作区', '新建模板']],
+    ['题目', '题目卡片', ['新建题目']],
+    ['AI 管理', '总体文件 AI 管理', ['AI 设置', '只读扫描', '生成 AI 计划']],
+    ['数据管理', '数据管理', ['重新诊断']],
   ] as const) {
     await page.getByRole('button', { name: navigationLabel, exact: true }).focus()
     await page.keyboard.press('Enter')
@@ -296,6 +298,11 @@ test('uses the real 1024x640 window and keeps core controls reachable at 200 per
       }
     }
     expect(offscreenButtons).toEqual([])
+    for (const action of coreActions) {
+      const actionButton = page.getByRole('main').getByRole('button', { name: action, exact: true })
+      await expect(actionButton).toBeVisible()
+      await expect(actionButton).toBeInViewport()
+    }
   }
 
   for (const label of ['工作台', '模板库', '题目', 'AI 管理', '数据管理', 'AI 设置']) {
@@ -307,4 +314,51 @@ test('uses the real 1024x640 window and keeps core controls reachable at 200 per
     window?.webContents.setZoomFactor(1)
     window?.setSize(1280, 720)
   })
+})
+
+test('removes nonessential movement when reduced motion is requested', async () => {
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const browser = globalThis as unknown as {
+          matchMedia: (query: string) => { matches: boolean }
+        }
+        return browser.matchMedia('(prefers-reduced-motion: reduce)').matches
+      }),
+    )
+    .toBe(true)
+  await page.getByRole('button', { name: '工作台', exact: true }).click()
+  const summaryCard = page.locator('.summary-card').first()
+  await expect(summaryCard).toBeVisible()
+  await expect
+    .poll(() =>
+      summaryCard.evaluate(element => {
+        const browser = globalThis as unknown as {
+          getComputedStyle: (target: unknown) => { transform: string }
+        }
+        return browser.getComputedStyle(element).transform
+      }),
+    )
+    .toMatch(/^(none|matrix\(1, 0, 0, 1, 0, 0\))$/)
+  const beforeHover = await summaryCard.evaluate(element => {
+    const browser = globalThis as unknown as {
+      getComputedStyle: (target: unknown) => { transform: string; transitionDuration: string }
+    }
+    return {
+      transform: browser.getComputedStyle(element).transform,
+      transitionDuration: browser.getComputedStyle(element).transitionDuration,
+    }
+  })
+  await summaryCard.hover()
+  await page.waitForTimeout(50)
+  const afterHoverTransform = await summaryCard.evaluate(element => {
+    const browser = globalThis as unknown as {
+      getComputedStyle: (target: unknown) => { transform: string }
+    }
+    return browser.getComputedStyle(element).transform
+  })
+  expect(Number.parseFloat(beforeHover.transitionDuration)).toBeLessThanOrEqual(0.01)
+  expect(afterHoverTransform).toBe(beforeHover.transform)
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
 })
