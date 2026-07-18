@@ -238,7 +238,24 @@ test('creates an empty workspace and the first template without allowing overwri
 
     await page.getByRole('button', { name: '新建模板' }).click()
     await expect(closeDialogButton).toBeVisible()
-    await closeDialogButton.click({ position: { x: 18, y: 18 } })
+    const closeIconBounds = await closeDialogButton.locator('svg').boundingBox()
+    expect(closeIconBounds).not.toBeNull()
+    const closeIconCenter = {
+      x: closeIconBounds!.x + closeIconBounds!.width / 2,
+      y: closeIconBounds!.y + closeIconBounds!.height / 2,
+    }
+    expect(
+      await page.evaluate(point => {
+        const browser = globalThis as unknown as {
+          document: {
+            elementFromPoint: (x: number, y: number) => { tagName: string } | null
+          }
+        }
+        return browser.document.elementFromPoint(point.x, point.y)?.tagName.toLowerCase()
+      }, closeIconCenter),
+    ).toBe('button')
+    await expect(closeDialogButton).toHaveCSS('cursor', 'pointer')
+    await page.mouse.click(closeIconCenter.x, closeIconCenter.y)
     await expect(closeDialogButton).toHaveCount(0)
   }
   const closeNoticeButton = page.getByRole('button', { name: '关闭提示' })
@@ -469,6 +486,29 @@ test('creates a problem, associates multiple templates, stores an image, and saf
   await electronApp.evaluate(({ BrowserWindow }) =>
     BrowserWindow.getAllWindows()[0]?.webContents.setZoomFactor(1),
   )
+  const imageCloseButton = tallPreviewDialog.getByRole('button', { name: '关闭图片预览' })
+  const imageCloseIconBounds = await imageCloseButton.locator('svg').boundingBox()
+  expect(imageCloseIconBounds).not.toBeNull()
+  const imageCloseIconCenter = {
+    x: imageCloseIconBounds!.x + imageCloseIconBounds!.width / 2,
+    y: imageCloseIconBounds!.y + imageCloseIconBounds!.height / 2,
+  }
+  expect(
+    await page.evaluate(point => {
+      const browser = globalThis as unknown as {
+        document: {
+          elementFromPoint: (x: number, y: number) => { tagName: string } | null
+        }
+      }
+      return browser.document.elementFromPoint(point.x, point.y)?.tagName.toLowerCase()
+    }, imageCloseIconCenter),
+  ).toBe('button')
+  await expect(imageCloseButton).toHaveCSS('cursor', 'pointer')
+  await page.mouse.click(imageCloseIconCenter.x, imageCloseIconCenter.y)
+  await expect(tallPreviewTrigger).toBeFocused()
+  await expect(page.locator('.dialog-overlay')).toHaveCount(0)
+
+  await tallPreviewTrigger.click()
   await page.keyboard.press('Escape')
   await expect(tallPreviewTrigger).toBeFocused()
   await electronApp.evaluate(({ BrowserWindow }) =>

@@ -27,7 +27,8 @@ Session D 已完成，随后从 `8071970` 基线补齐题目长图滚动/整图�
 7. `8071970 fix: balance file history icon size`
 8. `b5f657c feat: improve image preview and execution history cleanup`
 9. `f9d9f9e docs: record long image and execution cleanup evidence`
-10. 本文所在提交：暗色执行删除确认态截图与最终交接同步
+10. `3e6898a test: capture dark execution cleanup confirmation`
+11. 本文所在提交：统一图标按钮命中、真实 `X` 中心点击回归和最终交接同步
 
 所有提交均为本地小提交；没有推送远程仓库。
 
@@ -53,6 +54,7 @@ Session D 已完成，随后从 `8071970` 基线补齐题目长图滚动/整图�
 - 900 字符连续题面、16 个长标签和长标题不会产生 document 横向溢出或挤掉编辑/删除等主操作。
 - 键盘可以创建题目、打开关联窗口、保存关联，再通过全局搜索选择长路径模板。
 - 长图默认按宽度在独立区域滚动，可切换整图概览；工具栏在 200% 下仍可达，Escape 后焦点回到图片触发器。
+- 公共按钮内图标不再截获指针；真实鼠标点击新建模板和长图预览的 `X` 笔画中心会命中完整按钮、退出浮层并恢复焦点。
 
 ### AI 管理与 AI 设置
 
@@ -143,7 +145,7 @@ Session D 已完成，随后从 `8071970` 基线补齐题目长图滚动/整图�
 
 - 50 项常规 Electron E2E
 - 2 项 packaged 测试按条件跳过
-- 最终全量重跑总耗时约 2.4 分钟
+- 最终全量重跑总耗时约 2.5 分钟
 
 Session D 新增/加强证据：
 

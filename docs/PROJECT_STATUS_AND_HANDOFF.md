@@ -124,6 +124,7 @@ Session D 新增事实：
 Session D 后续修复（基线 `8071970`）：
 
 - 题目长图预览默认按可读宽度显示，在可聚焦区域内纵向滚动；可切换为整图适配。重新打开或切换模式回到顶部，Escape/关闭后焦点返回图片触发器。
+- 共享 `Button` 内的 Lucide SVG 使用 `pointer-events: none`，完整按钮负责命中；真实鼠标点击新建模板和图片预览的 `X` 笔画中心均可关闭，且可用按钮显示 pointer 光标。
 - “执行与撤销”新增单条与批量删除；只允许删除当前工作区中已撤销的执行记录。仍有撤销备份的 `applied` 记录必须先撤销，不能绕过恢复能力保护。
 - 新增 ADR-0019、命名 `delete-file-executions` IPC 与 Zod 契约；Renderer 只提交不重复 UUID。Repository 在单个 SQLite 事务内先验证全部工作区/状态，再批量删除；失败整批回滚。
 - 没有数据库字段或 migration；撤销流程原本已清理对应备份目录，因此删除已撤销记录不删除任何文件。数据管理继续直接统计 `file_change_executions`，删除后计数同步减少。
@@ -280,7 +281,7 @@ Main
 | Prettier check                     | 通过                                                                                                                      |
 | Vitest                             | 27 个文件，195 项通过；新增执行删除契约/事务测试，并保持布局、五协议、数据恢复和发布逻辑回归                              |
 | 统一题目 Electron E2E              | 6 项通过；覆盖纯手动、文本/图文 AI、取消、无效 JSON、多方向候选、空候选、零写入关闭和重启持久化                           |
-| `npm run test:e2e`                 | 50 项常规 Electron E2E 通过，2 项 packaged 按条件跳过；最终全量重跑总耗时约 2.4 分钟                                      |
+| `npm run test:e2e`                 | 50 项常规 Electron E2E 通过，2 项 packaged 按条件跳过；最终全量重跑总耗时约 2.5 分钟                                      |
 | 数据管理 Electron E2E              | 8 项通过；导出/恢复、隔离/撤销、提交前后中断恢复和故障回滚全部保持通过                                                    |
 | 打包入口 smoke test                | 最终 macOS arm64 候选以全新 userData 启动，并写入工作区/模板后用同一 userData 重启，2 项通过                              |
 | `npm audit --audit-level=moderate` | 通过，0 个漏洞                                                                                                            |
