@@ -1,15 +1,59 @@
 import { randomUUID } from 'node:crypto'
 
-import { and, eq, sql } from 'drizzle-orm'
+import { and, asc, eq, gt, inArray, like, or, sql } from 'drizzle-orm'
 
-import { scanIssueSchema, type ScanSummary, type TemplateSummary } from '@core/contracts/workspace'
+import {
+  scanIssueSchema,
+  type ScanSummary,
+  type TemplatePage,
+  type TemplatePageRequest,
+  type TemplateSummary,
+} from '@core/contracts/workspace'
 
 import type { AppDatabase } from './database'
 import { appState, templates, workspaces } from './schema'
+import type {
+  PreviousTemplateIndexEntry,
+  TemplateIndexEntry,
+  TemplateScanStats,
+} from '../services/template-scanner'
+import { PublicError } from '../errors/public-error'
 
 const ACTIVE_WORKSPACE_KEY = 'active_workspace_id'
 
 export type WorkspaceRecord = typeof workspaces.$inferSelect
+
+interface TemplateCursor {
+  id: string
+  relativePath: string
+}
+
+function decodeTemplateCursor(value: string | null): TemplateCursor | null {
+  if (!value) return null
+  try {
+    const parsed = JSON.parse(
+      Buffer.from(value, 'base64url').toString('utf8'),
+    ) as Partial<TemplateCursor>
+    if (
+      typeof parsed.id !== 'string' ||
+      !/^[a-f0-9]{64}$/.test(parsed.id) ||
+      typeof parsed.relativePath !== 'string' ||
+      parsed.relativePath.length === 0 ||
+      parsed.relativePath.length > 4096
+    ) {
+      throw new Error('invalid cursor')
+    }
+    return { id: parsed.id, relativePath: parsed.relativePath }
+  } catch {
+    throw new PublicError('INVALID_REQUEST', '模板分页位置已失效，请从第一批重新加载。')
+  }
+}
+
+function encodeTemplateCursor(template: Pick<TemplateSummary, 'id' | 'relativePath'>): string {
+  return Buffer.from(
+    JSON.stringify({ id: template.id, relativePath: template.relativePath }),
+  ).toString('base64url')
+}
 
 export class WorkspaceRepository {
   constructor(private readonly database: AppDatabase) {}
@@ -41,7 +85,89 @@ export class WorkspaceRepository {
       .get()
   }
 
+  getTemplateByRelativePath(
+    workspaceId: string,
+    relativePath: string,
+  ): TemplateSummary | undefined {
+    return this.selectTemplateSummaries()
+      .where(
+        and(
+          eq(templates.workspaceId, workspaceId),
+          eq(templates.relativePath, relativePath),
+          eq(templates.available, true),
+        ),
+      )
+      .get()
+  }
+
+  getTemplateSummary(workspaceId: string, templateId: string): TemplateSummary | undefined {
+    return this.selectTemplateSummaries()
+      .where(
+        and(
+          eq(templates.workspaceId, workspaceId),
+          eq(templates.id, templateId),
+          eq(templates.available, true),
+        ),
+      )
+      .get()
+  }
+
   listTemplates(workspaceId: string): TemplateSummary[] {
+    return this.selectTemplateSummaries()
+      .where(and(eq(templates.workspaceId, workspaceId), eq(templates.available, true)))
+      .orderBy(templates.relativePath)
+      .all()
+  }
+
+  listTemplatesPage(workspaceId: string, request: TemplatePageRequest): TemplatePage {
+    const cursor = decodeTemplateCursor(request.cursor)
+    const filters = [eq(templates.workspaceId, workspaceId), eq(templates.available, true)]
+    if (request.query) {
+      const pattern = `%${request.query}%`
+      filters.push(
+        or(
+          like(templates.name, pattern),
+          like(templates.relativePath, pattern),
+          like(templates.language, pattern),
+        )!,
+      )
+    }
+    const countCondition = and(...filters)
+    const pageFilters = [...filters]
+    if (cursor) {
+      pageFilters.push(
+        or(
+          gt(templates.relativePath, cursor.relativePath),
+          and(eq(templates.relativePath, cursor.relativePath), gt(templates.id, cursor.id)),
+        )!,
+      )
+    }
+    const rows = this.selectTemplateSummaries()
+      .where(and(...pageFilters))
+      .orderBy(asc(templates.relativePath), asc(templates.id))
+      .limit(request.limit + 1)
+      .all()
+    const hasMore = rows.length > request.limit
+    const items = hasMore ? rows.slice(0, request.limit) : rows
+    const totalCount = Number(
+      this.database.orm
+        .select({ count: sql<number>`count(*)` })
+        .from(templates)
+        .where(countCondition)
+        .get()?.count ?? 0,
+    )
+    return {
+      items,
+      nextAction: hasMore ? '继续加载下一批模板。' : null,
+      nextCursor: hasMore && items.length > 0 ? encodeTemplateCursor(items.at(-1)!) : null,
+      processedCount: items.length,
+      totalCount,
+      truncated: hasMore,
+      truncatedReason: hasMore ? '模板索引按受控相对路径分批加载。' : null,
+    }
+  }
+
+  private selectTemplateSummaries() {
     return this.database.orm
       .select({
         extension: templates.extension,
@@ -54,9 +180,36 @@ export class WorkspaceRepository {
         sizeBytes: templates.sizeBytes,
       })
       .from(templates)
-      .where(and(eq(templates.workspaceId, workspaceId), eq(templates.available, true)))
-      .orderBy(templates.relativePath)
+  }
+
+  listTemplateIndexEntries(workspaceId: string): PreviousTemplateIndexEntry[] {
+    return this.database.orm
+      .select({
+        available: templates.available,
+        changeToken: templates.changeToken,
+        contentHash: templates.contentHash,
+        extension: templates.extension,
+        fileIdentity: templates.fileIdentity,
+        fileName: templates.fileName,
+        id: templates.id,
+        indexVersion: templates.indexVersion,
+        language: templates.language,
+        modifiedAt: templates.modifiedAt,
+        name: templates.name,
+        normalizedContentHash: templates.normalizedContentHash,
+        relativePath: templates.relativePath,
+        similaritySignatureJson: templates.similaritySignatureJson,
+        sizeBytes: templates.sizeBytes,
+      })
+      .from(templates)
+      .where(eq(templates.workspaceId, workspaceId))
+      .orderBy(templates.relativePath, templates.id)
       .all()
+      .map(row => ({
+        ...row,
+        changeToken: row.changeToken ?? '',
+        contentHash: row.contentHash ?? '',
+      }))
   }
 
   parseSummary(workspace: WorkspaceRecord): ScanSummary {
@@ -77,22 +230,47 @@ export class WorkspaceRepository {
     }
   }
 
-  replaceTemplates(
+  applyTemplateScan(
     workspaceId: string,
-    templateRows: TemplateSummary[],
+    templateRows: TemplateIndexEntry[],
     summary: ScanSummary,
+    stats: TemplateScanStats,
     scannedAt: string,
   ): void {
     this.database.orm.transaction(transaction => {
-      transaction
-        .update(templates)
-        .set({ available: false })
-        .where(eq(templates.workspaceId, workspaceId))
-        .run()
+      const existingAvailableIds = transaction
+        .select({ id: templates.id })
+        .from(templates)
+        .where(and(eq(templates.workspaceId, workspaceId), eq(templates.available, true)))
+        .all()
+      const finalIds = new Set(templateRows.map(template => template.id))
+      const removedIds = existingAvailableIds.map(row => row.id).filter(id => !finalIds.has(id))
+      for (let start = 0; start < removedIds.length; start += 500) {
+        transaction
+          .update(templates)
+          .set({ available: false })
+          .where(inArray(templates.id, removedIds.slice(start, start + 500)))
+          .run()
+      }
 
-      for (let start = 0; start < templateRows.length; start += 100) {
-        const rows = templateRows.slice(start, start + 100).map(template => ({
-          ...template,
+      const changedRows = templateRows.filter(template => template.changeKind !== 'unchanged')
+      for (let start = 0; start < changedRows.length; start += 100) {
+        const rows = changedRows.slice(start, start + 100).map(template => ({
+          available: true,
+          changeToken: template.changeToken,
+          contentHash: template.contentHash,
+          extension: template.extension,
+          fileIdentity: template.fileIdentity,
+          fileName: template.fileName,
+          id: template.id,
+          indexVersion: template.indexVersion,
+          language: template.language,
+          modifiedAt: template.modifiedAt,
+          name: template.name,
+          normalizedContentHash: template.normalizedContentHash,
+          relativePath: template.relativePath,
+          similaritySignatureJson: template.similaritySignatureJson,
+          sizeBytes: template.sizeBytes,
           workspaceId,
         }))
         if (rows.length > 0) {
@@ -102,12 +280,18 @@ export class WorkspaceRepository {
             .onConflictDoUpdate({
               set: {
                 available: true,
+                changeToken: sql`excluded.change_token`,
+                contentHash: sql`excluded.content_hash`,
                 extension: sql`excluded.extension`,
+                fileIdentity: sql`excluded.file_identity`,
                 fileName: sql`excluded.file_name`,
+                indexVersion: sql`excluded.index_version`,
                 language: sql`excluded.language`,
                 modifiedAt: sql`excluded.modified_at`,
                 name: sql`excluded.name`,
+                normalizedContentHash: sql`excluded.normalized_content_hash`,
                 relativePath: sql`excluded.relative_path`,
+                similaritySignatureJson: sql`excluded.similarity_signature_json`,
                 sizeBytes: sql`excluded.size_bytes`,
                 workspaceId: sql`excluded.workspace_id`,
               },
@@ -123,6 +307,7 @@ export class WorkspaceRepository {
           caseConflictCount: summary.caseConflictCount,
           issuesJson: JSON.stringify(summary.issues),
           scanTruncated: summary.truncated,
+          scanStatsJson: JSON.stringify(stats),
           scannedAt,
           skippedSymlinkCount: summary.skippedSymlinkCount,
           templateCount: summary.templateCount,

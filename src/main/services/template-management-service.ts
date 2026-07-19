@@ -49,9 +49,12 @@ import {
   type InspectBatchTemplateImportRequest,
   type InspectBatchTemplateImportResult,
   type FileChangeExecution,
+  type FileChangeExecutionPage,
+  type FileHistoryPageRequest,
   type FileChangeMutationResult,
   type FileChangeOperation,
   type FileChangePlan,
+  type FileChangePlanPage,
   type FilePlanGenerationRequest,
   type TemplateMetadataFields,
   type TemplateRelocationPreview,
@@ -71,6 +74,13 @@ import type { AiTaskRunRegistry } from './ai-task-run-registry'
 import { getLanguageForExtension } from './template-scanner'
 import type { WorkspaceService } from './workspace-service'
 import type { WorkspaceAiContextService } from './workspace-ai-context-service'
+import {
+  jaccard,
+  normalizeSourceForComparison,
+  parseSimilaritySignature,
+  similarityCandidateKeys,
+  sourceShingles,
+} from './template-content-index'
 import { runStructuredAiTask } from './structured-ai-task'
 import {
   normalizeFilePlanEnvelope,
@@ -80,7 +90,7 @@ import {
 const MAX_SOURCE_BYTES = 2 * 1024 * 1024
 const MAX_AI_SOURCE_CHARS = 120_000
 const MAX_FILE_PLAN_CANDIDATES = 250
-const MAX_SIMILARITY_FILES = 500
+const MAX_SIMILARITY_CANDIDATE_PAIRS = 50_000
 const MAX_BATCH_CPP_FILES = 100
 const MAX_BATCH_SOURCE_BYTES = 20 * 1024 * 1024
 const TEMPLATE_METADATA_MAX_OUTPUT_TOKENS = 32_768
@@ -155,33 +165,6 @@ function usesChineseOrConventionalAlgorithmName(value: string): boolean {
     .replace(/\blf[\s-]*mapping\b/g, 'bwt')
     .match(/[a-z][a-z0-9]*/g)
   return !latinTokens || latinTokens.every(token => CONVENTIONAL_ALGORITHM_NAMES.has(token))
-}
-
-function normalizeSourceForComparison(source: string): string {
-  return source
-    .replace(/^\uFEFF/, '')
-    .replace(/\/\*[\s\S]*?\*\//g, ' ')
-    .replace(/(^|[^:])\/\/.*$/gm, '$1 ')
-    .replace(/\s+/g, ' ')
-    .trim()
-}
-
-function sourceShingles(source: string): Set<string> {
-  const tokens = source.toLocaleLowerCase('en-US').match(/[a-z_]\w*|\d+(?:\.\d+)?|[^\s\w]/g) ?? []
-  if (tokens.length < 5) return new Set(tokens.length > 0 ? [tokens.join(' ')] : [])
-  const shingles = new Set<string>()
-  for (let index = 0; index <= tokens.length - 5 && shingles.size < 4_000; index += 1) {
-    shingles.add(tokens.slice(index, index + 5).join(' '))
-  }
-  return shingles
-}
-
-function jaccard(left: Set<string>, right: Set<string>): number {
-  if (left.size === 0 || right.size === 0) return 0
-  const [small, large] = left.size <= right.size ? [left, right] : [right, left]
-  let intersection = 0
-  for (const value of small) if (large.has(value)) intersection += 1
-  return intersection / (left.size + right.size - intersection)
 }
 
 export function validateClassificationLanguage(
@@ -375,6 +358,12 @@ export class TemplateManagementService {
     private readonly workspaceAiContextService: WorkspaceAiContextService,
     private readonly aiTaskRunRegistry: AiTaskRunRegistry,
   ) {}
+
+  getActiveWorkspaceId(): string {
+    const workspace = this.workspaceRepository.getActiveWorkspace()
+    if (!workspace) throw new PublicError('WORKSPACE_REQUIRED', '请先创建或选择模板工作区。')
+    return workspace.id
+  }
 
   archiveFilePlans(rawRequest: ArchiveFilePlansRequest): ArchiveFilePlansResult {
     const request = archiveFilePlansRequestSchema.parse(rawRequest)
@@ -704,21 +693,41 @@ export class TemplateManagementService {
     }
   }
 
-  async auditWorkspace(): Promise<WorkspaceAudit> {
+  async auditWorkspace(
+    options: {
+      onProgress?: (progress: {
+        phase: 'index-check' | 'duplicate-groups' | 'similarity' | 'finalizing'
+        processedCount: number
+        totalCount: number | null
+      }) => void
+      signal?: AbortSignal
+    } = {},
+  ): Promise<WorkspaceAudit> {
     const workspace = this.workspaceRepository.getActiveWorkspace()
     if (!workspace) throw new PublicError('WORKSPACE_REQUIRED', '请先创建或选择模板工作区。')
-    const templates = this.workspaceRepository.listTemplates(workspace.id)
+    const templates = this.workspaceRepository
+      .listTemplateIndexEntries(workspace.id)
+      .filter(template => template.available)
+    const metadata = this.metadataRepository.listMetadataMap(templates.map(template => template.id))
     const issues: WorkspaceAudit['issues'] = []
+    let omittedIssueCount = 0
+    const addIssue = (issue: WorkspaceAudit['issues'][number]) => {
+      if (issues.length < 500) issues.push(issue)
+      else omittedIssueCount += 1
+    }
+    const throwIfCancelled = () => {
+      if (options.signal?.aborted) throw new PublicError('TASK_CANCELLED', '后台任务已取消。')
+    }
     const pathsByHash = new Map<string, string[]>()
-    const sources: Array<{
-      extension: string
-      normalized: string
-      path: string
-      shingles: Set<string>
-    }> = []
-    for (const template of templates.slice(0, 2_000)) {
-      if (!this.metadataRepository.hasMetadata(template.id)) {
-        issues.push({
+    const indexedSources = templates.flatMap(template => {
+      const signature = parseSimilaritySignature(template.similaritySignatureJson)
+      return signature && template.normalizedContentHash ? [{ signature, template }] : []
+    })
+    for (let index = 0; index < templates.length; index += 1) {
+      throwIfCancelled()
+      const template = templates[index]!
+      if (!metadata.has(template.id)) {
+        addIssue({
           detail: '算法卡片尚未补充结构化元数据。',
           id: randomUUID(),
           kind: 'missing-metadata',
@@ -727,7 +736,7 @@ export class TemplateManagementService {
         })
       }
       if (/\s|副本|copy(?:\s|\(|_|\d)/i.test(template.fileName)) {
-        issues.push({
+        addIssue({
           detail: '文件名可能包含副本标记或不一致空格，建议人工确认命名。',
           id: randomUUID(),
           kind: 'invalid-name',
@@ -735,39 +744,25 @@ export class TemplateManagementService {
           severity: 'warning',
         })
       }
-      try {
-        const resolved = await resolveAuthorizedFile(workspace.rootPath, template.relativePath)
-        if (resolved.sizeBytes === 0) {
-          issues.push({
-            detail: '模板文件为空。',
-            id: randomUUID(),
-            kind: 'empty-file',
-            paths: [template.relativePath],
-            severity: 'warning',
-          })
-          continue
-        }
-        if (resolved.sizeBytes <= MAX_SOURCE_BYTES) {
-          const normalized = normalizeSourceForComparison(
-            await readFile(resolved.absolutePath, 'utf8'),
-          )
-          if (!normalized) continue
-          const digest = createHash('sha256').update(normalized).digest('hex')
-          const paths = pathsByHash.get(digest) ?? []
-          paths.push(template.relativePath)
-          pathsByHash.set(digest, paths)
-          if (sources.length < MAX_SIMILARITY_FILES) {
-            sources.push({
-              extension: template.extension.toLocaleLowerCase('en-US'),
-              normalized,
-              path: template.relativePath,
-              shingles: sourceShingles(normalized),
-            })
-          }
-        }
-      } catch {
-        // Workspace scan already reports unreadable files; the audit remains read-only.
+      if (template.sizeBytes === 0) {
+        addIssue({
+          detail: '模板文件为空。',
+          id: randomUUID(),
+          kind: 'empty-file',
+          paths: [template.relativePath],
+          severity: 'warning',
+        })
       }
+      if (template.normalizedContentHash) {
+        const paths = pathsByHash.get(template.normalizedContentHash) ?? []
+        paths.push(template.relativePath)
+        pathsByHash.set(template.normalizedContentHash, paths)
+      }
+      options.onProgress?.({
+        phase: 'index-check',
+        processedCount: index + 1,
+        totalCount: templates.length,
+      })
     }
     for (const paths of pathsByHash.values()) {
       if (paths.length > 1) {
@@ -776,7 +771,7 @@ export class TemplateManagementService {
           const rightCopy = /\s|副本|copy(?:\s|\(|_|\d)/i.test(basename(right)) ? 1 : 0
           return leftCopy - rightCopy || left.length - right.length || left.localeCompare(right)
         })
-        issues.push({
+        addIssue({
           detail: `这些模板源码规范化后完全相同；建议仅保留 ${ordered[0]}。`,
           id: randomUUID(),
           kind: 'duplicate-content',
@@ -785,10 +780,15 @@ export class TemplateManagementService {
         })
       }
     }
+    options.onProgress?.({
+      phase: 'duplicate-groups',
+      processedCount: pathsByHash.size,
+      totalCount: pathsByHash.size,
+    })
     const exactDuplicatePaths = new Set(
       [...pathsByHash.values()].filter(paths => paths.length > 1).flat(),
     )
-    const parent = sources.map((_, index) => index)
+    const parent = indexedSources.map((_, index) => index)
     const find = (index: number): number => {
       let current = index
       while (parent[current]! !== current) {
@@ -802,29 +802,91 @@ export class TemplateManagementService {
       const rightRoot = find(right)
       if (leftRoot !== rightRoot) parent[rightRoot] = leftRoot
     }
-    for (let left = 0; left < sources.length; left += 1) {
-      const leftSource = sources[left]!
-      if (exactDuplicatePaths.has(leftSource.path)) continue
-      for (let right = left + 1; right < sources.length; right += 1) {
-        const rightSource = sources[right]!
-        if (exactDuplicatePaths.has(rightSource.path)) continue
-        if (leftSource.extension !== rightSource.extension) continue
-        const lengthRatio =
-          Math.min(leftSource.normalized.length, rightSource.normalized.length) /
-          Math.max(leftSource.normalized.length, rightSource.normalized.length)
-        if (lengthRatio < 0.72) continue
-        if (jaccard(leftSource.shingles, rightSource.shingles) >= 0.82) {
-          union(left, right)
-        }
+    const candidateBuckets = new Map<string, number[]>()
+    for (let index = 0; index < indexedSources.length; index += 1) {
+      const source = indexedSources[index]!
+      if (exactDuplicatePaths.has(source.template.relativePath)) continue
+      for (const key of similarityCandidateKeys(
+        source.template.extension.toLocaleLowerCase('en-US'),
+        source.signature,
+      )) {
+        const bucket = candidateBuckets.get(key) ?? []
+        bucket.push(index)
+        candidateBuckets.set(key, bucket)
       }
     }
+    const candidatePairs = new Set<string>()
+    let candidatePairsTruncated = false
+    for (const bucket of candidateBuckets.values()) {
+      for (let left = 0; left < bucket.length; left += 1) {
+        for (let right = left + 1; right < bucket.length; right += 1) {
+          const leftIndex = bucket[left]!
+          const rightIndex = bucket[right]!
+          const key =
+            leftIndex < rightIndex ? `${leftIndex}:${rightIndex}` : `${rightIndex}:${leftIndex}`
+          candidatePairs.add(key)
+          if (candidatePairs.size >= MAX_SIMILARITY_CANDIDATE_PAIRS) {
+            candidatePairsTruncated = true
+            break
+          }
+        }
+        if (candidatePairsTruncated) break
+      }
+      if (candidatePairsTruncated) break
+    }
+    const normalizedSourceCache = new Map<string, Set<string> | null>()
+    const readShingles = async (path: string): Promise<Set<string> | null> => {
+      if (normalizedSourceCache.has(path)) return normalizedSourceCache.get(path) ?? null
+      try {
+        const resolved = await resolveAuthorizedFile(workspace.rootPath, path)
+        if (resolved.sizeBytes > MAX_SOURCE_BYTES) return null
+        const normalized = normalizeSourceForComparison(
+          await readFile(resolved.absolutePath, 'utf8'),
+        )
+        const shingles = normalized ? sourceShingles(normalized) : null
+        normalizedSourceCache.set(path, shingles)
+        return shingles
+      } catch {
+        normalizedSourceCache.set(path, null)
+        return null
+      }
+    }
+    let comparedPairs = 0
+    for (const pair of candidatePairs) {
+      throwIfCancelled()
+      const separator = pair.indexOf(':')
+      const leftIndex = Number(pair.slice(0, separator))
+      const rightIndex = Number(pair.slice(separator + 1))
+      if (!Number.isInteger(leftIndex) || !Number.isInteger(rightIndex)) continue
+      const leftSource = indexedSources[leftIndex]!
+      const rightSource = indexedSources[rightIndex]!
+      const lengthRatio =
+        Math.min(leftSource.signature.normalizedLength, rightSource.signature.normalizedLength) /
+        Math.max(leftSource.signature.normalizedLength, rightSource.signature.normalizedLength)
+      if (lengthRatio >= 0.72) {
+        const [leftShingles, rightShingles] = await Promise.all([
+          readShingles(leftSource.template.relativePath),
+          readShingles(rightSource.template.relativePath),
+        ])
+        if (leftShingles && rightShingles && jaccard(leftShingles, rightShingles) >= 0.82) {
+          union(leftIndex, rightIndex)
+        }
+      }
+      comparedPairs += 1
+      options.onProgress?.({
+        phase: 'similarity',
+        processedCount: comparedPairs,
+        totalCount: candidatePairs.size,
+      })
+      if (comparedPairs % 64 === 0) await new Promise<void>(resolve => setImmediate(resolve))
+    }
     const similarGroups = new Map<number, string[]>()
-    for (let index = 0; index < sources.length; index += 1) {
-      const source = sources[index]!
-      if (exactDuplicatePaths.has(source.path)) continue
+    for (let index = 0; index < indexedSources.length; index += 1) {
+      const source = indexedSources[index]!
+      if (exactDuplicatePaths.has(source.template.relativePath)) continue
       const root = find(index)
       const paths = similarGroups.get(root) ?? []
-      paths.push(source.path)
+      paths.push(source.template.relativePath)
       similarGroups.set(root, paths)
     }
     for (const paths of similarGroups.values()) {
@@ -832,7 +894,7 @@ export class TemplateManagementService {
       const ordered = [...paths].sort(
         (left, right) => left.length - right.length || left.localeCompare(right),
       )
-      issues.push({
+      addIssue({
         detail: `这些模板源码高度相似；建议仅保留 ${ordered[0]}，执行前请查看源码确认。`,
         id: randomUUID(),
         kind: 'similar-content',
@@ -840,10 +902,33 @@ export class TemplateManagementService {
         severity: 'warning',
       })
     }
+    options.onProgress?.({
+      phase: 'finalizing',
+      processedCount: templates.length,
+      totalCount: templates.length,
+    })
+    const missingIndexCount = templates.filter(
+      template =>
+        template.sizeBytes > 0 &&
+        template.sizeBytes <= MAX_SOURCE_BYTES &&
+        (!template.normalizedContentHash ||
+          !parseSimilaritySignature(template.similaritySignatureJson)),
+    ).length
+    const truncationReasons = [
+      missingIndexCount > 0 ? '部分模板缺少可用的相似度索引；请重新扫描后再次审计。' : null,
+      candidatePairsTruncated ? '高相似候选过多，已停止继续比较以保持应用可响应。' : null,
+      omittedIssueCount > 0 ? '还有更多建议未在当前结果中展开。' : null,
+    ].filter((value): value is string => Boolean(value))
     return {
       generatedAt: new Date().toISOString(),
-      issues: issues.slice(0, 500),
+      issues,
+      nextAction:
+        truncationReasons.length > 0 ? '重新扫描后再次审计，或按顶层目录缩小处理范围。' : null,
+      processedCount: templates.length,
       templateCount: templates.length,
+      totalCount: templates.length,
+      truncated: truncationReasons.length > 0,
+      truncatedReason: truncationReasons.length > 0 ? truncationReasons.join('\n') : null,
     }
   }
 
@@ -1338,9 +1423,40 @@ export class TemplateManagementService {
     return workspace ? this.metadataRepository.listPlans(workspace.id) : []
   }
 
+  listFilePlansPage(request: FileHistoryPageRequest): FileChangePlanPage {
+    const workspace = this.workspaceRepository.getActiveWorkspace()
+    return workspace
+      ? this.metadataRepository.listPlansPage(workspace.id, request)
+      : {
+          draftCount: 0,
+          items: [],
+          nextAction: null,
+          nextCursor: null,
+          processedCount: 0,
+          totalCount: 0,
+          truncated: false,
+          truncatedReason: null,
+        }
+  }
+
   listFileExecutions(): FileChangeExecution[] {
     const workspace = this.workspaceRepository.getActiveWorkspace()
     return workspace ? this.metadataRepository.listExecutions(workspace.id) : []
+  }
+
+  listFileExecutionsPage(request: FileHistoryPageRequest): FileChangeExecutionPage {
+    const workspace = this.workspaceRepository.getActiveWorkspace()
+    return workspace
+      ? this.metadataRepository.listExecutionsPage(workspace.id, request)
+      : {
+          items: [],
+          nextAction: null,
+          nextCursor: null,
+          processedCount: 0,
+          totalCount: 0,
+          truncated: false,
+          truncatedReason: null,
+        }
   }
 
   async redraftFilePlan(planId: string): Promise<FileChangePlan> {

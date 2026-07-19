@@ -87,8 +87,25 @@ describe('WorkspaceAiContextService', () => {
                 tags: ['数据结构', '并查集'],
               }
             : metadata(flowId, '最大流', '私密笔记'),
+      listMetadataMap: (templateIds: readonly string[]) =>
+        new Map(
+          templateIds.map(templateId => [
+            templateId,
+            templateId === dijkstraId
+              ? dijkstraMetadata
+              : templateId === dsuId
+                ? {
+                    ...metadata(dsuId, '维护连通性与集合合并', '并查集私密笔记'),
+                    prerequisites: '树结构',
+                    tags: ['数据结构', '并查集'],
+                  }
+                : metadata(flowId, '最大流', '私密笔记'),
+          ]),
+        ),
     } as unknown as TemplateManagementRepository
     const problemRepository = {
+      listTemplateUsage: () =>
+        new Map([[dijkstraId, { platforms: [relatedPlatform], problemCount: 1 }]]),
       listProblems: () => [
         {
           platform: relatedPlatform,

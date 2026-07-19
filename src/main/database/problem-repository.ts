@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 
-import { and, desc, eq } from 'drizzle-orm'
+import { and, desc, eq, inArray, like, lt, or, sql } from 'drizzle-orm'
 
 import {
   emptyProblemAnalysisStructure,
@@ -13,7 +13,11 @@ import {
   relationTypeSchema,
   type CreateProblemRequest,
   type Problem,
+  type ProblemPage,
+  type ProblemPageRequest,
   type ProblemImage,
+  type TemplateProblemPage,
+  type TemplateProblemPageRequest,
   type UpdateProblemRequest,
   type UpsertProblemRelationRequest,
 } from '@core/contracts/problem'
@@ -21,8 +25,15 @@ import type { CommitProblemAnalysisRequest } from '@core/contracts/problem-analy
 
 import type { AppDatabase } from './database'
 import { problemImages, problems, templateProblemRelations, templates } from './schema'
+import { PublicError } from '../errors/public-error'
 
 export type ProblemImageRecord = typeof problemImages.$inferSelect
+type ProblemRecord = typeof problems.$inferSelect
+
+interface ProblemCursor {
+  id: string
+  updatedAt: string
+}
 
 export interface NewProblemImage {
   id: string
@@ -30,6 +41,11 @@ export interface NewProblemImage {
   originalName: string
   relativePath: string
   sizeBytes: number
+}
+
+export interface TemplateProblemUsage {
+  platforms: string[]
+  problemCount: number
 }
 
 function parseTags(tagsJson: string): string[] {
@@ -55,6 +71,34 @@ function toProblemValues(fields: CreateProblemRequest | UpdateProblemRequest) {
     title: fields.title,
     url: fields.url,
   }
+}
+
+function decodeProblemCursor(value: string | null): ProblemCursor | null {
+  if (!value) return null
+  try {
+    const parsed = JSON.parse(
+      Buffer.from(value, 'base64url').toString('utf8'),
+    ) as Partial<ProblemCursor>
+    if (
+      typeof parsed.id !== 'string' ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(
+        parsed.id,
+      ) ||
+      typeof parsed.updatedAt !== 'string' ||
+      !Number.isFinite(Date.parse(parsed.updatedAt))
+    ) {
+      throw new Error('invalid cursor')
+    }
+    return { id: parsed.id, updatedAt: parsed.updatedAt }
+  } catch {
+    throw new PublicError('INVALID_REQUEST', '题目分页位置已失效，请从第一批重新加载。')
+  }
+}
+
+function encodeProblemCursor(record: Pick<ProblemRecord, 'id' | 'updatedAt'>): string {
+  return Buffer.from(JSON.stringify({ id: record.id, updatedAt: record.updatedAt })).toString(
+    'base64url',
+  )
 }
 
 export class ProblemRepository {
@@ -155,7 +199,8 @@ export class ProblemRepository {
   }
 
   getProblem(problemId: string): Problem | undefined {
-    return this.listProblems().find(problem => problem.id === problemId)
+    const row = this.database.orm.select().from(problems).where(eq(problems.id, problemId)).get()
+    return row ? this.hydrateProblems([row])[0] : undefined
   }
 
   isTemplateAvailable(templateId: string): boolean {
@@ -174,24 +219,222 @@ export class ProblemRepository {
       .from(problems)
       .orderBy(desc(problems.updatedAt))
       .all()
-    const imageRows = this.database.orm.select().from(problemImages).all()
-    const relationRows = this.database.orm
+    return this.hydrateProblems(problemRows)
+  }
+
+  listTemplateUsage(workspaceId: string): Map<string, TemplateProblemUsage> {
+    const rows = this.database.orm
       .select({
-        available: templates.available,
-        createdAt: templateProblemRelations.createdAt,
-        language: templates.language,
-        note: templateProblemRelations.note,
-        problemId: templateProblemRelations.problemId,
-        relationType: templateProblemRelations.relationType,
-        source: templateProblemRelations.source,
-        templateId: templates.id,
-        templateName: templates.name,
-        templatePath: templates.relativePath,
-        updatedAt: templateProblemRelations.updatedAt,
+        count: sql<number>`count(*)`,
+        platform: problems.platform,
+        templateId: templateProblemRelations.templateId,
       })
       .from(templateProblemRelations)
+      .innerJoin(problems, eq(templateProblemRelations.problemId, problems.id))
       .innerJoin(templates, eq(templateProblemRelations.templateId, templates.id))
+      .where(eq(templates.workspaceId, workspaceId))
+      .groupBy(templateProblemRelations.templateId, problems.platform)
       .all()
+    const usage = new Map<string, { platforms: Set<string>; problemCount: number }>()
+    for (const row of rows) {
+      const current = usage.get(row.templateId) ?? {
+        platforms: new Set<string>(),
+        problemCount: 0,
+      }
+      current.problemCount += Number(row.count)
+      if (row.platform) current.platforms.add(row.platform)
+      usage.set(row.templateId, current)
+    }
+    return new Map(
+      [...usage].map(([templateId, value]) => [
+        templateId,
+        { platforms: [...value.platforms].sort(), problemCount: value.problemCount },
+      ]),
+    )
+  }
+
+  listProblemsByTemplate(request: TemplateProblemPageRequest): TemplateProblemPage {
+    const cursor = decodeProblemCursor(request.cursor)
+    const conditions = [eq(templateProblemRelations.templateId, request.templateId)]
+    if (cursor) {
+      conditions.push(
+        or(
+          lt(problems.updatedAt, cursor.updatedAt),
+          and(eq(problems.updatedAt, cursor.updatedAt), lt(problems.id, cursor.id)),
+        )!,
+      )
+    }
+    const rows = this.database.orm
+      .select({
+        id: problems.id,
+        relationType: templateProblemRelations.relationType,
+        title: problems.title,
+        updatedAt: problems.updatedAt,
+      })
+      .from(templateProblemRelations)
+      .innerJoin(problems, eq(templateProblemRelations.problemId, problems.id))
+      .where(and(...conditions))
+      .orderBy(desc(problems.updatedAt), desc(problems.id))
+      .limit(request.limit + 1)
+      .all()
+    const hasMore = rows.length > request.limit
+    const pageRows = hasMore ? rows.slice(0, request.limit) : rows
+    const totalCount = Number(
+      this.database.orm
+        .select({ count: sql<number>`count(*)` })
+        .from(templateProblemRelations)
+        .where(eq(templateProblemRelations.templateId, request.templateId))
+        .get()?.count ?? 0,
+    )
+    return {
+      items: pageRows.map(row => ({
+        id: row.id,
+        relationType: relationTypeSchema.parse(row.relationType),
+        title: row.title,
+        updatedAt: row.updatedAt,
+      })),
+      nextAction: hasMore ? '继续加载下一批关联题目。' : null,
+      nextCursor: hasMore && pageRows.length > 0 ? encodeProblemCursor(pageRows.at(-1)!) : null,
+      processedCount: pageRows.length,
+      totalCount,
+      truncated: hasMore,
+      truncatedReason: hasMore ? '关联题目按最近修改时间分批加载。' : null,
+    }
+  }
+
+  listProblemsPage(request: ProblemPageRequest): ProblemPage {
+    const cursor = decodeProblemCursor(request.cursor)
+    const conditions = []
+    if (cursor) {
+      conditions.push(
+        or(
+          lt(problems.updatedAt, cursor.updatedAt),
+          and(eq(problems.updatedAt, cursor.updatedAt), lt(problems.id, cursor.id)),
+        )!,
+      )
+    }
+    if (request.query) {
+      const pattern = `%${request.query}%`
+      conditions.push(
+        or(
+          like(problems.title, pattern),
+          like(problems.platform, pattern),
+          like(problems.problemCode, pattern),
+          like(problems.difficulty, pattern),
+          like(problems.tagsJson, pattern),
+        )!,
+      )
+    }
+    const condition = conditions.length > 0 ? and(...conditions) : undefined
+    const rows = this.database.orm
+      .select()
+      .from(problems)
+      .where(condition)
+      .orderBy(desc(problems.updatedAt), desc(problems.id))
+      .limit(request.limit + 1)
+      .all()
+    const hasMore = rows.length > request.limit
+    const pageRows = hasMore ? rows.slice(0, request.limit) : rows
+    const matchedCount = Number(
+      this.database.orm
+        .select({ count: sql<number>`count(*)` })
+        .from(problems)
+        .where(
+          request.query
+            ? or(
+                like(problems.title, `%${request.query}%`),
+                like(problems.platform, `%${request.query}%`),
+                like(problems.problemCode, `%${request.query}%`),
+                like(problems.difficulty, `%${request.query}%`),
+                like(problems.tagsJson, `%${request.query}%`),
+              )
+            : undefined,
+        )
+        .get()?.count ?? 0,
+    )
+    const totalCount = Number(
+      this.database.orm
+        .select({ count: sql<number>`count(*)` })
+        .from(problems)
+        .get()?.count ?? 0,
+    )
+    const totalRelationCount = Number(
+      this.database.orm
+        .select({ count: sql<number>`count(*)` })
+        .from(templateProblemRelations)
+        .get()?.count ?? 0,
+    )
+    return {
+      items: this.hydrateProblems(pageRows),
+      matchedCount,
+      nextAction: hasMore ? '继续加载下一批题目。' : null,
+      nextCursor: hasMore && pageRows.length > 0 ? encodeProblemCursor(pageRows.at(-1)!) : null,
+      processedCount: pageRows.length,
+      totalCount,
+      totalRelationCount,
+      truncated: hasMore,
+      truncatedReason: hasMore ? '结果按最近修改时间分批加载，当前只显示已加载部分。' : null,
+    }
+  }
+
+  private hydrateProblems(problemRows: ProblemRecord[]): Problem[] {
+    if (problemRows.length === 0) return []
+    const imageRows: Array<typeof problemImages.$inferSelect> = []
+    const relationRows: Array<{
+      available: boolean
+      createdAt: string
+      language: string
+      note: string
+      problemId: string
+      relationType: string
+      source: string
+      templateId: string
+      templateName: string
+      templatePath: string
+      updatedAt: string
+    }> = []
+    for (let start = 0; start < problemRows.length; start += 500) {
+      const ids = problemRows.slice(start, start + 500).map(row => row.id)
+      imageRows.push(
+        ...this.database.orm
+          .select()
+          .from(problemImages)
+          .where(inArray(problemImages.problemId, ids))
+          .all(),
+      )
+      relationRows.push(
+        ...this.database.orm
+          .select({
+            available: templates.available,
+            createdAt: templateProblemRelations.createdAt,
+            language: templates.language,
+            note: templateProblemRelations.note,
+            problemId: templateProblemRelations.problemId,
+            relationType: templateProblemRelations.relationType,
+            source: templateProblemRelations.source,
+            templateId: templates.id,
+            templateName: templates.name,
+            templatePath: templates.relativePath,
+            updatedAt: templateProblemRelations.updatedAt,
+          })
+          .from(templateProblemRelations)
+          .innerJoin(templates, eq(templateProblemRelations.templateId, templates.id))
+          .where(inArray(templateProblemRelations.problemId, ids))
+          .all(),
+      )
+    }
+    const imagesByProblem = new Map<string, typeof imageRows>()
+    for (const image of imageRows) {
+      const values = imagesByProblem.get(image.problemId) ?? []
+      values.push(image)
+      imagesByProblem.set(image.problemId, values)
+    }
+    const relationsByProblem = new Map<string, typeof relationRows>()
+    for (const relation of relationRows) {
+      const values = relationsByProblem.get(relation.problemId) ?? []
+      values.push(relation)
+      relationsByProblem.set(relation.problemId, values)
+    }
 
     return problemRows.map(row => {
       let analysis: unknown
@@ -202,10 +445,7 @@ export class ProblemRepository {
       }
       const parsedAnalysis = problemAnalysisStructureSchema.safeParse(analysis)
       const parsedStatus = problemStatusSchema.safeParse(row.status)
-      const imagesForProblem = imageRows.flatMap(image => {
-        if (image.problemId !== row.id) {
-          return []
-        }
+      const imagesForProblem = (imagesByProblem.get(row.id) ?? []).flatMap(image => {
         const parsed = problemImageSchema.safeParse({
           createdAt: image.createdAt,
           id: image.id,
@@ -215,10 +455,7 @@ export class ProblemRepository {
         })
         return parsed.success ? [parsed.data] : []
       })
-      const relationsForProblem = relationRows.flatMap(relation => {
-        if (relation.problemId !== row.id) {
-          return []
-        }
+      const relationsForProblem = (relationsByProblem.get(row.id) ?? []).flatMap(relation => {
         const relationType = relationTypeSchema.safeParse(relation.relationType)
         const source = relationSourceSchema.safeParse(relation.source)
         if (!relationType.success || !source.success) {

@@ -61,25 +61,26 @@ function problem(id: string, title: string, related = false): Problem {
 }
 
 describe('TemplateProblemRelationDialog', () => {
-  it('offers only unassociated problems and saves the selected relation from the template card', () => {
+  it('offers only unassociated problems and saves the selected relation from the template card', async () => {
     const onSave = vi.fn(async () => true)
     const onOpenChange = vi.fn()
+    const problemResults = [
+      problem('11111111-1111-4111-8111-111111111111', '已关联题目', true),
+      problem('22222222-2222-4222-8222-222222222222', '待关联题目'),
+    ]
     render(
       <TemplateProblemRelationDialog
         error={null}
         isBusy={false}
         onOpenChange={onOpenChange}
+        onSearchProblems={vi.fn(async () => problemResults)}
         onSave={onSave}
         open
-        problems={[
-          problem('11111111-1111-4111-8111-111111111111', '已关联题目', true),
-          problem('22222222-2222-4222-8222-222222222222', '待关联题目'),
-        ]}
         template={template}
       />,
     )
 
-    expect(screen.getByRole('option', { name: '待关联题目' })).toBeInTheDocument()
+    expect(await screen.findByRole('option', { name: '待关联题目' })).toBeInTheDocument()
     expect(screen.queryByRole('option', { name: '已关联题目' })).toBeNull()
     fireEvent.change(screen.getByLabelText('关系类型'), { target: { value: 'recommended' } })
     fireEvent.change(screen.getByLabelText('关联备注'), { target: { value: '优先练习' } })

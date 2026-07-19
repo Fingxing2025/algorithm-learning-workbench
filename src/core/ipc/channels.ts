@@ -1,4 +1,8 @@
 export const IPC_CHANNELS = {
+  backgroundTasks: {
+    cancel: 'background-tasks:cancel',
+    get: 'background-tasks:get',
+  },
   aiProviders: {
     create: 'ai-providers:create',
     delete: 'ai-providers:delete',
@@ -30,7 +34,10 @@ export const IPC_CHANNELS = {
     addImages: 'problems:add-images',
     create: 'problems:create',
     delete: 'problems:delete',
+    get: 'problems:get',
     list: 'problems:list',
+    listByTemplate: 'problems:list-by-template',
+    listPage: 'problems:list-page',
     readImage: 'problems:read-image',
     removeImage: 'problems:remove-image',
     removeRelation: 'problems:remove-relation',
@@ -46,6 +53,8 @@ export const IPC_CHANNELS = {
   },
   templates: {
     create: 'templates:create',
+    getSummary: 'templates:get-summary',
+    listPage: 'templates:list-page',
     performAction: 'templates:perform-action',
     readSource: 'templates:read-source',
   },
@@ -54,6 +63,7 @@ export const IPC_CHANNELS = {
     applyFilePlan: 'template-management:apply-file-plan',
     archiveFilePlans: 'template-management:archive-file-plans',
     auditWorkspace: 'template-management:audit-workspace',
+    startAudit: 'template-management:start-audit',
     cancelFilePlanGeneration: 'template-management:cancel-file-plan-generation',
     cancelClassification: 'template-management:cancel-classification',
     cancelFilePlan: 'template-management:cancel-file-plan',
@@ -74,7 +84,9 @@ export const IPC_CHANNELS = {
     previewTemplateRelocation: 'template-management:preview-template-relocation',
     generateFilePlan: 'template-management:generate-file-plan',
     listFileExecutions: 'template-management:list-file-executions',
+    listFileExecutionsPage: 'template-management:list-file-executions-page',
     listFilePlans: 'template-management:list-file-plans',
+    listFilePlansPage: 'template-management:list-file-plans-page',
     redraftFilePlan: 'template-management:redraft-file-plan',
     rollbackFileExecution: 'template-management:rollback-file-execution',
     updateMetadata: 'template-management:update-metadata',
@@ -83,5 +95,6 @@ export const IPC_CHANNELS = {
     choose: 'workspace:choose',
     getCurrent: 'workspace:get-current',
     rescan: 'workspace:rescan',
+    startRescan: 'workspace:start-rescan',
   },
 } as const

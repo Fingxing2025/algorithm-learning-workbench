@@ -154,31 +154,22 @@ export class WorkspaceAiContextService {
       }
     }
 
-    const usage = new Map<string, { platforms: Set<string>; problemCount: number }>()
-    for (const problem of this.problemRepository.listProblems()) {
-      for (const relation of problem.relations) {
-        const current = usage.get(relation.templateId) ?? {
-          platforms: new Set<string>(),
-          problemCount: 0,
-        }
-        current.problemCount += 1
-        if (problem.platform) current.platforms.add(problem.platform)
-        usage.set(relation.templateId, current)
-      }
-    }
-
-    const templates: TemplateContextRecord[] = this.workspaceRepository
-      .listTemplates(workspace.id)
+    const indexedTemplates = this.workspaceRepository.listTemplates(workspace.id)
+    const usage = this.problemRepository.listTemplateUsage(workspace.id)
+    const metadata = this.metadataRepository.listMetadataMap(
+      indexedTemplates.map(template => template.id),
+    )
+    const templates: TemplateContextRecord[] = indexedTemplates
       .map(template => {
         const relationUsage = usage.get(template.id)
         return {
           id: template.id,
           language: template.language,
-          metadata: this.metadataRepository.getMetadata(template.id),
+          metadata: metadata.get(template.id) ?? null,
           modifiedAt: template.modifiedAt,
           name: template.name,
           path: template.relativePath,
-          relatedPlatforms: relationUsage ? [...relationUsage.platforms].sort() : [],
+          relatedPlatforms: relationUsage?.platforms ?? [],
           relatedProblemCount: relationUsage?.problemCount ?? 0,
         }
       })

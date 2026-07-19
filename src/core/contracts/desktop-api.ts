@@ -1,4 +1,9 @@
 import type { RuntimeInfo } from './runtime'
+import type {
+  BackgroundTaskRequest,
+  BackgroundTaskStatus,
+  StartBackgroundTaskRequest,
+} from './background-task'
 import type { AiRequestPreview } from './ai-request'
 import type {
   BackupExportResult,
@@ -63,8 +68,11 @@ import type {
   TemplateRelocationPreview,
   UpdateTemplateMetadataRequest,
   FileChangeExecution,
+  FileChangeExecutionPage,
+  FileHistoryPageRequest,
   FileChangeMutationResult,
   FileChangePlan,
+  FileChangePlanPage,
   FilePlanGenerationRequest,
   WorkspaceAudit,
   PreviewTemplateClassificationRequest,
@@ -73,7 +81,11 @@ import type {
   CreateProblemRequest,
   Problem,
   ProblemImageData,
+  ProblemPage,
+  ProblemPageRequest,
   ProblemRequest,
+  TemplateProblemPage,
+  TemplateProblemPageRequest,
   RemoveProblemImageRequest,
   RemoveProblemRelationRequest,
   UpdateProblemRequest,
@@ -84,11 +96,19 @@ import type {
   CreateTemplateRequest,
   CreateTemplateResult,
   TemplateActionRequest,
+  TemplatePage,
+  TemplatePageRequest,
+  TemplateRequest,
+  TemplateSummary,
   TemplateSource,
   WorkspaceSnapshot,
 } from './workspace'
 
 export interface DesktopApi {
+  backgroundTasks: {
+    cancel: (request: BackgroundTaskRequest) => Promise<BackgroundTaskStatus>
+    get: (request: BackgroundTaskRequest) => Promise<BackgroundTaskStatus>
+  }
   aiProviders: {
     create: (request: CreateAiProviderRequest) => Promise<AiProviderProfile>
     delete: (request: AiProviderIdRequest) => Promise<void>
@@ -133,7 +153,10 @@ export interface DesktopApi {
     addImages: (problemId: string) => Promise<Problem | null>
     create: (request: CreateProblemRequest) => Promise<Problem>
     delete: (request: ProblemRequest) => Promise<void>
+    get: (request: ProblemRequest) => Promise<Problem>
     list: () => Promise<Problem[]>
+    listByTemplate: (request: TemplateProblemPageRequest) => Promise<TemplateProblemPage>
+    listPage: (request: ProblemPageRequest) => Promise<ProblemPage>
     readImage: (imageId: string) => Promise<ProblemImageData>
     removeImage: (request: RemoveProblemImageRequest) => Promise<Problem>
     removeRelation: (request: RemoveProblemRelationRequest) => Promise<Problem>
@@ -142,6 +165,8 @@ export interface DesktopApi {
   }
   templates: {
     create: (request: CreateTemplateRequest) => Promise<CreateTemplateResult>
+    getSummary: (request: TemplateRequest) => Promise<TemplateSummary>
+    listPage: (request: TemplatePageRequest) => Promise<TemplatePage>
     performAction: (request: TemplateActionRequest) => Promise<void>
     readSource: (templateId: string) => Promise<TemplateSource>
   }
@@ -155,6 +180,7 @@ export interface DesktopApi {
     }) => Promise<FileChangeMutationResult>
     archiveFilePlans: (request: ArchiveFilePlansRequest) => Promise<ArchiveFilePlansResult>
     auditWorkspace: () => Promise<WorkspaceAudit>
+    startAudit: (request: StartBackgroundTaskRequest) => Promise<BackgroundTaskStatus>
     cancelFilePlanGeneration: (requestId: string) => Promise<void>
     cancelClassification: (requestId: string) => Promise<void>
     cancelFilePlan: (planId: string) => Promise<FileChangePlan>
@@ -187,7 +213,9 @@ export interface DesktopApi {
     ) => Promise<TemplateRelocationPreview>
     generateFilePlan: (request: FilePlanGenerationRequest) => Promise<FileChangePlan>
     listFileExecutions: () => Promise<FileChangeExecution[]>
+    listFileExecutionsPage: (request: FileHistoryPageRequest) => Promise<FileChangeExecutionPage>
     listFilePlans: () => Promise<FileChangePlan[]>
+    listFilePlansPage: (request: FileHistoryPageRequest) => Promise<FileChangePlanPage>
     redraftFilePlan: (planId: string) => Promise<FileChangePlan>
     rollbackFileExecution: (executionId: string) => Promise<FileChangeMutationResult>
     updateMetadata: (request: UpdateTemplateMetadataRequest) => Promise<TemplateMetadata>
@@ -196,5 +224,6 @@ export interface DesktopApi {
     choose: (request: ChooseWorkspaceRequest) => Promise<WorkspaceSnapshot | null>
     getCurrent: () => Promise<WorkspaceSnapshot | null>
     rescan: () => Promise<WorkspaceSnapshot>
+    startRescan: (request: StartBackgroundTaskRequest) => Promise<BackgroundTaskStatus>
   }
 }

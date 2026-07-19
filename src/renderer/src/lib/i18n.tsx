@@ -60,6 +60,59 @@ const english: Record<string, string> = {
   '扫描重复模板、命名异常和缺失元数据，AI 只会先生成可审查计划。':
     'Scan duplicates, naming issues, and missing metadata. AI only creates a reviewable plan.',
   '扫描完成：发现 {count} 个模板': 'Scan complete: {count} templates found',
+  '已处理 {processed}': 'Processed {processed}',
+  '已处理 {processed} / {total}': 'Processed {processed} / {total}',
+  取消扫描: 'Cancel scan',
+  取消审计: 'Cancel audit',
+  加载更多题目: 'Load more problems',
+  '继续加载下一批题目。': 'Load the next batch of problems.',
+  '结果按最近修改时间分批加载，当前只显示已加载部分。':
+    'Results load in batches by most recent update. Only loaded items are currently shown.',
+  '题目分页位置已失效，请从第一批重新加载。':
+    'The problem page position is no longer valid. Reload from the first batch.',
+  '继续加载下一批关联题目。': 'Load the next batch of related problems.',
+  '关联题目按最近修改时间分批加载。': 'Related problems load in batches by most recent update.',
+  加载更多关联题目: 'Load more related problems',
+  '正在搜索完整题库…': 'Searching the full problem library…',
+  '题目搜索暂不可用，请稍后重试。': 'Problem search is unavailable. Try again shortly.',
+  搜索题目: 'Search problems',
+  '当前批次没有可关联题目，请搜索标题、题号或标签。':
+    'No linkable problems are in this batch. Search by title, code, or tag.',
+  '继续加载下一批模板。': 'Load the next batch of templates.',
+  '模板索引按受控相对路径分批加载。':
+    'The template index loads in batches by controlled relative path.',
+  '模板分页位置已失效，请从第一批重新加载。':
+    'The template page position is no longer valid. Reload from the first batch.',
+  加载更多模板: 'Load more templates',
+  '正在搜索完整模板索引…': 'Searching the full template index…',
+  '模板搜索暂不可用，请稍后重试。': 'Template search is unavailable. Try again shortly.',
+  '模板搜索结果只显示前 {count} 项，请缩小关键词继续定位。':
+    'Only the first {count} template results are shown. Narrow the query to keep locating.',
+  '继续加载下一批计划记录。': 'Load the next batch of plan records.',
+  '继续加载下一批执行记录。': 'Load the next batch of execution records.',
+  '计划记录按创建时间分批加载。': 'Plan records load in batches by creation time.',
+  '执行记录按创建时间分批加载。': 'Execution records load in batches by creation time.',
+  '历史记录分页位置已失效，请从第一批重新加载。':
+    'The history page position is no longer valid. Reload from the first batch.',
+  '已加载 {processed} / {total} 份计划；删除采用安全归档。':
+    'Loaded {processed} / {total} plans. Deletion uses safe archiving.',
+  加载更多计划记录: 'Load more plan records',
+  加载更多执行记录: 'Load more execution records',
+  搜索模板: 'Search templates',
+  搜索模板名称或路径: 'Search template name or path',
+  '当前批次没有可关联模板，请搜索名称或路径。':
+    'No linkable templates are in this batch. Search by name or path.',
+  '关联题目读取失败，请重试。': 'Related problems could not be loaded. Try again.',
+  '只读审计已取消，现有索引和用户文件保持不变。':
+    'The read-only audit was cancelled. The existing index and user files are unchanged.',
+  '部分模板缺少可用的相似度索引；请重新扫描后再次审计。':
+    'Some templates do not have a usable similarity index. Rescan and run the audit again.',
+  '高相似候选过多，已停止继续比较以保持应用可响应。':
+    'There are too many similarity candidates. Comparison stopped to keep the app responsive.',
+  '还有更多建议未在当前结果中展开。':
+    'Additional suggestions are not expanded in the current result.',
+  '重新扫描后再次审计，或按顶层目录缩小处理范围。':
+    'Rescan and audit again, or narrow the scope by top-level directory.',
   '打开 AI 管理': 'Open AI Management',
   打开全局搜索: 'Open global search',
   打开模板创建窗口: 'Open template creation',
@@ -1050,6 +1103,14 @@ Object.assign(english, {
     'The AI tried to change the source extension, so the classification was rejected.',
   '无法读取该模板工作区，请检查文件夹权限。':
     'Unable to read the template workspace. Check folder permissions.',
+  '后台任务已取消。': 'The background task was cancelled.',
+  '后台任务失败，请重试。': 'The background task failed. Try again.',
+  '后台任务不存在或已经过期。': 'The background task does not exist or has expired.',
+  '扫描期间文件状态发生变化，请重试。': 'A file changed state during the scan. Run the scan again.',
+  '扫描期间文件越过授权目录，已停止。':
+    'A file moved outside the authorized directory during the scan. The scan was stopped.',
+  '扫描期间文件路径发生变化，请重试。': 'A file path changed during the scan. Run the scan again.',
+  '扫描期间文件内容发生变化，请重试。': 'File content changed during the scan. Run the scan again.',
   '模板源码超过 2 MiB，无法创建。': 'Template source exceeds 2 MiB and cannot be created.',
   '模板文件必须创建在当前工作区根目录。':
     'The template file must be created in the current workspace root.',

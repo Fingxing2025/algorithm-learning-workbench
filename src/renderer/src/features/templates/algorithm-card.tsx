@@ -12,7 +12,12 @@ import {
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 
-import type { Problem, RelationType, UpsertProblemRelationRequest } from '@core/contracts/problem'
+import type {
+  Problem,
+  RelationType,
+  TemplateProblemSummary,
+  UpsertProblemRelationRequest,
+} from '@core/contracts/problem'
 import type { TemplateActionRequest, TemplateSummary } from '@core/contracts/workspace'
 import type { FileChangeMutationResult } from '@core/contracts/template-management'
 
@@ -32,12 +37,18 @@ interface AlgorithmCardProps {
   onClearProblemError: () => void
   onDelete: (templateId: string) => Promise<boolean>
   onOpenProblem: (problemId: string) => void
+  onLoadMoreRelatedProblems: () => void
   onRelocated: (templateId: string, result: FileChangeMutationResult) => void
   onReload: () => void
+  onSearchProblems: (query: string) => Promise<Problem[]>
   onUpsertProblemRelation: (request: UpsertProblemRelationRequest) => Promise<boolean>
   problemError: string | null
-  problems: Problem[]
-  relatedProblems: Array<{ id: string; relationType: RelationType; title: string }>
+  problemTotalCount: number
+  relatedProblems: TemplateProblemSummary[]
+  relatedProblemError: string | null
+  relatedProblemsHasMore: boolean
+  relatedProblemTotalCount: number
+  isLoadingRelatedProblems: boolean
   isProblemBusy: boolean
   sourceState: TemplateSourceState
   template: TemplateSummary | null
@@ -64,12 +75,18 @@ export function AlgorithmCard({
   onClearProblemError,
   onDelete,
   onOpenProblem,
+  onLoadMoreRelatedProblems,
   onRelocated,
   onReload,
+  onSearchProblems,
   onUpsertProblemRelation,
   problemError,
-  problems,
+  problemTotalCount,
   relatedProblems,
+  relatedProblemError,
+  relatedProblemsHasMore,
+  relatedProblemTotalCount,
+  isLoadingRelatedProblems,
   isProblemBusy,
   sourceState,
   template,
@@ -202,7 +219,7 @@ export function AlgorithmCard({
           {[
             [t('文件类型'), template.extension],
             [t('文件大小'), formatBytes(template.sizeBytes)],
-            [t('关联题目'), String(relatedProblems.length)],
+            [t('关联题目'), String(relatedProblemTotalCount)],
           ].map(([label, value]) => (
             <div className="flex items-center gap-1.5" key={label}>
               <dt>{label}</dt>
@@ -262,9 +279,9 @@ export function AlgorithmCard({
           <div className="flex items-center gap-2">
             <BookOpenText aria-hidden="true" className="size-4 text-muted-foreground" />
             <h2 className="text-xs font-semibold">{t('关联题目')}</h2>
-            <Badge className="ml-auto">{relatedProblems.length}</Badge>
+            <Badge className="ml-auto">{relatedProblemTotalCount}</Badge>
             <Button
-              disabled={isProblemBusy || problems.length === 0}
+              disabled={isProblemBusy || problemTotalCount === 0}
               onClick={() => {
                 relationReturnFocusRef.current = activeElementOrNull()
                 onClearProblemError()
@@ -302,6 +319,29 @@ export function AlgorithmCard({
               ))}
             </div>
           )}
+          {relatedProblemError && (
+            <p className="mt-3 text-[11px] text-red-600 dark:text-red-300" role="alert">
+              {t(relatedProblemError)}
+            </p>
+          )}
+          {relatedProblemsHasMore && (
+            <div className="mt-3 rounded-xl border border-border bg-muted/25 p-3">
+              <p className="text-[10px] leading-4 text-muted-foreground">
+                {t('关联题目按最近修改时间分批加载。')} {relatedProblems.length} /{' '}
+                {relatedProblemTotalCount}
+              </p>
+              <Button
+                className="mt-2"
+                disabled={isLoadingRelatedProblems}
+                onClick={onLoadMoreRelatedProblems}
+                size="compact"
+                type="button"
+                variant="outline"
+              >
+                {t('加载更多关联题目')}
+              </Button>
+            </div>
+          )}
         </section>
       </div>
       <TemplateProblemRelationDialog
@@ -311,9 +351,9 @@ export function AlgorithmCard({
           setRelationDialogOpen(open)
           if (!open) onClearProblemError()
         }}
+        onSearchProblems={onSearchProblems}
         onSave={onUpsertProblemRelation}
         open={relationDialogOpen}
-        problems={problems}
         returnFocusTo={relationReturnFocusRef.current}
         template={template}
       />

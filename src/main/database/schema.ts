@@ -39,6 +39,7 @@ export const workspaces = sqliteTable(
     issuesJson: text('issues_json').notNull().default('[]'),
     name: text('name').notNull(),
     rootPath: text('root_path').notNull(),
+    scanStatsJson: text('scan_stats_json').notNull().default('{}'),
     scanTruncated: integer('scan_truncated', { mode: 'boolean' }).notNull().default(false),
     scannedAt: text('scanned_at'),
     skippedSymlinkCount: integer('skipped_symlink_count').notNull().default(0),
@@ -52,14 +53,20 @@ export const templates = sqliteTable(
   'templates',
   {
     available: integer('available', { mode: 'boolean' }).notNull().default(true),
+    changeToken: text('change_token'),
+    contentHash: text('content_hash'),
     extension: text('extension').notNull(),
     fileName: text('file_name').notNull(),
     id: text('id').primaryKey(),
+    fileIdentity: text('file_identity'),
+    indexVersion: integer('index_version').notNull().default(0),
     language: text('language').notNull(),
     modifiedAt: text('modified_at').notNull(),
     name: text('name').notNull(),
+    normalizedContentHash: text('normalized_content_hash'),
     relativePath: text('relative_path').notNull(),
     sizeBytes: integer('size_bytes').notNull(),
+    similaritySignatureJson: text('similarity_signature_json'),
     workspaceId: text('workspace_id')
       .notNull()
       .references(() => workspaces.id, { onDelete: 'cascade' }),
@@ -67,6 +74,17 @@ export const templates = sqliteTable(
   table => [
     uniqueIndex('templates_workspace_path_unique').on(table.workspaceId, table.relativePath),
     index('templates_workspace_id_index').on(table.workspaceId),
+    index('templates_workspace_available_path_index').on(
+      table.workspaceId,
+      table.available,
+      table.relativePath,
+      table.id,
+    ),
+    index('templates_workspace_content_hash_index').on(
+      table.workspaceId,
+      table.available,
+      table.contentHash,
+    ),
   ],
 )
 
@@ -100,7 +118,15 @@ export const fileChangePlans = sqliteTable(
       .notNull()
       .references(() => workspaces.id, { onDelete: 'cascade' }),
   },
-  table => [index('file_change_plans_workspace_id_index').on(table.workspaceId)],
+  table => [
+    index('file_change_plans_workspace_id_index').on(table.workspaceId),
+    index('file_change_plans_workspace_created_index').on(
+      table.workspaceId,
+      table.archivedAt,
+      table.createdAt,
+      table.id,
+    ),
+  ],
 )
 
 export const fileChangeExecutions = sqliteTable(
@@ -116,7 +142,10 @@ export const fileChangeExecutions = sqliteTable(
     rolledBackAt: text('rolled_back_at'),
     status: text('status').notNull().default('applied'),
   },
-  table => [index('file_change_executions_plan_id_index').on(table.planId)],
+  table => [
+    index('file_change_executions_plan_id_index').on(table.planId),
+    index('file_change_executions_created_id_index').on(table.createdAt, table.id),
+  ],
 )
 
 export const problems = sqliteTable(
@@ -141,7 +170,10 @@ export const problems = sqliteTable(
     updatedAt: text('updated_at').notNull(),
     url: text('url'),
   },
-  table => [index('problems_updated_at_index').on(table.updatedAt)],
+  table => [
+    index('problems_updated_at_index').on(table.updatedAt),
+    index('problems_updated_id_index').on(table.updatedAt, table.id),
+  ],
 )
 
 export const problemImages = sqliteTable(

@@ -21,6 +21,10 @@ async function invokeResult<Value>(channel: string, input?: unknown): Promise<Va
 }
 
 const desktopApi: DesktopApi = {
+  backgroundTasks: {
+    cancel: request => invokeResult(IPC_CHANNELS.backgroundTasks.cancel, request),
+    get: request => invokeResult(IPC_CHANNELS.backgroundTasks.get, request),
+  },
   aiProviders: {
     create: request => invokeResult(IPC_CHANNELS.aiProviders.create, request),
     delete: async request => {
@@ -63,7 +67,10 @@ const desktopApi: DesktopApi = {
     delete: async request => {
       await invokeResult<null>(IPC_CHANNELS.problems.delete, request)
     },
+    get: request => invokeResult(IPC_CHANNELS.problems.get, request),
     list: () => invokeResult(IPC_CHANNELS.problems.list),
+    listByTemplate: request => invokeResult(IPC_CHANNELS.problems.listByTemplate, request),
+    listPage: request => invokeResult(IPC_CHANNELS.problems.listPage, request),
     readImage: imageId => invokeResult(IPC_CHANNELS.problems.readImage, { imageId }),
     removeImage: request => invokeResult(IPC_CHANNELS.problems.removeImage, request),
     removeRelation: request => invokeResult(IPC_CHANNELS.problems.removeRelation, request),
@@ -81,6 +88,8 @@ const desktopApi: DesktopApi = {
   },
   templates: {
     create: request => invokeResult(IPC_CHANNELS.templates.create, request),
+    getSummary: request => invokeResult(IPC_CHANNELS.templates.getSummary, request),
+    listPage: request => invokeResult(IPC_CHANNELS.templates.listPage, request),
     performAction: async request => {
       await invokeResult<null>(IPC_CHANNELS.templates.performAction, request)
     },
@@ -93,6 +102,7 @@ const desktopApi: DesktopApi = {
     archiveFilePlans: request =>
       invokeResult(IPC_CHANNELS.templateManagement.archiveFilePlans, request),
     auditWorkspace: () => invokeResult(IPC_CHANNELS.templateManagement.auditWorkspace),
+    startAudit: request => invokeResult(IPC_CHANNELS.templateManagement.startAudit, request),
     cancelFilePlanGeneration: async requestId => {
       await invokeResult<null>(IPC_CHANNELS.templateManagement.cancelFilePlanGeneration, {
         requestId,
@@ -136,7 +146,11 @@ const desktopApi: DesktopApi = {
     generateFilePlan: request =>
       invokeResult(IPC_CHANNELS.templateManagement.generateFilePlan, request),
     listFileExecutions: () => invokeResult(IPC_CHANNELS.templateManagement.listFileExecutions),
+    listFileExecutionsPage: request =>
+      invokeResult(IPC_CHANNELS.templateManagement.listFileExecutionsPage, request),
     listFilePlans: () => invokeResult(IPC_CHANNELS.templateManagement.listFilePlans),
+    listFilePlansPage: request =>
+      invokeResult(IPC_CHANNELS.templateManagement.listFilePlansPage, request),
     redraftFilePlan: planId =>
       invokeResult(IPC_CHANNELS.templateManagement.redraftFilePlan, { planId }),
     rollbackFileExecution: executionId =>
@@ -148,6 +162,7 @@ const desktopApi: DesktopApi = {
     choose: request => invokeResult(IPC_CHANNELS.workspace.choose, request),
     getCurrent: () => invokeResult(IPC_CHANNELS.workspace.getCurrent),
     rescan: () => invokeResult(IPC_CHANNELS.workspace.rescan),
+    startRescan: request => invokeResult(IPC_CHANNELS.workspace.startRescan, request),
   },
 }
 

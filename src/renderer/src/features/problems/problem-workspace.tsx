@@ -13,7 +13,8 @@ import {
   Trash2,
   X,
 } from 'lucide-react'
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { useVirtualizer } from '@tanstack/react-virtual'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 
 import type {
   CreateProblemRequest,
@@ -25,6 +26,7 @@ import type {
   UpsertProblemRelationRequest,
 } from '@core/contracts/problem'
 import type { TemplateSummary } from '@core/contracts/workspace'
+import type { TemplatePage } from '@core/contracts/workspace'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -48,19 +50,27 @@ interface ProblemWorkspaceProps {
   error: string | null
   isBusy: boolean
   isLoading: boolean
+  isLoadingMore: boolean
+  matchedCount: number
+  hasMore: boolean
   onAddImages: (problemId: string) => Promise<Problem | null>
   onAnalysisCreated: (problem: Problem) => Problem
   onClearError: () => void
   onDelete: (problemId: string) => Promise<boolean>
   onOpenTemplate: (templateId: string) => void
+  onLoadMore: () => Promise<Problem[] | null>
   onRemoveImage: (request: RemoveProblemImageRequest) => Promise<Problem | null>
   onRemoveRelation: (request: RemoveProblemRelationRequest) => Promise<Problem | null>
   onSelect: (problemId: string | null) => void
+  onSearch: (query: string) => Promise<Problem[] | null>
+  onSearchTemplates: (query: string) => Promise<TemplatePage>
   onUpdate: (request: UpdateProblemRequest) => Promise<Problem | null>
   onUpsertRelation: (request: UpsertProblemRelationRequest) => Promise<Problem | null>
   problems: Problem[]
   selectedProblemId: string | null
   templates: TemplateSummary[]
+  templateTotalCount: number
+  totalCount: number
 }
 
 function formatUpdatedAt(value: string, locale: string): string {
@@ -76,19 +86,27 @@ export function ProblemWorkspace({
   error,
   isBusy,
   isLoading,
+  isLoadingMore,
+  matchedCount,
+  hasMore,
   onAddImages,
   onAnalysisCreated,
   onClearError,
   onDelete,
   onOpenTemplate,
+  onLoadMore,
   onRemoveImage,
   onRemoveRelation,
   onSelect,
+  onSearch,
+  onSearchTemplates,
   onUpdate,
   onUpsertRelation,
   problems,
   selectedProblemId,
   templates,
+  templateTotalCount,
+  totalCount,
 }: ProblemWorkspaceProps) {
   const { locale, t } = useI18n()
   const [confirmRemoveTemplateId, setConfirmRemoveTemplateId] = useState<string | null>(null)
@@ -99,12 +117,24 @@ export function ProblemWorkspace({
   const [query, setQuery] = useState('')
   const [relationEditorOpen, setRelationEditorOpen] = useState(false)
   const [editingRelation, setEditingRelation] = useState<ProblemTemplateRelation | null>(null)
+  const [focusedProblemIndex, setFocusedProblemIndex] = useState(0)
   const dialogReturnFocusRef = useRef<HTMLElement | null>(null)
+  const listScrollRef = useRef<HTMLDivElement | null>(null)
+  const submittedQueryRef = useRef('')
 
   useEffect(() => {
     setConfirmDeleteProblem(false)
     setConfirmRemoveTemplateId(null)
   }, [selectedProblemId])
+
+  useEffect(() => {
+    if (query === submittedQueryRef.current) return
+    const timer = window.setTimeout(() => {
+      submittedQueryRef.current = query
+      void onSearch(query)
+    }, 250)
+    return () => window.clearTimeout(timer)
+  }, [onSearch, query])
 
   const selectedProblem = problems.find(problem => problem.id === selectedProblemId) ?? null
   const filteredProblems = useMemo(() => {
@@ -126,17 +156,71 @@ export function ProblemWorkspace({
         .includes(normalized),
     )
   }, [problems, query])
+  const problemListVirtualizer = useVirtualizer({
+    count: filteredProblems.length,
+    estimateSize: () => 88,
+    getScrollElement: () => listScrollRef.current,
+    getItemKey: index => filteredProblems[index]?.id ?? index,
+    overscan: 8,
+  })
 
-  const relationTemplates = useMemo(() => {
-    if (!selectedProblem) {
-      return []
+  useEffect(() => {
+    if (filteredProblems.length === 0) {
+      setFocusedProblemIndex(0)
+      return
     }
-    if (editingRelation) {
-      return templates.filter(template => template.id === editingRelation.templateId)
+    const selectedIndex = filteredProblems.findIndex(problem => problem.id === selectedProblemId)
+    if (selectedIndex >= 0) {
+      setFocusedProblemIndex(selectedIndex)
+      if (filteredProblems.length > 100) {
+        problemListVirtualizer.scrollToIndex(selectedIndex, { align: 'auto' })
+      } else {
+        listScrollRef.current
+          ?.querySelector<HTMLElement>(`#problem-list-option-${selectedProblemId}`)
+          ?.scrollIntoView?.({ block: 'nearest' })
+      }
+    } else {
+      setFocusedProblemIndex(current => Math.min(current, filteredProblems.length - 1))
     }
-    const relatedIds = new Set(selectedProblem.relations.map(relation => relation.templateId))
-    return templates.filter(template => !relatedIds.has(template.id))
-  }, [editingRelation, selectedProblem, templates])
+  }, [filteredProblems, problemListVirtualizer, selectedProblemId])
+
+  const focusProblem = (index: number) => {
+    const nextIndex = Math.min(filteredProblems.length - 1, Math.max(0, index))
+    setFocusedProblemIndex(nextIndex)
+    if (filteredProblems.length > 100) {
+      problemListVirtualizer.scrollToIndex(nextIndex, { align: 'auto' })
+    } else {
+      listScrollRef.current
+        ?.querySelector<HTMLElement>(`#problem-list-option-${filteredProblems[nextIndex]?.id}`)
+        ?.scrollIntoView?.({ block: 'nearest' })
+    }
+  }
+
+  const handleProblemListKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (filteredProblems.length === 0) return
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault()
+      focusProblem(focusedProblemIndex + (event.key === 'ArrowDown' ? 1 : -1))
+      return
+    }
+    if (event.key === 'Home' || event.key === 'End') {
+      event.preventDefault()
+      focusProblem(event.key === 'Home' ? 0 : filteredProblems.length - 1)
+      return
+    }
+    if (event.key === 'Enter' || event.key === ' ') {
+      const problem = filteredProblems[focusedProblemIndex]
+      if (problem) {
+        event.preventDefault()
+        onSelect(problem.id)
+      }
+    }
+  }
+
+  const relatedTemplateIds = useMemo(
+    () => selectedProblem?.relations.map(relation => relation.templateId) ?? [],
+    [selectedProblem],
+  )
 
   const openCreateEditor = () => {
     dialogReturnFocusRef.current = activeElementOrNull()
@@ -174,6 +258,55 @@ export function ProblemWorkspace({
   const handleSaveRelation = async (request: UpsertProblemRelationRequest) =>
     Boolean(await onUpsertRelation(request))
 
+  const renderProblemButton = (problem: Problem, index: number, fixedHeight: boolean) => {
+    const selected = problem.id === selectedProblemId
+    return (
+      <button
+        aria-current={selected ? 'true' : undefined}
+        className={cn(
+          'flex w-full items-start gap-3 rounded-xl border px-3 py-3 text-left outline-none transition-all focus-visible:ring-2 focus-visible:ring-success',
+          fixedHeight && 'h-[84px]',
+          selected
+            ? 'border-success/15 bg-success/10 text-foreground shadow-xs'
+            : index === focusedProblemIndex
+              ? 'border-border bg-panel text-foreground'
+              : 'border-transparent text-foreground hover:translate-x-0.5 hover:border-border hover:bg-panel',
+        )}
+        onClick={() => {
+          setFocusedProblemIndex(index)
+          onSelect(problem.id)
+        }}
+        tabIndex={-1}
+        type="button"
+      >
+        <span
+          className={cn(
+            'mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg',
+            selected
+              ? 'bg-success/13 text-success ring-1 ring-success/12'
+              : 'bg-muted text-muted-foreground',
+          )}
+        >
+          <BookOpenText aria-hidden="true" className="size-4" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-medium">{problem.title}</span>
+          <span className="mt-1 flex items-center gap-1.5 truncate text-[11px] text-muted-foreground">
+            {problem.platform ?? t('未设置平台')}
+            {problem.problemCode && ` · ${problem.problemCode}`}
+          </span>
+          <span className="mt-1.5 flex items-center gap-2 text-[10px] text-muted-foreground">
+            <span>{t(problemStatusLabels[problem.status])}</span>
+            <span>
+              {problem.relations.length} {t('个模板')}
+            </span>
+            <span className="ml-auto">{formatUpdatedAt(problem.updatedAt, locale)}</span>
+          </span>
+        </span>
+      </button>
+    )
+  }
+
   return (
     <main className="workspace-stage flex h-full min-h-0 flex-col overflow-hidden">
       <header className="glass-section-header flex min-h-[62px] flex-wrap items-center gap-3 border-b px-5 py-2.5">
@@ -184,7 +317,7 @@ export function ProblemWorkspace({
           <div className="flex items-center gap-2">
             <h1 className="text-[15px] font-semibold tracking-tight">{t('题目卡片')}</h1>
             <Badge tone="success">
-              {problems.length} {t('道题')}
+              {totalCount} {t('道题')}
             </Badge>
           </div>
           <p className="mt-0.5 text-[11px] text-muted-foreground">{t('本地题库与模板关联')}</p>
@@ -232,7 +365,7 @@ export function ProblemWorkspace({
                 {t('题目索引')}
               </span>
               <span className="rounded-md bg-panel px-1.5 py-0.5 text-[9px] font-semibold text-muted-foreground ring-1 ring-border">
-                {filteredProblems.length}
+                {filteredProblems.length} / {query ? matchedCount : totalCount}
               </span>
             </div>
             <div className="flex h-9 items-center gap-2 rounded-xl border border-border bg-panel px-3 shadow-xs transition-colors focus-within:border-success/35 focus-within:ring-2 focus-within:ring-success">
@@ -273,55 +406,69 @@ export function ProblemWorkspace({
             </div>
           ) : (
             <div
+              aria-activedescendant={
+                filteredProblems[focusedProblemIndex]
+                  ? `problem-list-option-${filteredProblems[focusedProblemIndex].id}`
+                  : undefined
+              }
               aria-label={t('题目列表')}
               className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-2.5 outline-none [scrollbar-gutter:stable] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
-              role="region"
+              onKeyDown={handleProblemListKeyDown}
+              ref={listScrollRef}
+              role="listbox"
               tabIndex={0}
             >
-              {filteredProblems.map(problem => {
-                const selected = problem.id === selectedProblemId
-                return (
-                  <button
-                    aria-current={selected ? 'true' : undefined}
-                    className={cn(
-                      'mb-1 flex w-full items-start gap-3 rounded-xl border px-3 py-3 text-left outline-none transition-all focus-visible:ring-2 focus-visible:ring-success',
-                      selected
-                        ? 'border-success/15 bg-success/10 text-foreground shadow-xs'
-                        : 'border-transparent text-foreground hover:translate-x-0.5 hover:border-border hover:bg-panel',
-                    )}
-                    key={problem.id}
-                    onClick={() => onSelect(problem.id)}
-                    type="button"
-                  >
-                    <span
-                      className={cn(
-                        'mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg',
-                        selected
-                          ? 'bg-success/13 text-success ring-1 ring-success/12'
-                          : 'bg-muted text-muted-foreground',
-                      )}
+              {filteredProblems.length > 100 ? (
+                <div
+                  className="relative w-full"
+                  style={{ height: problemListVirtualizer.getTotalSize() }}
+                >
+                  {problemListVirtualizer.getVirtualItems().map(virtualRow => {
+                    const problem = filteredProblems[virtualRow.index]
+                    if (!problem) return null
+                    return (
+                      <div
+                        aria-selected={problem.id === selectedProblemId}
+                        className="absolute left-0 top-0 h-[88px] w-full pb-1"
+                        id={`problem-list-option-${problem.id}`}
+                        key={problem.id}
+                        role="option"
+                        style={{ transform: `translateY(${virtualRow.start}px)` }}
+                      >
+                        {renderProblemButton(problem, virtualRow.index, true)}
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  {filteredProblems.map((problem, index) => (
+                    <div
+                      aria-selected={problem.id === selectedProblemId}
+                      id={`problem-list-option-${problem.id}`}
+                      key={problem.id}
+                      role="option"
                     >
-                      <BookOpenText aria-hidden="true" className="size-4" />
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium">{problem.title}</span>
-                      <span className="mt-1 flex items-center gap-1.5 truncate text-[11px] text-muted-foreground">
-                        {problem.platform ?? t('未设置平台')}
-                        {problem.problemCode && ` · ${problem.problemCode}`}
-                      </span>
-                      <span className="mt-1.5 flex items-center gap-2 text-[10px] text-muted-foreground">
-                        <span>{t(problemStatusLabels[problem.status])}</span>
-                        <span>
-                          {problem.relations.length} {t('个模板')}
-                        </span>
-                        <span className="ml-auto">
-                          {formatUpdatedAt(problem.updatedAt, locale)}
-                        </span>
-                      </span>
-                    </span>
-                  </button>
-                )
-              })}
+                      {renderProblemButton(problem, index, false)}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          {hasMore && !isLoading && (
+            <div className="border-t border-border p-2.5">
+              <Button
+                className="w-full"
+                disabled={isLoadingMore}
+                onClick={() => void onLoadMore()}
+                size="compact"
+                type="button"
+                variant="outline"
+              >
+                {isLoadingMore && <LoaderCircle className="size-3.5 animate-spin" />}
+                {t('加载更多题目')} · {problems.length} / {query ? matchedCount : totalCount}
+              </Button>
             </div>
           )}
         </section>
@@ -540,7 +687,7 @@ export function ProblemWorkspace({
                   </div>
                   <Button
                     className="ml-auto"
-                    disabled={relationTemplates.length === 0 || isBusy}
+                    disabled={templateTotalCount <= selectedProblem.relations.length || isBusy}
                     onClick={() => openRelationEditor(null)}
                     size="compact"
                     type="button"
@@ -720,6 +867,8 @@ export function ProblemWorkspace({
         <RelationDialog
           error={error}
           existing={editingRelation}
+          excludedTemplateIds={relatedTemplateIds}
+          initialTemplates={templates}
           isBusy={isBusy}
           onOpenChange={open => {
             setRelationEditorOpen(open)
@@ -728,11 +877,11 @@ export function ProblemWorkspace({
               setEditingRelation(null)
             }
           }}
+          onSearchTemplates={onSearchTemplates}
           onSave={handleSaveRelation}
           open={relationEditorOpen}
           problemId={selectedProblem.id}
           returnFocusTo={dialogReturnFocusRef.current}
-          templates={relationTemplates}
         />
       )}
       {analysisOpen && (
@@ -743,6 +892,7 @@ export function ProblemWorkspace({
               onSelect(problem.id)
             }}
             onOpenChange={setAnalysisOpen}
+            onSearchTemplates={onSearchTemplates}
             open={analysisOpen}
             returnFocusTo={dialogReturnFocusRef.current}
             templates={templates}

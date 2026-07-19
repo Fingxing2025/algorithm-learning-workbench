@@ -15,9 +15,9 @@ interface TemplateProblemRelationDialogProps {
   error: string | null
   isBusy: boolean
   onOpenChange: (open: boolean) => void
+  onSearchProblems: (query: string) => Promise<Problem[]>
   onSave: (request: UpsertProblemRelationRequest) => Promise<boolean>
   open: boolean
-  problems: Problem[]
   returnFocusTo?: HTMLElement | null
   template: TemplateSummary
 }
@@ -26,13 +26,16 @@ export function TemplateProblemRelationDialog({
   error,
   isBusy,
   onOpenChange,
+  onSearchProblems,
   onSave,
   open,
-  problems,
   returnFocusTo,
   template,
 }: TemplateProblemRelationDialogProps) {
   const { t } = useI18n()
+  const [isLoadingProblems, setIsLoadingProblems] = useState(false)
+  const [problemQuery, setProblemQuery] = useState('')
+  const [problems, setProblems] = useState<Problem[]>([])
   const candidates = useMemo(
     () =>
       problems.filter(
@@ -46,10 +49,40 @@ export function TemplateProblemRelationDialog({
 
   useEffect(() => {
     if (!open) return
+    let active = true
+    setIsLoadingProblems(true)
+    const timer = window.setTimeout(() => {
+      void onSearchProblems(problemQuery.trim())
+        .then(values => {
+          if (active) setProblems(values)
+        })
+        .catch(() => {
+          if (active) setProblems([])
+        })
+        .finally(() => {
+          if (active) setIsLoadingProblems(false)
+        })
+    }, 180)
+    return () => {
+      active = false
+      window.clearTimeout(timer)
+    }
+  }, [onSearchProblems, open, problemQuery])
+
+  useEffect(() => {
+    if (!open) return
     setNote('')
+    setProblemQuery('')
     setRelationType('used')
-    setProblemId(candidates[0]?.id ?? '')
-  }, [candidates, open, template.id])
+    setProblemId('')
+  }, [open, template.id])
+
+  useEffect(() => {
+    if (!open) return
+    setProblemId(current =>
+      candidates.some(problem => problem.id === current) ? current : (candidates[0]?.id ?? ''),
+    )
+  }, [candidates, open])
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault()
@@ -107,19 +140,34 @@ export function TemplateProblemRelationDialog({
                 <span>{t(error)}</span>
               </div>
             )}
-            {candidates.length === 0 ? (
-              <p className="rounded-xl border border-dashed border-border bg-muted/25 px-4 py-4 text-xs leading-5 text-muted-foreground">
-                {t(
-                  '当前题库中的题目都已经关联到该模板。你可以在下方的关联题目卡片中打开题目，修改关系类型或解除关联。',
-                )}
+            <label className="text-xs font-semibold" htmlFor="template-relation-search">
+              {t('搜索题目')}
+            </label>
+            <input
+              autoFocus
+              className={inputClass}
+              id="template-relation-search"
+              onChange={event => setProblemQuery(event.target.value)}
+              placeholder={t('搜索标题、题号或标签')}
+              value={problemQuery}
+            />
+            {isLoadingProblems ? (
+              <p className="mt-3 rounded-xl border border-border bg-muted/25 px-4 py-4 text-xs text-muted-foreground">
+                {t('正在搜索完整题库…')}
+              </p>
+            ) : candidates.length === 0 ? (
+              <p className="mt-3 rounded-xl border border-dashed border-border bg-muted/25 px-4 py-4 text-xs leading-5 text-muted-foreground">
+                {t('当前批次没有可关联题目，请搜索标题、题号或标签。')}
               </p>
             ) : (
               <>
-                <label className="text-xs font-semibold" htmlFor="template-relation-problem">
+                <label
+                  className="mt-4 block text-xs font-semibold"
+                  htmlFor="template-relation-problem"
+                >
                   {t('选择题目')}
                 </label>
                 <select
-                  autoFocus
                   className={inputClass}
                   disabled={isBusy}
                   id="template-relation-problem"

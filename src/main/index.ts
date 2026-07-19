@@ -15,6 +15,7 @@ import { registerProblemIpc } from './ipc/register-problem-ipc'
 import { registerProblemAnalysisIpc } from './ipc/register-problem-analysis-ipc'
 import { registerWorkspaceIpc } from './ipc/register-workspace-ipc'
 import { registerTemplateManagementIpc } from './ipc/register-template-management-ipc'
+import { registerBackgroundTaskIpc } from './ipc/register-background-task-ipc'
 import { installApplicationSecurityGuards } from './security/window-security'
 import { ProblemService } from './services/problem-service'
 import { ProblemAnalysisService } from './services/problem-analysis-service'
@@ -26,10 +27,14 @@ import { TemplateManagementService } from './services/template-management-servic
 import { WorkspaceAiContextService } from './services/workspace-ai-context-service'
 import { DataManagementService } from './services/data-management-service'
 import { createMainWindow } from './window/create-main-window'
+import { BackgroundTaskRegistry } from './services/background-task-registry'
 
 let mainWindow: BrowserWindow | null = null
 let appDatabase: AppDatabase | null = null
 let aiTaskRunRegistry: AiTaskRunRegistry | null = null
+let backgroundTaskRegistry: BackgroundTaskRegistry | null = null
+let shutdownStarted = false
+let shutdownComplete = false
 
 function configureTestUserData(): void {
   const testUserDataPath = process.env.E2E_USER_DATA_DIR
@@ -64,6 +69,7 @@ async function bootstrap(): Promise<void> {
     new SecretStore(app.getPath('userData')),
   )
   aiTaskRunRegistry = new AiTaskRunRegistry()
+  backgroundTaskRegistry = new BackgroundTaskRegistry()
   const problemService = new ProblemService(problemRepository, app.getPath('userData'))
   const workspaceAiContextService = new WorkspaceAiContextService(
     workspaceRepository,
@@ -88,12 +94,17 @@ async function bootstrap(): Promise<void> {
   )
   const dataManagementService = new DataManagementService(appDatabase, app.getPath('userData'))
   registerAppIpc()
+  registerBackgroundTaskIpc(backgroundTaskRegistry)
   registerAiProviderIpc(aiProviderService)
   registerDataManagementIpc(dataManagementService, () => mainWindow ?? undefined)
   registerProblemIpc(problemService, () => mainWindow ?? undefined)
   registerProblemAnalysisIpc(problemAnalysisService, () => mainWindow ?? undefined)
-  registerWorkspaceIpc(workspaceService, () => mainWindow ?? undefined)
-  registerTemplateManagementIpc(templateManagementService, () => mainWindow ?? undefined)
+  registerWorkspaceIpc(workspaceService, backgroundTaskRegistry, () => mainWindow ?? undefined)
+  registerTemplateManagementIpc(
+    templateManagementService,
+    backgroundTaskRegistry,
+    () => mainWindow ?? undefined,
+  )
   mainWindow = createMainWindow()
 
   mainWindow.on('closed', () => {
@@ -113,11 +124,21 @@ app.on('window-all-closed', () => {
   }
 })
 
-app.on('before-quit', () => {
+app.on('before-quit', event => {
+  if (shutdownComplete) return
+  event.preventDefault()
+  if (shutdownStarted) return
+  shutdownStarted = true
   aiTaskRunRegistry?.cancelAll()
   aiTaskRunRegistry = null
-  appDatabase?.close()
-  appDatabase = null
+  const backgroundShutdown = backgroundTaskRegistry?.cancelAll() ?? Promise.resolve()
+  void backgroundShutdown.finally(() => {
+    backgroundTaskRegistry = null
+    appDatabase?.close()
+    appDatabase = null
+    shutdownComplete = true
+    app.quit()
+  })
 })
 
 configureTestUserData()

@@ -23,6 +23,14 @@ const workspaceFixture: WorkspaceSnapshot = {
     truncated: false,
     unsupportedFileCount: 0,
   },
+  templatePage: {
+    nextAction: null,
+    nextCursor: null,
+    processedCount: 1,
+    totalCount: 1,
+    truncated: false,
+    truncatedReason: null,
+  },
   templates: [
     {
       extension: '.cpp',
@@ -91,7 +99,35 @@ function installDesktopMock(currentWorkspace: WorkspaceSnapshot | null, problems
       problems: {
         addImages: vi.fn().mockResolvedValue(null),
         create: vi.fn(),
+        get: vi
+          .fn()
+          .mockImplementation(({ problemId }: { problemId: string }) =>
+            Promise.resolve(problems.find(problem => problem.id === problemId) ?? null),
+          ),
         list: vi.fn().mockResolvedValue(problems),
+        listByTemplate: vi.fn().mockResolvedValue({
+          items: [],
+          nextAction: null,
+          nextCursor: null,
+          processedCount: 0,
+          totalCount: 0,
+          truncated: false,
+          truncatedReason: null,
+        }),
+        listPage: vi.fn().mockResolvedValue({
+          items: problems,
+          matchedCount: problems.length,
+          nextAction: null,
+          nextCursor: null,
+          processedCount: problems.length,
+          totalCount: problems.length,
+          totalRelationCount: problems.reduce(
+            (count, problem) => count + problem.relations.length,
+            0,
+          ),
+          truncated: false,
+          truncatedReason: null,
+        }),
         readImage: vi.fn(),
         removeImage: vi.fn(),
         removeRelation: vi.fn(),
@@ -100,6 +136,22 @@ function installDesktopMock(currentWorkspace: WorkspaceSnapshot | null, problems
       },
       templates: {
         create: vi.fn(),
+        getSummary: vi
+          .fn()
+          .mockImplementation(({ templateId }: { templateId: string }) =>
+            Promise.resolve(
+              currentWorkspace?.templates.find(template => template.id === templateId),
+            ),
+          ),
+        listPage: vi.fn().mockResolvedValue({
+          items: currentWorkspace?.templates ?? [],
+          nextAction: null,
+          nextCursor: null,
+          processedCount: currentWorkspace?.templates.length ?? 0,
+          totalCount: currentWorkspace?.templates.length ?? 0,
+          truncated: false,
+          truncatedReason: null,
+        }),
         performAction: vi.fn().mockResolvedValue(undefined),
         readSource: vi.fn().mockResolvedValue({
           content: 'void bfs() {}',
@@ -115,7 +167,26 @@ function installDesktopMock(currentWorkspace: WorkspaceSnapshot | null, problems
         getMetadata: vi.fn().mockResolvedValue(null),
         importTemplate: vi.fn(),
         listFileExecutions: vi.fn().mockResolvedValue([]),
+        listFileExecutionsPage: vi.fn().mockResolvedValue({
+          items: [],
+          nextAction: null,
+          nextCursor: null,
+          processedCount: 0,
+          totalCount: 0,
+          truncated: false,
+          truncatedReason: null,
+        }),
         listFilePlans: vi.fn().mockResolvedValue([]),
+        listFilePlansPage: vi.fn().mockResolvedValue({
+          draftCount: 0,
+          items: [],
+          nextAction: null,
+          nextCursor: null,
+          processedCount: 0,
+          totalCount: 0,
+          truncated: false,
+          truncatedReason: null,
+        }),
         updateMetadata: vi.fn(),
       },
       workspace: {
@@ -170,7 +241,7 @@ describe('App', () => {
     expect(await screen.findByRole('heading', { level: 1, name: '工作台' })).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: '打开全局搜索' }))
     await user.type(screen.getByRole('textbox', { name: '搜索模板、题目或操作' }), 'bfs')
-    await user.click(screen.getByRole('button', { name: /bfs.*基础算法/ }))
+    await user.click(await screen.findByRole('button', { name: /bfs.*基础算法/ }))
 
     expect(await screen.findByRole('heading', { level: 1, name: 'bfs' })).toBeInTheDocument()
     expect(await screen.findByLabelText('高亮模板源码')).toHaveTextContent('void bfs() {}')
@@ -184,7 +255,7 @@ describe('App', () => {
     await screen.findByRole('heading', { level: 1, name: '工作台' })
     await user.click(screen.getByRole('button', { name: '打开全局搜索' }))
     await user.type(screen.getByRole('textbox', { name: '搜索模板、题目或操作' }), '单源')
-    await user.click(screen.getByRole('button', { name: /单源最短路径.*洛谷/ }))
+    await user.click(await screen.findByRole('button', { name: /单源最短路径.*洛谷/ }))
 
     expect(
       await screen.findByRole('heading', { level: 2, name: '单源最短路径' }),

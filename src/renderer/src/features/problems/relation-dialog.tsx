@@ -7,7 +7,7 @@ import type {
   RelationType,
   UpsertProblemRelationRequest,
 } from '@core/contracts/problem'
-import type { TemplateSummary } from '@core/contracts/workspace'
+import type { TemplatePage, TemplateSummary } from '@core/contracts/workspace'
 
 import { Button } from '@/components/ui/button'
 import { restoreFocusAfterDialog } from '@/lib/focus-management'
@@ -18,30 +18,61 @@ import { relationTypeLabels } from './problem-labels'
 interface RelationDialogProps {
   error: string | null
   existing: ProblemTemplateRelation | null
+  excludedTemplateIds: string[]
+  initialTemplates: TemplateSummary[]
   isBusy: boolean
   onOpenChange: (open: boolean) => void
+  onSearchTemplates: (query: string) => Promise<TemplatePage>
   onSave: (request: UpsertProblemRelationRequest) => Promise<boolean>
   open: boolean
   problemId: string
   returnFocusTo?: HTMLElement | null
-  templates: TemplateSummary[]
 }
 
 export function RelationDialog({
   error,
   existing,
+  excludedTemplateIds,
+  initialTemplates,
   isBusy,
   onOpenChange,
+  onSearchTemplates,
   onSave,
   open,
   problemId,
   returnFocusTo,
-  templates,
 }: RelationDialogProps) {
   const { t } = useI18n()
   const [note, setNote] = useState('')
+  const [isLoadingTemplates, setIsLoadingTemplates] = useState(false)
   const [relationType, setRelationType] = useState<RelationType>('used')
+  const [templateQuery, setTemplateQuery] = useState('')
+  const [templates, setTemplates] = useState<TemplateSummary[]>(initialTemplates)
   const [templateId, setTemplateId] = useState('')
+
+  useEffect(() => {
+    if (!open || existing) return
+    let active = true
+    setIsLoadingTemplates(true)
+    const timer = window.setTimeout(() => {
+      void onSearchTemplates(templateQuery.trim())
+        .then(page => {
+          if (!active) return
+          const excluded = new Set(excludedTemplateIds)
+          setTemplates(page.items.filter(template => !excluded.has(template.id)))
+        })
+        .catch(() => {
+          if (active) setTemplates([])
+        })
+        .finally(() => {
+          if (active) setIsLoadingTemplates(false)
+        })
+    }, 180)
+    return () => {
+      active = false
+      window.clearTimeout(timer)
+    }
+  }, [excludedTemplateIds, existing, onSearchTemplates, open, templateQuery])
 
   useEffect(() => {
     if (!open) {
@@ -49,7 +80,18 @@ export function RelationDialog({
     }
     setNote(existing?.note ?? '')
     setRelationType(existing?.relationType ?? 'used')
-    setTemplateId(existing?.templateId ?? templates[0]?.id ?? '')
+    const excluded = new Set(excludedTemplateIds)
+    const initialCandidates = initialTemplates.filter(template => !excluded.has(template.id))
+    setTemplates(initialCandidates)
+    setTemplateId(existing?.templateId ?? initialCandidates[0]?.id ?? '')
+    setTemplateQuery('')
+  }, [excludedTemplateIds, existing, initialTemplates, open])
+
+  useEffect(() => {
+    if (!open || existing) return
+    setTemplateId(current =>
+      templates.some(template => template.id === current) ? current : (templates[0]?.id ?? ''),
+    )
   }, [existing, open, templates])
 
   const handleSubmit = async (event: FormEvent) => {
@@ -105,7 +147,21 @@ export function RelationDialog({
                 <span>{t(error)}</span>
               </div>
             )}
-            <label className="text-xs font-semibold" htmlFor="relation-template">
+            {!existing && (
+              <>
+                <label className="text-xs font-semibold" htmlFor="relation-template-search">
+                  {t('搜索模板')}
+                </label>
+                <input
+                  className={inputClass}
+                  id="relation-template-search"
+                  onChange={event => setTemplateQuery(event.target.value)}
+                  placeholder={t('搜索模板名称或路径')}
+                  value={templateQuery}
+                />
+              </>
+            )}
+            <label className="mt-4 block text-xs font-semibold" htmlFor="relation-template">
               {t('算法模板')}
             </label>
             <select
@@ -117,12 +173,27 @@ export function RelationDialog({
               required
               value={templateId}
             >
-              {templates.map(template => (
-                <option key={template.id} value={template.id}>
-                  {template.name} · {template.relativePath}
+              {existing ? (
+                <option value={existing.templateId}>
+                  {existing.templateName} · {existing.templatePath}
                 </option>
-              ))}
+              ) : (
+                templates.map(template => (
+                  <option key={template.id} value={template.id}>
+                    {template.name} · {template.relativePath}
+                  </option>
+                ))
+              )}
             </select>
+            {!existing && (isLoadingTemplates || templates.length === 0) && (
+              <p className="mt-2 text-[10px] text-muted-foreground">
+                {t(
+                  isLoadingTemplates
+                    ? '正在搜索完整模板索引…'
+                    : '当前批次没有可关联模板，请搜索名称或路径。',
+                )}
+              </p>
+            )}
             <label className="mt-4 block text-xs font-semibold" htmlFor="relation-type">
               {t('关系类型')}
             </label>

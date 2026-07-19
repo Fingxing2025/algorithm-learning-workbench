@@ -25,8 +25,11 @@ import {
   deleteFileExecutionsResultSchema,
   exportFilePlanDiagnosticRequestSchema,
   fileChangeExecutionListSchema,
+  fileChangeExecutionPageSchema,
+  fileHistoryPageRequestSchema,
   fileChangeMutationResultSchema,
   fileChangePlanListSchema,
+  fileChangePlanPageSchema,
   fileChangePlanRequestSchema,
   fileChangePlanSchema,
   filePlanGenerationRequestSchema,
@@ -40,12 +43,18 @@ import {
 } from '@core/contracts/template-management'
 import { IPC_CHANNELS } from '@core/ipc/channels'
 import { cancelAiRequestSchema } from '@core/contracts/ai-request'
+import {
+  backgroundTaskStatusSchema,
+  startBackgroundTaskRequestSchema,
+} from '@core/contracts/background-task'
 
 import type { TemplateManagementService } from '../services/template-management-service'
+import type { BackgroundTaskRegistry } from '../services/background-task-registry'
 import { registerValidatedHandler } from './register-validated-handler'
 
 export function registerTemplateManagementIpc(
   service: TemplateManagementService,
+  backgroundTasks: BackgroundTaskRegistry,
   getParentWindow: () => Electron.BrowserWindow | undefined,
 ): void {
   registerValidatedHandler({
@@ -89,6 +98,23 @@ export function registerTemplateManagementIpc(
     handler: () => service.auditWorkspace(),
     inputSchema: z.void(),
     outputSchema: workspaceAuditSchema,
+  })
+  registerValidatedHandler({
+    channel: IPC_CHANNELS.templateManagement.startAudit,
+    handler: request => {
+      const workspaceId = service.getActiveWorkspaceId()
+      return backgroundTasks.start({
+        id: request.requestId,
+        kind: 'workspace-audit',
+        run: async ({ signal, updateProgress }) => ({
+          audit: await service.auditWorkspace({ onProgress: updateProgress, signal }),
+          kind: 'workspace-audit',
+        }),
+        scope: workspaceId,
+      })
+    },
+    inputSchema: startBackgroundTaskRequestSchema,
+    outputSchema: backgroundTaskStatusSchema,
   })
   registerValidatedHandler({
     channel: IPC_CHANNELS.templateManagement.previewBatchClassification,
@@ -139,6 +165,12 @@ export function registerTemplateManagementIpc(
     outputSchema: fileChangePlanListSchema,
   })
   registerValidatedHandler({
+    channel: IPC_CHANNELS.templateManagement.listFilePlansPage,
+    handler: request => service.listFilePlansPage(request),
+    inputSchema: fileHistoryPageRequestSchema,
+    outputSchema: fileChangePlanPageSchema,
+  })
+  registerValidatedHandler({
     channel: IPC_CHANNELS.templateManagement.cancelFilePlan,
     handler: request => service.cancelFilePlan(request.planId),
     inputSchema: fileChangePlanRequestSchema,
@@ -155,6 +187,12 @@ export function registerTemplateManagementIpc(
     handler: () => service.listFileExecutions(),
     inputSchema: z.void(),
     outputSchema: fileChangeExecutionListSchema,
+  })
+  registerValidatedHandler({
+    channel: IPC_CHANNELS.templateManagement.listFileExecutionsPage,
+    handler: request => service.listFileExecutionsPage(request),
+    inputSchema: fileHistoryPageRequestSchema,
+    outputSchema: fileChangeExecutionPageSchema,
   })
   registerValidatedHandler({
     channel: IPC_CHANNELS.templateManagement.deleteFileExecutions,

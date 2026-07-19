@@ -25,7 +25,7 @@ import {
   type RelationType,
 } from '@core/contracts/problem'
 import type { AiOutputLanguage, AiRequestPreview } from '@core/contracts/ai-request'
-import type { TemplateSummary } from '@core/contracts/workspace'
+import type { TemplatePage, TemplateSummary } from '@core/contracts/workspace'
 
 import { AiRequestPreviewDialog } from '@/components/ai-request-preview-dialog'
 import { Badge } from '@/components/ui/badge'
@@ -38,6 +38,7 @@ import { problemStatusLabels, relationTypeLabels } from './problem-labels'
 interface ProblemAnalysisDialogProps {
   onCreated: (problem: Problem) => void
   onOpenChange: (open: boolean) => void
+  onSearchTemplates: (query: string) => Promise<TemplatePage>
   open: boolean
   returnFocusTo?: HTMLElement | null
   templates: TemplateSummary[]
@@ -141,6 +142,7 @@ function mergeAiFields(
 export function ProblemAnalysisDialog({
   onCreated,
   onOpenChange,
+  onSearchTemplates,
   open,
   returnFocusTo,
   templates,
@@ -159,6 +161,7 @@ export function ProblemAnalysisDialog({
   const previewReturnFocusRef = useRef<HTMLElement | null>(null)
   const [selectedCandidates, setSelectedCandidates] = useState<Set<string>>(new Set())
   const [selectedManualTemplateId, setSelectedManualTemplateId] = useState('')
+  const [searchedTemplates, setSearchedTemplates] = useState<TemplateSummary[]>(templates)
   const [tagsText, setTagsText] = useState('')
   const [templateQuery, setTemplateQuery] = useState('')
   const activeRequestId = useRef<string | null>(null)
@@ -183,10 +186,28 @@ export function ProblemAnalysisDialog({
     setTemplateQuery('')
   }, [open])
 
+  useEffect(() => {
+    if (!open) return
+    let active = true
+    const timer = window.setTimeout(() => {
+      void onSearchTemplates(templateQuery.trim())
+        .then(page => {
+          if (active) setSearchedTemplates(page.items)
+        })
+        .catch(() => {
+          if (active) setSearchedTemplates([])
+        })
+    }, 180)
+    return () => {
+      active = false
+      window.clearTimeout(timer)
+    }
+  }, [onSearchTemplates, open, templateQuery])
+
   const availableManualTemplates = useMemo(() => {
     const selected = new Set(relationDrafts.map(candidate => candidate.templateId))
     const query = templateQuery.trim().toLocaleLowerCase('zh-CN')
-    return templates
+    return searchedTemplates
       .filter(template => !selected.has(template.id))
       .filter(
         template =>
@@ -196,7 +217,7 @@ export function ProblemAnalysisDialog({
             .includes(query),
       )
       .slice(0, 50)
-  }, [relationDrafts, templateQuery, templates])
+  }, [relationDrafts, searchedTemplates, templateQuery])
 
   const chooseImages = async () => {
     setError(null)
@@ -359,7 +380,7 @@ export function ProblemAnalysisDialog({
   }
 
   const addManualTemplate = () => {
-    const template = templates.find(item => item.id === selectedManualTemplateId)
+    const template = searchedTemplates.find(item => item.id === selectedManualTemplateId)
     if (!template || relationDrafts.length >= 8) return
     const candidate: RelationDraft = {
       applicableWhen: [],

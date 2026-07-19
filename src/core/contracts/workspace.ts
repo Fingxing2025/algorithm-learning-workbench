@@ -34,6 +34,38 @@ export const templateSummarySchema = z
   })
   .strict()
 
+export const templatePageRequestSchema = z
+  .object({
+    cursor: z
+      .string()
+      .max(8192)
+      .regex(/^[A-Za-z0-9_-]+$/u)
+      .nullable()
+      .default(null),
+    limit: z.number().int().min(20).max(500).default(200),
+    query: z.string().trim().max(200).default(''),
+  })
+  .strict()
+
+export const templatePageInfoSchema = z
+  .object({
+    nextAction: z.string().max(240).nullable(),
+    nextCursor: z
+      .string()
+      .max(8192)
+      .regex(/^[A-Za-z0-9_-]+$/u)
+      .nullable(),
+    processedCount: z.number().int().nonnegative(),
+    totalCount: z.number().int().nonnegative(),
+    truncated: z.boolean(),
+    truncatedReason: z.string().max(500).nullable(),
+  })
+  .strict()
+
+export const templatePageSchema = templatePageInfoSchema
+  .extend({ items: z.array(templateSummarySchema).max(500) })
+  .strict()
+
 export const workspaceSnapshotSchema = z
   .object({
     available: z.boolean(),
@@ -42,7 +74,8 @@ export const workspaceSnapshotSchema = z
     rootPath: z.string().min(1).max(4096),
     scannedAt: z.string().datetime().nullable(),
     summary: scanSummarySchema,
-    templates: z.array(templateSummarySchema),
+    templatePage: templatePageInfoSchema,
+    templates: z.array(templateSummarySchema).max(500),
   })
   .strict()
 
@@ -98,6 +131,10 @@ export type CreateTemplateResult = z.infer<typeof createTemplateResultSchema>
 export type ScanIssue = z.infer<typeof scanIssueSchema>
 export type ScanSummary = z.infer<typeof scanSummarySchema>
 export type TemplateActionRequest = z.infer<typeof templateActionRequestSchema>
+export type TemplatePage = z.infer<typeof templatePageSchema>
+export type TemplatePageInfo = z.infer<typeof templatePageInfoSchema>
+export type TemplatePageRequest = z.infer<typeof templatePageRequestSchema>
+export type TemplateRequest = z.infer<typeof templateRequestSchema>
 export type TemplateSource = z.infer<typeof templateSourceSchema>
 export type TemplateSummary = z.infer<typeof templateSummarySchema>
 export type WorkspaceSnapshot = z.infer<typeof workspaceSnapshotSchema>

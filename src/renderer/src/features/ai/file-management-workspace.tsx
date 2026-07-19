@@ -22,6 +22,7 @@ import type {
   WorkspaceAudit,
 } from '@core/contracts/template-management'
 import type { WorkspaceSnapshot } from '@core/contracts/workspace'
+import type { BackgroundTaskStatus } from '@core/contracts/background-task'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -29,6 +30,7 @@ import { AiRequestPreviewDialog } from '@/components/ai-request-preview-dialog'
 import { activeElementOrNull } from '@/lib/focus-management'
 import { useI18n } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
+import { backgroundTaskProgressText, waitForBackgroundTask } from '@/lib/background-task'
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : '操作未完成，请重试。'
@@ -88,6 +90,7 @@ export function FileManagementWorkspace({
 }) {
   const { locale, t } = useI18n()
   const [audit, setAudit] = useState<WorkspaceAudit | null>(null)
+  const [auditTask, setAuditTask] = useState<BackgroundTaskStatus | null>(null)
   const [busyAction, setBusyAction] = useState<string | null>(null)
   const [confirmApply, setConfirmApply] = useState(false)
   const [confirmArchiveIds, setConfirmArchiveIds] = useState<string[] | null>(null)
@@ -95,9 +98,14 @@ export function FileManagementWorkspace({
   const [confirmRollbackId, setConfirmRollbackId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [executions, setExecutions] = useState<FileChangeExecution[]>([])
+  const [executionCursor, setExecutionCursor] = useState<string | null>(null)
+  const [executionTotalCount, setExecutionTotalCount] = useState(0)
   const [filePlanPreview, setFilePlanPreview] = useState<AiRequestPreview | null>(null)
   const [filePlanRequestId, setFilePlanRequestId] = useState<string | null>(null)
   const [plans, setPlans] = useState<FileChangePlan[]>([])
+  const [planCursor, setPlanCursor] = useState<string | null>(null)
+  const [planTotalCount, setPlanTotalCount] = useState(0)
+  const [isLoadingMoreHistory, setIsLoadingMoreHistory] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [selectedHistoryPlanId, setSelectedHistoryPlanId] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
@@ -123,12 +131,58 @@ export function FileManagementWorkspace({
   }, [draftPlan])
 
   const refreshHistory = async () => {
-    const [nextPlans, nextExecutions] = await Promise.all([
-      window.desktop.templateManagement.listFilePlans(),
-      window.desktop.templateManagement.listFileExecutions(),
+    const [planPage, executionPage] = await Promise.all([
+      window.desktop.templateManagement.listFilePlansPage({ cursor: null, limit: 50 }),
+      window.desktop.templateManagement.listFileExecutionsPage({ cursor: null, limit: 50 }),
     ])
-    setPlans(nextPlans)
-    setExecutions(nextExecutions)
+    setPlans(planPage.items)
+    setPlanCursor(planPage.nextCursor)
+    setPlanTotalCount(planPage.totalCount)
+    setExecutions(executionPage.items)
+    setExecutionCursor(executionPage.nextCursor)
+    setExecutionTotalCount(executionPage.totalCount)
+  }
+
+  const loadMorePlans = async () => {
+    if (!planCursor || isLoadingMoreHistory) return
+    setIsLoadingMoreHistory(true)
+    try {
+      const page = await window.desktop.templateManagement.listFilePlansPage({
+        cursor: planCursor,
+        limit: 50,
+      })
+      setPlans(current => {
+        const known = new Set(current.map(plan => plan.id))
+        return [...current, ...page.items.filter(plan => !known.has(plan.id))]
+      })
+      setPlanCursor(page.nextCursor)
+      setPlanTotalCount(page.totalCount)
+    } catch (caught) {
+      setError(t(errorMessage(caught)))
+    } finally {
+      setIsLoadingMoreHistory(false)
+    }
+  }
+
+  const loadMoreExecutions = async () => {
+    if (!executionCursor || isLoadingMoreHistory) return
+    setIsLoadingMoreHistory(true)
+    try {
+      const page = await window.desktop.templateManagement.listFileExecutionsPage({
+        cursor: executionCursor,
+        limit: 50,
+      })
+      setExecutions(current => {
+        const known = new Set(current.map(execution => execution.id))
+        return [...current, ...page.items.filter(execution => !known.has(execution.id))]
+      })
+      setExecutionCursor(page.nextCursor)
+      setExecutionTotalCount(page.totalCount)
+    } catch (caught) {
+      setError(t(errorMessage(caught)))
+    } finally {
+      setIsLoadingMoreHistory(false)
+    }
   }
 
   useEffect(() => {
@@ -162,10 +216,34 @@ export function FileManagementWorkspace({
 
   const auditWorkspace = () =>
     run('audit', async () => {
-      const value = await window.desktop.templateManagement.auditWorkspace()
-      setAudit(value)
-      setSuccess(t('只读扫描完成：发现 {count} 项建议。', { count: value.issues.length }))
+      const initial = await window.desktop.templateManagement.startAudit({
+        requestId: crypto.randomUUID(),
+      })
+      const completed = await waitForBackgroundTask(initial, setAuditTask)
+      if (completed.state === 'cancelled') {
+        setSuccess(t('只读审计已取消，现有索引和用户文件保持不变。'))
+        return
+      }
+      if (completed.result?.kind !== 'workspace-audit') return
+      setAudit(completed.result.audit)
+      setSuccess(
+        t('只读扫描完成：发现 {count} 项建议。', {
+          count: completed.result.audit.issues.length,
+        }),
+      )
     })
+
+  const cancelAudit = async () => {
+    if (!auditTask) return
+    try {
+      const status = await window.desktop.backgroundTasks.cancel({ taskId: auditTask.id })
+      setAuditTask(status)
+      setBusyAction(null)
+      setSuccess(t('只读审计已取消，现有索引和用户文件保持不变。'))
+    } catch (caught) {
+      setError(t(errorMessage(caught)))
+    }
+  }
 
   const previewPlan = () => {
     previewReturnFocusRef.current = activeElementOrNull()
@@ -392,20 +470,28 @@ export function FileManagementWorkspace({
             <Settings2 className="size-3.5" />
             {t('AI 设置')}
           </Button>
-          <Button
-            disabled={Boolean(busyAction)}
-            onClick={() => void auditWorkspace()}
-            size="compact"
-            type="button"
-            variant="outline"
-          >
-            {busyAction === 'audit' ? (
-              <LoaderCircle className="size-3.5 animate-spin" />
-            ) : (
+          {busyAction === 'audit' ? (
+            <Button
+              onClick={() => void cancelAudit()}
+              size="compact"
+              type="button"
+              variant="outline"
+            >
+              <X className="size-3.5" />
+              {t('取消审计')}
+            </Button>
+          ) : (
+            <Button
+              disabled={Boolean(busyAction)}
+              onClick={() => void auditWorkspace()}
+              size="compact"
+              type="button"
+              variant="outline"
+            >
               <FolderSearch className="size-3.5" />
-            )}
-            {t('只读扫描')}
-          </Button>
+              {t('只读扫描')}
+            </Button>
+          )}
           <Button
             disabled={Boolean(busyAction) || Boolean(draftPlan)}
             onClick={() => void previewPlan()}
@@ -694,10 +780,25 @@ export function FileManagementWorkspace({
                   <h2 className="text-sm font-semibold">{t('只读审计')}</h2>
                 </div>
                 <p className="mt-1 text-[11px] text-muted-foreground">
-                  {audit
-                    ? `${audit.issues.length} ${t('项')} · ${new Date(audit.generatedAt).toLocaleTimeString(locale)}`
-                    : t('尚未扫描')}
+                  {auditTask && ['queued', 'running', 'cancelling'].includes(auditTask.state)
+                    ? backgroundTaskProgressText(auditTask, t)
+                    : audit
+                      ? `${audit.issues.length} ${t('项')} · ${new Date(audit.generatedAt).toLocaleTimeString(locale)}`
+                      : t('尚未扫描')}
                 </p>
+                {audit?.truncated && audit.truncatedReason && (
+                  <div className="mt-3 rounded-xl border border-warning/30 bg-warning/8 p-3 text-[11px] leading-5 text-foreground">
+                    <p className="whitespace-pre-line">
+                      {audit.truncatedReason
+                        .split('\n')
+                        .map(reason => t(reason))
+                        .join('\n')}
+                    </p>
+                    {audit.nextAction && (
+                      <p className="mt-1 text-muted-foreground">{t(audit.nextAction)}</p>
+                    )}
+                  </div>
+                )}
                 <div className="mt-3 max-h-72 space-y-2 overflow-y-auto">
                   {audit?.issues.slice(0, 40).map(issue => (
                     <article
@@ -733,7 +834,10 @@ export function FileManagementWorkspace({
                   <div>
                     <h2 className="text-sm font-semibold">{t('计划记录与撤销')}</h2>
                     <p className="mt-0.5 text-[10px] text-muted-foreground">
-                      {t('计划记录在此区域内部滚动；删除采用安全归档。')}
+                      {t('已加载 {processed} / {total} 份计划；删除采用安全归档。', {
+                        processed: plans.length,
+                        total: planTotalCount,
+                      })}
                     </p>
                   </div>
                   <Button
@@ -849,6 +953,19 @@ export function FileManagementWorkspace({
                       </article>
                     ))
                   )}
+                  {planCursor && (
+                    <Button
+                      className="w-full"
+                      disabled={isLoadingMoreHistory}
+                      onClick={() => void loadMorePlans()}
+                      size="compact"
+                      type="button"
+                      variant="outline"
+                    >
+                      {isLoadingMoreHistory && <LoaderCircle className="size-3.5 animate-spin" />}
+                      {t('加载更多计划记录')} · {plans.length} / {planTotalCount}
+                    </Button>
+                  )}
                 </div>
 
                 <div
@@ -860,6 +977,9 @@ export function FileManagementWorkspace({
                     <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                       {t('执行与撤销')}
                     </p>
+                    <span className="text-[10px] text-muted-foreground">
+                      {executions.length} / {executionTotalCount}
+                    </span>
                     <Button
                       className="ml-auto"
                       disabled={Boolean(busyAction) || deletableExecutions.length === 0}
@@ -994,6 +1114,19 @@ export function FileManagementWorkspace({
                           )}
                         </article>
                       ))
+                    )}
+                    {executionCursor && (
+                      <Button
+                        className="w-full"
+                        disabled={isLoadingMoreHistory}
+                        onClick={() => void loadMoreExecutions()}
+                        size="compact"
+                        type="button"
+                        variant="outline"
+                      >
+                        {isLoadingMoreHistory && <LoaderCircle className="size-3.5 animate-spin" />}
+                        {t('加载更多执行记录')} · {executions.length} / {executionTotalCount}
+                      </Button>
                     )}
                   </div>
                 </div>

@@ -6,12 +6,16 @@ import {
   problemImageDataSchema,
   problemImageRequestSchema,
   problemListSchema,
+  problemPageRequestSchema,
+  problemPageSchema,
   problemRequestSchema,
   problemSchema,
   removeProblemImageRequestSchema,
   removeProblemRelationRequestSchema,
   updateProblemRequestSchema,
   upsertProblemRelationRequestSchema,
+  templateProblemPageRequestSchema,
+  templateProblemPageSchema,
 } from '@core/contracts/problem'
 import { IPC_CHANNELS } from '@core/ipc/channels'
 
@@ -27,6 +31,27 @@ export function registerProblemIpc(
     handler: () => problemService.getProblems(),
     inputSchema: z.void(),
     outputSchema: problemListSchema,
+  })
+
+  registerValidatedHandler({
+    channel: IPC_CHANNELS.problems.listPage,
+    handler: request => problemService.getProblemsPage(request),
+    inputSchema: problemPageRequestSchema,
+    outputSchema: problemPageSchema,
+  })
+
+  registerValidatedHandler({
+    channel: IPC_CHANNELS.problems.listByTemplate,
+    handler: request => problemService.getProblemsByTemplate(request),
+    inputSchema: templateProblemPageRequestSchema,
+    outputSchema: templateProblemPageSchema,
+  })
+
+  registerValidatedHandler({
+    channel: IPC_CHANNELS.problems.get,
+    handler: request => problemService.getProblem(request.problemId),
+    inputSchema: problemRequestSchema,
+    outputSchema: problemSchema,
   })
 
   registerValidatedHandler({

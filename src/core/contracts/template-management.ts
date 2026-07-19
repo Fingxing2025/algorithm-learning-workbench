@@ -267,7 +267,12 @@ export const workspaceAuditSchema = z
   .object({
     generatedAt: z.string().datetime(),
     issues: z.array(workspaceAuditIssueSchema).max(500),
+    nextAction: z.string().max(240).nullable(),
+    processedCount: z.number().int().nonnegative(),
     templateCount: z.number().int().nonnegative(),
+    totalCount: z.number().int().nonnegative().nullable(),
+    truncated: z.boolean(),
+    truncatedReason: z.string().max(500).nullable(),
   })
   .strict()
 export type WorkspaceAudit = z.infer<typeof workspaceAuditSchema>
@@ -349,6 +354,42 @@ export const fileChangePlanSchema = z
   .strict()
 export type FileChangePlan = z.infer<typeof fileChangePlanSchema>
 export const fileChangePlanListSchema = z.array(fileChangePlanSchema).max(100)
+
+export const fileHistoryPageRequestSchema = z
+  .object({
+    cursor: z
+      .string()
+      .max(1024)
+      .regex(/^[A-Za-z0-9_-]+$/u)
+      .nullable()
+      .default(null),
+    limit: z.number().int().min(20).max(100).default(50),
+  })
+  .strict()
+export type FileHistoryPageRequest = z.infer<typeof fileHistoryPageRequestSchema>
+
+const fileHistoryPageInfoSchema = z
+  .object({
+    nextAction: z.string().max(240).nullable(),
+    nextCursor: z
+      .string()
+      .max(1024)
+      .regex(/^[A-Za-z0-9_-]+$/u)
+      .nullable(),
+    processedCount: z.number().int().nonnegative(),
+    totalCount: z.number().int().nonnegative(),
+    truncated: z.boolean(),
+    truncatedReason: z.string().max(500).nullable(),
+  })
+  .strict()
+
+export const fileChangePlanPageSchema = fileHistoryPageInfoSchema
+  .extend({
+    draftCount: z.number().int().nonnegative(),
+    items: z.array(fileChangePlanSchema).max(100),
+  })
+  .strict()
+export type FileChangePlanPage = z.infer<typeof fileChangePlanPageSchema>
 
 export const fileChangePlanPayloadSchema = z
   .object({
@@ -450,6 +491,10 @@ export const fileChangeExecutionSchema = z
   .strict()
 export type FileChangeExecution = z.infer<typeof fileChangeExecutionSchema>
 export const fileChangeExecutionListSchema = z.array(fileChangeExecutionSchema).max(100)
+export const fileChangeExecutionPageSchema = fileHistoryPageInfoSchema
+  .extend({ items: z.array(fileChangeExecutionSchema).max(100) })
+  .strict()
+export type FileChangeExecutionPage = z.infer<typeof fileChangeExecutionPageSchema>
 export const rollbackFileChangeExecutionRequestSchema = z
   .object({ executionId: z.string().uuid() })
   .strict()

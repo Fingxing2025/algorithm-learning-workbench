@@ -1,4 +1,5 @@
 import { execFile, execFileSync } from 'node:child_process'
+import { randomUUID } from 'node:crypto'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { arch, cpus, platform, release, totalmem } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -14,6 +15,9 @@ import { WorkspaceRepository } from '../../src/main/database/workspace-repositor
 import { TemplateManagementService } from '../../src/main/services/template-management-service'
 import { scanTemplateWorkspace } from '../../src/main/services/template-scanner'
 import { WorkspaceAiContextService } from '../../src/main/services/workspace-ai-context-service'
+import { WorkspaceService } from '../../src/main/services/workspace-service'
+import { BackgroundTaskRegistry } from '../../src/main/services/background-task-registry'
+import type { TemplateScanStats } from '../../src/main/services/template-scanner'
 import {
   buildTemplateTree,
   flattenTemplateTree,
@@ -48,6 +52,11 @@ interface MetricSummary {
 interface ScaleResult {
   counts: { images: number; problems: number; relations: number; templates: number }
   metrics: Record<string, MetricSummary | null>
+  scanWork: {
+    first: TemplateScanStats
+    full: TemplateScanStats
+    noChange: TemplateScanStats
+  }
 }
 
 function round(value: number): number {
@@ -140,6 +149,56 @@ async function electronStartup(userDataPath: string): Promise<Sample> {
   }
 }
 
+async function measureCancellation(args: {
+  metadataRepository: TemplateManagementRepository
+  userDataPath: string
+  workspaceRepository: WorkspaceRepository
+}): Promise<Sample> {
+  const registry = new BackgroundTaskRegistry()
+  const workspaceService = new WorkspaceService(
+    args.workspaceRepository,
+    args.metadataRepository,
+    args.userDataPath,
+  )
+  const beforeStats = args.workspaceRepository.getActiveWorkspace()!.scanStatsJson
+  const task = registry.start({
+    id: randomUUID(),
+    kind: 'workspace-scan',
+    run: async ({ signal, updateProgress }) => ({
+      kind: 'workspace-scan',
+      workspace: await workspaceService.rescanCurrentWorkspace(undefined, {
+        forceFull: true,
+        onProgress: updateProgress,
+        signal,
+      }),
+    }),
+    scope: workspaceService.getActiveWorkspaceId(),
+  })
+  let state = registry.get(task.id)
+  while (
+    ['queued', 'running'].includes(state.state) &&
+    !(state.progress.phase === 'indexing' && state.progress.processedCount > 0)
+  ) {
+    await new Promise<void>(resolve => setImmediate(resolve))
+    state = registry.get(task.id)
+  }
+  const startedAt = performance.now()
+  let peakRssBytes = process.memoryUsage().rss
+  registry.cancel(task.id)
+  do {
+    await new Promise<void>(resolve => setImmediate(resolve))
+    peakRssBytes = Math.max(peakRssBytes, process.memoryUsage().rss)
+    state = registry.get(task.id)
+  } while (!['completed', 'cancelled', 'failed'].includes(state.state))
+  if (state.state !== 'cancelled')
+    throw new Error('The performance cancellation task completed too early.')
+  if (args.workspaceRepository.getActiveWorkspace()!.scanStatsJson !== beforeStats) {
+    throw new Error('A cancelled scan published partial index state.')
+  }
+  await registry.cancelAll()
+  return { durationMs: performance.now() - startedAt, peakRssBytes }
+}
+
 function systemDetails() {
   let macosVersion: string | null = null
   try {
@@ -183,6 +242,18 @@ function markdownReport(report: {
       }
       lines.push(
         `| ${scale} | ${metric} | ${summary.p50Ms} | ${summary.p95Ms} | ${round(summary.peakRssBytes / 1024 / 1024)} |`,
+      )
+    }
+  }
+  lines.push(
+    '',
+    '| Scale | Scan mode | Hashed | Reused | Added | Modified | Moved | Removed | Unchanged |',
+    '| ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |',
+  )
+  for (const [scale, result] of Object.entries(report.scales)) {
+    for (const [mode, work] of Object.entries(result.scanWork)) {
+      lines.push(
+        `| ${scale} | ${mode} | ${work.hashedCount} | ${work.reusedCount} | ${work.addedCount} | ${work.modifiedCount} | ${work.movedCount} | ${work.removedCount} | ${work.unchangedCount} |`,
       )
     }
   }
@@ -237,10 +308,11 @@ describe('Session E deterministic performance benchmark', () => {
       )
       workspaceRepository.setActiveWorkspace(workspace.id)
       const initialScan = await measure(() => scanTemplateWorkspace(workspacePath, workspace.id))
-      workspaceRepository.replaceTemplates(
+      workspaceRepository.applyTemplateScan(
         workspace.id,
         initialScan.value.templates,
         initialScan.value.summary,
+        initialScan.value.stats,
         new Date().toISOString(),
       )
       const templates = workspaceRepository.listTemplates(workspace.id)
@@ -276,10 +348,11 @@ describe('Session E deterministic performance benchmark', () => {
           )
           firstRepository.setActiveWorkspace(firstWorkspace.id)
           const value = await scanTemplateWorkspace(workspacePath, firstWorkspace.id)
-          firstRepository.replaceTemplates(
+          firstRepository.applyTemplateScan(
             firstWorkspace.id,
             value.templates,
             value.summary,
+            value.stats,
             new Date().toISOString(),
           )
         } finally {
@@ -287,21 +360,32 @@ describe('Session E deterministic performance benchmark', () => {
           await rm(firstUserDataPath, { force: true, recursive: true })
         }
       })
+      let fullScanStats = initialScan.value.stats
       const fullScan = await repeat(async () => {
-        const value = await scanTemplateWorkspace(workspacePath, workspace.id)
-        workspaceRepository.replaceTemplates(
+        const value = await scanTemplateWorkspace(workspacePath, workspace.id, {
+          forceFull: true,
+          previousEntries: workspaceRepository.listTemplateIndexEntries(workspace.id),
+        })
+        fullScanStats = value.stats
+        workspaceRepository.applyTemplateScan(
           workspace.id,
           value.templates,
           value.summary,
+          value.stats,
           new Date().toISOString(),
         )
       })
+      let noChangeScanStats = initialScan.value.stats
       const noChangeRescan = await repeat(async () => {
-        const value = await scanTemplateWorkspace(workspacePath, workspace.id)
-        workspaceRepository.replaceTemplates(
+        const value = await scanTemplateWorkspace(workspacePath, workspace.id, {
+          previousEntries: workspaceRepository.listTemplateIndexEntries(workspace.id),
+        })
+        noChangeScanStats = value.stats
+        workspaceRepository.applyTemplateScan(
           workspace.id,
           value.templates,
           value.summary,
+          value.stats,
           new Date().toISOString(),
         )
       })
@@ -310,19 +394,24 @@ describe('Session E deterministic performance benchmark', () => {
         const root = buildTemplateTree(templates)
         return flattenTemplateTree(root, getDirectoryRowIds(root))
       })
+      const searchTarget = templates[Math.min(templates.length - 1, Math.floor(size * 0.9))]!
       const treeSearchLocate = await repeat(() => {
-        const root = buildTemplateTree(templates)
-        const query = `template_${Math.floor(size * 0.9)
-          .toString()
-          .padStart(5, '0')
-          .slice(0, 3)}`
-        const matches = templates.filter(template =>
-          `${template.name} ${template.relativePath}`.toLocaleLowerCase().includes(query),
-        )
+        const matches = workspaceRepository.listTemplatesPage(workspace.id, {
+          cursor: null,
+          limit: 200,
+          query: searchTarget.name,
+        }).items
+        const root = buildTemplateTree(matches)
         return matches[0] ? getExpansionIdsForTemplate(root, matches[0]) : []
       })
-      const problemList = await repeat(() => problemRepository.listProblems())
-      const problemId = problemRepository.listProblems()[Math.floor(fixture.problemCount / 2)]!.id
+      const problemList = await repeat(() =>
+        problemRepository.listProblemsPage({ cursor: null, limit: 100, query: '' }),
+      )
+      const problemId = problemRepository.listProblemsPage({
+        cursor: null,
+        limit: 100,
+        query: '',
+      }).items[Math.min(50, fixture.problemCount - 1)]!.id
       const problemDetail = await repeat(() => problemRepository.getProblem(problemId))
       const sourceAudit = await repeat(() => auditService.auditWorkspace())
       const aiCandidateRetrieval = await repeat(() =>
@@ -334,6 +423,9 @@ describe('Session E deterministic performance benchmark', () => {
           query: '最短路 图论 数据结构 区间查询',
           task: 'problem-image-analysis',
         }),
+      )
+      const cancellation = await repeatSamples(() =>
+        measureCancellation({ metadataRepository, userDataPath, workspaceRepository }),
       )
       database.close()
       const appStartup = await repeatSamples(() => electronStartup(userDataPath))
@@ -348,7 +440,7 @@ describe('Session E deterministic performance benchmark', () => {
         metrics: {
           aiCandidateRetrieval,
           appStartup,
-          cancellation: null,
+          cancellation,
           databaseInit,
           firstScan,
           fullScan,
@@ -359,6 +451,11 @@ describe('Session E deterministic performance benchmark', () => {
           treeBuild,
           treeExpand,
           treeSearchLocate,
+        },
+        scanWork: {
+          first: initialScan.value.stats,
+          full: fullScanStats,
+          noChange: noChangeScanStats,
         },
       }
     }

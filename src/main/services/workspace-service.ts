@@ -9,6 +9,9 @@ import type {
   CreateTemplateRequest,
   CreateTemplateResult,
   TemplateActionRequest,
+  TemplatePage,
+  TemplatePageRequest,
+  TemplateSummary,
   TemplateSource,
   WorkspaceSnapshot,
 } from '@core/contracts/workspace'
@@ -29,7 +32,11 @@ import {
   resolveAuthorizedFile,
   resolveAuthorizedRoot,
 } from '../security/path-guard'
-import { getLanguageForExtension, scanTemplateWorkspace } from './template-scanner'
+import {
+  getLanguageForExtension,
+  scanTemplateWorkspace,
+  type TemplateScanOptions,
+} from './template-scanner'
 import { normalizeTemplateRelativePath } from '../security/template-path'
 
 const MAX_SOURCE_BYTES = 2 * 1024 * 1024
@@ -101,10 +108,9 @@ export class WorkspaceService {
     }
 
     const snapshot = await this.scanAndSnapshot(workspace)
-    const createdTemplate = snapshot.templates.find(
-      template =>
-        !template.relativePath.includes('/') &&
-        template.fileName.normalize('NFC') === request.fileName.normalize('NFC'),
+    const createdTemplate = this.repository.getTemplateByRelativePath(
+      workspace.id,
+      request.fileName.normalize('NFC'),
     )
     if (!createdTemplate) {
       throw new PublicError('DATABASE_ERROR', '模板文件已创建，但索引更新失败。请重新扫描工作区。')
@@ -130,6 +136,23 @@ export class WorkspaceService {
     return this.toSnapshot(workspace, available)
   }
 
+  getActiveWorkspaceId(): string {
+    return this.requireWorkspace().id
+  }
+
+  getTemplateSummary(templateId: string): TemplateSummary {
+    const workspace = this.requireWorkspace()
+    const template = this.repository.getTemplateSummary(workspace.id, templateId)
+    if (!template) {
+      throw new PublicError('TEMPLATE_NOT_FOUND', '模板不存在或当前不可用，请重新扫描工作区。')
+    }
+    return template
+  }
+
+  listTemplatesPage(request: TemplatePageRequest): TemplatePage {
+    return this.repository.listTemplatesPage(this.requireWorkspace().id, request)
+  }
+
   async importTemplate(request: ImportTemplateRequest): Promise<ImportTemplateResult> {
     const workspace = this.requireWorkspace()
     const canonicalRoot = await resolveAuthorizedRoot(workspace.rootPath)
@@ -148,9 +171,7 @@ export class WorkspaceService {
       await writeFile(targetPath, request.content, { encoding: 'utf8', flag: 'wx', mode: 0o600 })
       fileCreated = true
       const snapshot = await this.scanAndSnapshot(workspace)
-      const createdTemplate = snapshot.templates.find(
-        template => template.relativePath.normalize('NFC') === relativePath.normalize('NFC'),
-      )
+      const createdTemplate = this.repository.getTemplateByRelativePath(workspace.id, relativePath)
       if (!createdTemplate) {
         throw new PublicError('DATABASE_ERROR', '模板文件已创建，但索引更新失败。')
       }
@@ -328,8 +349,9 @@ export class WorkspaceService {
       }
       const snapshot = await this.scanAndSnapshot(workspace)
       const imported = prepared.map(item => {
-        const createdTemplate = snapshot.templates.find(
-          template => template.relativePath.normalize('NFC') === item.relativePath.normalize('NFC'),
+        const createdTemplate = this.repository.getTemplateByRelativePath(
+          workspace.id,
+          item.relativePath,
         )
         if (!createdTemplate) {
           throw new PublicError('DATABASE_ERROR', '批量文件已创建，但索引更新失败。')
@@ -530,8 +552,9 @@ export class WorkspaceService {
 
   async rescanCurrentWorkspace(
     stableIdsByRelativePath?: ReadonlyMap<string, string>,
+    options: Omit<TemplateScanOptions, 'previousEntries'> = {},
   ): Promise<WorkspaceSnapshot> {
-    return this.scanAndSnapshot(this.requireWorkspace(), stableIdsByRelativePath)
+    return this.scanAndSnapshot(this.requireWorkspace(), stableIdsByRelativePath, options)
   }
 
   private requireWorkspace(): WorkspaceRecord {
@@ -545,14 +568,31 @@ export class WorkspaceService {
   private async scanAndSnapshot(
     workspace: WorkspaceRecord,
     stableIdsByRelativePath?: ReadonlyMap<string, string>,
+    options: Omit<TemplateScanOptions, 'previousEntries'> = {},
   ): Promise<WorkspaceSnapshot> {
-    const scanResult = await scanTemplateWorkspace(workspace.rootPath, workspace.id)
+    const previousEntries = this.repository.listTemplateIndexEntries(workspace.id)
+    const scanResult = await scanTemplateWorkspace(workspace.rootPath, workspace.id, {
+      ...options,
+      previousEntries,
+    })
     const scannedAt = new Date().toISOString()
     const templates = scanResult.templates.map(template => ({
       ...template,
-      id: stableIdsByRelativePath?.get(template.relativePath) ?? template.id,
+      ...(stableIdsByRelativePath?.has(template.relativePath)
+        ? {
+            changeKind: 'moved' as const,
+            id: stableIdsByRelativePath.get(template.relativePath)!,
+          }
+        : {}),
     }))
-    this.repository.replaceTemplates(workspace.id, templates, scanResult.summary, scannedAt)
+    options.onBeforePublish?.()
+    this.repository.applyTemplateScan(
+      workspace.id,
+      templates,
+      scanResult.summary,
+      scanResult.stats,
+      scannedAt,
+    )
     const refreshedWorkspace = this.repository.getActiveWorkspace()
     if (!refreshedWorkspace) {
       throw new PublicError('DATABASE_ERROR', '无法读取工作区索引，请重试。')
@@ -561,6 +601,11 @@ export class WorkspaceService {
   }
 
   private toSnapshot(workspace: WorkspaceRecord, available: boolean): WorkspaceSnapshot {
+    const templatePage = this.repository.listTemplatesPage(workspace.id, {
+      cursor: null,
+      limit: 500,
+      query: '',
+    })
     return {
       available,
       id: workspace.id,
@@ -568,7 +613,15 @@ export class WorkspaceService {
       rootPath: workspace.rootPath,
       scannedAt: workspace.scannedAt,
       summary: this.repository.parseSummary(workspace),
-      templates: this.repository.listTemplates(workspace.id),
+      templatePage: {
+        nextAction: templatePage.nextAction,
+        nextCursor: templatePage.nextCursor,
+        processedCount: templatePage.processedCount,
+        totalCount: templatePage.totalCount,
+        truncated: templatePage.truncated,
+        truncatedReason: templatePage.truncatedReason,
+      },
+      templates: templatePage.items,
     }
   }
 }

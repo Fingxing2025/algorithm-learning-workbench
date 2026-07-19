@@ -1,9 +1,9 @@
 import * as Dialog from '@radix-ui/react-dialog'
-import { ArrowRight, BookOpenText, FileCode2, Search, X } from 'lucide-react'
+import { ArrowRight, BookOpenText, FileCode2, LoaderCircle, Search, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import type { Problem } from '@core/contracts/problem'
-import type { TemplateSummary } from '@core/contracts/workspace'
+import type { TemplatePage, TemplateSummary } from '@core/contracts/workspace'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -12,12 +12,16 @@ import { useI18n } from '@/lib/i18n'
 
 interface CommandPaletteProps {
   onOpenChange: (open: boolean) => void
+  onSearchProblems: (query: string) => Promise<Problem[]>
+  onSearchTemplates: (query: string) => Promise<TemplatePage>
   onSelectProblem: (problemId: string) => void
   onSelectTemplate: (templateId: string) => void
   open: boolean
   problems: Problem[]
+  problemTotalCount: number
   returnFocusTo?: HTMLElement | null
   templates: TemplateSummary[]
+  templateTotalCount: number
 }
 
 type SearchResult =
@@ -25,29 +29,89 @@ type SearchResult =
 
 export function CommandPalette({
   onOpenChange,
+  onSearchProblems,
+  onSearchTemplates,
   onSelectProblem,
   onSelectTemplate,
   open,
   problems,
+  problemTotalCount,
   returnFocusTo,
   templates,
+  templateTotalCount,
 }: CommandPaletteProps) {
   const { t } = useI18n()
   const [query, setQuery] = useState('')
+  const [problemSearchState, setProblemSearchState] = useState<{
+    status: 'idle' | 'loading' | 'ready' | 'error'
+    values: Problem[]
+  }>({ status: 'idle', values: [] })
+  const [templateSearchState, setTemplateSearchState] = useState<{
+    page: TemplatePage | null
+    status: 'idle' | 'loading' | 'ready' | 'error'
+  }>({ page: null, status: 'idle' })
   const restoreFocusOnCloseRef = useRef(true)
   useEffect(() => {
     if (open) restoreFocusOnCloseRef.current = true
     else setQuery('')
   }, [open])
 
+  useEffect(() => {
+    const normalized = query.trim()
+    if (!open || !normalized) {
+      setProblemSearchState({ status: 'idle', values: [] })
+      return
+    }
+    let active = true
+    setProblemSearchState(current => ({ status: 'loading', values: current.values }))
+    const timer = window.setTimeout(() => {
+      void onSearchProblems(normalized)
+        .then(values => {
+          if (active) setProblemSearchState({ status: 'ready', values })
+        })
+        .catch(() => {
+          if (active) setProblemSearchState({ status: 'error', values: [] })
+        })
+    }, 180)
+    return () => {
+      active = false
+      window.clearTimeout(timer)
+    }
+  }, [onSearchProblems, open, query])
+
+  useEffect(() => {
+    const normalized = query.trim()
+    if (!open || !normalized) {
+      setTemplateSearchState({ page: null, status: 'idle' })
+      return
+    }
+    let active = true
+    setTemplateSearchState(current => ({ page: current.page, status: 'loading' }))
+    const timer = window.setTimeout(() => {
+      void onSearchTemplates(normalized)
+        .then(page => {
+          if (active) setTemplateSearchState({ page, status: 'ready' })
+        })
+        .catch(() => {
+          if (active) setTemplateSearchState({ page: null, status: 'error' })
+        })
+    }, 180)
+    return () => {
+      active = false
+      window.clearTimeout(timer)
+    }
+  }, [onSearchTemplates, open, query])
+
   const results = useMemo<SearchResult[]>(() => {
     const normalized = query.trim().toLocaleLowerCase('zh-CN')
-    const matchedTemplates = templates.filter(template =>
+    const templateCandidates = normalized ? (templateSearchState.page?.items ?? []) : templates
+    const matchedTemplates = templateCandidates.filter(template =>
       `${template.name} ${template.relativePath} ${template.language}`
         .toLocaleLowerCase('zh-CN')
         .includes(normalized),
     )
-    const matchedProblems = problems.filter(problem =>
+    const problemCandidates = normalized ? problemSearchState.values : problems
+    const matchedProblems = problemCandidates.filter(problem =>
       `${problem.title} ${problem.platform ?? ''} ${problem.problemCode ?? ''} ${problem.tags.join(' ')}`
         .toLocaleLowerCase('zh-CN')
         .includes(normalized),
@@ -63,7 +127,7 @@ export function CommandPalette({
       ...matchedTemplates.map<SearchResult>(value => ({ kind: 'template', value })),
       ...matchedProblems.map<SearchResult>(value => ({ kind: 'problem', value })),
     ].slice(0, 12)
-  }, [problems, query, templates])
+  }, [problemSearchState.values, problems, query, templateSearchState.page?.items, templates])
 
   const selectResult = (result: SearchResult) => {
     restoreFocusOnCloseRef.current = false
@@ -96,11 +160,28 @@ export function CommandPalette({
               className="h-16 flex-1 bg-transparent text-[15px] text-foreground outline-none placeholder:text-muted-foreground"
               onChange={event => setQuery(event.target.value)}
               onKeyDown={event => {
-                if (event.key === 'Enter' && results[0]) {
-                  event.preventDefault()
+                if (event.key !== 'Enter') return
+                event.preventDefault()
+                if (results[0]) {
                   const firstResult = results[0]
                   window.setTimeout(() => selectResult(firstResult), 0)
+                  return
                 }
+                const normalized = event.currentTarget.value.trim()
+                if (!normalized) return
+                void Promise.all([onSearchTemplates(normalized), onSearchProblems(normalized)])
+                  .then(([templatePage, problemItems]) => {
+                    const firstResult: SearchResult | undefined = templatePage.items[0]
+                      ? { kind: 'template', value: templatePage.items[0] }
+                      : problemItems[0]
+                        ? { kind: 'problem', value: problemItems[0] }
+                        : undefined
+                    if (firstResult) selectResult(firstResult)
+                  })
+                  .catch(() => {
+                    setProblemSearchState({ status: 'error', values: [] })
+                    setTemplateSearchState({ page: null, status: 'error' })
+                  })
               }}
               placeholder={t('搜索模板名称、路径、题目或标签…')}
               value={query}
@@ -117,7 +198,16 @@ export function CommandPalette({
             <Dialog.Description className="sr-only">
               {t('搜索并打开算法模板或本地题目卡片。')}
             </Dialog.Description>
-            {results.length > 0 ? (
+            {(problemSearchState.status === 'loading' ||
+              templateSearchState.status === 'loading') &&
+            results.length === 0 ? (
+              <div className="grid min-h-40 place-items-center text-center">
+                <div>
+                  <LoaderCircle className="mx-auto size-5 animate-spin text-primary" />
+                  <p className="mt-2 text-xs text-muted-foreground">{t('正在搜索完整题库…')}</p>
+                </div>
+              </div>
+            ) : results.length > 0 ? (
               <div className="space-y-1">
                 {results.map(result => {
                   const isTemplate = result.kind === 'template'
@@ -178,11 +268,21 @@ export function CommandPalette({
                 </div>
               </div>
             )}
+            {problemSearchState.status === 'error' && (
+              <p className="px-3 pb-2 text-[11px] text-red-600 dark:text-red-300" role="alert">
+                {t('题目搜索暂不可用，请稍后重试。')}
+              </p>
+            )}
+            {templateSearchState.status === 'error' && (
+              <p className="px-3 pb-2 text-[11px] text-red-600 dark:text-red-300" role="alert">
+                {t('模板搜索暂不可用，请稍后重试。')}
+              </p>
+            )}
           </div>
 
           <div className="flex items-center justify-between border-t border-border bg-surface-subtle/65 px-4 py-2.5 text-[11px] text-muted-foreground">
             <span>
-              {templates.length} {t('个模板')} · {problems.length} {t('道题')}
+              {templateTotalCount} {t('个模板')} · {problemTotalCount} {t('道题')}
             </span>
             <span>{t('Enter 打开第一个结果')}</span>
           </div>

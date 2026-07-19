@@ -30,15 +30,21 @@ import {
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-import type { Problem, UpsertProblemRelationRequest } from '@core/contracts/problem'
+import type {
+  Problem,
+  TemplateProblemSummary,
+  UpsertProblemRelationRequest,
+} from '@core/contracts/problem'
 import type {
   ChooseWorkspaceRequest,
   TemplateActionRequest,
+  TemplatePage,
   TemplateSummary,
   WorkspaceSnapshot,
 } from '@core/contracts/workspace'
 import type { ImportTemplateRequest } from '@core/contracts/template-management'
 import type { FileChangeMutationResult } from '@core/contracts/template-management'
+import type { BackgroundTaskStatus } from '@core/contracts/background-task'
 
 import { CommandPalette } from '@/components/command-palette'
 import { LiveRegion } from '@/components/live-region'
@@ -57,6 +63,7 @@ import { layoutPreferenceKeys, resetLayoutPreferences } from '@/hooks/use-layout
 import { useMediaQuery } from '@/hooks/use-media-query'
 import { useTheme } from '@/hooks/use-theme'
 import { activeElementOrNull } from '@/lib/focus-management'
+import { backgroundTaskProgressText } from '@/lib/background-task'
 import { cn } from '@/lib/utils'
 import { I18nProvider, useI18n } from '@/lib/i18n'
 
@@ -287,7 +294,9 @@ function Dashboard({
   onOpenTemplate,
   onOpenTemplates,
   pendingPlanCount,
+  problemTotalCount,
   problems,
+  totalRelationCount,
   workspace,
 }: {
   onCreateTemplate: () => void
@@ -297,14 +306,15 @@ function Dashboard({
   onOpenTemplate: (templateId: string) => void
   onOpenTemplates: () => void
   pendingPlanCount: number
+  problemTotalCount: number
   problems: Problem[]
+  totalRelationCount: number
   workspace: WorkspaceSnapshot
 }) {
   const { t } = useI18n()
   const prefersReducedMotion = useReducedMotion()
   const templateOverview = workspace.templates.slice(0, 5)
   const recentProblems = problems.slice(0, 5)
-  const relationCount = problems.reduce((total, problem) => total + problem.relations.length, 0)
 
   return (
     <main
@@ -410,13 +420,13 @@ function Dashboard({
                 <span aria-hidden="true" className="knowledge-flow-line" />
                 <div className="knowledge-flow-node" data-tone="amber">
                   <GitBranch aria-hidden="true" className="size-4" />
-                  <strong>{relationCount}</strong>
+                  <strong>{totalRelationCount}</strong>
                   <span>{t('关联')}</span>
                 </div>
                 <span aria-hidden="true" className="knowledge-flow-line" />
                 <div className="knowledge-flow-node" data-tone="coral">
                   <BookOpenText aria-hidden="true" className="size-4" />
-                  <strong>{problems.length}</strong>
+                  <strong>{problemTotalCount}</strong>
                   <span>{t('题目')}</span>
                 </div>
               </div>
@@ -450,7 +460,7 @@ function Dashboard({
             note={t('整理题面与模板关联')}
             onClick={onOpenProblems}
             tone="teal"
-            value={String(problems.length)}
+            value={String(problemTotalCount)}
           />
           <SummaryCard
             destination={t('打开 AI 管理')}
@@ -633,47 +643,115 @@ function Dashboard({
 function TemplateLibrary({
   isBusy,
   isProblemBusy,
+  isLoadingMoreTemplates,
   onAction,
   onChangeWorkspace,
   onClearProblemError,
+  onCancelRescan,
   onCreateTemplate,
   onDeleteTemplate,
   onOpenProblem,
+  onLoadMoreTemplates,
   onRescan,
+  scanTask,
   onSelectTemplate,
   onUpsertProblemRelation,
   problemError,
-  problems,
   revealTemplateId,
   selectedTemplate,
   selectedTemplateId,
   sourceState,
   onReloadSource,
   onRelocated,
+  onSearchProblems,
+  onSearchTemplates,
+  problemTotalCount,
   workspace,
 }: {
   isBusy: boolean
   isProblemBusy: boolean
+  isLoadingMoreTemplates: boolean
   onAction: (request: TemplateActionRequest) => void
   onChangeWorkspace: () => void
   onClearProblemError: () => void
+  onCancelRescan: () => void
   onCreateTemplate: () => void
   onDeleteTemplate: (templateId: string) => Promise<boolean>
   onOpenProblem: (problemId: string) => void
+  onLoadMoreTemplates: () => void
   onReloadSource: () => void
   onRelocated: (templateId: string, result: FileChangeMutationResult) => void
+  onSearchProblems: (query: string) => Promise<Problem[]>
+  onSearchTemplates: (query: string) => Promise<TemplatePage>
   onRescan: () => void
   onSelectTemplate: (templateId: string) => void
   onUpsertProblemRelation: (request: UpsertProblemRelationRequest) => Promise<boolean>
   problemError: string | null
-  problems: Problem[]
+  problemTotalCount: number
   revealTemplateId: string | null
+  scanTask: BackgroundTaskStatus | null
   selectedTemplate: TemplateSummary | null
   selectedTemplateId: string | null
   sourceState: ReturnType<typeof useTemplateSource>['state']
   workspace: WorkspaceSnapshot
 }) {
   const { t } = useI18n()
+  const relatedTemplateIdRef = useRef<string | null>(selectedTemplate?.id ?? null)
+  const [isLoadingRelatedProblems, setIsLoadingRelatedProblems] = useState(false)
+  const [relatedProblemCursor, setRelatedProblemCursor] = useState<string | null>(null)
+  const [relatedProblemError, setRelatedProblemError] = useState<string | null>(null)
+  const [relatedProblems, setRelatedProblems] = useState<TemplateProblemSummary[]>([])
+  const [relatedProblemTotalCount, setRelatedProblemTotalCount] = useState(0)
+  relatedTemplateIdRef.current = selectedTemplate?.id ?? null
+
+  const loadRelatedProblems = useCallback(
+    async (templateId: string, cursor: string | null, append: boolean) => {
+      setIsLoadingRelatedProblems(true)
+      setRelatedProblemError(null)
+      try {
+        const page = await window.desktop.problems.listByTemplate({
+          cursor,
+          limit: 100,
+          templateId,
+        })
+        if (relatedTemplateIdRef.current !== templateId) return
+        setRelatedProblems(current => {
+          if (!append) return page.items
+          const known = new Set(current.map(problem => problem.id))
+          return [...current, ...page.items.filter(problem => !known.has(problem.id))]
+        })
+        setRelatedProblemCursor(page.nextCursor)
+        setRelatedProblemTotalCount(page.totalCount)
+      } catch (error) {
+        if (relatedTemplateIdRef.current === templateId) {
+          setRelatedProblemError(
+            error instanceof Error ? error.message : '关联题目读取失败，请重试。',
+          )
+        }
+      } finally {
+        if (relatedTemplateIdRef.current === templateId) setIsLoadingRelatedProblems(false)
+      }
+    },
+    [],
+  )
+
+  useEffect(() => {
+    const templateId = selectedTemplate?.id
+    setRelatedProblems([])
+    setRelatedProblemCursor(null)
+    setRelatedProblemError(null)
+    setRelatedProblemTotalCount(0)
+    if (!templateId) return
+    void loadRelatedProblems(templateId, null, false)
+  }, [loadRelatedProblems, selectedTemplate?.id])
+
+  const handleUpsertProblemRelation = async (request: UpsertProblemRelationRequest) => {
+    const saved = await onUpsertProblemRelation(request)
+    if (saved && selectedTemplate?.id === request.templateId) {
+      await loadRelatedProblems(request.templateId, null, false)
+    }
+    return saved
+  }
   return (
     <main className="workspace-stage flex h-full min-h-0 flex-col overflow-hidden">
       <header className="glass-section-header flex min-h-[62px] flex-wrap items-center gap-3 border-b px-5 py-2.5">
@@ -689,7 +767,9 @@ function TemplateLibrary({
           </div>
           <p className="mt-0.5 flex items-center gap-1.5 truncate text-[11px] text-muted-foreground">
             <span className="size-1.5 rounded-full bg-success" />
-            {workspace.name} · {t('本地索引')}
+            {scanTask && ['queued', 'running', 'cancelling'].includes(scanTask.state)
+              ? backgroundTaskProgressText(scanTask, t)
+              : `${workspace.name} · ${t('本地索引')}`}
           </p>
         </div>
         <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
@@ -703,6 +783,12 @@ function TemplateLibrary({
             <FolderOpen aria-hidden="true" className="size-3.5" />
             {t('切换工作区')}
           </Button>
+          {scanTask && ['queued', 'running', 'cancelling'].includes(scanTask.state) && (
+            <Button onClick={onCancelRescan} size="compact" type="button" variant="outline">
+              <X aria-hidden="true" className="size-3.5" />
+              {t('取消扫描')}
+            </Button>
+          )}
           <Button
             aria-label={t('重新扫描工作区')}
             disabled={isBusy}
@@ -733,11 +819,16 @@ function TemplateLibrary({
         valueText={size => t('模板树宽度 {size} 像素', { size })}
       >
         <TemplateTree
+          hasMore={Boolean(workspace.templatePage.nextCursor)}
+          isLoadingMore={isLoadingMoreTemplates}
           onAction={onAction}
+          onLoadMore={onLoadMoreTemplates}
+          onSearch={onSearchTemplates}
           onSelect={onSelectTemplate}
           revealTemplateId={revealTemplateId}
           selectedTemplateId={selectedTemplateId}
           templates={workspace.templates}
+          totalCount={workspace.summary.templateCount}
           workspaceId={workspace.id}
         />
         <Suspense
@@ -754,21 +845,24 @@ function TemplateLibrary({
             onAction={onAction}
             onDelete={onDeleteTemplate}
             isProblemBusy={isProblemBusy || isBusy}
+            isLoadingRelatedProblems={isLoadingRelatedProblems}
             onClearProblemError={onClearProblemError}
+            onLoadMoreRelatedProblems={() => {
+              if (selectedTemplate && relatedProblemCursor) {
+                void loadRelatedProblems(selectedTemplate.id, relatedProblemCursor, true)
+              }
+            }}
             onOpenProblem={onOpenProblem}
             onReload={onReloadSource}
             onRelocated={onRelocated}
-            onUpsertProblemRelation={onUpsertProblemRelation}
+            onSearchProblems={onSearchProblems}
+            onUpsertProblemRelation={handleUpsertProblemRelation}
             problemError={problemError}
-            problems={problems}
-            relatedProblems={problems.flatMap(problem => {
-              const relation = problem.relations.find(
-                item => item.templateId === selectedTemplate?.id,
-              )
-              return relation
-                ? [{ id: problem.id, relationType: relation.relationType, title: problem.title }]
-                : []
-            })}
+            problemTotalCount={problemTotalCount}
+            relatedProblems={relatedProblems}
+            relatedProblemsHasMore={Boolean(relatedProblemCursor)}
+            relatedProblemError={relatedProblemError}
+            relatedProblemTotalCount={relatedProblemTotalCount}
             sourceState={sourceState}
             template={selectedTemplate}
           />
@@ -796,17 +890,25 @@ function AppContent() {
   const runtimeState = useRuntimeInfo()
   const { theme, toggleTheme } = useTheme()
   const problemState = useProblems()
+  const loadProblem = problemState.loadProblem
+  const loadedProblems = problemState.problems
   const {
+    cancelRescan,
     chooseWorkspace,
     clearError: clearWorkspaceError,
     deleteTemplate,
     error: workspaceError,
     isBusy: isWorkspaceBusy,
     isLoading: isWorkspaceLoading,
+    isLoadingMoreTemplates,
+    loadMoreTemplates,
+    loadTemplate,
     performTemplateAction,
     replaceWorkspace,
     importTemplate,
     rescan,
+    scanTask,
+    searchTemplates,
     workspace,
   } = useWorkspace()
   const source = useTemplateSource(selectedTemplateId)
@@ -886,6 +988,7 @@ function AppContent() {
     if (
       selectedTemplateId &&
       workspace &&
+      !workspace.templatePage.truncated &&
       !workspace.templates.some(template => template.id === selectedTemplateId)
     ) {
       setSelectedTemplateId(null)
@@ -893,13 +996,12 @@ function AppContent() {
   }, [selectedTemplateId, workspace])
 
   useEffect(() => {
-    if (
-      selectedProblemId &&
-      !problemState.problems.some(problem => problem.id === selectedProblemId)
-    ) {
-      setSelectedProblemId(null)
-    }
-  }, [problemState.problems, selectedProblemId])
+    if (!selectedProblemId || loadedProblems.some(problem => problem.id === selectedProblemId))
+      return
+    void loadProblem(selectedProblemId).then(problem => {
+      if (!problem) setSelectedProblemId(null)
+    })
+  }, [loadProblem, loadedProblems, selectedProblemId])
 
   useEffect(() => {
     if (currentView === 'problems' && !selectedProblemId && problemState.problems[0]) {
@@ -915,9 +1017,9 @@ function AppContent() {
     }
     if (currentView !== 'dashboard') return
     void window.desktop.templateManagement
-      .listFilePlans()
-      .then(plans => {
-        if (active) setPendingPlanCount(plans.filter(plan => plan.status === 'draft').length)
+      .listFilePlansPage({ cursor: null, limit: 100 })
+      .then(planPage => {
+        if (active) setPendingPlanCount(planPage.draftCount)
       })
       .catch(() => {
         if (active) setPendingPlanCount(0)
@@ -963,6 +1065,7 @@ function AppContent() {
     }
     setCurrentView('templates')
     setSelectedTemplateId(result.templateId)
+    void loadTemplate(result.templateId)
     setNotice(t('已创建 {path}', { path: request.relativePath }))
     return true
   }
@@ -989,9 +1092,12 @@ function AppContent() {
   }
 
   const openTemplate = (templateId: string) => {
-    setRevealTemplateId(templateId)
     setCurrentView('templates')
-    setSelectedTemplateId(templateId)
+    void loadTemplate(templateId).then(template => {
+      if (!template) return
+      setRevealTemplateId(templateId)
+      setSelectedTemplateId(templateId)
+    })
   }
 
   const openProblem = (problemId: string) => {
@@ -1093,32 +1199,38 @@ function AppContent() {
       return (
         <TemplateLibrary
           isBusy={isWorkspaceBusy}
+          isLoadingMoreTemplates={isLoadingMoreTemplates}
           isProblemBusy={problemState.isBusy}
           onAction={request => void handleTemplateAction(request)}
           onChangeWorkspace={() => void handleChooseWorkspace({ intent: 'open' })}
           onClearProblemError={problemState.clearError}
+          onCancelRescan={() => void cancelRescan()}
           onCreateTemplate={openCreateDialog}
           onDeleteTemplate={handleDeleteTemplate}
           onOpenProblem={openProblem}
+          onLoadMoreTemplates={() => void loadMoreTemplates()}
           onReloadSource={source.reload}
           onRelocated={(templateId, result) => {
             replaceWorkspace(result.workspace)
             setSelectedTemplateId(templateId)
+            void loadTemplate(templateId)
             source.reload()
             void problemState.reload()
             setNotice(t('模板已安全重命名或移动，并保留原有元数据与题目关联'))
           }}
+          onSearchProblems={problemState.searchProblems}
+          onSearchTemplates={searchTemplates}
           onRescan={() => void handleRescan()}
           onSelectTemplate={templateId => {
-            setRevealTemplateId(null)
-            setSelectedTemplateId(templateId)
+            openTemplate(templateId)
           }}
           onUpsertProblemRelation={async request =>
             Boolean(await problemState.upsertRelation(request))
           }
           problemError={problemState.error}
-          problems={problemState.problems}
+          problemTotalCount={problemState.totalCount}
           revealTemplateId={revealTemplateId}
+          scanTask={scanTask}
           selectedTemplate={selectedTemplate}
           selectedTemplateId={selectedTemplateId}
           sourceState={source.state}
@@ -1133,19 +1245,27 @@ function AppContent() {
           error={problemState.error}
           isBusy={problemState.isBusy}
           isLoading={problemState.isLoading}
+          isLoadingMore={problemState.isLoadingMore}
+          matchedCount={problemState.matchedCount}
+          hasMore={problemState.hasMore}
           onAddImages={problemState.addImages}
           onAnalysisCreated={problemState.acceptProblem}
           onClearError={problemState.clearError}
           onDelete={problemState.deleteProblem}
           onOpenTemplate={openTemplate}
+          onLoadMore={problemState.loadMore}
           onRemoveImage={problemState.removeImage}
           onRemoveRelation={problemState.removeRelation}
           onSelect={setSelectedProblemId}
+          onSearch={problemState.search}
+          onSearchTemplates={searchTemplates}
           onUpdate={problemState.updateProblem}
           onUpsertRelation={problemState.upsertRelation}
           problems={problemState.problems}
           selectedProblemId={selectedProblemId}
           templates={workspace.templates}
+          templateTotalCount={workspace.summary.templateCount}
+          totalCount={problemState.totalCount}
         />
       )
     }
@@ -1159,7 +1279,9 @@ function AppContent() {
         onOpenTemplate={openTemplate}
         onOpenTemplates={() => setCurrentView('templates')}
         pendingPlanCount={pendingPlanCount}
+        problemTotalCount={problemState.totalCount}
         problems={problemState.problems}
+        totalRelationCount={problemState.totalRelationCount}
         workspace={workspace}
       />
     )
@@ -1455,7 +1577,7 @@ function AppContent() {
           <span className="workspace-counts ml-auto inline-flex items-center gap-2">
             <ShieldCheck aria-hidden="true" className="size-3" />
             {workspace
-              ? `${workspace.summary.templateCount} ${t('个模板')} · ${problemState.problems.length} ${t('道题')}`
+              ? `${workspace.summary.templateCount} ${t('个模板')} · ${problemState.totalCount} ${t('道题')}`
               : t('离线功能优先')}
           </span>
         </footer>
@@ -1463,11 +1585,15 @@ function AppContent() {
 
       <CommandPalette
         onOpenChange={setCommandOpen}
+        onSearchProblems={problemState.searchProblems}
+        onSearchTemplates={searchTemplates}
         onSelectProblem={openProblem}
         onSelectTemplate={openTemplate}
         open={commandOpen}
         problems={problemState.problems}
+        problemTotalCount={problemState.totalCount}
         returnFocusTo={commandReturnFocusRef.current}
+        templateTotalCount={workspace?.summary.templateCount ?? 0}
         templates={workspace?.templates ?? []}
       />
       <CreateTemplateDialog
@@ -1476,7 +1602,9 @@ function AppContent() {
         onBatchComplete={result => {
           replaceWorkspace(result.workspace)
           setCurrentView('templates')
-          setSelectedTemplateId(result.imported[0]?.templateId ?? null)
+          const firstTemplateId = result.imported[0]?.templateId ?? null
+          setSelectedTemplateId(firstTemplateId)
+          if (firstTemplateId) void loadTemplate(firstTemplateId)
           setNotice(t('已批量导入 {count} 份 C++ 模板', { count: result.imported.length }))
         }}
         onCreate={handleCreateTemplate}

@@ -64,6 +64,62 @@ test('upgrades a stage 1 database without losing the existing workspace or templ
     await page.getByRole('button', { name: '题目', exact: true }).click()
     await expect(page.getByText('还没有题目卡片')).toBeVisible()
     expect(await readFile(join(workspaceRoot, 'legacy.cpp'), 'utf8')).toBe('void legacy() {}\n')
+    await electronApp.close()
+    electronApp = null
+
+    const inspectScript = String.raw`
+      const Database = require('better-sqlite3');
+      const db = new Database(process.env.SEED_DB, { readonly: true });
+      const migration = db.prepare('SELECT id FROM app_migrations WHERE id = ?').get('0006_performance_indexing');
+      const templateColumns = db.prepare('PRAGMA table_info(templates)').all().map(row => row.name);
+      const workspaceColumns = db.prepare('PRAGMA table_info(workspaces)').all().map(row => row.name);
+      const indexes = db.prepare("SELECT name FROM sqlite_master WHERE type = 'index'").all().map(row => row.name);
+      const template = db.prepare('SELECT id, available, index_version, content_hash FROM templates').get();
+      process.stdout.write(JSON.stringify({ indexes, migration, template, templateColumns, workspaceColumns }));
+      db.close();
+    `
+    const inspected = spawnSync(electronPath, ['-e', inspectScript], {
+      cwd: resolve('.'),
+      encoding: 'utf8',
+      env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', SEED_DB: databasePath },
+    })
+    expect(inspected.status, inspected.stderr || inspected.stdout).toBe(0)
+    const result = JSON.parse(inspected.stdout) as {
+      indexes: string[]
+      migration: { id: string }
+      template: {
+        available: number
+        content_hash: string | null
+        id: string
+        index_version: number
+      }
+      templateColumns: string[]
+      workspaceColumns: string[]
+    }
+    expect(result.migration.id).toBe('0006_performance_indexing')
+    expect(result.templateColumns).toEqual(
+      expect.arrayContaining([
+        'content_hash',
+        'file_identity',
+        'change_token',
+        'normalized_content_hash',
+        'similarity_signature_json',
+        'index_version',
+      ]),
+    )
+    expect(result.workspaceColumns).toContain('scan_stats_json')
+    expect(result.indexes).toEqual(
+      expect.arrayContaining([
+        'templates_workspace_available_path_index',
+        'problems_updated_id_index',
+      ]),
+    )
+    expect(result.template).toEqual({
+      available: 1,
+      content_hash: null,
+      id: 'a'.repeat(64),
+      index_version: 0,
+    })
   } finally {
     await electronApp?.close()
     await rm(temporaryRoot, { force: true, recursive: true })

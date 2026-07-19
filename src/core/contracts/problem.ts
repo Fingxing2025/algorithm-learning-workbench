@@ -142,8 +142,82 @@ export const problemImageDataSchema = z
 
 export const problemListSchema = z.array(problemSchema).max(100_000)
 
+export const problemPageRequestSchema = z
+  .object({
+    cursor: z
+      .string()
+      .max(1024)
+      .regex(/^[A-Za-z0-9_-]+$/u)
+      .nullable()
+      .default(null),
+    limit: z.number().int().min(20).max(200).default(100),
+    query: z.string().trim().max(200).default(''),
+  })
+  .strict()
+
+export const problemPageSchema = z
+  .object({
+    items: z.array(problemSchema).max(200),
+    matchedCount: z.number().int().nonnegative(),
+    nextAction: z.string().max(240).nullable(),
+    nextCursor: z
+      .string()
+      .max(1024)
+      .regex(/^[A-Za-z0-9_-]+$/u)
+      .nullable(),
+    processedCount: z.number().int().nonnegative(),
+    totalCount: z.number().int().nonnegative(),
+    totalRelationCount: z.number().int().nonnegative(),
+    truncated: z.boolean(),
+    truncatedReason: z.string().max(500).nullable(),
+  })
+  .strict()
+
+export const templateProblemPageRequestSchema = z
+  .object({
+    cursor: z
+      .string()
+      .max(1024)
+      .regex(/^[A-Za-z0-9_-]+$/u)
+      .nullable()
+      .default(null),
+    limit: z.number().int().min(20).max(200).default(100),
+    templateId: templateIdSchema,
+  })
+  .strict()
+
+export const templateProblemSummarySchema = z
+  .object({
+    id: problemIdSchema,
+    relationType: relationTypeSchema,
+    title: z.string().trim().min(1).max(200),
+    updatedAt: z.string().datetime(),
+  })
+  .strict()
+
+export const templateProblemPageSchema = z
+  .object({
+    items: z.array(templateProblemSummarySchema).max(200),
+    nextAction: z.string().max(240).nullable(),
+    nextCursor: z
+      .string()
+      .max(1024)
+      .regex(/^[A-Za-z0-9_-]+$/u)
+      .nullable(),
+    processedCount: z.number().int().nonnegative(),
+    totalCount: z.number().int().nonnegative(),
+    truncated: z.boolean(),
+    truncatedReason: z.string().max(500).nullable(),
+  })
+  .strict()
+
 export type CreateProblemRequest = z.infer<typeof createProblemRequestSchema>
 export type Problem = z.infer<typeof problemSchema>
+export type ProblemPage = z.infer<typeof problemPageSchema>
+export type ProblemPageRequest = z.infer<typeof problemPageRequestSchema>
+export type TemplateProblemPage = z.infer<typeof templateProblemPageSchema>
+export type TemplateProblemPageRequest = z.infer<typeof templateProblemPageRequestSchema>
+export type TemplateProblemSummary = z.infer<typeof templateProblemSummarySchema>
 export type ProblemFields = z.infer<typeof problemFieldsSchema>
 export type ProblemImage = z.infer<typeof problemImageSchema>
 export type ProblemImageData = z.infer<typeof problemImageDataSchema>

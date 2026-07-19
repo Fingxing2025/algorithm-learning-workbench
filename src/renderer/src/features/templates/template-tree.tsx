@@ -7,12 +7,18 @@ import {
   FileCode2,
   Folder,
   FolderOpen,
+  LoaderCircle,
   Search,
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 
-import type { TemplateActionRequest, TemplateSummary } from '@core/contracts/workspace'
+import type {
+  TemplateActionRequest,
+  TemplatePage,
+  TemplateSummary,
+} from '@core/contracts/workspace'
 
+import { Button } from '@/components/ui/button'
 import { useI18n } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 
@@ -25,11 +31,16 @@ import {
 } from './template-tree-model'
 
 interface TemplateTreeProps {
+  hasMore: boolean
+  isLoadingMore: boolean
   onAction: (request: TemplateActionRequest) => void
+  onLoadMore: () => void
+  onSearch: (query: string) => Promise<TemplatePage>
   onSelect: (templateId: string) => void
   revealTemplateId: string | null
   selectedTemplateId: string | null
   templates: TemplateSummary[]
+  totalCount: number
   workspaceId: string
 }
 
@@ -55,11 +66,16 @@ function readStoredExpansion(workspaceId: string, validIds: Set<string>): Set<st
 }
 
 export function TemplateTree({
+  hasMore,
+  isLoadingMore,
   onAction,
+  onLoadMore,
+  onSearch,
   onSelect,
   revealTemplateId,
   selectedTemplateId,
   templates,
+  totalCount,
   workspaceId,
 }: TemplateTreeProps) {
   const { t } = useI18n()
@@ -73,6 +89,33 @@ export function TemplateTree({
   const [temporaryExpandedIds, setTemporaryExpandedIds] = useState<Set<string>>(new Set())
   const [focusedIndex, setFocusedIndex] = useState(0)
   const [query, setQuery] = useState('')
+  const [searchState, setSearchState] = useState<{
+    page: TemplatePage | null
+    status: 'idle' | 'loading' | 'ready' | 'error'
+  }>({ page: null, status: 'idle' })
+
+  useEffect(() => {
+    const normalized = query.trim()
+    if (!normalized) {
+      setSearchState({ page: null, status: 'idle' })
+      return
+    }
+    let active = true
+    setSearchState(current => ({ page: current.page, status: 'loading' }))
+    const timer = window.setTimeout(() => {
+      void onSearch(normalized)
+        .then(page => {
+          if (active) setSearchState({ page, status: 'ready' })
+        })
+        .catch(() => {
+          if (active) setSearchState({ page: null, status: 'error' })
+        })
+    }, 180)
+    return () => {
+      active = false
+      window.clearTimeout(timer)
+    }
+  }, [onSearch, query])
 
   useEffect(() => {
     setExpansionState(current => {
@@ -116,23 +159,17 @@ export function TemplateTree({
   const rows = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase('zh-CN')
     if (normalizedQuery) {
-      return templates
-        .filter(template =>
-          `${template.name} ${template.relativePath} ${template.language}`
-            .toLocaleLowerCase('zh-CN')
-            .includes(normalizedQuery),
-        )
-        .map<FlatTemplateTreeRow>(template => ({
-          depth: 0,
-          id: `template:${template.id}`,
-          kind: 'template',
-          label: template.fileName,
-          relativePath: template.relativePath,
-          template,
-        }))
+      return (searchState.page?.items ?? []).map<FlatTemplateTreeRow>(template => ({
+        depth: 0,
+        id: `template:${template.id}`,
+        kind: 'template',
+        label: template.fileName,
+        relativePath: template.relativePath,
+        template,
+      }))
     }
     return flattenTemplateTree(tree, expandedIds)
-  }, [expandedIds, query, templates, tree])
+  }, [expandedIds, query, searchState.page?.items, tree])
 
   const virtualizer = useVirtualizer({
     count: rows.length,
@@ -252,7 +289,7 @@ export function TemplateTree({
             {t('工作区文件')}
           </span>
           <span className="rounded-md bg-panel px-1.5 py-0.5 text-[9px] font-semibold text-muted-foreground ring-1 ring-border">
-            {templates.length}
+            {templates.length} / {totalCount}
           </span>
         </div>
         <div className="flex h-9 items-center gap-2 rounded-xl border border-border bg-panel px-3 shadow-xs transition-colors focus-within:border-primary/35 focus-within:ring-2 focus-within:ring-ring">
@@ -261,13 +298,41 @@ export function TemplateTree({
             aria-label={t('筛选模板树')}
             className="min-w-0 flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground"
             onChange={event => setQuery(event.target.value)}
+            onKeyDown={event => {
+              const normalized = event.currentTarget.value.trim()
+              if (event.key !== 'Enter' || !normalized) return
+              event.preventDefault()
+              void onSearch(normalized).then(page => {
+                setSearchState({ page, status: 'ready' })
+                if (page.items[0]) onSelect(page.items[0].id)
+              })
+            }}
             placeholder={t('筛选当前工作区')}
             value={query}
           />
         </div>
         <p className="mt-2.5 px-1 text-[10px] text-muted-foreground">
-          {query ? `${rows.length} ${t('个匹配结果')}` : `${templates.length} ${t('个模板')}`}
+          {query
+            ? `${searchState.page?.processedCount ?? 0} / ${searchState.page?.totalCount ?? 0} ${t('个匹配结果')}`
+            : `${templates.length} / ${totalCount} ${t('个模板')}`}
         </p>
+        {searchState.status === 'loading' && (
+          <p className="mt-1 flex items-center gap-1 px-1 text-[10px] text-muted-foreground">
+            <LoaderCircle className="size-3 animate-spin" /> {t('正在搜索完整模板索引…')}
+          </p>
+        )}
+        {searchState.status === 'error' && (
+          <p className="mt-1 px-1 text-[10px] text-red-600 dark:text-red-300" role="alert">
+            {t('模板搜索暂不可用，请稍后重试。')}
+          </p>
+        )}
+        {searchState.page?.truncated && (
+          <p className="mt-1 px-1 text-[10px] leading-4 text-muted-foreground">
+            {t('模板搜索结果只显示前 {count} 项，请缩小关键词继续定位。', {
+              count: searchState.page.processedCount,
+            })}
+          </p>
+        )}
       </div>
 
       {rows.length === 0 ? (
@@ -395,6 +460,21 @@ export function TemplateTree({
               )
             })}
           </div>
+        </div>
+      )}
+      {!query && hasMore && (
+        <div className="border-t border-border p-2.5">
+          <Button
+            className="w-full"
+            disabled={isLoadingMore}
+            onClick={onLoadMore}
+            size="compact"
+            type="button"
+            variant="outline"
+          >
+            {isLoadingMore && <LoaderCircle className="size-3.5 animate-spin" />}
+            {t('加载更多模板')} · {templates.length} / {totalCount}
+          </Button>
         </div>
       )}
     </section>

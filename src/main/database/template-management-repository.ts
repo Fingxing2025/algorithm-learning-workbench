@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 
-import { and, desc, eq, isNull } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 
 import {
   templateMetadataFieldsSchema,
@@ -11,12 +11,47 @@ import {
   fileChangePlanSchema,
   parseStoredFileChangePlanPayload,
   type FileChangeExecution,
+  type FileChangeExecutionPage,
+  type FileHistoryPageRequest,
   type FileChangeOperationInput,
   type FileChangePlan,
+  type FileChangePlanPage,
 } from '@core/contracts/template-management'
 
 import type { AppDatabase } from './database'
 import { fileChangeExecutions, fileChangePlans, templateMetadata } from './schema'
+import { PublicError } from '../errors/public-error'
+
+interface FileHistoryCursor {
+  createdAt: string
+  id: string
+}
+
+function decodeFileHistoryCursor(value: string | null): FileHistoryCursor | null {
+  if (!value) return null
+  try {
+    const parsed = JSON.parse(
+      Buffer.from(value, 'base64url').toString('utf8'),
+    ) as Partial<FileHistoryCursor>
+    if (
+      typeof parsed.id !== 'string' ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(
+        parsed.id,
+      ) ||
+      typeof parsed.createdAt !== 'string' ||
+      !Number.isFinite(Date.parse(parsed.createdAt))
+    ) {
+      throw new Error('invalid cursor')
+    }
+    return { createdAt: parsed.createdAt, id: parsed.id }
+  } catch {
+    throw new PublicError('INVALID_REQUEST', '历史记录分页位置已失效，请从第一批重新加载。')
+  }
+}
+
+function encodeFileHistoryCursor(value: FileHistoryCursor): string {
+  return Buffer.from(JSON.stringify(value)).toString('base64url')
+}
 
 function parseTags(value: string): string[] {
   try {
@@ -156,6 +191,34 @@ export class TemplateManagementRepository {
     )
   }
 
+  listMetadataMap(templateIds: readonly string[]): Map<string, TemplateMetadata> {
+    const result = new Map<string, TemplateMetadata>()
+    for (let start = 0; start < templateIds.length; start += 500) {
+      const ids = templateIds.slice(start, start + 500)
+      if (ids.length === 0) continue
+      const records = this.database.orm
+        .select()
+        .from(templateMetadata)
+        .where(inArray(templateMetadata.templateId, ids))
+        .all()
+      for (const record of records) {
+        result.set(record.templateId, {
+          commonMistakes: record.commonMistakes,
+          constraints: record.constraints,
+          notes: record.notes,
+          prerequisites: record.prerequisites,
+          solves: record.solves,
+          spaceComplexity: record.spaceComplexity,
+          tags: parseTags(record.tagsJson),
+          templateId: record.templateId,
+          timeComplexity: record.timeComplexity,
+          updatedAt: record.updatedAt,
+        })
+      }
+    }
+    return result
+  }
+
   cancelPlan(planId: string): FileChangePlan | null {
     const plan = this.getPlan(planId)
     if (!plan || plan.status !== 'draft') return null
@@ -264,6 +327,67 @@ export class TemplateManagementRepository {
       })
   }
 
+  listPlansPage(workspaceId: string, request: FileHistoryPageRequest): FileChangePlanPage {
+    const cursor = decodeFileHistoryCursor(request.cursor)
+    const filters = [
+      eq(fileChangePlans.workspaceId, workspaceId),
+      isNull(fileChangePlans.archivedAt),
+    ]
+    if (cursor) {
+      filters.push(
+        or(
+          lt(fileChangePlans.createdAt, cursor.createdAt),
+          and(eq(fileChangePlans.createdAt, cursor.createdAt), lt(fileChangePlans.id, cursor.id)),
+        )!,
+      )
+    }
+    const rows = this.database.orm
+      .select({ createdAt: fileChangePlans.createdAt, id: fileChangePlans.id })
+      .from(fileChangePlans)
+      .where(and(...filters))
+      .orderBy(desc(fileChangePlans.createdAt), desc(fileChangePlans.id))
+      .limit(request.limit + 1)
+      .all()
+    const hasMore = rows.length > request.limit
+    const pageRows = hasMore ? rows.slice(0, request.limit) : rows
+    const items = pageRows.flatMap(record => {
+      const plan = this.getPlan(record.id)
+      return plan ? [plan] : []
+    })
+    const totalCount = Number(
+      this.database.orm
+        .select({ count: sql<number>`count(*)` })
+        .from(fileChangePlans)
+        .where(
+          and(eq(fileChangePlans.workspaceId, workspaceId), isNull(fileChangePlans.archivedAt)),
+        )
+        .get()?.count ?? 0,
+    )
+    const draftCount = Number(
+      this.database.orm
+        .select({ count: sql<number>`count(*)` })
+        .from(fileChangePlans)
+        .where(
+          and(
+            eq(fileChangePlans.workspaceId, workspaceId),
+            isNull(fileChangePlans.archivedAt),
+            eq(fileChangePlans.status, 'draft'),
+          ),
+        )
+        .get()?.count ?? 0,
+    )
+    return {
+      draftCount,
+      items,
+      nextAction: hasMore ? '继续加载下一批计划记录。' : null,
+      nextCursor: hasMore && pageRows.length > 0 ? encodeFileHistoryCursor(pageRows.at(-1)!) : null,
+      processedCount: items.length,
+      totalCount,
+      truncated: hasMore,
+      truncatedReason: hasMore ? '计划记录按创建时间分批加载。' : null,
+    }
+  }
+
   listExecutions(workspaceId: string): FileChangeExecution[] {
     const records = this.database.client
       .prepare(
@@ -300,6 +424,79 @@ export class TemplateManagementRepository {
         },
       ]
     })
+  }
+
+  listExecutionsPage(
+    workspaceId: string,
+    request: FileHistoryPageRequest,
+  ): FileChangeExecutionPage {
+    const cursor = decodeFileHistoryCursor(request.cursor)
+    const filters = [eq(fileChangePlans.workspaceId, workspaceId)]
+    if (cursor) {
+      filters.push(
+        or(
+          lt(fileChangeExecutions.createdAt, cursor.createdAt),
+          and(
+            eq(fileChangeExecutions.createdAt, cursor.createdAt),
+            lt(fileChangeExecutions.id, cursor.id),
+          ),
+        )!,
+      )
+    }
+    const rows = this.database.orm
+      .select({
+        createdAt: fileChangeExecutions.createdAt,
+        id: fileChangeExecutions.id,
+        operationsJson: fileChangeExecutions.operationsJson,
+        planId: fileChangeExecutions.planId,
+        rolledBackAt: fileChangeExecutions.rolledBackAt,
+        status: fileChangeExecutions.status,
+      })
+      .from(fileChangeExecutions)
+      .innerJoin(fileChangePlans, eq(fileChangeExecutions.planId, fileChangePlans.id))
+      .where(and(...filters))
+      .orderBy(desc(fileChangeExecutions.createdAt), desc(fileChangeExecutions.id))
+      .limit(request.limit + 1)
+      .all()
+    const hasMore = rows.length > request.limit
+    const pageRows = hasMore ? rows.slice(0, request.limit) : rows
+    const items = pageRows.flatMap(record => {
+      let operations: unknown[]
+      try {
+        operations = JSON.parse(record.operationsJson) as unknown[]
+      } catch {
+        return []
+      }
+      if (record.status !== 'applied' && record.status !== 'rolled-back') return []
+      return [
+        {
+          canRollback: record.status === 'applied',
+          createdAt: record.createdAt,
+          id: record.id,
+          operationCount: operations.length,
+          planId: record.planId,
+          rolledBackAt: record.rolledBackAt,
+          status: record.status,
+        } satisfies FileChangeExecution,
+      ]
+    })
+    const totalCount = Number(
+      this.database.orm
+        .select({ count: sql<number>`count(*)` })
+        .from(fileChangeExecutions)
+        .innerJoin(fileChangePlans, eq(fileChangeExecutions.planId, fileChangePlans.id))
+        .where(eq(fileChangePlans.workspaceId, workspaceId))
+        .get()?.count ?? 0,
+    )
+    return {
+      items,
+      nextAction: hasMore ? '继续加载下一批执行记录。' : null,
+      nextCursor: hasMore && pageRows.length > 0 ? encodeFileHistoryCursor(pageRows.at(-1)!) : null,
+      processedCount: items.length,
+      totalCount,
+      truncated: hasMore,
+      truncatedReason: hasMore ? '执行记录按创建时间分批加载。' : null,
+    }
   }
 
   getExecutionRecord(executionId: string) {

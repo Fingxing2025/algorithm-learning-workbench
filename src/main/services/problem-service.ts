@@ -8,6 +8,10 @@ import type {
   CreateProblemRequest,
   Problem,
   ProblemImageData,
+  ProblemPage,
+  ProblemPageRequest,
+  TemplateProblemPage,
+  TemplateProblemPageRequest,
   RemoveProblemImageRequest,
   RemoveProblemRelationRequest,
   UpdateProblemRequest,
@@ -193,6 +197,18 @@ export class ProblemService {
 
   getProblems(): Problem[] {
     return this.repository.listProblems()
+  }
+
+  getProblem(problemId: string): Problem {
+    return this.requireProblem(problemId)
+  }
+
+  getProblemsByTemplate(request: TemplateProblemPageRequest): TemplateProblemPage {
+    return this.repository.listProblemsByTemplate(request)
+  }
+
+  getProblemsPage(request: ProblemPageRequest): ProblemPage {
+    return this.repository.listProblemsPage(request)
   }
 
   async readImage(imageId: string): Promise<ProblemImageData> {
