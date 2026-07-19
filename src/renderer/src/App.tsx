@@ -62,10 +62,12 @@ import { useRuntimeInfo } from '@/hooks/use-runtime-info'
 import { layoutPreferenceKeys, resetLayoutPreferences } from '@/hooks/use-layout-preference'
 import { useMediaQuery } from '@/hooks/use-media-query'
 import { useTheme } from '@/hooks/use-theme'
-import { activeElementOrNull } from '@/lib/focus-management'
 import { backgroundTaskProgressText } from '@/lib/background-task'
 import { cn } from '@/lib/utils'
 import { I18nProvider, useI18n } from '@/lib/i18n'
+import { appViewLabels, type AppView, useAppKeyboardShortcuts } from '@/app/app-navigation'
+import { resolveAppRoute } from '@/app/app-route'
+import { useAppDialogs } from '@/app/use-app-dialogs'
 
 const FileManagementWorkspace = lazy(async () => {
   const module = await import('@/features/ai/file-management-workspace')
@@ -86,8 +88,6 @@ const AlgorithmCard = lazy(async () => {
   const module = await import('@/features/templates/algorithm-card')
   return { default: module.AlgorithmCard }
 })
-
-type AppView = 'ai' | 'dashboard' | 'data' | 'problems' | 'settings' | 'templates'
 
 interface NavigationItem {
   disabled?: boolean
@@ -873,8 +873,6 @@ function TemplateLibrary({
 }
 
 function AppContent() {
-  const [commandOpen, setCommandOpen] = useState(false)
-  const [createOpen, setCreateOpen] = useState(false)
   const [currentView, setCurrentView] = useState<AppView>('dashboard')
   const [notice, setNotice] = useState<string | null>(null)
   const [pendingPlanCount, setPendingPlanCount] = useState(0)
@@ -882,8 +880,7 @@ function AppContent() {
   const [selectedProblemId, setSelectedProblemId] = useState<string | null>(null)
   const [revealTemplateId, setRevealTemplateId] = useState<string | null>(null)
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null)
-  const commandReturnFocusRef = useRef<HTMLElement | null>(null)
-  const createReturnFocusRef = useRef<HTMLElement | null>(null)
+  const dialogs = useAppDialogs()
   const prefersReducedMotion = useReducedMotion()
   const compactNavigation = useMediaQuery('(max-width: 820px)')
   const { locale, t, toggleLocale } = useI18n()
@@ -913,15 +910,8 @@ function AppContent() {
   } = useWorkspace()
   const source = useTemplateSource(selectedTemplateId)
 
-  const openCommandPalette = useCallback(() => {
-    commandReturnFocusRef.current = activeElementOrNull()
-    setCommandOpen(true)
-  }, [])
-
-  const openCreateDialog = useCallback(() => {
-    createReturnFocusRef.current = activeElementOrNull()
-    setCreateOpen(true)
-  }, [])
+  const openCommandPalette = dialogs.openCommandPalette
+  const openCreateDialog = dialogs.openCreateDialog
 
   const selectedTemplate = useMemo(
     () => workspace?.templates.find(template => template.id === selectedTemplateId) ?? null,
@@ -932,56 +922,15 @@ function AppContent() {
     if (currentView !== 'templates') setRevealTemplateId(null)
   }, [currentView])
 
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
-        event.preventDefault()
-        openCommandPalette()
-        return
-      }
-
-      if (!(event.metaKey || event.ctrlKey) || event.altKey) return
-      const target = event.target
-      const isEditing =
-        target instanceof HTMLElement &&
-        (target.isContentEditable || ['INPUT', 'SELECT', 'TEXTAREA'].includes(target.tagName))
-      if (isEditing) return
-
-      const key = event.key.toLowerCase()
-      if (event.shiftKey && key === 'n' && workspace?.available) {
-        event.preventDefault()
-        openCreateDialog()
-        return
-      }
-
-      const viewByShortcut: Partial<Record<string, AppView>> = {
-        '1': 'dashboard',
-        '2': 'templates',
-        '3': 'problems',
-        '4': 'ai',
-        '5': 'data',
-        ',': 'settings',
-      }
-      const nextView = viewByShortcut[key]
-      if (nextView) {
-        event.preventDefault()
-        setCurrentView(nextView)
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [openCommandPalette, openCreateDialog, workspace?.available])
+  useAppKeyboardShortcuts({
+    onNavigate: setCurrentView,
+    onOpenCommand: openCommandPalette,
+    onOpenCreate: openCreateDialog,
+    workspaceAvailable: Boolean(workspace?.available),
+  })
 
   useEffect(() => {
-    const viewLabel: Record<AppView, string> = {
-      ai: 'AI 管理',
-      dashboard: '工作台',
-      data: '数据管理',
-      problems: '题目',
-      settings: 'AI 设置',
-      templates: '模板库',
-    }
-    setPageAnnouncement(t('已切换到 {page}', { page: t(viewLabel[currentView]) }))
+    setPageAnnouncement(t('已切换到 {page}', { page: t(appViewLabels[currentView]) }))
   }, [currentView, t])
 
   useEffect(() => {
@@ -1106,7 +1055,8 @@ function AppContent() {
   }
 
   const renderContent = () => {
-    if (currentView === 'ai') {
+    const route = resolveAppRoute({ currentView, isWorkspaceLoading, workspace })
+    if (route === 'ai') {
       return (
         <Suspense
           fallback={
@@ -1130,7 +1080,7 @@ function AppContent() {
       )
     }
 
-    if (currentView === 'settings') {
+    if (route === 'settings') {
       return (
         <Suspense
           fallback={
@@ -1147,7 +1097,7 @@ function AppContent() {
       )
     }
 
-    if (currentView === 'data') {
+    if (route === 'data') {
       return (
         <Suspense
           fallback={
@@ -1164,7 +1114,7 @@ function AppContent() {
       )
     }
 
-    if (isWorkspaceLoading) {
+    if (route === 'loading') {
       return (
         <main className="grid min-h-0 place-items-center">
           <div className="text-center">
@@ -1175,7 +1125,7 @@ function AppContent() {
       )
     }
 
-    if (!workspace) {
+    if (route === 'onboarding' || !workspace) {
       return (
         <WorkspaceOnboarding
           error={workspaceError}
@@ -1185,7 +1135,7 @@ function AppContent() {
       )
     }
 
-    if (!workspace.available) {
+    if (route === 'unavailable') {
       return (
         <WorkspaceUnavailable
           isBusy={isWorkspaceBusy}
@@ -1195,7 +1145,7 @@ function AppContent() {
       )
     }
 
-    if (currentView === 'templates') {
+    if (route === 'templates') {
       return (
         <TemplateLibrary
           isBusy={isWorkspaceBusy}
@@ -1239,7 +1189,7 @@ function AppContent() {
       )
     }
 
-    if (currentView === 'problems') {
+    if (route === 'problems') {
       return (
         <ProblemWorkspace
           error={problemState.error}
@@ -1584,15 +1534,15 @@ function AppContent() {
       </div>
 
       <CommandPalette
-        onOpenChange={setCommandOpen}
+        onOpenChange={dialogs.setCommandOpen}
         onSearchProblems={problemState.searchProblems}
         onSearchTemplates={searchTemplates}
         onSelectProblem={openProblem}
         onSelectTemplate={openTemplate}
-        open={commandOpen}
+        open={dialogs.commandOpen}
         problems={problemState.problems}
         problemTotalCount={problemState.totalCount}
-        returnFocusTo={commandReturnFocusRef.current}
+        returnFocusTo={dialogs.commandReturnFocusRef.current}
         templateTotalCount={workspace?.summary.templateCount ?? 0}
         templates={workspace?.templates ?? []}
       />
@@ -1609,13 +1559,13 @@ function AppContent() {
         }}
         onCreate={handleCreateTemplate}
         onOpenChange={open => {
-          setCreateOpen(open)
+          dialogs.setCreateOpen(open)
           if (!open) {
             clearWorkspaceError()
           }
         }}
-        open={createOpen}
-        returnFocusTo={createReturnFocusRef.current}
+        open={dialogs.createOpen}
+        returnFocusTo={dialogs.createReturnFocusRef.current}
       />
     </Tooltip.Provider>
   )
