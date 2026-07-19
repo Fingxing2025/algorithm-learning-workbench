@@ -128,6 +128,18 @@ tests/
 - AI 上下文用批量元数据查询和按模板聚合的题目关系 SQL，避免全量装配题目正文和逐模板 N+1 查询。
 - Provider 字符上限、隐私预览和文件计划安全 Schema 不变；本地性能优化没有扩大外发内容边界。
 
+## Session F Renderer 组合边界
+
+Session F 第一切片只做行为保持的 Renderer 拆分，不新增进程权限、IPC 或持久化协议：
+
+- `src/renderer/src/App.tsx` 只负责应用级状态协调、领域动作和最终组合；不直接承载大型页面 JSX。
+- `src/renderer/src/app/app-navigation.ts` 固定 `AppView`、页面播报标签、全局快捷键解析和编辑控件避让规则；快捷键行为通过纯函数测试锁定。
+- `src/renderer/src/app/app-route.ts` 只负责加载中、引导、工作区不可用和领域页面之间的确定性优先级。
+- `src/renderer/src/app/app-shell.tsx` 负责窗口标题栏、导航、布局偏好、主题/语言入口、状态播报和壳层通知；`ResizableLayout` 与 `localStorage` 布局契约不变。
+- `src/renderer/src/app/app-dialogs.tsx` 与 `use-app-dialogs.ts` 负责命令面板/新建模板对话框的受控状态和触发器焦点引用。
+- `src/renderer/src/app/app-workspace-route.tsx` 负责按路由渲染工作区页面、加载态和首次设置态；模板库、题目、AI 和数据管理仍复用原有组件与命名 Preload API。
+- Dashboard、模板库和工作区不可用状态移动到各自语义文件；没有复制旧项目代码，也没有改变视觉 token、产品模块或数据流。
+
 安全与发布文档：
 
 - `docs/智能算法学习助手-v2-threat-model.md`

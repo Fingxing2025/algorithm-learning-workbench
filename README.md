@@ -6,7 +6,7 @@
 
 V2 `0.1.2` 开发快照的阶段 0–6 与首轮质量迭代已完成：从全新应用数据目录开始，用户可以建立模板工作区、题目卡片和多对多关联，配置五类 AI 协议及 DeepSeek/阿里云百炼快捷预设，确认题目 AI 草稿，并通过可预览、可撤销的计划整理整个模板库。
 
-当前质量基线为 25 个 Vitest 文件中的 187 项测试和 43 项常规 Electron E2E 通过；打包入口另有全新/已有 V2 userData smoke。核心产品流程、数据备份恢复和五协议 AI 稳定性已闭环，公开发布仍被 macOS 签名/公证与真实 Windows 安装验收阻塞。完整进度和风险见 [项目状态与交接](docs/PROJECT_STATUS_AND_HANDOFF.md)。
+当前质量基线为 30 个 Vitest 文件中的 209 项测试、3 项发布脚本测试和 54 项常规 Electron E2E 通过；2 项 packaged 测试在未设置目录包路径时按条件跳过。核心产品流程、数据备份恢复、五协议 AI 稳定性和大型工作区性能已闭环，公开发布仍被 macOS 签名/公证与真实 Windows 安装验收阻塞。完整进度和风险见 [项目状态与交接](docs/PROJECT_STATUS_AND_HANDOFF.md)。
 
 macOS arm64 与 Windows x64 已建立可重复候选流程：精确选择当前版本产物，生成 SHA-256、CycloneDX SBOM、构建元数据、隐私报告和发布说明草稿。当前没有 Developer ID/notarization 凭据，macOS 只能作为开发预览；Windows NSIS 尚未完成真实主机安装验收。详见 [发布说明](docs/RELEASE.md) 和 [用户指南](docs/USER_GUIDE.md)。
 

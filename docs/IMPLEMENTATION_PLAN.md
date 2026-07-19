@@ -110,12 +110,21 @@
 
 验收：`npm run check` 通过 201 项 Vitest 与 3 项发布脚本测试；完整 Electron E2E 覆盖 54 项常规场景，2 项 packaged 按条件跳过。10k 无变化重扫 `hashed = 0`、`reused = unchanged = 10,000`；题目首批查询 P50 3.09 ms、详情 0.18 ms、审计 78.81 ms、AI 候选 135.84 ms、取消 0.27 ms。详细结果见 `docs/PERFORMANCE_BASELINE.md` 和 `docs/SESSION_E_SUMMARY_AND_NEXT_PROMPT.md`。
 
+## Session F：代码健康与文档发布候选（第一切片已完成，2026-07-19）
+
+- `App.tsx` 从约 1,630 行降至约 292 行，只保留应用状态协调、领域动作与组合。
+- 应用导航/快捷键、路由判定、应用外壳/布局状态、对话框状态、工作区路由、Dashboard、模板库和不可用工作区各自形成语义边界。
+- 新增快捷键与路由纯逻辑测试；完整桌面回归证明布局、焦点、键盘、增量索引、分页、取消和数据恢复行为不变。
+- 本切片没有数据库字段、migration、IPC、后台任务协议、系统权限、依赖或视觉系统变化，也未重新打包。
+
+验收：`npm run check` 通过 209 项 Vitest 与 3 项发布脚本测试；完整 Electron E2E 为 54 项通过、2 项 packaged 按条件跳过。下一切片应行为保持地拆分 `template-management-service.ts`，先做职责测量和特征测试，不与文档发布候选或协议升级混在同一提交。
+
 ## 后续阶段
 
 核心功能范围已经闭环，后续不再以继续增加页面为主。优先顺序改为：
 
 1. 外部条件齐备时完成 macOS 签名/notarization、Windows Authenticode 与真实主机安装验收。
-2. 行为保持地拆分 `App.tsx`、模板管理服务和大型页面组件，并补领域单测。
+2. 继续行为保持地拆分模板管理服务和大型页面组件，并补领域单测；`App.tsx` 第一切片已完成。
 3. 统一 README、用户指南、CHANGELOG、架构与发布事实来源。
 4. 在真实 Windows 主机验证 Session E 的大工作区滚动、取消和原位升级；macOS arm64 结果不能替代该证据。
 

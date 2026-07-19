@@ -2,6 +2,7 @@
 
 - 更新日期：2026-07-19
 - Session E 实际开发基线：`0ef1afa docs: record native template close fix`
+- Session F 第一切片实现结束提交：`1a153bf refactor: extract workspace route renderer`
 - 本次交接提交：本文所在提交
 - 源码版本：`0.1.2` 开发快照
 - 产品阶段：0.1.2 功能闭环、Session A/B、九项 Bugfix、Session C 发布候选工程、Session D UX/可访问性与 Session E 大型工作区性能均完成；正式签名和 Windows 实机验收仍受外部条件阻塞
@@ -10,7 +11,7 @@
 
 本阶段基于 0.1.2 功能冻结基线继续建设发布可信度。后续不再横向增加 AI 页面或临时补丁；当前目标是让已经承载用户模板、题目、图片、关系和 AI 配置的 V2 数据可恢复，AI 任务可诊断、可取消并在五类协议下具有一致边界。
 
-当前状态：**Session A：数据可靠性与恢复、Session B：AI 稳定性与兼容矩阵、九项 Bugfix Session、Session C：可审计发布候选工程、Session D：UX/可访问性、Session E：大型工作区性能均已完成。当前没有 Apple Developer ID/notarization 凭据或 Windows 实机，因此签名、公证和 Windows 安装验收仍明确未完成；无外部条件时下一主线建议 Session F：行为保持的代码健康与文档事实统一。**
+当前状态：**Session A：数据可靠性与恢复、Session B：AI 稳定性与兼容矩阵、九项 Bugfix Session、Session C：可审计发布候选工程、Session D：UX/可访问性与 Session E：大型工作区性能均已完成；Session F 第一切片已完成 `App.tsx` 行为保持拆分。当前没有 Apple Developer ID/notarization 凭据或 Windows 实机，因此签名、公证和 Windows 安装验收仍明确未完成；无外部条件时下一主线是 Session F 第二切片：模板管理服务职责拆分。**
 
 Session D 的布局、键盘、焦点、状态播报、截图结论和可直接复制的下一 Session 提示词见 `docs/SESSION_D_SUMMARY_AND_NEXT_PROMPT.md`；Session C 候选证据仍保留在 `docs/SESSION_C_SUMMARY_AND_NEXT_PROMPT.md`，但没有被本 Session 重新打包或复用为新候选摘要。
 
@@ -262,7 +263,7 @@ Main
 ## 5. 工程规模与可维护性
 
 - 当前 `src/` 与 `tests/` 下 TypeScript/TSX/CSS/SQL 文件约 126 个，合计约 33,530 行。
-- `App.tsx` 约 1,422 行。
+- `App.tsx` 约 292 行；应用外壳、工作区路由、导航/快捷键、对话框状态、Dashboard 和模板库已经按语义拆出。
 - `template-management-service.ts` 约 2,184 行。
 - `ai-provider-workspace.tsx` 约 732 行。
 - `problem-workspace.tsx` 约 724 行。
@@ -271,7 +272,7 @@ Main
 
 架构分层本身清楚，但上述文件已进入继续扩展会明显增加回归风险的尺寸。后续重构应以行为不变、测试先行的方式拆分：
 
-- `App.tsx`：拆为应用壳、导航、首页、布局状态和领域路由。
+- `App.tsx`：第一切片已完成；应用壳、导航/快捷键、Dashboard、布局状态、对话框和领域路由均有独立边界。
 - `template-management-service.ts`：拆为审计、AI 计划生成、计划验证、文件执行器和回滚器。
 - 大型 Renderer 文件：拆为页面容器、表单、列表/详情、状态 hook 和纯展示组件。
 - 不要为了减少行数创建无语义的碎片文件；以独立数据流和可测试边界为拆分依据。
@@ -485,6 +486,8 @@ Session D 截图显示 1024×640 下导航、列表/树、详情和页头主操�
 
 ### Session F：代码健康与文档发布候选
 
+状态：进行中。第一切片已从基线 `d378a82` 完成 `App.tsx` 行为保持拆分，源码实现提交为 `915406f`、`651badb`、`1a153bf`；下一切片尚未开始。
+
 目标：在功能稳定后降低长期维护成本，并统一项目事实来源。
 
 主要范围：
@@ -493,6 +496,14 @@ Session D 截图显示 1024×640 下导航、列表/树、详情和页头主操�
 - 为拆出的领域逻辑补单元测试。
 - 建立 `CHANGELOG.md`，同步 README、用户指南、发布、安全和 ADR 索引。
 - 统一版本号与发布候选清单。
+
+第一切片已完成：
+
+- `App.tsx` 从约 1,630 行缩减到约 292 行，只保留状态协调、领域动作和最终组合。
+- `app-navigation.ts` 与 `app-route.ts` 提供纯逻辑边界并新增 8 项测试；`app-shell.tsx` 承载布局状态和窗口框架；`app-dialogs.tsx` / `use-app-dialogs.ts` 承载受控对话框与焦点返回；`app-workspace-route.tsx` 承载领域页面装配。
+- Dashboard、模板库和工作区不可用状态移入语义目录；没有新增依赖、数据库/IPC/权限/视觉变化。
+- `npm run check` 通过 209 项 Vitest 与 3 项发布脚本测试；完整 Electron E2E 54 项通过、2 项 packaged 按条件跳过。
+- 本切片没有重新打包；当前目录包继续来自 `4c13dc8`，不把源码 HEAD 与目录包来源混为同一证据。
 
 验收：
 
