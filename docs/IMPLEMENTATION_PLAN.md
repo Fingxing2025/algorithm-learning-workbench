@@ -99,13 +99,24 @@
 
 验收：最终 macOS arm64 preview 候选来自干净提交，DMG/ZIP 摘要复核、SBOM、架构/图标/隐私检查和两项打包入口 smoke 通过；signed 预检在机器没有 Developer ID 时按设计失败。macOS 正式签名/notarization 与 Windows 实机仍等待外部凭据和硬件，不得标记为完成。
 
+## Session E：大型工作区性能（已完成，2026-07-19）
+
+- 建立单命令 `npm run benchmark:performance`，用临时工作区生成确定性 1k/5k/10k 模板、题目、图片元数据和关系夹具，记录 5 次运行的 P50/P95、RSS、冷热条件和取消耗时。
+- 新增 migration `0006_performance_indexing.sql` 与索引版本 `1`；使用纳秒级变化令牌和完整 SHA-256，在安全复检后单事务差量发布。
+- 完成唯一移动匹配、删除标记不可用、扫描中途变化整次拒绝，以及取消不发布半完成索引。
+- 扫描和源码审计进入 Main 进程内后台任务；Renderer 显示阶段/计数、不确定进度和取消入口。
+- 模板、题目、模板关联、文件计划和执行历史使用稳定键集分页；题目大列表虚拟化，小工作区继续使用原生列表 DOM。
+- 重复/相似审计复用持久化哈希/签名；AI 上下文切换为批量元数据与关系聚合查询。
+
+验收：`npm run check` 通过 201 项 Vitest 与 3 项发布脚本测试；完整 Electron E2E 覆盖 54 项常规场景，2 项 packaged 按条件跳过。10k 无变化重扫 `hashed = 0`、`reused = unchanged = 10,000`；题目首批查询 P50 3.09 ms、详情 0.18 ms、审计 78.81 ms、AI 候选 135.84 ms、取消 0.27 ms。详细结果见 `docs/PERFORMANCE_BASELINE.md` 和 `docs/SESSION_E_SUMMARY_AND_NEXT_PROMPT.md`。
+
 ## 后续阶段
 
 核心功能范围已经闭环，后续不再以继续增加页面为主。优先顺序改为：
 
 1. 外部条件齐备时完成 macOS 签名/notarization、Windows Authenticode 与真实主机安装验收。
-2. 面板布局记忆、全键盘操作、可访问性与小窗口验收。
-3. 大型工作区性能基准、增量索引和后台任务。
-4. 行为保持的代码拆分与长期维护整理。
+2. 行为保持地拆分 `App.tsx`、模板管理服务和大型页面组件，并补领域单测。
+3. 统一 README、用户指南、CHANGELOG、架构与发布事实来源。
+4. 在真实 Windows 主机验证 Session E 的大工作区滚动、取消和原位升级；macOS arm64 结果不能替代该证据。
 
 详细任务边界、验收条件和不同 Codex Session 的启动提示见 `docs/PROJECT_STATUS_AND_HANDOFF.md`。

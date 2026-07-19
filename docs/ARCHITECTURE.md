@@ -100,6 +100,34 @@ tests/
 - `docs/decisions/0019-long-image-preview-and-execution-record-deletion.md`
 - `docs/decisions/0020-incremental-index-background-tasks-and-keyset-pagination.md`
 
+## Session E 大型工作区架构
+
+### 版本化模板索引
+
+- SQLite `templates` 保存 `content_hash`、`file_identity`、纳秒级 `change_token`、`normalized_content_hash`、`similarity_signature_json` 和 `index_version`；当前索引版本为 `1`。
+- 快速复用由受控相对路径、大小、文件身份及 `mtimeNs/ctimeNs` 变化令牌共同决定；内容真实性仍由完整 SHA-256 保证，不能只依赖 mtime。
+- 扫描读取前后复检文件状态；符号链接、越界、读取失败或扫描中途变化会安全拒绝整次发布。完整候选形成后才在单个 SQLite 事务中差量发布。
+- 应用外移动只在文件身份唯一，或“内容 SHA-256 + 大小”双方唯一时继承稳定 ID；歧义时不猜测。旧记录标记不可用，元数据和题目关系不会被静默迁错。
+
+### 后台任务与原子发布
+
+- `BackgroundTaskRegistry` 位于 Main，首批承载 `workspace-scan` 与 `workspace-audit`。任务状态和取消控制只驻留进程内，不写数据库、不跨重启恢复。
+- Renderer 只通过命名 Preload API 启动、轮询和取消任务；所有输入输出经过 Zod。取消会立即解除 Renderer 忙碌，并阻止后续批次与最终索引发布。
+- 同工作区同类型活动任务复用，不并发写索引；应用退出时先取消并等待任务终止，再关闭 SQLite。
+
+### 大列表查询边界
+
+- 工作区快照只携带按 `(relative_path ASC, id ASC)` 排序的前 500 份模板及分页摘要；后续模板、全局模板搜索和直接定位由 Main 键集查询完成。
+- 题目按 `(updated_at DESC, id DESC)` 分页，首批 100；单题详情按 UUID 直查。模板关联只返回最小题目摘要分页，不装配全量题面、图片和关系。
+- 文件计划与执行历史按 `(created_at DESC, id DESC)` 分页。所有仍存在的上限返回 `processedCount`、`totalCount`、`truncatedReason` 与 `nextAction`。
+- 题目列表超过 100 条时使用 TanStack 虚拟化；小工作区保留原生 DOM/滚动条行为。模板树继续虚拟化并保持 Arrow、Home/End、Enter/Space 和搜索定位契约。
+
+### AI 与审计查询
+
+- 完全重复使用持久化规范化 SHA-256；高相似审计先用签名 band 生成候选，再只对候选读取源码并执行精确 Jaccard。
+- AI 上下文用批量元数据查询和按模板聚合的题目关系 SQL，避免全量装配题目正文和逐模板 N+1 查询。
+- Provider 字符上限、隐私预览和文件计划安全 Schema 不变；本地性能优化没有扩大外发内容边界。
+
 安全与发布文档：
 
 - `docs/智能算法学习助手-v2-threat-model.md`

@@ -1,16 +1,16 @@
 # 项目状态、审计与多 Session 交接
 
-- 更新日期：2026-07-18
-- Session D 实际开发基线：`613980b docs: hand off session c release evidence`
+- 更新日期：2026-07-19
+- Session E 实际开发基线：`0ef1afa docs: record native template close fix`
 - 本次交接提交：本文所在提交
 - 源码版本：`0.1.2` 开发快照
-- 产品阶段：0.1.2 功能闭环、Session A/B、九项 Bugfix、Session C 发布候选工程与 Session D UX/可访问性均完成；正式签名和 Windows 实机验收仍受外部条件阻塞
+- 产品阶段：0.1.2 功能闭环、Session A/B、九项 Bugfix、Session C 发布候选工程、Session D UX/可访问性与 Session E 大型工作区性能均完成；正式签名和 Windows 实机验收仍受外部条件阻塞
 
 ## 0. 新阶段入口
 
 本阶段基于 0.1.2 功能冻结基线继续建设发布可信度。后续不再横向增加 AI 页面或临时补丁；当前目标是让已经承载用户模板、题目、图片、关系和 AI 配置的 V2 数据可恢复，AI 任务可诊断、可取消并在五类协议下具有一致边界。
 
-当前状态：**Session A：数据可靠性与恢复、Session B：AI 稳定性与兼容矩阵、九项 Bugfix Session、Session C：可审计发布候选工程、Session D：UX、可访问性与窗口适配均已完成。当前没有 Apple Developer ID/notarization 凭据或 Windows 实机，因此签名、公证和 Windows 安装验收仍明确未完成；无外部条件时下一主线建议 Session E：性能与大型工作区。**
+当前状态：**Session A：数据可靠性与恢复、Session B：AI 稳定性与兼容矩阵、九项 Bugfix Session、Session C：可审计发布候选工程、Session D：UX/可访问性、Session E：大型工作区性能均已完成。当前没有 Apple Developer ID/notarization 凭据或 Windows 实机，因此签名、公证和 Windows 安装验收仍明确未完成；无外部条件时下一主线建议 Session F：行为保持的代码健康与文档事实统一。**
 
 Session D 的布局、键盘、焦点、状态播报、截图结论和可直接复制的下一 Session 提示词见 `docs/SESSION_D_SUMMARY_AND_NEXT_PROMPT.md`；Session C 候选证据仍保留在 `docs/SESSION_C_SUMMARY_AND_NEXT_PROMPT.md`，但没有被本 Session 重新打包或复用为新候选摘要。
 
@@ -462,25 +462,26 @@ Session D 截图显示 1024×640 下导航、列表/树、详情和页头主操�
 
 ### Session E：性能与大型工作区
 
-目标：用测量和后台任务替代当前固定截断，保证大工作区仍可理解和取消。
+状态：已完成。完整性能表、机器条件和隐私边界见 `docs/PERFORMANCE_BASELINE.md`；提交与下一 Session 提示见 `docs/SESSION_E_SUMMARY_AND_NEXT_PROMPT.md`。
 
-主要范围：
+已完成范围：
 
-- 建立 1k/5k/10k 模板及大量题目、图片的可重复基准夹具。
-- 启动、扫描、树渲染、题目查询、图片读取和相似度分析指标。
-- 增量内容哈希/相似度索引、后台任务、取消和进度。
-- SQLite 查询分页和避免 N×M 内存映射。
+- 确定性 1k/5k/10k 模板、题目、图片元数据和关系夹具；单命令记录 5 次 P50/P95、RSS 和取消耗时。
+- migration `0006_performance_indexing`、索引版本 `1`、完整 SHA-256、纳秒变化令牌、规范化哈希和相似度签名。
+- 新增/修改/移动/删除差量发布；移动保持稳定 ID、元数据和题目关系，歧义不猜测。
+- Main 后台扫描/审计任务、阶段计数、重复任务复用、用户取消和退出安全终止。
+- 模板、题目、模板关系、计划与执行历史键集分页；题目超过 100 条虚拟化，小工作区保留原生 DOM。
+- 审计复用持久化索引；AI 上下文使用批量元数据和关系聚合 SQL。
 
-验收：
+最终证据：
 
-- 文档记录基线机器、数据规模、P50/P95 和内存峰值。
-- 长任务不阻塞 Renderer，用户可取消，截断原因可见。
-- 增量扫描只处理实际变化文件，结果确定且可复现。
-- 现有小工作区行为和安全边界不回退。
+- `npm run check`：201 项 Vitest + 3 项发布脚本测试通过。
+- `npm run test:e2e`：54 项常规 Electron E2E 通过，2 项 packaged 按条件跳过。
+- 10k：启动 P50/P95 1923.12/2349.86 ms；无变化重扫 805.45/1045.77 ms，`0` 哈希、`10,000` 复用；取消 0.27/0.59 ms。
+- 10k：题目首批 3.09/13.70 ms、详情 0.18/0.20 ms、审计 78.81/93.45 ms、AI 候选 135.84/151.81 ms。
+- macOS arm64 截图覆盖大型模板/题目分页、搜索、1024×640 亮暗主题和减少动效；Session D 的 200% 与完整尺寸矩阵继续通过。
 
-启动提示：
-
-> 阅读 AGENTS.md 与 docs/PROJECT_STATUS_AND_HANDOFF.md，执行 Session E：大型工作区性能。先建立可重复基准和指标，再设计增量索引与后台任务；不要直接调高 500/2000/250 等限制来掩盖问题。
+限制：首次扫描因完整哈希、签名和状态复检比旧实现更重；Windows 大工作区实机仍未验证；本 Session 未重新打包。
 
 ### Session F：代码健康与文档发布候选
 
@@ -513,14 +514,13 @@ Session A 数据可靠性
      -> 签名/公证/Windows 实机（等待外部条件）
 
 Session D UX/可访问性（完成） ─┐
-Session E 性能                 ├-> Session F 代码健康与文档发布候选
+Session E 性能（完成）         ├-> Session F 代码健康与文档发布候选
 Session A/B/C                  ┘
 ```
 
-- Session A、B、C 自动化与 Session D 均已完成；签名、公证和 Windows 实机证据等待证书、账号与硬件。
-- 无外部发布条件时，Session E 现在是推荐主线；若条件齐备则先恢复 Session C 的外部门禁。
-- Session D 已成为当前基线；Session E 必须保持其布局、键盘、focus/live 与 200% 回归测试通过。
-- Session F 最后执行，避免在结构仍频繁变化时反复拆分。
+- Session A、B、C 自动化与 Session D/E 均已完成；签名、公证和 Windows 实机证据等待证书、账号与硬件。
+- 无外部发布条件时，Session F 现在是推荐主线；若条件齐备则先恢复 Session C 的外部门禁。
+- Session F 必须保持 Session D 的布局/键盘/focus/live 与 Session E 的增量索引、取消、分页和基准回归。
 
 ## 11. 每个 Session 的统一交接格式
 
