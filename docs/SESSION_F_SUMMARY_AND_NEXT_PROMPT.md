@@ -14,7 +14,7 @@
 
 Session F 第二切片完成了 `TemplateManagementService` 的行为保持拆分。IPC 仍只依赖原 façade，构造参数、公开方法、Zod 契约、后台任务入口和用户可见数据流不变；审计、AI 文件计划、计划安全、文件执行/回滚和计划历史现在由明确领域协作者承载。
 
-`src/main/services/template-management-service.ts` 从 2,325 行降至约 860 行。模板入库、批量导入、分类和手动移动仍由 façade 组合，手动移动复用同一安全校验与执行器。没有为了减少行数制造无语义碎片。
+`src/main/services/template-management-service.ts` 从 2,325 行降至 872 行（约 870 行）。模板入库、批量导入、分类和手动移动仍由 façade 组合，手动移动复用同一安全校验与执行器。没有为了减少行数制造无语义碎片。
 
 ## 2. 服务边界
 

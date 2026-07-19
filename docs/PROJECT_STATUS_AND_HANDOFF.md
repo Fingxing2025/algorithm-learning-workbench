@@ -265,7 +265,7 @@ Main
 
 - 当前 `src/` 与 `tests/` 下 TypeScript/TSX/CSS/SQL 文件约 126 个，合计约 33,530 行。
 - `App.tsx` 约 292 行；应用外壳、工作区路由、导航/快捷键、对话框状态、Dashboard 和模板库已经按语义拆出。
-- `template-management-service.ts` 约 860 行；审计、AI 文件计划、计划安全、执行/回滚和计划历史已移入五个语义服务文件。
+- `template-management-service.ts` 872 行（约 870 行）；审计、AI 文件计划、计划安全、执行/回滚和计划历史已移入五个语义服务文件。
 - `ai-provider-workspace.tsx` 约 732 行。
 - `problem-workspace.tsx` 约 724 行。
 - `problem-analysis-dialog.tsx` 约 925 行。
@@ -508,7 +508,7 @@ Session D 截图显示 1024×640 下导航、列表/树、详情和页头主操�
 
 第二切片已完成：
 
-- `src/main/services/template-management-service.ts` 从 2,325 行缩至约 860 行，继续保留所有 IPC façade 方法和构造参数。
+- `src/main/services/template-management-service.ts` 从 2,325 行缩至 872 行（约 870 行），继续保留所有 IPC façade 方法和构造参数。
 - 新增 `template-workspace-audit-service.ts`、`template-file-plan-generation-service.ts`、`template-file-plan-safety.ts`、`template-file-plan-executor.ts`、`template-file-plan-history-service.ts`，另将稳定常量、语言校验和共享路径/元数据工具单独归位。
 - 新增 2 项特征测试，锁定规范化重复组的 keeper 顺序与审计取消不发布结果；原有文件计划、模板移动、批量导入、AI 结构化输出、备份/撤销和增量索引 E2E 全部保持通过。
 - 本切片没有改变 SQLite schema、migration、IPC 名称、后台任务协议、Zod 契约、文件备份格式、Provider 协议、系统权限或视觉 token，也没有新增 ADR。
