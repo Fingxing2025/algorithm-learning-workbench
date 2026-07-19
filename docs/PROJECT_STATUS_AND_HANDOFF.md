@@ -3,6 +3,7 @@
 - 更新日期：2026-07-19
 - Session E 实际开发基线：`0ef1afa docs: record native template close fix`
 - Session F 第一切片实现结束提交：`1a153bf refactor: extract workspace route renderer`
+- Session F 第二切片代码结束提交：`9c195b6 refactor: split template management plan services`
 - 本次交接提交：本文所在提交
 - 源码版本：`0.1.2` 开发快照
 - 产品阶段：0.1.2 功能闭环、Session A/B、九项 Bugfix、Session C 发布候选工程、Session D UX/可访问性与 Session E 大型工作区性能均完成；正式签名和 Windows 实机验收仍受外部条件阻塞
@@ -11,7 +12,7 @@
 
 本阶段基于 0.1.2 功能冻结基线继续建设发布可信度。后续不再横向增加 AI 页面或临时补丁；当前目标是让已经承载用户模板、题目、图片、关系和 AI 配置的 V2 数据可恢复，AI 任务可诊断、可取消并在五类协议下具有一致边界。
 
-当前状态：**Session A：数据可靠性与恢复、Session B：AI 稳定性与兼容矩阵、九项 Bugfix Session、Session C：可审计发布候选工程、Session D：UX/可访问性与 Session E：大型工作区性能均已完成；Session F 第一切片已完成 `App.tsx` 行为保持拆分。当前没有 Apple Developer ID/notarization 凭据或 Windows 实机，因此签名、公证和 Windows 安装验收仍明确未完成；无外部条件时下一主线是 Session F 第二切片：模板管理服务职责拆分。**
+当前状态：**Session A：数据可靠性与恢复、Session B：AI 稳定性与兼容矩阵、九项 Bugfix Session、Session C：可审计发布候选工程、Session D：UX/可访问性与 Session E：大型工作区性能均已完成；Session F 第一切片的 `App.tsx` 拆分和第二切片的模板管理服务拆分均已完成。当前没有 Apple Developer ID/notarization 凭据或 Windows 实机，因此签名、公证和 Windows 安装验收仍明确未完成；下一主线是继续小步拆分大型 Renderer 文件或恢复外部平台门禁。**
 
 Session D 的布局、键盘、焦点、状态播报、截图结论和可直接复制的下一 Session 提示词见 `docs/SESSION_D_SUMMARY_AND_NEXT_PROMPT.md`；Session C 候选证据仍保留在 `docs/SESSION_C_SUMMARY_AND_NEXT_PROMPT.md`，但没有被本 Session 重新打包或复用为新候选摘要。
 
@@ -264,7 +265,7 @@ Main
 
 - 当前 `src/` 与 `tests/` 下 TypeScript/TSX/CSS/SQL 文件约 126 个，合计约 33,530 行。
 - `App.tsx` 约 292 行；应用外壳、工作区路由、导航/快捷键、对话框状态、Dashboard 和模板库已经按语义拆出。
-- `template-management-service.ts` 约 2,184 行。
+- `template-management-service.ts` 约 860 行；审计、AI 文件计划、计划安全、执行/回滚和计划历史已移入五个语义服务文件。
 - `ai-provider-workspace.tsx` 约 732 行。
 - `problem-workspace.tsx` 约 724 行。
 - `problem-analysis-dialog.tsx` 约 925 行。
@@ -273,7 +274,7 @@ Main
 架构分层本身清楚，但上述文件已进入继续扩展会明显增加回归风险的尺寸。后续重构应以行为不变、测试先行的方式拆分：
 
 - `App.tsx`：第一切片已完成；应用壳、导航/快捷键、Dashboard、布局状态、对话框和领域路由均有独立边界。
-- `template-management-service.ts`：拆为审计、AI 计划生成、计划验证、文件执行器和回滚器。
+- `template-management-service.ts`：第二切片已拆为审计、AI 计划生成、计划安全校验、文件执行器和计划历史五个协作者；批量入库、分类和 IPC façade 仍保持稳定。
 - 大型 Renderer 文件：拆为页面容器、表单、列表/详情、状态 hook 和纯展示组件。
 - 不要为了减少行数创建无语义的碎片文件；以独立数据流和可测试边界为拆分依据。
 
@@ -486,7 +487,7 @@ Session D 截图显示 1024×640 下导航、列表/树、详情和页头主操�
 
 ### Session F：代码健康与文档发布候选
 
-状态：进行中。第一切片已从基线 `d378a82` 完成 `App.tsx` 行为保持拆分，源码实现提交为 `915406f`、`651badb`、`1a153bf`；下一切片尚未开始。
+状态：进行中。第一切片已从基线 `d378a82` 完成 `App.tsx` 行为保持拆分，第二切片以 `18a8f9e` 为本 Session 基线完成模板管理服务职责拆分，代码提交为 `9c195b6`；文档交接提交见本文所在提交。
 
 目标：在功能稳定后降低长期维护成本，并统一项目事实来源。
 
@@ -504,6 +505,16 @@ Session D 截图显示 1024×640 下导航、列表/树、详情和页头主操�
 - Dashboard、模板库和工作区不可用状态移入语义目录；没有新增依赖、数据库/IPC/权限/视觉变化。
 - `npm run check` 通过 209 项 Vitest 与 3 项发布脚本测试；完整 Electron E2E 54 项通过、2 项 packaged 按条件跳过。
 - 本切片没有重新打包；当前目录包继续来自 `4c13dc8`，不把源码 HEAD 与目录包来源混为同一证据。
+
+第二切片已完成：
+
+- `src/main/services/template-management-service.ts` 从 2,325 行缩至约 860 行，继续保留所有 IPC façade 方法和构造参数。
+- 新增 `template-workspace-audit-service.ts`、`template-file-plan-generation-service.ts`、`template-file-plan-safety.ts`、`template-file-plan-executor.ts`、`template-file-plan-history-service.ts`，另将稳定常量、语言校验和共享路径/元数据工具单独归位。
+- 新增 2 项特征测试，锁定规范化重复组的 keeper 顺序与审计取消不发布结果；原有文件计划、模板移动、批量导入、AI 结构化输出、备份/撤销和增量索引 E2E 全部保持通过。
+- 本切片没有改变 SQLite schema、migration、IPC 名称、后台任务协议、Zod 契约、文件备份格式、Provider 协议、系统权限或视觉 token，也没有新增 ADR。
+- `npm run check` 实际为 31 个 Vitest 文件/211 项、3 项发布脚本测试；`npm run test:e2e` 为 54 项通过、2 项 packaged 条件跳过。
+- 性能命令 `PERF_SIZES=1000,5000,10000 PERF_RUNS=5 npm run benchmark:performance` 通过；报告 `output/performance/session-e-session-f-template-service-split-final.md`，10k 启动 `2990.48/3200.29 ms`、无变化重扫 `672.21/732.82 ms`、审计 `87.94/90.36 ms`、AI 候选 `144.00/158.31 ms`、取消 `0.27/0.39 ms`，增量索引 `hashed=0`、`reused=unchanged=10,000`。
+- 全新 userData、已有 V2 userData、旧 schema 原位 migration、异常中断恢复、外部修改拒绝和文件补偿回滚继续由现有测试覆盖；证据仍为 macOS arm64。未重新打包，Windows 实机、VoiceOver 长流程和正式签名/notarization 仍未完成。
 
 验收：
 

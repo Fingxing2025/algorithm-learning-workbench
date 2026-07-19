@@ -140,6 +140,18 @@ Session F 第一切片只做行为保持的 Renderer 拆分，不新增进程权
 - `src/renderer/src/app/app-workspace-route.tsx` 负责按路由渲染工作区页面、加载态和首次设置态；模板库、题目、AI 和数据管理仍复用原有组件与命名 Preload API。
 - Dashboard、模板库和工作区不可用状态移动到各自语义文件；没有复制旧项目代码，也没有改变视觉 token、产品模块或数据流。
 
+### Session F Main 模板管理服务边界
+
+Session F 第二切片在保持 `TemplateManagementService` 构造参数、公开方法、IPC 和数据契约不变的前提下，拆出五个有明确领域语义的 Main 协作者。Facade 仍是 IPC 唯一入口；协作者不被 Renderer 或 Preload 直接引用。
+
+- `template-workspace-audit-service.ts`：工作区索引审计、规范化重复组、高相似候选、进度回调、取消和安全截断。
+- `template-file-plan-generation-service.ts`：AI 文件计划上下文候选、请求预览、结构化输出、语言校验、有限取消和诊断导出。
+- `template-file-plan-safety.ts`：授权路径、目标冲突、源码/元数据前置条件和执行前外部修改复检。
+- `template-file-plan-executor.ts`：文件计划执行、备份、工作区重扫、补偿回滚、模板删除和执行撤销。
+- `template-file-plan-history-service.ts`：计划取消/重新草拟、归档、分页历史、执行记录删除和工作区归属校验。
+
+模板入库、批量导入、元数据分类和手动移动的 IPC façade 行为继续由 `template-management-service.ts` 组合；手动移动复用同一安全校验与执行器。拆分没有新增数据库字段、migration、IPC 名称、后台任务种类、文件备份格式、Provider 协议或权限。
+
 安全与发布文档：
 
 - `docs/智能算法学习助手-v2-threat-model.md`

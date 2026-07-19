@@ -9,7 +9,7 @@
 - 受影响的 Playwright E2E 通过。
 - Electron 可以从开发入口真实启动。
 
-当前累计基线（2026-07-19，Session F 第一切片结束提交 `1a153bf`）：30 个 Vitest 文件中的 209 项测试与 3 项发布脚本测试通过；常规真实 Electron E2E 54 项通过，2 项 packaged 测试在未设置 `PACKAGED_APP_PATH` 时按条件跳过。最近 macOS arm64 目录包仍来自 Session E 后续修复 `4c13dc8`，全新与已有 V2 userData 的 2 项 packaged smoke 已单独通过；Session F 本切片未重新打包。测试数量随功能增长会变化，发布判断以当次命令结果为准。
+当前累计基线（2026-07-19，Session F 第二切片代码提交 `9c195b6`）：31 个 Vitest 文件中的 211 项测试与 3 项发布脚本测试通过；常规真实 Electron E2E 54 项通过，2 项 packaged 测试在未设置 `PACKAGED_APP_PATH` 时按条件跳过。最近 macOS arm64 目录包仍来自 Session E 后续修复 `4c13dc8`，全新与已有 V2 userData 的 2 项 packaged smoke 已单独通过；Session F 未重新打包。测试数量随功能增长会变化，发布判断以当次命令结果为准。
 
 ## 核心 E2E 场景
 
@@ -140,3 +140,13 @@
 | 拆分边界             | `App.tsx` 约 292 行；无数据库字段、migration、IPC、后台协议或系统权限变化                                                                                                             |
 | 目录包               | 未重新打包；继续使用上一已验证目录包 `release/mac-arm64/算法学习工作台.app`                                                                                                           |
 | 性能 smoke           | 正式 1k/5k/10k 每项 5 次通过；当前启动 P50/P95 为 3276.85/3534.93、3493.57/3510.67、3554.88/3591.87 ms；与同条件临时 `d378a82` 1k 对照 3445.23/3535.73 ms，未观察到拆分导致的启动回归 |
+
+## Session F 第二切片实测（2026-07-19）
+
+- 基线：`18a8f9e docs: hand off session f app split`；代码结束提交：`9c195b6 refactor: split template management plan services`。
+- 服务职责已拆为审计、AI 计划生成、计划安全校验、执行/备份/回滚和计划历史五个语义文件；Facade 对外 API 与 IPC 调用保持不变。
+- `npm run check`：31 个 Vitest 文件、211 项通过；3 项发布脚本测试通过；TypeScript、ESLint 0 warnings、Prettier 全部通过。
+- `npm run test:e2e`：54 项常规真实 Electron E2E 通过；2 项 packaged 因未设置 `PACKAGED_APP_PATH` 按条件跳过。沙箱首次运行的 Electron/本地端口 `EPERM` 已在允许 GUI/端口后重跑，不计为应用失败。
+- 性能：`PERF_SIZES=1000,5000,10000 PERF_RUNS=5 npm run benchmark:performance` 通过；原始报告为 `output/performance/session-e-session-f-template-service-split-final.md`。10k 启动 P50/P95 `2990.48/3200.29 ms`，无变化重扫 `672.21/732.82 ms`，审计 `87.94/90.36 ms`，AI 候选 `144.00/158.31 ms`，取消 `0.27/0.39 ms`；`hashed=0`、`reused=unchanged=10,000`。
+- 本切片没有新增数据库字段、migration、IPC 名称、后台任务协议、文件备份格式、Zod 契约、权限或视觉 token；未重新打包、未新增截图矩阵。既有 Session D/E 截图和上一目录包只作为未受影响的回归证据。
+- 全新 userData、已有 V2 userData、旧 V2 schema migration、文件外部修改复检、取消和异常补偿回滚均由现有 E2E/性能测试继续覆盖；Windows 实机、VoiceOver 长流程和正式签名/notarization 仍未完成。

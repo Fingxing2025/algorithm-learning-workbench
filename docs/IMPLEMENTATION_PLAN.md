@@ -110,14 +110,16 @@
 
 验收：`npm run check` 通过 201 项 Vitest 与 3 项发布脚本测试；完整 Electron E2E 覆盖 54 项常规场景，2 项 packaged 按条件跳过。10k 无变化重扫 `hashed = 0`、`reused = unchanged = 10,000`；题目首批查询 P50 3.09 ms、详情 0.18 ms、审计 78.81 ms、AI 候选 135.84 ms、取消 0.27 ms。详细结果见 `docs/PERFORMANCE_BASELINE.md` 和 `docs/SESSION_E_SUMMARY_AND_NEXT_PROMPT.md`。
 
-## Session F：代码健康与文档发布候选（第一切片已完成，2026-07-19）
+## Session F：代码健康与文档发布候选（第二切片已完成，2026-07-19）
 
 - `App.tsx` 从约 1,630 行降至约 292 行，只保留应用状态协调、领域动作与组合。
 - 应用导航/快捷键、路由判定、应用外壳/布局状态、对话框状态、工作区路由、Dashboard、模板库和不可用工作区各自形成语义边界。
+- `template-management-service.ts` 的审计、AI 文件计划、计划安全校验、执行/回滚和计划历史职责拆到五个 Main 服务文件，原公开 façade、IPC 和调用图保持不变。
+- 新增审计重复/取消特征测试；共享常量、语言规则和路径/元数据小工具只承载跨职责的稳定逻辑。
 - 新增快捷键与路由纯逻辑测试；完整桌面回归证明布局、焦点、键盘、增量索引、分页、取消和数据恢复行为不变。
-- 本切片没有数据库字段、migration、IPC、后台任务协议、系统权限、依赖或视觉系统变化，也未重新打包。
+- 本阶段没有数据库字段、migration、IPC、后台任务协议、系统权限、依赖或视觉系统变化，也未重新打包。
 
-验收：`npm run check` 通过 209 项 Vitest 与 3 项发布脚本测试；完整 Electron E2E 为 54 项通过、2 项 packaged 按条件跳过。下一切片应行为保持地拆分 `template-management-service.ts`，先做职责测量和特征测试，不与文档发布候选或协议升级混在同一提交。
+验收：`npm run check` 通过 211 项 Vitest 与 3 项发布脚本测试；完整 Electron E2E 为 54 项通过、2 项 packaged 按条件跳过；正式 1k/5k/10k、每项 5 次性能基准通过，结果与 `docs/PERFORMANCE_BASELINE.md`、`output/performance/session-e-session-f-app-split-final.md` 对照后未发现可重复回归。后续继续保持小提交，不把协议升级、schema 或视觉重做混入服务健康重构。
 
 ## 后续阶段
 

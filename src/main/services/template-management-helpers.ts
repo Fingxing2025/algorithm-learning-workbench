@@ -1,7 +1,4 @@
-import { basename, extname } from 'node:path'
-
 import {
-  templateMetadataFieldsSchema,
   type TemplateMetadata,
   type TemplateMetadataFields,
 } from '@core/contracts/template-management'
@@ -59,9 +56,3 @@ export function normalizeAiDirectoryPath(value: string, allowEmpty = false): str
   }
   return segments.join('/')
 }
-
-export function ensureSupportedExtension(relativePath: string): string {
-  return basename(relativePath, extname(relativePath))
-}
-
-export { templateMetadataFieldsSchema }
