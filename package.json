@@ -22,6 +22,7 @@
     "test:release": "node --test scripts/release/*.test.mjs",
     "test:watch": "node ./node_modules/vitest/vitest.mjs",
     "test:e2e": "npm run build && node ./node_modules/@playwright/test/cli.js test",
+    "benchmark:performance": "npm run build && node scripts/run-performance-benchmark.mjs",
     "rebuild:native": "node ./node_modules/@electron/rebuild/lib/cli.js -f -w better-sqlite3 -v 43.1.0",
     "check": "npm run typecheck && npm run lint && npm run format:check && npm run test && npm run test:release",
     "package:dir": "npm run build && node ./node_modules/electron-builder/out/cli/cli.js --dir --publish never",
