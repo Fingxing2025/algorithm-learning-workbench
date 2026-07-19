@@ -10,6 +10,7 @@
 - “执行与撤销”沿用现有琥珀风险语义和普通内容面，不增加玻璃、渐变或动画；单条/批量删除使用 Trash 图标、二次确认和文字后果说明。
 - 只有已撤销记录显示删除入口；仍可从备份撤销的记录不通过禁用色暗示可删，而是保持删除入口不可用。删除反馈同时使用文字 `status`，不只依赖列表消失或颜色。
 - 公共按钮内的 Lucide 图标不参与指针命中，鼠标位于 `X` 笔画、图标空白或按钮边缘时都由完整按钮区域处理；题目新建/编辑器关闭按钮还使用显式受控关闭，可用按钮统一显示 pointer 光标。
+- macOS `hiddenInset` 标题栏下，对话框遮罩和内容面必须明确使用 `-webkit-app-region: no-drag`；否则顶部 60 px 内的可见按钮会被原生窗口拖拽区抢走真实鼠标命中。新建模板卡片的 `X`、取消和 Escape 统一走显式受控关闭，不依赖重渲染后的偶然事件状态。
 - 新增截图已人工复核：`output/playwright/problem-ai-busy-close-1440x900.png`、`problem-card-detail-scroll-1024x640.png`、`problem-editor-scroll-and-close-1024x640.png`、`problem-image-long-preview-1280x720.png`、`problem-image-long-preview-fit-window-1280x720.png`、`problem-image-long-preview-fit-window-200-percent.png`、`file-execution-delete-confirm-{light,dark}-1440x900.png` 和 `file-execution-delete-data-sync-light-1440x900.png`。
 
 ## 2026-07-18 Session D：窗口适配与可访问交互

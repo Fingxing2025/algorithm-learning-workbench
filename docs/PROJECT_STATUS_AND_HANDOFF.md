@@ -129,6 +129,7 @@ Session D 后续修复（基线 `8071970`）：
 - AI 发送预览的 `X`/Escape 不再与底部“返回修改/取消生成”共用动作：前者退出整张题目卡片，后者保留草稿。题目卡片主 `X`、预览 `X` 和底部取消在卡片可见时永不禁用；生成中点击 `X` 会先复用既有取消 IPC 关闭连接再退出。若用户已经明确点击“创建题目”，已确认的原子保存可在界面退出后完成。
 - 题目长图预览默认按可读宽度显示，在可聚焦区域内纵向滚动；可切换为整图适配。重新打开或切换模式回到顶部，Escape/关闭后焦点返回图片触发器。
 - 共享 `Button` 内的 Lucide SVG 使用 `pointer-events: none`，完整按钮负责命中；真实鼠标点击新建模板和图片预览的 `X` 笔画中心均可关闭，且可用按钮显示 pointer 光标。
+- 新建模板卡片的真实根因不是按钮尺寸或用户打开了旧包，而是其顶部 `X` 与 macOS `hiddenInset` 下 60 px 原生窗口拖拽区重叠；Playwright 合成鼠标会绕过该原生命中层，因而旧回归产生了假阳性。所有 `.dialog-overlay` / `.dialog-surface` 现明确为 `-webkit-app-region: no-drag`；新建模板顶部 `X`、取消与 Escape 共用显式受控关闭，AI 请求中会先取消再退出。
 - “执行与撤销”新增单条与批量删除；只允许删除当前工作区中已撤销的执行记录。仍有撤销备份的 `applied` 记录必须先撤销，不能绕过恢复能力保护。
 - 新增 ADR-0019、命名 `delete-file-executions` IPC 与 Zod 契约；Renderer 只提交不重复 UUID。Repository 在单个 SQLite 事务内先验证全部工作区/状态，再批量删除；失败整批回滚。
 - 没有数据库字段或 migration；撤销流程原本已清理对应备份目录，因此删除已撤销记录不删除任何文件。数据管理继续直接统计 `file_change_executions`，删除后计数同步减少。
@@ -137,7 +138,7 @@ Session D 后续修复（基线 `8071970`）：
 - 题目 AI E2E 使用受控慢响应验证空闲预览 `X`、Escape 与生成中 `X`；关闭后触发器回焦、连接关闭且题目零写入。截图为 `problem-ai-busy-close-1440x900.png`。
 - 截图位于 `/Users/ffxx/Desktop/项目/智能算法学习助手-v2/output/playwright/`，其余文件名以 `problem-image-long-preview-` 和 `file-execution-delete-` 开头。
 
-当前 macOS arm64 目录包已从源码提交 `3b97ae6` 使用 `package:dir` 重新生成，位于 `release/mac-arm64/算法学习工作台.app`；全新/已有 V2 userData 的 packaged smoke 2 项通过。`release/candidates/0.1.2-mac-arm64-preview/` 仍是 Session C 历史候选证据，没有被本轮复用或重写。`release/` 已被 Git 忽略，目录包不属于源码提交；该 App 未正式签名或公证，只能用于本机预览与验收。
+当前 macOS arm64 目录包已从源码提交 `e46235e` 使用 `package:dir` 重新生成，位于 `release/mac-arm64/算法学习工作台.app`；全新/已有 V2 userData 的 packaged smoke 2 项通过，其中已有 V2 场景额外覆盖卡片刚打开和切换补全语言后的 `X` 图标中心关闭。`release/candidates/0.1.2-mac-arm64-preview/` 仍是 Session C 历史候选证据，没有被本轮复用或重写。`release/` 已被 Git 忽略，目录包不属于源码提交；该 App 未正式签名或公证，只能用于本机预览与验收。
 
 ## 1. 结论先行
 
@@ -155,7 +156,7 @@ V2 已经完成从零开始使用所需的核心纵向流程，不再是界面�
 | AI Provider 稳定性 | Session B 完成 |        95% | 五类协议统一结构化管线、阶段错误、取消、有限重试与主要失败矩阵                         |
 | UI 与交互          | Session D 完成 |        92% | 布局记忆、全键盘、焦点回归、状态播报、1024×640、200% 与减少动效均有自动化和截图证据    |
 | 性能与大型工作区   | 未充分证明     |        65% | 有虚拟树和上下文上限，但没有大型工作区基准与增量相似度索引                             |
-| 测试与工程质量     | 良好           |        98% | 195 项 Vitest、3 项发布脚本测试、51 项常规 Electron E2E 通过；2 项 packaged 按条件跳过 |
+| 测试与工程质量     | 良好           |        98% | 195 项 Vitest、3 项发布脚本测试、52 项常规 Electron E2E 通过；2 项 packaged 按条件跳过 |
 | 公开发布准备       | 外部门禁待完成 |        65% | 可重复候选与证据已完成；macOS 未签名/公证，Windows 未实机安装验证                      |
 
 这些百分比用于安排优先级，不是发布承诺。公开发布必须按质量门禁逐项提供证据。
@@ -287,7 +288,7 @@ Main
 | Prettier check                     | 通过                                                                                                                      |
 | Vitest                             | 27 个文件，195 项通过；新增执行删除契约/事务测试，并保持布局、五协议、数据恢复和发布逻辑回归                              |
 | 统一题目 Electron E2E              | 7 项通过；覆盖纯手动、文本/图文 AI、取消、预览 X/Escape、忙碌 X 取消连接、空候选、零写入和重启持久化                      |
-| `npm run test:e2e`                 | 51 项常规 Electron E2E 通过，2 项 packaged 按条件跳过；最终全量重跑总耗时约 2.9 分钟                                      |
+| `npm run test:e2e`                 | 52 项常规 Electron E2E 通过，2 项 packaged 按条件跳过；最终全量重跑总耗时约 2.4 分钟                                      |
 | 数据管理 Electron E2E              | 8 项通过；导出/恢复、隔离/撤销、提交前后中断恢复和故障回滚全部保持通过                                                    |
 | 打包入口 smoke test                | 最终 macOS arm64 候选以全新 userData 启动，并写入工作区/模板后用同一 userData 重启，2 项通过                              |
 | `npm audit --audit-level=moderate` | 通过，0 个漏洞                                                                                                            |
