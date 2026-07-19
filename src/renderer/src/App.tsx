@@ -1,40 +1,19 @@
-import { LoaderCircle } from 'lucide-react'
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import type { ChooseWorkspaceRequest, TemplateActionRequest } from '@core/contracts/workspace'
 import type { ImportTemplateRequest } from '@core/contracts/template-management'
 
 import { AppDialogs } from '@/app/app-dialogs'
 import { AppShell } from '@/app/app-shell'
-import { ProblemWorkspace } from '@/features/problems/problem-workspace'
+import { AppWorkspaceRoute } from '@/app/app-workspace-route'
 import { useProblems } from '@/features/problems/use-problems'
 import { useTemplateSource } from '@/features/templates/use-template-source'
 import { useWorkspace } from '@/features/templates/use-workspace'
-import { WorkspaceOnboarding } from '@/features/templates/workspace-onboarding'
 import { useRuntimeInfo } from '@/hooks/use-runtime-info'
 import { useTheme } from '@/hooks/use-theme'
 import { I18nProvider, useI18n } from '@/lib/i18n'
 import { appViewLabels, type AppView, useAppKeyboardShortcuts } from '@/app/app-navigation'
-import { resolveAppRoute } from '@/app/app-route'
 import { useAppDialogs } from '@/app/use-app-dialogs'
-import { WorkspaceUnavailable } from '@/app/workspace-unavailable'
-import { Dashboard } from '@/features/dashboard/dashboard'
-import { TemplateLibrary } from '@/features/templates/template-library'
-
-const FileManagementWorkspace = lazy(async () => {
-  const module = await import('@/features/ai/file-management-workspace')
-  return { default: module.FileManagementWorkspace }
-})
-
-const AiProviderWorkspace = lazy(async () => {
-  const module = await import('@/features/ai/ai-provider-workspace')
-  return { default: module.AiProviderWorkspace }
-})
-
-const DataManagementWorkspace = lazy(async () => {
-  const module = await import('@/features/data/data-management-workspace')
-  return { default: module.DataManagementWorkspace }
-})
 
 function AppContent() {
   const [currentView, setCurrentView] = useState<AppView>('dashboard')
@@ -211,189 +190,6 @@ function AppContent() {
     setSelectedProblemId(problemId)
   }
 
-  const renderContent = () => {
-    const route = resolveAppRoute({ currentView, isWorkspaceLoading, workspace })
-    if (route === 'ai') {
-      return (
-        <Suspense
-          fallback={
-            <main className="grid h-full min-h-0 place-items-center">
-              <div className="text-center">
-                <LoaderCircle className="mx-auto size-6 animate-spin text-primary" />
-                <p className="mt-3 text-sm font-medium">{t('正在打开文件 AI 管理…')}</p>
-              </div>
-            </main>
-          }
-        >
-          <FileManagementWorkspace
-            onOpenSettings={() => setCurrentView('settings')}
-            onWorkspaceChanged={value => {
-              replaceWorkspace(value)
-              void problemState.reload()
-            }}
-            workspace={workspace}
-          />
-        </Suspense>
-      )
-    }
-
-    if (route === 'settings') {
-      return (
-        <Suspense
-          fallback={
-            <main className="grid h-full min-h-0 place-items-center">
-              <div className="text-center">
-                <LoaderCircle className="mx-auto size-6 animate-spin text-primary" />
-                <p className="mt-3 text-sm font-medium">{t('正在打开 AI 设置…')}</p>
-              </div>
-            </main>
-          }
-        >
-          <AiProviderWorkspace />
-        </Suspense>
-      )
-    }
-
-    if (route === 'data') {
-      return (
-        <Suspense
-          fallback={
-            <main className="grid h-full min-h-0 place-items-center">
-              <div className="text-center">
-                <LoaderCircle className="mx-auto size-6 animate-spin text-primary" />
-                <p className="mt-3 text-sm font-medium">{t('正在打开数据管理…')}</p>
-              </div>
-            </main>
-          }
-        >
-          <DataManagementWorkspace />
-        </Suspense>
-      )
-    }
-
-    if (route === 'loading') {
-      return (
-        <main className="grid min-h-0 place-items-center">
-          <div className="text-center">
-            <LoaderCircle aria-hidden="true" className="mx-auto size-6 animate-spin text-primary" />
-            <p className="mt-3 text-sm font-medium">{t('正在读取本地工作区…')}</p>
-          </div>
-        </main>
-      )
-    }
-
-    if (route === 'onboarding' || !workspace) {
-      return (
-        <WorkspaceOnboarding
-          error={workspaceError}
-          isBusy={isWorkspaceBusy}
-          onChoose={request => void handleChooseWorkspace(request)}
-        />
-      )
-    }
-
-    if (route === 'unavailable') {
-      return (
-        <WorkspaceUnavailable
-          isBusy={isWorkspaceBusy}
-          onChoose={request => void handleChooseWorkspace(request)}
-          workspace={workspace}
-        />
-      )
-    }
-
-    if (route === 'templates') {
-      return (
-        <TemplateLibrary
-          isBusy={isWorkspaceBusy}
-          isLoadingMoreTemplates={isLoadingMoreTemplates}
-          isProblemBusy={problemState.isBusy}
-          onAction={request => void handleTemplateAction(request)}
-          onChangeWorkspace={() => void handleChooseWorkspace({ intent: 'open' })}
-          onClearProblemError={problemState.clearError}
-          onCancelRescan={() => void cancelRescan()}
-          onCreateTemplate={openCreateDialog}
-          onDeleteTemplate={handleDeleteTemplate}
-          onOpenProblem={openProblem}
-          onLoadMoreTemplates={() => void loadMoreTemplates()}
-          onReloadSource={source.reload}
-          onRelocated={(templateId, result) => {
-            replaceWorkspace(result.workspace)
-            setSelectedTemplateId(templateId)
-            void loadTemplate(templateId)
-            source.reload()
-            void problemState.reload()
-            setNotice(t('模板已安全重命名或移动，并保留原有元数据与题目关联'))
-          }}
-          onSearchProblems={problemState.searchProblems}
-          onSearchTemplates={searchTemplates}
-          onRescan={() => void handleRescan()}
-          onSelectTemplate={templateId => {
-            openTemplate(templateId)
-          }}
-          onUpsertProblemRelation={async request =>
-            Boolean(await problemState.upsertRelation(request))
-          }
-          problemError={problemState.error}
-          problemTotalCount={problemState.totalCount}
-          revealTemplateId={revealTemplateId}
-          scanTask={scanTask}
-          selectedTemplate={selectedTemplate}
-          selectedTemplateId={selectedTemplateId}
-          sourceState={source.state}
-          workspace={workspace}
-        />
-      )
-    }
-
-    if (route === 'problems') {
-      return (
-        <ProblemWorkspace
-          error={problemState.error}
-          isBusy={problemState.isBusy}
-          isLoading={problemState.isLoading}
-          isLoadingMore={problemState.isLoadingMore}
-          matchedCount={problemState.matchedCount}
-          hasMore={problemState.hasMore}
-          onAddImages={problemState.addImages}
-          onAnalysisCreated={problemState.acceptProblem}
-          onClearError={problemState.clearError}
-          onDelete={problemState.deleteProblem}
-          onOpenTemplate={openTemplate}
-          onLoadMore={problemState.loadMore}
-          onRemoveImage={problemState.removeImage}
-          onRemoveRelation={problemState.removeRelation}
-          onSelect={setSelectedProblemId}
-          onSearch={problemState.search}
-          onSearchTemplates={searchTemplates}
-          onUpdate={problemState.updateProblem}
-          onUpsertRelation={problemState.upsertRelation}
-          problems={problemState.problems}
-          selectedProblemId={selectedProblemId}
-          templates={workspace.templates}
-          templateTotalCount={workspace.summary.templateCount}
-          totalCount={problemState.totalCount}
-        />
-      )
-    }
-
-    return (
-      <Dashboard
-        onCreateTemplate={openCreateDialog}
-        onOpenAi={() => setCurrentView('ai')}
-        onOpenProblem={openProblem}
-        onOpenProblems={() => setCurrentView('problems')}
-        onOpenTemplate={openTemplate}
-        onOpenTemplates={() => setCurrentView('templates')}
-        pendingPlanCount={pendingPlanCount}
-        problemTotalCount={problemState.totalCount}
-        problems={problemState.problems}
-        totalRelationCount={problemState.totalRelationCount}
-        workspace={workspace}
-      />
-    )
-  }
-
   return (
     <AppShell
       currentView={currentView}
@@ -450,7 +246,39 @@ function AppContent() {
       workspace={workspace}
       workspaceError={workspaceError}
     >
-      {renderContent()}
+      <AppWorkspaceRoute
+        cancelRescan={cancelRescan}
+        currentView={currentView}
+        handleChooseWorkspace={handleChooseWorkspace}
+        handleDeleteTemplate={handleDeleteTemplate}
+        handleRescan={() => void handleRescan()}
+        handleTemplateAction={request => void handleTemplateAction(request)}
+        isLoadingMoreTemplates={isLoadingMoreTemplates}
+        isWorkspaceBusy={isWorkspaceBusy}
+        isWorkspaceLoading={isWorkspaceLoading}
+        loadMoreTemplates={() => void loadMoreTemplates()}
+        loadTemplate={loadTemplate}
+        onNavigate={setCurrentView}
+        onNotice={setNotice}
+        openCreateDialog={openCreateDialog}
+        openProblem={openProblem}
+        openTemplate={openTemplate}
+        pendingPlanCount={pendingPlanCount}
+        problemState={problemState}
+        replaceWorkspace={workspaceValue => replaceWorkspace(workspaceValue)}
+        revealTemplateId={revealTemplateId}
+        scanTask={scanTask}
+        searchTemplates={searchTemplates}
+        selectedProblemId={selectedProblemId}
+        selectedTemplate={selectedTemplate}
+        selectedTemplateId={selectedTemplateId}
+        setSelectedProblemId={problemId => setSelectedProblemId(problemId)}
+        setSelectedTemplateId={setSelectedTemplateId}
+        source={source}
+        t={t}
+        workspace={workspace}
+        workspaceError={workspaceError}
+      />
     </AppShell>
   )
 }
