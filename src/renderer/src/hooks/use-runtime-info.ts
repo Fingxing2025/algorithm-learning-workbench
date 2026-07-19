@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 
 import type { RuntimeInfo } from '@core/contracts/runtime'
 
-type RuntimeState =
+export type RuntimeState =
   { status: 'loading' } | { status: 'ready'; value: RuntimeInfo } | { status: 'error' }
 
 export function useRuntimeInfo(): RuntimeState {
