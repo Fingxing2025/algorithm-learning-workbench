@@ -152,6 +152,18 @@ Session F 第二切片在保持 `TemplateManagementService` 构造参数、公�
 
 模板入库、批量导入、元数据分类和手动移动的 IPC façade 行为继续由 `template-management-service.ts` 组合；手动移动复用同一安全校验与执行器。拆分没有新增数据库字段、migration、IPC 名称、后台任务种类、文件备份格式、Provider 协议或权限。
 
+### Session F AI Provider Renderer 边界
+
+Session F 第三切片在保持 App 路由、`ResizableLayout`、布局偏好、Provider 协议/能力、密钥语义和命名 Preload API 不变的前提下，把 AI Provider 工作区拆为四个 Renderer 职责：
+
+- `ai-provider-workspace.tsx`：页面状态协调、选中/新建切换、创建/更新/删除/连接测试/任务路由动作组合和最终布局装配。
+- `ai-provider-editor.tsx`：Provider 预设、连接表单、能力声明、任务路由、状态反馈和删除确认的完整展示边界。
+- `ai-provider-list.tsx`：Provider 空状态、列表项、选中样式和选择回调。
+- `ai-provider-form.ts`：协议选项、表单默认值、Profile 到表单转换、协议标签和自定义请求头解析等纯逻辑。
+- `use-ai-providers.ts` 保持未修改，是上述组件唯一的命名 Preload 调用层；新拆出的展示/纯逻辑文件不访问 `window.desktop`、Node、SQLite、文件系统或密钥存储。
+
+拆分前先用组件特征测试锁定更新时空 API Key 不清空已有密钥、请求头/超时请求构造、任务路由、预设创建和无效请求头阻断。该切片没有新增 ADR，因为没有改变进程边界、持久化协议、IPC/Zod 契约、Provider Adapter、安全上限或视觉系统。
+
 安全与发布文档：
 
 - `docs/智能算法学习助手-v2-threat-model.md`

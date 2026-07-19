@@ -9,7 +9,7 @@
 - 受影响的 Playwright E2E 通过。
 - Electron 可以从开发入口真实启动。
 
-当前累计基线（2026-07-19，Session F 第二切片代码提交 `9c195b6`）：31 个 Vitest 文件中的 211 项测试与 3 项发布脚本测试通过；常规真实 Electron E2E 54 项通过，2 项 packaged 测试在未设置 `PACKAGED_APP_PATH` 时按条件跳过。最近 macOS arm64 目录包仍来自 Session E 后续修复 `4c13dc8`，全新与已有 V2 userData 的 2 项 packaged smoke 已单独通过；Session F 未重新打包。测试数量随功能增长会变化，发布判断以当次命令结果为准。
+当前累计基线（2026-07-19，Session F 第三切片代码提交 `75aad5f`）：32 个 Vitest 文件中的 214 项测试与 3 项发布脚本测试通过；常规真实 Electron E2E 54 项通过，2 项 packaged 测试在未设置 `PACKAGED_APP_PATH` 时按条件跳过。最近 macOS arm64 目录包仍来自 Session E 后续修复 `4c13dc8`，全新与已有 V2 userData 的 2 项 packaged smoke 已单独通过；Session F 未重新打包。测试数量随功能增长会变化，发布判断以当次命令结果为准。
 
 ## 核心 E2E 场景
 
@@ -150,3 +150,14 @@
 - 性能：`PERF_SIZES=1000,5000,10000 PERF_RUNS=5 npm run benchmark:performance` 通过；原始报告为 `output/performance/session-e-session-f-template-service-split-final.md`。10k 启动 P50/P95 `2990.48/3200.29 ms`，无变化重扫 `672.21/732.82 ms`，审计 `87.94/90.36 ms`，AI 候选 `144.00/158.31 ms`，取消 `0.27/0.39 ms`；`hashed=0`、`reused=unchanged=10,000`。
 - 本切片没有新增数据库字段、migration、IPC 名称、后台任务协议、文件备份格式、Zod 契约、权限或视觉 token；未重新打包、未新增截图矩阵。既有 Session D/E 截图和上一目录包只作为未受影响的回归证据。
 - 全新 userData、已有 V2 userData、旧 V2 schema migration、文件外部修改复检、取消和异常补偿回滚均由现有 E2E/性能测试继续覆盖；Windows 实机、VoiceOver 长流程和正式签名/notarization 仍未完成。
+
+## Session F 第三切片实测（2026-07-19）
+
+- 基线：`671684d docs: record final template service size`；特征测试提交：`bdffac3 test: characterize ai provider workspace`；代码提交：`75aad5f refactor: split ai provider workspace`。
+- `ai-provider-workspace.tsx` 从 745 行降至 246 行，页面容器、编辑表单/任务路由、Provider 列表和纯表单转换形成明确职责；`use-ai-providers.ts` 仍是唯一 Preload 调用层。
+- 先新增 3 项 Renderer 特征测试，锁定密钥保留、请求构造、任务路由、预设创建和无效请求头阻断；实现提交前定向 2 个测试文件/5 项通过。
+- `npm run check`：32 个 Vitest 文件/214 项通过；3 项发布脚本测试通过；TypeScript、ESLint 0 warnings、Prettier 全部通过。
+- `npm run test:e2e`：54 项常规真实 Electron E2E 通过；2 项 packaged 因未设置 `PACKAGED_APP_PATH` 按条件跳过；总耗时约 2.5 分钟。
+- Provider E2E 重新生成并人工复核 1440×900 亮色、1280×720 紧凑和 1440×900 深色截图；布局、滚动、状态反馈、主题和主操作无视觉变化，Session D 的 1024×640/200% 矩阵继续作为回归证据。
+- 本切片没有改变 SQLite schema、migration、IPC、Zod、后台任务、备份格式、Provider 协议、能力/错误边界、密钥语义或安全上限，也未重新打包。
+- 扫描、查询、启动、索引和分页路径未受影响，因此没有重跑性能基准；Windows 实机、VoiceOver 长流程和正式签名/notarization 仍未完成。

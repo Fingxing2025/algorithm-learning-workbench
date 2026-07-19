@@ -110,23 +110,25 @@
 
 验收：`npm run check` 通过 201 项 Vitest 与 3 项发布脚本测试；完整 Electron E2E 覆盖 54 项常规场景，2 项 packaged 按条件跳过。10k 无变化重扫 `hashed = 0`、`reused = unchanged = 10,000`；题目首批查询 P50 3.09 ms、详情 0.18 ms、审计 78.81 ms、AI 候选 135.84 ms、取消 0.27 ms。详细结果见 `docs/PERFORMANCE_BASELINE.md` 和 `docs/SESSION_E_SUMMARY_AND_NEXT_PROMPT.md`。
 
-## Session F：代码健康与文档发布候选（第二切片已完成，2026-07-19）
+## Session F：代码健康与文档发布候选（第三切片已完成，2026-07-19）
 
 - `App.tsx` 从约 1,630 行降至约 292 行，只保留应用状态协调、领域动作与组合。
 - 应用导航/快捷键、路由判定、应用外壳/布局状态、对话框状态、工作区路由、Dashboard、模板库和不可用工作区各自形成语义边界。
 - `template-management-service.ts` 的审计、AI 文件计划、计划安全校验、执行/回滚和计划历史职责拆到五个 Main 服务文件，原公开 façade、IPC 和调用图保持不变。
 - 新增审计重复/取消特征测试；共享常量、语言规则和路径/元数据小工具只承载跨职责的稳定逻辑。
+- `ai-provider-workspace.tsx` 从 745 行降至 246 行；页面容器、编辑表单/任务路由、Provider 列表和纯表单转换分别形成语义文件，既有 `use-ai-providers.ts` 保持唯一 Preload 调用边界。
+- AI Provider 拆分前新增 3 项组件特征测试，锁定密钥保留、请求构造、任务路由、预设创建和无效请求头阻断；没有改变五类协议、能力检查或密钥存储语义。
 - 新增快捷键与路由纯逻辑测试；完整桌面回归证明布局、焦点、键盘、增量索引、分页、取消和数据恢复行为不变。
 - 本阶段没有数据库字段、migration、IPC、后台任务协议、系统权限、依赖或视觉系统变化，也未重新打包。
 
-验收：`npm run check` 通过 211 项 Vitest 与 3 项发布脚本测试；完整 Electron E2E 为 54 项通过、2 项 packaged 按条件跳过；正式 1k/5k/10k、每项 5 次性能基准通过，结果与 `docs/PERFORMANCE_BASELINE.md`、`output/performance/session-e-session-f-app-split-final.md` 对照后未发现可重复回归。后续继续保持小提交，不把协议升级、schema 或视觉重做混入服务健康重构。
+验收：第三切片 `npm run check` 通过 32 个 Vitest 文件/214 项与 3 项发布脚本测试；完整 Electron E2E 为 54 项通过、2 项 packaged 按条件跳过。Provider 1440×900 亮色/深色与 1280×720 紧凑截图已重新生成并人工复核，无视觉变化。扫描、查询和启动路径未改变，第三切片未重跑性能基准；第二切片的正式 1k/5k/10k 报告仍是最近性能证据。后续继续保持小提交，不把协议升级、schema 或视觉重做混入服务健康重构。
 
 ## 后续阶段
 
 核心功能范围已经闭环，后续不再以继续增加页面为主。优先顺序改为：
 
 1. 外部条件齐备时完成 macOS 签名/notarization、Windows Authenticode 与真实主机安装验收。
-2. 继续行为保持地拆分模板管理服务和大型页面组件，并补领域单测；`App.tsx` 第一切片已完成。
+2. 继续行为保持地拆分文件管理、题目或数据管理等大型 Renderer 页面并补领域单测；`App.tsx`、模板管理服务和 AI Provider 工作区切片已完成。
 3. 统一 README、用户指南、CHANGELOG、架构与发布事实来源。
 4. 在真实 Windows 主机验证 Session E 的大工作区滚动、取消和原位升级；macOS arm64 结果不能替代该证据。
 
