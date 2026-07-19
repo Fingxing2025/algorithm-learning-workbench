@@ -24,6 +24,7 @@ import swift from 'highlight.js/lib/languages/swift'
 import typescript from 'highlight.js/lib/languages/typescript'
 import { Braces, Maximize2, Minimize2 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 
 import { cn } from '@/lib/utils'
 import { useI18n } from '@/lib/i18n'
@@ -364,6 +365,8 @@ export function CodeViewer({ code, language }: { code: string; language: string 
   const { t } = useI18n()
   const [isExpanded, setIsExpanded] = useState(false)
   const [theme, setTheme] = useState<CodeTheme>(getInitialCodeTheme)
+  const shouldRestoreToggleFocusRef = useRef(false)
+  const toggleButtonRef = useRef<HTMLButtonElement>(null)
   const isApplicationDark = useApplicationDarkMode()
   const source = code || t('// 空模板文件')
   const lineCount = useMemo(() => source.split(/\r\n|\r|\n/).length, [source])
@@ -376,103 +379,131 @@ export function CodeViewer({ code, language }: { code: string; language: string 
 
   useEffect(() => {
     if (!isExpanded) return
+    const previousBodyOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setIsExpanded(false)
+      if (event.key !== 'Escape') return
+      shouldRestoreToggleFocusRef.current = true
+      setIsExpanded(false)
     }
     window.addEventListener('keydown', closeOnEscape)
-    return () => window.removeEventListener('keydown', closeOnEscape)
+    return () => {
+      document.body.style.overflow = previousBodyOverflow
+      window.removeEventListener('keydown', closeOnEscape)
+    }
   }, [isExpanded])
 
-  return (
-    <>
-      {isExpanded && <div aria-hidden="true" className="fixed inset-0 z-40 bg-overlay/70" />}
+  useEffect(() => {
+    if (!shouldRestoreToggleFocusRef.current) return
+    toggleButtonRef.current?.focus()
+    shouldRestoreToggleFocusRef.current = false
+  }, [isExpanded])
+
+  const viewer = (
+    <div
+      aria-label={t('模板代码查看器')}
+      className={cn(
+        'window-no-drag relative flex h-[clamp(440px,62vh,720px)] min-h-[440px] shrink-0 flex-col overflow-hidden rounded-xl shadow-[0_12px_32px_-20px_rgba(15,23,42,0.7)]',
+        usesLightChrome
+          ? 'border border-[#d0d7de] bg-white ring-1 ring-black/5'
+          : 'border border-black/15 bg-code ring-1 ring-white/5',
+        isExpanded && 'fixed inset-4 z-50 h-auto min-h-0 rounded-2xl shadow-2xl',
+      )}
+      data-expanded={isExpanded ? 'true' : 'false'}
+    >
       <div
-        aria-label={t('模板代码查看器')}
+        aria-label={t('代码查看器工具栏')}
         className={cn(
-          'relative flex h-[clamp(440px,62vh,720px)] min-h-[440px] shrink-0 flex-col overflow-hidden rounded-xl shadow-[0_12px_32px_-20px_rgba(15,23,42,0.7)]',
+          'flex h-11 shrink-0 items-center gap-2 border-b px-3.5',
           usesLightChrome
-            ? 'border border-[#d0d7de] bg-white ring-1 ring-black/5'
-            : 'border border-black/15 bg-code ring-1 ring-white/5',
-          isExpanded && 'fixed inset-4 z-50 h-auto min-h-0 rounded-2xl shadow-2xl',
+            ? 'border-[#d0d7de] bg-[#f6f8fa] text-[#24292f]'
+            : 'border-white/10 bg-[#181818] text-code-foreground',
         )}
-        data-expanded={isExpanded ? 'true' : 'false'}
       >
-        <div
-          aria-label={t('代码查看器工具栏')}
+        <span
           className={cn(
-            'flex h-11 shrink-0 items-center gap-2 border-b px-3.5',
-            usesLightChrome
-              ? 'border-[#d0d7de] bg-[#f6f8fa] text-[#24292f]'
-              : 'border-white/10 bg-[#181818] text-code-foreground',
+            'grid size-6 place-items-center rounded-md',
+            usesLightChrome ? 'bg-[#eaeef2] text-[#0969da]' : 'bg-white/7 text-[#9cdcfe]',
           )}
         >
-          <span
+          <Braces aria-hidden="true" className="size-3.5" />
+        </span>
+        <span className="text-[11px] font-semibold">{language}</span>
+        <span
+          className={cn(
+            'text-[10px]',
+            usesLightChrome ? 'text-[#57606a]' : 'text-code-foreground/45',
+          )}
+        >
+          {lineCount} {t('行')}
+        </span>
+        <label
+          className={cn(
+            'ml-auto flex items-center gap-2 text-[10px]',
+            usesLightChrome ? 'text-[#57606a]' : 'text-code-foreground/60',
+          )}
+        >
+          <span className="hidden sm:inline">{t('代码主题')}</span>
+          <select
+            aria-label={t('代码主题')}
             className={cn(
-              'grid size-6 place-items-center rounded-md',
-              usesLightChrome ? 'bg-[#eaeef2] text-[#0969da]' : 'bg-white/7 text-[#9cdcfe]',
-            )}
-          >
-            <Braces aria-hidden="true" className="size-3.5" />
-          </span>
-          <span className="text-[11px] font-semibold">{language}</span>
-          <span
-            className={cn(
-              'text-[10px]',
-              usesLightChrome ? 'text-[#57606a]' : 'text-code-foreground/45',
-            )}
-          >
-            {lineCount} {t('行')}
-          </span>
-          <label
-            className={cn(
-              'ml-auto flex items-center gap-2 text-[10px]',
-              usesLightChrome ? 'text-[#57606a]' : 'text-code-foreground/60',
-            )}
-          >
-            <span className="hidden sm:inline">{t('代码主题')}</span>
-            <select
-              aria-label={t('代码主题')}
-              className={cn(
-                'h-7 rounded-md border px-2.5 text-[10px] outline-none transition-colors focus:ring-2',
-                usesLightChrome
-                  ? 'border-[#d0d7de] bg-white text-[#24292f] hover:bg-[#f6f8fa] focus:ring-[#0969da]'
-                  : 'border-white/12 bg-white/6 text-code-foreground hover:bg-white/10 focus:ring-[#007acc]',
-              )}
-              onChange={event => setTheme(event.target.value as CodeTheme)}
-              value={theme}
-            >
-              {codeThemes.map(option => (
-                <option key={option.value} value={option.value}>
-                  {t(option.label)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button
-            aria-label={t(isExpanded ? '退出代码专注模式' : '进入代码专注模式')}
-            className={cn(
-              'grid size-7 place-items-center rounded-md outline-none transition-colors focus-visible:ring-2',
+              'h-7 rounded-md border px-2.5 text-[10px] outline-none transition-colors focus:ring-2',
               usesLightChrome
-                ? 'text-[#57606a] hover:bg-[#eaeef2] hover:text-[#24292f] focus-visible:ring-[#0969da]'
-                : 'text-code-foreground/60 hover:bg-white/10 hover:text-code-foreground focus-visible:ring-[#007acc]',
+                ? 'border-[#d0d7de] bg-white text-[#24292f] hover:bg-[#f6f8fa] focus:ring-[#0969da]'
+                : 'border-white/12 bg-white/6 text-code-foreground hover:bg-white/10 focus:ring-[#007acc]',
             )}
-            onClick={() => setIsExpanded(value => !value)}
-            title={t(isExpanded ? '退出专注模式（Esc）' : '专注模式')}
-            type="button"
+            onChange={event => setTheme(event.target.value as CodeTheme)}
+            value={theme}
           >
-            {isExpanded ? (
-              <Minimize2 aria-hidden="true" className="size-3.5" />
-            ) : (
-              <Maximize2 aria-hidden="true" className="size-3.5" />
-            )}
-          </button>
-        </div>
-        {cppLanguages.has(language) ? (
-          <CppCodeEditor source={source} theme={resolvedTheme} />
-        ) : (
-          <HighlightJsCode language={language} source={source} theme={theme} />
-        )}
+            {codeThemes.map(option => (
+              <option key={option.value} value={option.value}>
+                {t(option.label)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button
+          aria-label={t(isExpanded ? '退出代码专注模式' : '进入代码专注模式')}
+          className={cn(
+            'grid size-7 place-items-center rounded-md outline-none transition-colors focus-visible:ring-2',
+            usesLightChrome
+              ? 'text-[#57606a] hover:bg-[#eaeef2] hover:text-[#24292f] focus-visible:ring-[#0969da]'
+              : 'text-code-foreground/60 hover:bg-white/10 hover:text-code-foreground focus-visible:ring-[#007acc]',
+          )}
+          onClick={() => {
+            shouldRestoreToggleFocusRef.current = true
+            setIsExpanded(value => !value)
+          }}
+          ref={toggleButtonRef}
+          title={t(isExpanded ? '退出专注模式（Esc）' : '专注模式')}
+          type="button"
+        >
+          {isExpanded ? (
+            <Minimize2 aria-hidden="true" className="size-3.5" />
+          ) : (
+            <Maximize2 aria-hidden="true" className="size-3.5" />
+          )}
+        </button>
       </div>
-    </>
+      {cppLanguages.has(language) ? (
+        <CppCodeEditor source={source} theme={resolvedTheme} />
+      ) : (
+        <HighlightJsCode language={language} source={source} theme={theme} />
+      )}
+    </div>
+  )
+
+  if (!isExpanded) return viewer
+
+  return createPortal(
+    <>
+      <div
+        aria-hidden="true"
+        className="window-no-drag fixed inset-0 z-40 bg-overlay/70"
+        data-code-viewer-backdrop="true"
+      />
+      {viewer}
+    </>,
+    document.body,
   )
 }

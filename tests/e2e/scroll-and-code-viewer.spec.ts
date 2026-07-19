@@ -127,8 +127,53 @@ test('scrolls large template and problem lists and switches the code theme', asy
       path: resolve('output/playwright/code-viewer-dark-1280x720.png'),
     })
     await page.getByRole('button', { name: '切换到浅色主题' }).click()
+    const separatorPoints = await page.locator('[data-layout-separator]').evaluateAll(elements =>
+      elements.flatMap(element => {
+        const bounds = element.getBoundingClientRect()
+        return bounds.width > 0 && bounds.height > 0
+          ? [{ x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 }]
+          : []
+      }),
+    )
+    expect(separatorPoints.length).toBeGreaterThan(0)
     await page.getByRole('button', { name: '进入代码专注模式' }).click()
     await expect(codeViewer).toHaveAttribute('data-expanded', 'true')
+    const [viewportSize, expandedBounds] = await Promise.all([
+      page.evaluate(() => {
+        const browser = globalThis as unknown as { innerHeight: number; innerWidth: number }
+        return { height: browser.innerHeight, width: browser.innerWidth }
+      }),
+      codeViewer.boundingBox(),
+    ])
+    expect(expandedBounds).not.toBeNull()
+    expect(expandedBounds!.x).toBeCloseTo(16, 0)
+    expect(expandedBounds!.y).toBeCloseTo(16, 0)
+    expect(expandedBounds!.width).toBeCloseTo(viewportSize.width - 32, 0)
+    expect(expandedBounds!.height).toBeCloseTo(viewportSize.height - 32, 0)
+    const separatorHitTargets = await page.evaluate(points => {
+      const browser = globalThis as unknown as {
+        document: {
+          elementFromPoint: (
+            x: number,
+            y: number,
+          ) => { closest: (selector: string) => unknown } | null
+        }
+      }
+      return points.map(point => {
+        const target = browser.document.elementFromPoint(point.x, point.y)
+        return {
+          hitsExpandedViewer: Boolean(target?.closest('[data-expanded="true"]')),
+          hitsLayoutSeparator: Boolean(target?.closest('[data-layout-separator]')),
+        }
+      })
+    }, separatorPoints)
+    expect(separatorHitTargets).toEqual(
+      separatorPoints.map(() => ({ hitsExpandedViewer: true, hitsLayoutSeparator: false })),
+    )
+    await page.screenshot({
+      animations: 'disabled',
+      path: resolve('output/playwright/code-viewer-focus-mode-1280x720.png'),
+    })
     await page.keyboard.press('Escape')
     await expect(codeViewer).toHaveAttribute('data-expanded', 'false')
 

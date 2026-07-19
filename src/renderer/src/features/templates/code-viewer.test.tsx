@@ -42,13 +42,26 @@ describe('CodeViewer', () => {
   })
 
   it('offers a large focus mode that closes with Escape', () => {
-    render(<CodeViewer code={'int main() {}\n'} language="C++" />)
+    render(
+      <div data-testid="stacking-ancestor" style={{ transform: 'translateZ(0)' }}>
+        <CodeViewer code={'int main() {}\n'} language="C++" />
+      </div>,
+    )
 
-    const viewer = screen.getByLabelText('模板代码查看器')
-    fireEvent.click(screen.getByRole('button', { name: '进入代码专注模式' }))
-    expect(viewer).toHaveAttribute('data-expanded', 'true')
+    const enterButton = screen.getByRole('button', { name: '进入代码专注模式' })
+    fireEvent.click(enterButton)
+    const expandedViewer = screen.getByLabelText('模板代码查看器')
+    expect(expandedViewer).toHaveAttribute('data-expanded', 'true')
+    expect(expandedViewer.parentElement).toBe(document.body)
+    expect(expandedViewer.closest('[data-testid="stacking-ancestor"]')).toBeNull()
+    expect(document.body.style.overflow).toBe('hidden')
+    expect(screen.getByRole('button', { name: '退出代码专注模式' })).toHaveFocus()
 
     fireEvent.keyDown(window, { key: 'Escape' })
-    expect(viewer).toHaveAttribute('data-expanded', 'false')
+    const collapsedViewer = screen.getByLabelText('模板代码查看器')
+    expect(collapsedViewer).toHaveAttribute('data-expanded', 'false')
+    expect(collapsedViewer.closest('[data-testid="stacking-ancestor"]')).not.toBeNull()
+    expect(document.body.style.overflow).toBe('')
+    expect(screen.getByRole('button', { name: '进入代码专注模式' })).toHaveFocus()
   })
 })
