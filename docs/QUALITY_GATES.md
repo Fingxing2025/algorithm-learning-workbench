@@ -9,7 +9,7 @@
 - 受影响的 Playwright E2E 通过。
 - Electron 可以从开发入口真实启动。
 
-当前累计基线（2026-07-19，Session E `0.1.2` 开发快照）：28 个 Vitest 文件中的 201 项测试与 3 项发布脚本测试通过；常规真实 Electron E2E 54 项通过，2 项 packaged 测试在未设置 `PACKAGED_APP_PATH` 时按条件跳过。Session E 未重新打包；最近目录包的 2 项 packaged smoke 属于 Session D 证据。测试数量随功能增长会变化，发布判断以当次命令结果为准。
+当前累计基线（2026-07-19，Session E 后续修复 `4c13dc8`）：28 个 Vitest 文件中的 201 项测试与 3 项发布脚本测试通过；常规真实 Electron E2E 54 项通过，2 项 packaged 测试在未设置 `PACKAGED_APP_PATH` 时按条件跳过。已从该提交重新生成 macOS arm64 目录包，全新与已有 V2 userData 的 2 项 packaged smoke 单独通过；没有复用 Session C 候选摘要。测试数量随功能增长会变化，发布判断以当次命令结果为准。
 
 ## 核心 E2E 场景
 

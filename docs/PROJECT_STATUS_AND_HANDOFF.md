@@ -138,7 +138,7 @@ Session D 后续修复（基线 `8071970`）：
 - 题目 AI E2E 使用受控慢响应验证空闲预览 `X`、Escape 与生成中 `X`；关闭后触发器回焦、连接关闭且题目零写入。截图为 `problem-ai-busy-close-1440x900.png`。
 - 截图位于 `/Users/ffxx/Desktop/项目/智能算法学习助手-v2/output/playwright/`，其余文件名以 `problem-image-long-preview-` 和 `file-execution-delete-` 开头。
 
-当前 macOS arm64 目录包已从源码提交 `e46235e` 使用 `package:dir` 重新生成，位于 `release/mac-arm64/算法学习工作台.app`；全新/已有 V2 userData 的 packaged smoke 2 项通过，其中已有 V2 场景额外覆盖卡片刚打开和切换补全语言后的 `X` 图标中心关闭。`release/candidates/0.1.2-mac-arm64-preview/` 仍是 Session C 历史候选证据，没有被本轮复用或重写。`release/` 已被 Git 忽略，目录包不属于源码提交；该 App 未正式签名或公证，只能用于本机预览与验收。
+当前 macOS arm64 目录包已从源码提交 `4c13dc8` 使用 `package:dir` 重新生成，位于 `release/mac-arm64/算法学习工作台.app`；该后续修复把代码专注模式通过 portal 挂到 `document.body`，避免工作台面板分隔条覆盖代码或截获点击，并保持 Esc 与触发按钮焦点回归。全新/已有 V2 userData 的 packaged smoke 2 项通过；常规 Electron E2E 还会在原分隔条坐标验证命中目标属于全屏代码视图。`release/candidates/0.1.2-mac-arm64-preview/` 仍是 Session C 历史候选证据，没有被本轮复用或重写。`release/` 已被 Git 忽略，目录包不属于源码提交；该 App 未正式签名或公证，只能用于本机预览与验收。
 
 ## 1. 结论先行
 
