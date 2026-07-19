@@ -9,7 +9,7 @@
 - 受影响的 Playwright E2E 通过。
 - Electron 可以从开发入口真实启动。
 
-当前累计基线（2026-07-19，Session F 第三切片代码提交 `75aad5f`）：32 个 Vitest 文件中的 214 项测试与 3 项发布脚本测试通过；常规真实 Electron E2E 54 项通过，2 项 packaged 测试在未设置 `PACKAGED_APP_PATH` 时按条件跳过。最近 macOS arm64 目录包仍来自 Session E 后续修复 `4c13dc8`，全新与已有 V2 userData 的 2 项 packaged smoke 已单独通过；Session F 未重新打包。测试数量随功能增长会变化，发布判断以当次命令结果为准。
+当前累计基线（2026-07-19，Session F 第四切片代码提交 `ee52a21`）：33 个 Vitest 文件中的 217 项测试与 3 项发布脚本测试通过；常规真实 Electron E2E 54 项通过，2 项 packaged 测试在未设置 `PACKAGED_APP_PATH` 时按条件跳过。最近 macOS arm64 目录包仍来自 Session E 后续修复 `4c13dc8`，全新与已有 V2 userData 的 2 项 packaged smoke 已单独通过；Session F 未重新打包。测试数量随功能增长会变化，发布判断以当次命令结果为准。
 
 ## 核心 E2E 场景
 
@@ -161,3 +161,13 @@
 - Provider E2E 重新生成并人工复核 1440×900 亮色、1280×720 紧凑和 1440×900 深色截图；布局、滚动、状态反馈、主题和主操作无视觉变化，Session D 的 1024×640/200% 矩阵继续作为回归证据。
 - 本切片没有改变 SQLite schema、migration、IPC、Zod、后台任务、备份格式、Provider 协议、能力/错误边界、密钥语义或安全上限，也未重新打包。
 - 扫描、查询、启动、索引和分页路径未受影响，因此没有重跑性能基准；Windows 实机、VoiceOver 长流程和正式签名/notarization 仍未完成。
+
+## Session F 第四切片实测（2026-07-19）
+
+- 基线：`6b09f16 docs: hand off session f provider split`；特征测试提交：`f7eb981 test: characterize problem analysis dialog`；代码提交：`ee52a21 refactor: split problem analysis relations`。
+- `problem-analysis-dialog.test.tsx` 新增 3 项组件特征测试，覆盖手动标签去重与关系筛选、AI 请求预览/分析/只补空字段/自动勾选候选，以及生成中关闭先取消活动请求。
+- `problem-analysis-dialog.tsx` 从 969 行降至 826 行；新增 193 行的 `problem-analysis-relations.tsx`，只负责受控模板搜索、选择、候选勾选、关系类型/备注和移除，不访问 Preload。
+- `npm run check`：33 个 Vitest 文件/217 项通过；3 项发布脚本测试通过；TypeScript、ESLint 0 warnings、Prettier 全部通过。
+- `npm run test:e2e`：沙箱内首次运行因 Electron GUI 与本地 mock 端口被 `EPERM` 拒绝；授权本地 GUI/端口后完整重跑为 54 项常规真实 Electron E2E 通过、2 项 packaged 条件跳过，总耗时约 2.4 分钟。
+- 重新生成并人工复核 `unified-problem-multi-template-{light,dark}-{1440x900,1280x720}.png`；关联草稿结构、滚动、亮暗层级、紧凑主操作和焦点边界无视觉变化，Session D 的 1024×640/200% 矩阵继续作为回归证据。
+- 本切片没有数据库、migration、IPC/Zod、后台任务、备份格式、Provider 协议、安全上限、布局偏好、视觉 token 或依赖变化；扫描/查询/启动路径不受影响，因此没有重跑性能基准或目录包。

@@ -164,6 +164,16 @@ Session F 第三切片在保持 App 路由、`ResizableLayout`、布局偏好、
 
 拆分前先用组件特征测试锁定更新时空 API Key 不清空已有密钥、请求头/超时请求构造、任务路由、预设创建和无效请求头阻断。该切片没有新增 ADR，因为没有改变进程边界、持久化协议、IPC/Zod 契约、Provider Adapter、安全上限或视觉系统。
 
+### Session F 题目分析 Renderer 边界
+
+Session F 第四切片继续保持行为不变，只把题目分析对话框中的模板关联草稿编辑器移到独立 Renderer 组件。`ProblemAnalysisDialog` 仍是题目分析状态、AI 预览/取消/分析/提交动作和 Radix 对话框生命周期的唯一协调者；新增组件不访问 Preload、Node、SQLite、文件系统或密钥。
+
+- `problem-analysis-relations.tsx`：模板搜索输入、手动模板选择、候选勾选、关系类型/备注编辑、候选移除和关联草稿空状态；通过受控 props 与回调接收数据。
+- `problem-analysis-dialog.tsx`：保留题目字段、图片、AI 请求、草稿合并、取消、原子提交、焦点恢复、布局和预览浮层；`window.desktop.problemAnalysis` 调用图不变。
+- `problem-analysis-dialog.test.tsx`：用组件特征测试锁定预览→分析→只补空字段→原子提交、标签去重/关系筛选，以及忙碌关闭先取消活动请求。
+
+该切片没有新增数据库字段、migration、IPC/Zod 契约、后台任务、备份格式、Provider 协议、安全上限或视觉 token；原关联区域的 DOM 结构、class、键盘控件和状态播报保持不变。
+
 安全与发布文档：
 
 - `docs/智能算法学习助手-v2-threat-model.md`
