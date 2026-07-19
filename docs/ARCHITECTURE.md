@@ -174,6 +174,16 @@ Session F 第四切片继续保持行为不变，只把题目分析对话框中�
 
 该切片没有新增数据库字段、migration、IPC/Zod 契约、后台任务、备份格式、Provider 协议、安全上限或视觉 token；原关联区域的 DOM 结构、class、键盘控件和状态播报保持不变。
 
+### Session F 题目工作区详情边界
+
+Session F 第五切片继续保持 `ProblemWorkspace` 的左侧列表、搜索、键盘导航、虚拟滚动和 `ResizableLayout` 不变，把选中题目的右侧详情面板移到独立 Renderer 组件。父工作区仍负责列表状态、题目选择、分页、对话框装配和领域回调；详情组件不访问 Preload、Node、SQLite、文件系统或密钥。
+
+- `problem-details-panel.tsx`：题目头部、题面/摘要/备注、结构化分析、模板关联、图片卡片，以及删除/解除关联确认和详情操作回调。
+- `problem-workspace.tsx`：保留题目列表、筛选/分页、键盘行为、布局分隔条、空状态和编辑/关联/AI 对话框装配。
+- `problem-workspace.test.tsx`：锁定可用模板打开、解除关联二次确认、添加图片和删除二次确认的调用特征。
+
+详情面板继续使用原 `section[role=region]`、滚动边界、class、accessible name 和操作标签；本切片没有新增数据库字段、migration、IPC/Zod 契约、后台任务、备份格式、Provider 协议、安全上限或视觉 token。
+
 安全与发布文档：
 
 - `docs/智能算法学习助手-v2-threat-model.md`

@@ -9,7 +9,7 @@
 - 受影响的 Playwright E2E 通过。
 - Electron 可以从开发入口真实启动。
 
-当前累计基线（2026-07-19，Session F 第四切片代码提交 `ee52a21`）：33 个 Vitest 文件中的 217 项测试与 3 项发布脚本测试通过；常规真实 Electron E2E 54 项通过，2 项 packaged 测试在未设置 `PACKAGED_APP_PATH` 时按条件跳过。最近 macOS arm64 目录包仍来自 Session E 后续修复 `4c13dc8`，全新与已有 V2 userData 的 2 项 packaged smoke 已单独通过；Session F 未重新打包。测试数量随功能增长会变化，发布判断以当次命令结果为准。
+当前累计基线（2026-07-19，Session F 第五切片代码提交 `0b13ff2`）：34 个 Vitest 文件中的 220 项测试与 3 项发布脚本测试通过；常规真实 Electron E2E 54 项通过，2 项 packaged 测试在未设置 `PACKAGED_APP_PATH` 时按条件跳过。最近 macOS arm64 目录包仍来自 Session E 后续修复 `4c13dc8`，全新与已有 V2 userData 的 2 项 packaged smoke 已单独通过；Session F 未重新打包。测试数量随功能增长会变化，发布判断以当次命令结果为准。
 
 ## 核心 E2E 场景
 
@@ -171,3 +171,13 @@
 - `npm run test:e2e`：沙箱内首次运行因 Electron GUI 与本地 mock 端口被 `EPERM` 拒绝；授权本地 GUI/端口后完整重跑为 54 项常规真实 Electron E2E 通过、2 项 packaged 条件跳过，总耗时约 2.4 分钟。
 - 重新生成并人工复核 `unified-problem-multi-template-{light,dark}-{1440x900,1280x720}.png`；关联草稿结构、滚动、亮暗层级、紧凑主操作和焦点边界无视觉变化，Session D 的 1024×640/200% 矩阵继续作为回归证据。
 - 本切片没有数据库、migration、IPC/Zod、后台任务、备份格式、Provider 协议、安全上限、布局偏好、视觉 token 或依赖变化；扫描/查询/启动路径不受影响，因此没有重跑性能基准或目录包。
+
+## Session F 第五切片实测（2026-07-19）
+
+- 基线：`1d196ef docs: hand off session f problem relation split`；特征测试提交：`b2698d4 test: characterize problem workspace details`；代码提交：`0b13ff2 refactor: split problem workspace`。
+- `problem-workspace.tsx` 从 904 行降至 539 行；新增 405 行的 `problem-details-panel.tsx`，父工作区保留列表、搜索、虚拟滚动、分页、键盘导航、`ResizableLayout` 和对话框装配，详情组件承载选中题目详情与详情操作确认。
+- 先新增 3 项题目工作区详情调用特征测试，再移动实现；定向题目工作区 2 个测试文件/6 项通过，锁定可用模板打开、解除关联确认、添加图片和删除确认调用特征。
+- `npm run check`：34 个 Vitest 文件/220 项通过；3 项发布脚本测试通过；TypeScript、ESLint 0 warnings、Prettier 全部通过。
+- `npm run test:e2e`：54 项常规真实 Electron E2E 通过；2 项 packaged 因未设置 `PACKAGED_APP_PATH` 按条件跳过，总耗时约 2.4 分钟。
+- Playwright 重新生成或复用题目工作区的 1024×640 亮色/深色、1280×720 和 1440×900 亮暗截图并人工复核；详情区 DOM/class、滚动、焦点、主题和主操作无视觉变化。扫描、查询、启动和后台任务路径未改变，未重跑性能基准；未重新打包。
+- 本切片没有改变 SQLite schema、migration、IPC/Zod、后台任务、备份格式、Provider 协议、安全上限、布局偏好、视觉 token 或依赖；全新 userData、已有 V2 userData、旧 schema 原位升级和异常中断回归继续由现有 E2E 覆盖。Windows 实机、VoiceOver 长流程和正式签名/notarization 仍未完成。
