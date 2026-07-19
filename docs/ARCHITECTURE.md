@@ -98,6 +98,7 @@ tests/
 - `docs/decisions/0017-bugfix-workflows-and-local-template-retrieval.md`
 - `docs/decisions/0018-release-candidate-pipeline-and-platform-evidence.md`
 - `docs/decisions/0019-long-image-preview-and-execution-record-deletion.md`
+- `docs/decisions/0020-incremental-index-background-tasks-and-keyset-pagination.md`
 
 安全与发布文档：
 
