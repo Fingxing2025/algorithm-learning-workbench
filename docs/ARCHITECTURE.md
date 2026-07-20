@@ -204,6 +204,16 @@ Session F 第七切片继续保持总体文件 AI 管理的请求预览、计划
 
 计划审查组件继续使用原 `section`、DOM 层级、class、按钮/复选框 accessible name、焦点顺序和视觉 token；本切片没有新增数据库字段、migration、IPC/Zod 契约、后台任务、备份格式、Provider 协议、安全上限、依赖或 ADR。
 
+### Session F 文件管理只读审计 Renderer 边界
+
+Session F 第八切片继续保持工作区审计的启动、轮询、取消、结果发布和状态播报不变，只把右侧“只读审计”结果展示移到独立 Renderer 组件。父工作区仍负责 `startAudit`、`backgroundTasks.get/cancel`、`waitForBackgroundTask`、任务状态、成功/错误播报和最终组合；审计组件不访问 Preload、Node、SQLite、文件系统或密钥。
+
+- `file-management-audit-panel.tsx`：排队/运行/取消中的进度文本、结果时间、截断原因与下一步、问题分类/路径/确定性说明、40 条展示上限和无问题空状态。
+- `file-management-workspace.tsx`：保留扫描按钮与取消入口、后台任务调用、审计状态发布、AI 计划流程、全部命名 Preload 调用、播报、刷新和页面组合。
+- `file-management-workspace.test.tsx`：新增 3 项特征测试，锁定进行中计数与取消调用、问题分类/路径/说明，以及空结果、截断说明和 40 条展示边界。
+
+审计组件继续使用原 `section`、DOM 层级、class、滚动边界、问题顺序、accessible text、亮暗主题和视觉 token；本切片没有新增数据库字段、migration、IPC/Zod 契约、后台任务种类/协议、备份格式、Provider 协议、安全上限、依赖或 ADR。
+
 安全与发布文档：
 
 - `docs/智能算法学习助手-v2-threat-model.md`
