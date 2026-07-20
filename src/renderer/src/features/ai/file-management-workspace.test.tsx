@@ -5,8 +5,12 @@ import type {
   FileChangeExecution,
   FileChangeOperation,
   FileChangePlan,
+  WorkspaceAudit,
 } from '@core/contracts/template-management'
+import type { BackgroundTaskStatus } from '@core/contracts/background-task'
 import type { WorkspaceSnapshot } from '@core/contracts/workspace'
+
+import { I18nProvider } from '@/lib/i18n'
 
 import { FileManagementWorkspace } from './file-management-workspace'
 
@@ -15,6 +19,7 @@ const planId = '22222222-2222-4222-8222-222222222222'
 const executionId = '33333333-3333-4333-8333-333333333333'
 const moveOperationId = '55555555-5555-4555-8555-555555555555'
 const deleteOperationId = '66666666-6666-4666-8666-666666666666'
+const auditTaskId = '77777777-7777-4777-8777-777777777777'
 const createdAt = '2026-07-20T00:00:00.000Z'
 const templateId = 'a'.repeat(64)
 
@@ -115,7 +120,95 @@ const execution: FileChangeExecution = {
   status: 'rolled-back',
 }
 
-function installDesktopMock(planItems: FileChangePlan[] = [plan]) {
+const emptyAudit: WorkspaceAudit = {
+  generatedAt: createdAt,
+  issues: [],
+  nextAction: null,
+  processedCount: 0,
+  templateCount: 0,
+  totalCount: 0,
+  truncated: false,
+  truncatedReason: null,
+}
+
+const completedAudit: WorkspaceAudit = {
+  ...emptyAudit,
+  issues: [
+    {
+      detail: '重复源码',
+      id: '88888888-8888-4888-8888-888888888888',
+      kind: 'duplicate-content',
+      paths: ['图论/并查集.cpp', '副本/并查集.cpp'],
+      severity: 'warning',
+    },
+    {
+      detail: '失效关联',
+      id: '99999999-9999-4999-8999-999999999999',
+      kind: 'stale-relation',
+      paths: ['旧目录/失效模板.cpp'],
+      severity: 'info',
+    },
+  ],
+  processedCount: 3,
+  templateCount: 3,
+  totalCount: 3,
+}
+
+const truncatedAudit: WorkspaceAudit = {
+  ...emptyAudit,
+  issues: Array.from({ length: 41 }, (_, index) => ({
+    detail: `命名异常 ${index}`,
+    id: `00000000-0000-4000-8000-${String(index).padStart(12, '0')}`,
+    kind: 'invalid-name' as const,
+    paths: [`审计/issue-${index}.cpp`],
+    severity: 'warning' as const,
+  })),
+  nextAction: '请缩小工作区范围后再次扫描。',
+  processedCount: 41,
+  templateCount: 60,
+  totalCount: 60,
+  truncated: true,
+  truncatedReason: '达到审计安全上限。\n还有更多建议未展示。',
+}
+
+function completedAuditTask(audit: WorkspaceAudit): BackgroundTaskStatus {
+  return {
+    error: null,
+    finishedAt: createdAt,
+    id: auditTaskId,
+    kind: 'workspace-audit',
+    progress: {
+      phase: 'finalizing',
+      processedCount: audit.processedCount,
+      totalCount: audit.totalCount,
+    },
+    result: { audit, kind: 'workspace-audit' },
+    startedAt: createdAt,
+    state: 'completed',
+  }
+}
+
+const cancelledAuditTask: BackgroundTaskStatus = {
+  error: null,
+  finishedAt: createdAt,
+  id: auditTaskId,
+  kind: 'workspace-audit',
+  progress: { phase: 'similarity', processedCount: 2, totalCount: 6 },
+  result: null,
+  startedAt: createdAt,
+  state: 'cancelled',
+}
+
+const runningAuditTask: BackgroundTaskStatus = {
+  ...cancelledAuditTask,
+  finishedAt: null,
+  state: 'running',
+}
+
+function installDesktopMock(
+  planItems: FileChangePlan[] = [plan],
+  auditStartStatus: BackgroundTaskStatus = completedAuditTask(emptyAudit),
+) {
   const applyFilePlan = vi.fn().mockResolvedValue({ execution, workspace })
   const archiveFilePlans = vi.fn().mockResolvedValue({ archivedAt: createdAt, planIds: [planId] })
   const cancelFilePlan = vi.fn().mockImplementation(async (cancelledPlanId: string) => ({
@@ -127,10 +220,13 @@ function installDesktopMock(planItems: FileChangePlan[] = [plan]) {
     deletedExecutionIds: [executionId],
   })
   const exportFilePlanDiagnostic = vi.fn().mockResolvedValue(true)
+  const cancelBackgroundTask = vi.fn().mockResolvedValue(cancelledAuditTask)
+  const getBackgroundTask = vi.fn().mockResolvedValue(cancelledAuditTask)
   const redraftFilePlan = vi
     .fn()
     .mockResolvedValue({ ...plan, id: '44444444-4444-4444-8444-444444444444', status: 'draft' })
   const rollbackFileExecution = vi.fn().mockResolvedValue({ execution, workspace })
+  const startAudit = vi.fn().mockResolvedValue(auditStartStatus)
   const listFilePlansPage = vi.fn().mockResolvedValue({
     draftCount: 0,
     items: planItems,
@@ -154,6 +250,10 @@ function installDesktopMock(planItems: FileChangePlan[] = [plan]) {
   Object.defineProperty(window, 'desktop', {
     configurable: true,
     value: {
+      backgroundTasks: {
+        cancel: cancelBackgroundTask,
+        get: getBackgroundTask,
+      },
       templateManagement: {
         applyFilePlan,
         archiveFilePlans,
@@ -164,6 +264,7 @@ function installDesktopMock(planItems: FileChangePlan[] = [plan]) {
         listFilePlansPage,
         redraftFilePlan,
         rollbackFileExecution,
+        startAudit,
       },
     },
   })
@@ -171,24 +272,29 @@ function installDesktopMock(planItems: FileChangePlan[] = [plan]) {
   return {
     applyFilePlan,
     archiveFilePlans,
+    cancelBackgroundTask,
     cancelFilePlan,
     deleteFileExecutions,
     exportFilePlanDiagnostic,
+    getBackgroundTask,
     listFileExecutionsPage,
     listFilePlansPage,
     redraftFilePlan,
     rollbackFileExecution,
+    startAudit,
   }
 }
 
-function renderWorkspace(planItems?: FileChangePlan[]) {
-  const desktop = installDesktopMock(planItems)
+function renderWorkspace(planItems?: FileChangePlan[], auditStartStatus?: BackgroundTaskStatus) {
+  const desktop = installDesktopMock(planItems, auditStartStatus)
   render(
-    <FileManagementWorkspace
-      onOpenSettings={vi.fn()}
-      onWorkspaceChanged={vi.fn()}
-      workspace={workspace}
-    />,
+    <I18nProvider>
+      <FileManagementWorkspace
+        onOpenSettings={vi.fn()}
+        onWorkspaceChanged={vi.fn()}
+        workspace={workspace}
+      />
+    </I18nProvider>,
   )
   return desktop
 }
@@ -290,7 +396,7 @@ describe('FileManagementWorkspace plan review', () => {
 
     const confirmApply = screen.getByRole('button', { name: '确认执行' })
     await waitFor(() => expect(confirmApply).toHaveFocus())
-    expect(screen.getByText('将备份后执行 {count} 项操作')).toBeInTheDocument()
+    expect(screen.getByText('将备份后执行 1 项操作')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: '返回' }))
     const returnedPreviewApply = screen.getByRole('button', { name: '预览并执行' })
@@ -304,5 +410,51 @@ describe('FileManagementWorkspace plan review', () => {
         planId,
       }),
     )
+  })
+})
+
+describe('FileManagementWorkspace audit display', () => {
+  it('shows active progress and delegates cancellation through the parent task call', async () => {
+    const desktop = renderWorkspace(undefined, runningAuditTask)
+
+    fireEvent.click(screen.getByRole('button', { name: '只读扫描' }))
+    expect(await screen.findByText('已处理 2 / 6')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '取消审计' }))
+
+    await waitFor(() =>
+      expect(desktop.cancelBackgroundTask).toHaveBeenCalledWith({ taskId: auditTaskId }),
+    )
+    expect(desktop.startAudit).toHaveBeenCalledWith({ requestId: expect.any(String) })
+  })
+
+  it('renders audit issue categories, paths, and deterministic guidance', async () => {
+    renderWorkspace(undefined, completedAuditTask(completedAudit))
+
+    fireEvent.click(screen.getByRole('button', { name: '只读扫描' }))
+
+    expect(await screen.findByText('完全重复')).toBeInTheDocument()
+    expect(screen.getByText('图论/并查集.cpp、副本/并查集.cpp')).toBeInTheDocument()
+    expect(
+      screen.getByText('这些模板源码规范化后完全相同；建议仅保留 图论/并查集.cpp。'),
+    ).toBeInTheDocument()
+    expect(screen.getByText('失效关联')).toBeInTheDocument()
+    expect(screen.getByText('模板关联指向当前不可用的模板。')).toBeInTheDocument()
+  })
+
+  it('keeps the empty result and truncated 40-item display boundary', async () => {
+    const desktop = renderWorkspace(undefined, completedAuditTask(emptyAudit))
+
+    fireEvent.click(screen.getByRole('button', { name: '只读扫描' }))
+    expect(await screen.findByText('未发现确定性问题。')).toBeInTheDocument()
+
+    desktop.startAudit.mockResolvedValueOnce(completedAuditTask(truncatedAudit))
+    fireEvent.click(screen.getByRole('button', { name: '只读扫描' }))
+
+    expect(await screen.findByText(/达到审计安全上限。/)).toHaveTextContent(
+      '达到审计安全上限。 还有更多建议未展示。',
+    )
+    expect(screen.getByText('请缩小工作区范围后再次扫描。')).toBeInTheDocument()
+    expect(screen.getByText('审计/issue-39.cpp')).toBeInTheDocument()
+    expect(screen.queryByText('审计/issue-40.cpp')).not.toBeInTheDocument()
   })
 })
