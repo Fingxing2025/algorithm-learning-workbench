@@ -6,13 +6,11 @@ import {
   FolderSearch,
   LoaderCircle,
   Play,
-  RotateCcw,
   Settings2,
   Sparkles,
-  Trash2,
   X,
 } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import type { AiRequestPreview } from '@core/contracts/ai-request'
 import type {
@@ -31,6 +29,8 @@ import { activeElementOrNull } from '@/lib/focus-management'
 import { useI18n } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 import { backgroundTaskProgressText, waitForBackgroundTask } from '@/lib/background-task'
+
+import { FileManagementHistoryPanel } from './file-management-history-panel'
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : '操作未完成，请重试。'
@@ -287,28 +287,6 @@ export function FileManagementWorkspace({
   const closeApplyConfirmation = () => {
     setConfirmApply(false)
     window.requestAnimationFrame(() => confirmApplyTriggerRef.current?.focus())
-  }
-
-  const handlePlanHistoryKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.target !== event.currentTarget) return
-    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-      event.preventDefault()
-      event.currentTarget.scrollBy({
-        behavior: 'auto',
-        top: event.key === 'ArrowDown' ? 48 : -48,
-      })
-    } else if (event.key === 'Home' || event.key === 'End') {
-      event.preventDefault()
-      event.currentTarget.scrollTop = event.key === 'Home' ? 0 : event.currentTarget.scrollHeight
-    } else if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault()
-      const selector = selectedHistoryPlanId
-        ? `[data-plan-select="${selectedHistoryPlanId}"]`
-        : '[data-plan-select]'
-      const planButton = event.currentTarget.querySelector<HTMLButtonElement>(selector)
-      planButton?.focus()
-      planButton?.click()
-    }
   }
 
   const generatePlan = () => {
@@ -826,311 +804,38 @@ export function FileManagementWorkspace({
                 </div>
               </section>
 
-              <section className="rounded-2xl border border-border bg-panel p-4 shadow-panel">
-                <div className="flex items-center gap-2">
-                  <span className="grid size-8 place-items-center rounded-lg bg-primary/10 text-primary">
-                    <RotateCcw className="size-3.5" strokeWidth={1.8} />
-                  </span>
-                  <div>
-                    <h2 className="text-sm font-semibold">{t('计划记录与撤销')}</h2>
-                    <p className="mt-0.5 text-[10px] text-muted-foreground">
-                      {t('已加载 {processed} / {total} 份计划；删除采用安全归档。', {
-                        processed: plans.length,
-                        total: planTotalCount,
-                      })}
-                    </p>
-                  </div>
-                  <Button
-                    className="ml-auto"
-                    disabled={Boolean(busyAction) || historyPlans.length === 0}
-                    onClick={() => setConfirmArchiveIds(historyPlans.map(plan => plan.id))}
-                    size="compact"
-                    type="button"
-                    variant="ghost"
-                  >
-                    <Trash2 className="size-3.5" />
-                    {t('一键删除计划记录')}
-                  </Button>
-                </div>
-
-                {confirmArchiveIds && (
-                  <div className="mt-3 rounded-xl border border-warning/25 bg-warning/7 p-3 text-[11px] leading-5">
-                    <p className="font-semibold text-foreground">
-                      {t('将归档 {count} 份计划：{cancelled} 份已取消，{applied} 份已执行。', {
-                        applied: historyPlans.filter(
-                          plan => confirmArchiveIds.includes(plan.id) && plan.status === 'applied',
-                        ).length,
-                        cancelled: historyPlans.filter(
-                          plan =>
-                            confirmArchiveIds.includes(plan.id) && plan.status === 'cancelled',
-                        ).length,
-                        count: confirmArchiveIds.length,
-                      })}
-                    </p>
-                    <p className="mt-1 text-muted-foreground">
-                      {t('只从普通列表隐藏计划；模板源码、执行记录、撤销备份和用户数据不会删除。')}
-                    </p>
-                    <div className="mt-2 flex gap-2">
-                      <Button
-                        disabled={Boolean(busyAction)}
-                        onClick={() => void archivePlans(confirmArchiveIds)}
-                        size="compact"
-                        type="button"
-                        variant="outline"
-                      >
-                        {t('确认删除计划记录')}
-                      </Button>
-                      <Button
-                        disabled={Boolean(busyAction)}
-                        onClick={() => setConfirmArchiveIds(null)}
-                        size="compact"
-                        type="button"
-                        variant="ghost"
-                      >
-                        {t('取消')}
-                      </Button>
-                    </div>
-                  </div>
-                )}
-
-                <div
-                  aria-label={t('文件计划历史列表')}
-                  className="mt-3 max-h-64 space-y-2 overflow-y-auto pr-1 outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  onKeyDown={handlePlanHistoryKeyDown}
-                  role="region"
-                  tabIndex={0}
-                >
-                  {historyPlans.length === 0 ? (
-                    <p className="rounded-lg border border-dashed border-border p-3 text-center text-xs text-muted-foreground">
-                      {t('暂无可归档计划记录。')}
-                    </p>
-                  ) : (
-                    historyPlans.map(plan => (
-                      <article
-                        className={cn(
-                          'flex w-full items-center gap-2 rounded-lg border bg-background/60 p-2.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                          selectedHistoryPlanId === plan.id
-                            ? 'border-primary/30 bg-primary/6'
-                            : 'border-border',
-                        )}
-                        key={plan.id}
-                      >
-                        <button
-                          aria-pressed={selectedHistoryPlanId === plan.id}
-                          className="flex min-w-0 flex-1 items-center gap-2 rounded outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                          data-plan-select={plan.id}
-                          onClick={() => setSelectedHistoryPlanId(plan.id)}
-                          type="button"
-                        >
-                          <Badge tone={plan.status === 'applied' ? 'success' : 'neutral'}>
-                            {t(plan.status === 'applied' ? '已执行' : '已取消')}
-                          </Badge>
-                          <span className="min-w-0 flex-1 truncate text-[11px]">
-                            {plan.operations.length} {t('项')} · {plan.providerName}
-                          </span>
-                        </button>
-                        {plan.status === 'cancelled' && (
-                          <Button
-                            disabled={Boolean(busyAction) || Boolean(draftPlan)}
-                            onClick={() => void redraft(plan.id)}
-                            size="compact"
-                            type="button"
-                            variant="ghost"
-                          >
-                            {t('复制为新计划')}
-                          </Button>
-                        )}
-                        <Button
-                          aria-label={`${t('删除计划记录')} ${plan.providerName}`}
-                          disabled={Boolean(busyAction)}
-                          onClick={() => setConfirmArchiveIds([plan.id])}
-                          size="icon"
-                          type="button"
-                          variant="ghost"
-                        >
-                          <Trash2 className="size-3.5 text-red-500" />
-                        </Button>
-                      </article>
-                    ))
-                  )}
-                  {planCursor && (
-                    <Button
-                      className="w-full"
-                      disabled={isLoadingMoreHistory}
-                      onClick={() => void loadMorePlans()}
-                      size="compact"
-                      type="button"
-                      variant="outline"
-                    >
-                      {isLoadingMoreHistory && <LoaderCircle className="size-3.5 animate-spin" />}
-                      {t('加载更多计划记录')} · {plans.length} / {planTotalCount}
-                    </Button>
-                  )}
-                </div>
-
-                <div
-                  className="mt-3 border-t border-border pt-3 outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  ref={executionSectionRef}
-                  tabIndex={-1}
-                >
-                  <div className="mb-2 flex flex-wrap items-center gap-2">
-                    <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                      {t('执行与撤销')}
-                    </p>
-                    <span className="text-[10px] text-muted-foreground">
-                      {executions.length} / {executionTotalCount}
-                    </span>
-                    <Button
-                      className="ml-auto"
-                      disabled={Boolean(busyAction) || deletableExecutions.length === 0}
-                      onClick={event =>
-                        openExecutionDeleteConfirmation(
-                          deletableExecutions.map(execution => execution.id),
-                          event.currentTarget,
-                        )
-                      }
-                      size="compact"
-                      type="button"
-                      variant="ghost"
-                    >
-                      <Trash2 aria-hidden="true" className="size-3.5" />
-                      {t('一键删除执行记录')}
-                    </Button>
-                  </div>
-                  {confirmDeleteExecutionIds && (
-                    <div className="mb-3 rounded-xl border border-warning/25 bg-warning/7 p-3 text-[11px] leading-5">
-                      <p className="font-semibold text-foreground">
-                        {t('将删除 {count} 条已撤销执行记录。', {
-                          count: confirmDeleteExecutionIds.length,
-                        })}
-                      </p>
-                      <p className="mt-1 text-muted-foreground">
-                        {t(
-                          '只删除已撤销的历史记录；模板、题目、关系和源码不变。对应的复制为新计划入口将消失，数据管理统计会同步减少。',
-                        )}
-                      </p>
-                      <div className="mt-2 flex gap-2">
-                        <Button
-                          disabled={Boolean(busyAction)}
-                          onClick={() => void deleteExecutions(confirmDeleteExecutionIds)}
-                          ref={confirmDeleteExecutionButtonRef}
-                          size="compact"
-                          type="button"
-                          variant="outline"
-                        >
-                          {t('确认删除执行记录')}
-                        </Button>
-                        <Button
-                          disabled={Boolean(busyAction)}
-                          onClick={closeExecutionDeleteConfirmation}
-                          size="compact"
-                          type="button"
-                          variant="ghost"
-                        >
-                          {t('取消')}
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                  <div className="max-h-56 space-y-2 overflow-y-auto pr-1">
-                    {executions.length === 0 ? (
-                      <p className="text-xs text-muted-foreground">{t('暂无文件执行记录。')}</p>
-                    ) : (
-                      executions.map(execution => (
-                        <article
-                          className="rounded-lg border border-border bg-background/60 p-3"
-                          key={execution.id}
-                        >
-                          <div className="flex items-center gap-2">
-                            <Badge tone={execution.status === 'applied' ? 'success' : 'neutral'}>
-                              {t(execution.status === 'applied' ? '已执行' : '已撤销')}
-                            </Badge>
-                            <span className="text-[11px]">
-                              {execution.operationCount} {t('项')}
-                            </span>
-                          </div>
-                          {execution.canRollback &&
-                            (confirmRollbackId === execution.id ? (
-                              <div className="mt-2 flex gap-2">
-                                <Button
-                                  disabled={Boolean(busyAction)}
-                                  onClick={() => void rollback(execution.id)}
-                                  size="compact"
-                                  type="button"
-                                  variant="outline"
-                                >
-                                  <RotateCcw className="size-3.5" />
-                                  {t('确认撤销')}
-                                </Button>
-                                <Button
-                                  onClick={() => setConfirmRollbackId(null)}
-                                  size="compact"
-                                  type="button"
-                                  variant="ghost"
-                                >
-                                  {t('取消')}
-                                </Button>
-                              </div>
-                            ) : (
-                              <Button
-                                className="mt-2"
-                                onClick={() => setConfirmRollbackId(execution.id)}
-                                size="compact"
-                                type="button"
-                                variant="ghost"
-                              >
-                                <RotateCcw className="size-3.5" />
-                                {t('从备份撤销')}
-                              </Button>
-                            ))}
-                          {execution.status === 'rolled-back' && (
-                            <div className="mt-2 flex flex-wrap gap-2">
-                              <Button
-                                disabled={Boolean(busyAction) || Boolean(draftPlan)}
-                                onClick={() => void redraft(execution.planId)}
-                                size="compact"
-                                type="button"
-                                variant="ghost"
-                              >
-                                <FileClock aria-hidden="true" className="size-3.5" />
-                                {t('复制为新计划')}
-                              </Button>
-                              <Button
-                                aria-label={`${t('删除执行记录')} · ${new Date(execution.createdAt).toLocaleString(locale)}`}
-                                disabled={Boolean(busyAction)}
-                                onClick={event =>
-                                  openExecutionDeleteConfirmation(
-                                    [execution.id],
-                                    event.currentTarget,
-                                  )
-                                }
-                                size="icon"
-                                type="button"
-                                variant="ghost"
-                              >
-                                <Trash2 aria-hidden="true" className="size-3.5 text-red-500" />
-                              </Button>
-                            </div>
-                          )}
-                        </article>
-                      ))
-                    )}
-                    {executionCursor && (
-                      <Button
-                        className="w-full"
-                        disabled={isLoadingMoreHistory}
-                        onClick={() => void loadMoreExecutions()}
-                        size="compact"
-                        type="button"
-                        variant="outline"
-                      >
-                        {isLoadingMoreHistory && <LoaderCircle className="size-3.5 animate-spin" />}
-                        {t('加载更多执行记录')} · {executions.length} / {executionTotalCount}
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              </section>
+              <FileManagementHistoryPanel
+                busyAction={busyAction}
+                confirmArchiveIds={confirmArchiveIds}
+                confirmDeleteExecutionButtonRef={confirmDeleteExecutionButtonRef}
+                confirmDeleteExecutionIds={confirmDeleteExecutionIds}
+                confirmRollbackId={confirmRollbackId}
+                deletableExecutions={deletableExecutions}
+                executionCursor={executionCursor}
+                executionSectionRef={executionSectionRef}
+                executionTotalCount={executionTotalCount}
+                executions={executions}
+                hasDraftPlan={Boolean(draftPlan)}
+                historyPlans={historyPlans}
+                isLoadingMoreHistory={isLoadingMoreHistory}
+                onCancelArchive={() => setConfirmArchiveIds(null)}
+                onCancelRollback={() => setConfirmRollbackId(null)}
+                onCloseExecutionDeleteConfirmation={closeExecutionDeleteConfirmation}
+                onConfirmArchive={archivePlans}
+                onConfirmDeleteExecutions={deleteExecutions}
+                onConfirmRollback={rollback}
+                onLoadMoreExecutions={loadMoreExecutions}
+                onLoadMorePlans={loadMorePlans}
+                onOpenExecutionDeleteConfirmation={openExecutionDeleteConfirmation}
+                onRedraft={redraft}
+                onRequestArchive={setConfirmArchiveIds}
+                onRequestRollback={setConfirmRollbackId}
+                onSelectHistoryPlan={setSelectedHistoryPlanId}
+                planCursor={planCursor}
+                planTotalCount={planTotalCount}
+                plans={plans}
+                selectedHistoryPlanId={selectedHistoryPlanId}
+              />
             </div>
           </div>
         </div>
