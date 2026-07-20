@@ -184,6 +184,16 @@ Session F 第五切片继续保持 `ProblemWorkspace` 的左侧列表、搜索�
 
 详情面板继续使用原 `section[role=region]`、滚动边界、class、accessible name 和操作标签；本切片没有新增数据库字段、migration、IPC/Zod 契约、后台任务、备份格式、Provider 协议、安全上限或视觉 token。
 
+### Session F 文件管理历史 Renderer 边界
+
+Session F 第六切片继续保持总体文件 AI 管理的计划生成、执行、回滚和错误状态不变，把右侧“计划记录与撤销”历史面板移到独立 Renderer 组件。父工作区仍负责所有命名 Preload 调用、后台任务状态、错误/成功播报、领域动作和数据刷新；历史组件不访问 Preload、Node、SQLite、文件系统或密钥。
+
+- `file-management-history-panel.tsx`：计划历史、执行记录、分页按钮、键盘滚动与 Enter/Space 定位、归档/删除/回滚确认面板，以及受控操作回调。
+- `file-management-workspace.tsx`：保留工作区扫描、AI 请求预览/生成/取消、待确认计划、执行/回滚/归档动作、错误状态和最终布局组合。
+- `file-management-workspace.test.tsx`：锁定历史区域键盘契约、计划归档/重新草拟和执行记录回滚/删除确认的调用特征。
+
+历史面板继续使用原 `section` 层级、`aria-label="文件计划历史列表"`、滚动边界、class、按钮标签和焦点引用；本切片没有新增数据库字段、migration、IPC/Zod 契约、后台任务、备份格式、Provider 协议、安全上限或视觉 token。
+
 安全与发布文档：
 
 - `docs/智能算法学习助手-v2-threat-model.md`
