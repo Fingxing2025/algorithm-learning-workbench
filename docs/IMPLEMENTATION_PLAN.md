@@ -110,7 +110,7 @@
 
 验收：`npm run check` 通过 201 项 Vitest 与 3 项发布脚本测试；完整 Electron E2E 覆盖 54 项常规场景，2 项 packaged 按条件跳过。10k 无变化重扫 `hashed = 0`、`reused = unchanged = 10,000`；题目首批查询 P50 3.09 ms、详情 0.18 ms、审计 78.81 ms、AI 候选 135.84 ms、取消 0.27 ms。详细结果见 `docs/PERFORMANCE_BASELINE.md` 和 `docs/SESSION_E_SUMMARY_AND_NEXT_PROMPT.md`。
 
-## Session F：代码健康与文档发布候选（第六切片已完成，2026-07-20）
+## Session F：代码健康与文档发布候选（第七切片已完成，2026-07-21）
 
 - `App.tsx` 从约 1,630 行降至约 292 行，只保留应用状态协调、领域动作与组合。
 - 应用导航/快捷键、路由判定、应用外壳/布局状态、对话框状态、工作区路由、Dashboard、模板库和不可用工作区各自形成语义边界。
@@ -124,17 +124,19 @@
 - 新增 3 项题目工作区详情调用特征测试，锁定可用模板打开、解除关联二次确认、添加图片和删除二次确认；详情组件仅接收受控数据与回调，不访问 Preload、Node、SQLite、文件系统或密钥。
 - `file-management-workspace.tsx` 从 1,156 行降至 861 行；计划历史与执行/撤销记录移入 `file-management-history-panel.tsx`（403 行），父工作区继续承载扫描、AI 请求、任务状态、错误/成功播报和所有命名 Preload 调用。
 - 新增 3 项文件管理历史调用特征测试，锁定历史区 End/Enter 键盘定位、计划归档/重新草拟和执行记录回滚/删除确认；新组件只接收受控数据、引用和回调。
+- `file-management-workspace.tsx` 进一步从 861 行降至 654 行；操作分组/Diff、勾选、空状态、取消/诊断按钮与执行二次确认移入 `file-management-plan-review-panel.tsx`（269 行），父工作区仍承载 AI 请求、计划执行、全部 Preload 调用、任务状态、播报和刷新。
+- 再新增 3 项文件计划审查职责/调用特征测试，锁定分组/Diff/勾选、两类空状态与取消/诊断调用，以及二次确认焦点和精确执行参数；新组件不访问 `window.desktop`。
 - 新增快捷键与路由纯逻辑测试；完整桌面回归证明布局、焦点、键盘、增量索引、分页、取消和数据恢复行为不变。
 - 本阶段没有数据库字段、migration、IPC、后台任务协议、系统权限、依赖或视觉系统变化，也未重新打包。
 
-验收：第六切片 `npm run check` 通过 35 个 Vitest 文件/223 项与 3 项发布脚本测试；完整 Electron E2E 为 54 项通过、2 项 packaged 按条件跳过。文件计划历史确认态的 1440×900 与 1280×720 亮暗截图已重新生成并人工复核，历史区 DOM、滚动、焦点、主题和主操作无视觉变化。扫描、查询、启动和后台任务路径未改变，因此未重跑性能基准；Session F 第二切片的正式 1k/5k/10k 报告仍是最近性能证据。第六切片仍没有 schema、IPC、协议或视觉重做。
+验收：第七切片 `npm run check` 通过 35 个 Vitest 文件/226 项与 3 项发布脚本测试；最终完整 Electron E2E 为 54 项通过、2 项 packaged 按条件跳过。`stage5-file-plan-light.png`、`stage5-file-plan-light-1280x720.png` 与 `stage5-file-plan-dark.png` 已重新生成并人工复核，计划审查区布局、滚动、焦点、主题和主操作无视觉变化。扫描、查询、启动和后台任务路径未改变，因此未重跑性能基准；Session F 第二切片的正式 1k/5k/10k 报告仍是最近性能证据。第七切片仍没有 schema、IPC、协议或视觉重做。
 
 ## 后续阶段
 
 核心功能范围已经闭环，后续不再以继续增加页面为主。优先顺序改为：
 
 1. 外部条件齐备时完成 macOS 签名/notarization、Windows Authenticode 与真实主机安装验收。
-2. 继续行为保持地拆分文件管理、题目或数据管理等大型 Renderer 页面并补领域单测；`App.tsx`、模板管理服务、AI Provider 工作区、题目工作区详情和文件管理历史切片已完成。
+2. 继续行为保持地拆分文件管理、题目或数据管理等大型 Renderer 页面并补领域单测；`App.tsx`、模板管理服务、AI Provider 工作区、题目工作区详情、文件管理历史和文件计划审查切片已完成。
 3. 统一 README、用户指南、CHANGELOG、架构与发布事实来源。
 4. 在真实 Windows 主机验证 Session E 的大工作区滚动、取消和原位升级；macOS arm64 结果不能替代该证据。
 

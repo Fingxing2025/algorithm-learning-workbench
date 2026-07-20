@@ -9,7 +9,7 @@
 - 受影响的 Playwright E2E 通过。
 - Electron 可以从开发入口真实启动。
 
-当前累计基线（2026-07-20，Session F 第六切片代码提交 `e09825a`）：35 个 Vitest 文件中的 223 项测试与 3 项发布脚本测试通过；常规真实 Electron E2E 54 项通过，2 项 packaged 测试在未设置 `PACKAGED_APP_PATH` 时按条件跳过。最近 macOS arm64 目录包仍来自 Session E 后续修复 `4c13dc8`，全新与已有 V2 userData 的 2 项 packaged smoke 已单独通过；Session F 未重新打包。测试数量随功能增长会变化，发布判断以当次命令结果为准。
+当前累计基线（2026-07-21，Session F 第七切片代码提交 `e403e44`）：35 个 Vitest 文件中的 226 项测试与 3 项发布脚本测试通过；常规真实 Electron E2E 54 项通过，2 项 packaged 测试在未设置 `PACKAGED_APP_PATH` 时按条件跳过。最近 macOS arm64 目录包仍来自 Session E 后续修复 `4c13dc8`，全新与已有 V2 userData 的 2 项 packaged smoke 已单独通过；Session F 未重新打包。测试数量随功能增长会变化，发布判断以当次命令结果为准。
 
 ## 核心 E2E 场景
 
@@ -191,3 +191,13 @@
 - `npm run test:e2e`：54 项常规真实 Electron E2E 通过；2 项 packaged 因未设置 `PACKAGED_APP_PATH` 按条件跳过，总耗时约 2.6 分钟。
 - Playwright 重新生成并人工复核文件计划历史确认态的 1440×900、1280×720 亮暗截图；历史区 DOM/class、内部滚动、键盘定位、确认焦点、主题和主操作无视觉变化。扫描、查询、启动和后台任务路径未改变，未重跑性能基准；未重新打包。
 - 本切片没有改变 SQLite schema、migration、IPC/Zod、后台任务、备份格式、Provider 协议、安全上限、布局偏好、视觉 token 或依赖；全新 userData、已有 V2 userData、旧 schema 原位升级、文件执行/回滚和异常中断回归继续由现有 E2E 覆盖。Windows 实机、VoiceOver 长流程和正式签名/notarization 仍未完成。
+
+## Session F 第七切片实测（2026-07-21）
+
+- 基线：`91f7090 docs: hand off session f file history split`；特征测试提交：`a28bf3c test: characterize file plan review`；代码提交：`e403e44 refactor: split file plan review panel`。
+- `file-management-workspace.tsx` 从 861 行降至 654 行；新增 269 行的 `file-management-plan-review-panel.tsx`。父工作区保留 AI 预览/生成/取消、全部 Preload 调用、计划执行、任务状态、错误/成功播报和刷新，审查组件承载分组/Diff、勾选、空状态、取消/诊断按钮及执行二次确认。
+- 先新增 3 项文件计划审查职责/调用特征测试，再移动实现；锁定分组/Diff/独立勾选、零操作与无计划空状态、取消/诊断调用、确认焦点回归和精确 `operationIds`。
+- `npm run check`：35 个 Vitest 文件/226 项通过；3 项发布脚本测试通过；TypeScript、ESLint 0 warnings、Prettier 全部通过。
+- `npm run test:e2e`：最终单次完整运行 54 项常规真实 Electron E2E 通过；2 项 packaged 因未设置 `PACKAGED_APP_PATH` 按条件跳过，总耗时约 3.3 分钟。沙箱内 Electron/本地端口 `EPERM` 不属于应用失败；授权后首次完整运行遇到一次既有模板弹窗 X 命中时序波动，定向 9 项和随后完整 54 项均通过。
+- Playwright 重新生成并人工复核 `stage5-file-plan-light.png`、`stage5-file-plan-light-1280x720.png` 和 `stage5-file-plan-dark.png`；计划分组、Diff、复选框、侧栏、滚动、焦点、主题和主操作无视觉变化。扫描、查询、启动和后台任务路径未改变，未重跑性能基准；未重新打包。
+- 本切片没有改变 SQLite schema、migration、IPC/Zod、后台任务、备份格式、Provider 协议、安全上限、布局偏好、视觉 token、依赖或 ADR；全新 userData、已有 V2 userData、旧 schema 原位升级、文件执行/回滚和异常中断回归继续由现有 E2E 覆盖。Windows 实机、VoiceOver 长流程和正式签名/notarization 仍未完成。

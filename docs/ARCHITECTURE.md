@@ -194,6 +194,16 @@ Session F 第六切片继续保持总体文件 AI 管理的计划生成、执行
 
 历史面板继续使用原 `section` 层级、`aria-label="文件计划历史列表"`、滚动边界、class、按钮标签和焦点引用；本切片没有新增数据库字段、migration、IPC/Zod 契约、后台任务、备份格式、Provider 协议、安全上限或视觉 token。
 
+### Session F 文件管理计划审查 Renderer 边界
+
+Session F 第七切片继续保持总体文件 AI 管理的请求预览、计划生成、文件执行和状态播报不变，把左侧“待确认变更计划”审查区移到独立 Renderer 组件。父工作区仍是所有命名 Preload 调用、AI 生成/取消、计划取消/诊断/执行、后台任务状态、错误/成功播报和数据刷新的唯一协调者；计划审查组件不访问 Preload、Node、SQLite、文件系统或密钥。
+
+- `file-management-plan-review-panel.tsx`：操作分组、移动/删除/元数据 Diff、勾选状态、无计划/零操作空状态、取消/诊断按钮和执行二次确认，以及确认按钮/触发器焦点回归。
+- `file-management-workspace.tsx`：保留工作区扫描、AI 请求预览/生成/取消、默认勾选种子、计划取消/诊断/执行、全部 Preload 调用、任务状态、播报和最终布局组合。
+- `file-management-workspace.test.tsx`：新增 3 项特征测试，锁定分组/Diff/独立勾选、两类空状态与取消/诊断调用，以及二次确认焦点和精确 `operationIds` 调用。
+
+计划审查组件继续使用原 `section`、DOM 层级、class、按钮/复选框 accessible name、焦点顺序和视觉 token；本切片没有新增数据库字段、migration、IPC/Zod 契约、后台任务、备份格式、Provider 协议、安全上限、依赖或 ADR。
+
 安全与发布文档：
 
 - `docs/智能算法学习助手-v2-threat-model.md`
