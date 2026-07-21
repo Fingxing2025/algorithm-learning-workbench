@@ -110,7 +110,7 @@
 
 验收：`npm run check` 通过 201 项 Vitest 与 3 项发布脚本测试；完整 Electron E2E 覆盖 54 项常规场景，2 项 packaged 按条件跳过。10k 无变化重扫 `hashed = 0`、`reused = unchanged = 10,000`；题目首批查询 P50 3.09 ms、详情 0.18 ms、审计 78.81 ms、AI 候选 135.84 ms、取消 0.27 ms。详细结果见 `docs/PERFORMANCE_BASELINE.md` 和 `docs/SESSION_E_SUMMARY_AND_NEXT_PROMPT.md`。
 
-## Session F：代码健康与文档发布候选（第九切片已完成，2026-07-21）
+## Session F：代码健康与文档发布候选（第十切片已完成，2026-07-21）
 
 - `App.tsx` 从约 1,630 行降至约 292 行，只保留应用状态协调、领域动作与组合。
 - 应用导航/快捷键、路由判定、应用外壳/布局状态、对话框状态、工作区路由、Dashboard、模板库和不可用工作区各自形成语义边界。
@@ -130,10 +130,12 @@
 - 再新增 3 项只读审计职责/调用特征测试，锁定进行中计数与取消调用、问题分类/确定性说明、空结果以及截断/40 条边界；新组件不访问 `window.desktop`。
 - `data-management-workspace.tsx` 从 1,164 行降至 1,029 行；导出/校验/恢复预览与确认结果移入 `data-backup-restore-panel.tsx`（194 行），父工作区继续承载生命周期、诊断、中断恢复、全部 `dataManagement` 调用和恢复前后刷新。
 - 先新增 `data-management-workspace.test.tsx` 3 项特征测试，锁定导出源码范围与 manifest、独立验证调用、恢复预览焦点/显式确认/精确恢复参数和恢复后播报，再移动实现；新组件不访问 `window.desktop`。
+- `data-management-workspace.tsx` 进一步从 1,029 行降至 889 行；异常中断条目、可恢复/受保护状态、动作/原因标签、恢复预览与显式确认移入 `data-interrupted-recovery-panel.tsx`（190 行），父工作区继续承载全部 `dataManagement` 调用、恢复结果发布、重新诊断和播报。
+- 再新增 3 项异常中断恢复职责/调用特征测试，锁定可恢复/受保护入口、状态变化阻止确认、精确恢复参数、恢复后诊断刷新和成功播报；新组件不访问 `window.desktop`。
 - 新增快捷键与路由纯逻辑测试；完整桌面回归证明布局、焦点、键盘、增量索引、分页、取消和数据恢复行为不变。
 - 本阶段没有数据库字段、migration、IPC、后台任务协议、系统权限、依赖或视觉系统变化，也未重新打包。
 
-验收：第九切片 `npm run check` 通过 36 个 Vitest 文件/232 项与 3 项发布脚本测试；完整 Electron E2E 为 54 项通过、2 项 packaged 按条件跳过，总耗时约 2.7 分钟。数据管理导出/恢复真实 Electron E2E、亮暗/紧凑截图和恢复确认焦点回归继续通过；本切片无视觉意图，复用 `output/playwright/session-d-final/` 的数据管理 1440×900、1280×720、1024×640、200% 亮暗矩阵并人工复核。扫描、查询、启动和后台任务实现未改变，因此未重跑性能基准；最近性能证据仍为 Session F 第二切片的正式 1k/5k/10k 报告。第九切片仍没有 schema、IPC、协议或视觉重做。
+验收：第十切片 `npm run check` 通过 36 个 Vitest 文件/235 项与 3 项发布脚本测试；完整 Electron E2E 为 54 项通过、2 项 packaged 按条件跳过。数据管理中断恢复真实 Electron E2E、亮暗/紧凑/200% 回归继续通过；本切片无视觉意图，复用 `output/playwright/session-d-final/` 的数据管理原图并人工复核。扫描、查询、启动和后台任务实现未改变，因此未重跑性能基准；最近性能证据仍为 Session F 第二切片的正式 1k/5k/10k 报告。第十切片仍没有 schema、IPC、协议或视觉重做。
 
 ## 后续阶段
 

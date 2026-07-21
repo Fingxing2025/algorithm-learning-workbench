@@ -224,6 +224,16 @@ Session F 第九切片在保持数据管理页的生命周期、诊断和备份�
 
 拆分保持原 `section`、按钮/复选框 accessible name、确认焦点、加载禁用态、live region、亮暗主题和视觉 token；没有新增数据库字段、migration、IPC/Zod 契约、备份格式、Provider 协议、安全上限、依赖或 ADR。
 
+### Session F 数据管理异常中断恢复 Renderer 边界
+
+Session F 第十切片继续保持数据管理页的生命周期清单、异常恢复协议和诊断刷新不变，只把“异常中断恢复”条目与预览展示移到独立 Renderer 组件。父工作区仍负责 `previewInterruptedRecovery`、`recoverInterruptedOperation`、当前保留策略、恢复结果发布、重新诊断和状态播报；新组件不访问 `window.desktop`、Node、SQLite、文件系统或密钥。
+
+- `data-interrupted-recovery-panel.tsx`：异常中断条目、可恢复/受保护状态、动作/原因标签、恢复预览、阻止原因、显式确认和加载态；通过受控 props 与回调接收数据和动作。
+- `data-management-workspace.tsx`：保留生命周期刷新、治理/隔离流程、全部 `dataManagement` 调用、恢复结果发布、重新诊断、错误/成功播报和最终页面组合。
+- `data-management-workspace.test.tsx`：新增 3 项特征测试，锁定可恢复/受保护入口、状态变化时阻止确认，以及显式确认后的精确 `confirmRecovery` / `operationId` / `retentionPolicy` 请求、诊断刷新和成功播报。
+
+拆分保持原 DOM/class、按钮/复选框 accessible name、加载禁用态、live region、亮暗主题和视觉 token；没有新增数据库字段、migration、IPC/Zod 契约、备份/中断恢复格式、Provider 协议、安全上限、依赖或 ADR。
+
 安全与发布文档：
 
 - `docs/智能算法学习助手-v2-threat-model.md`

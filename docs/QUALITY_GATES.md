@@ -9,7 +9,7 @@
 - 受影响的 Playwright E2E 通过。
 - Electron 可以从开发入口真实启动。
 
-当前累计基线（2026-07-21，Session F 第九切片代码提交 `85064b6`）：36 个 Vitest 文件中的 232 项测试与 3 项发布脚本测试通过；常规真实 Electron E2E 54 项通过，2 项 packaged 测试在未设置 `PACKAGED_APP_PATH` 时按条件跳过。最近 macOS arm64 目录包仍来自 Session E 后续修复 `4c13dc8`，全新与已有 V2 userData 的 2 项 packaged smoke 已单独通过；Session F 未重新打包。测试数量随功能增长会变化，发布判断以当次命令结果为准。
+当前累计基线（2026-07-21，Session F 第十切片代码提交 `436ff70`）：36 个 Vitest 文件中的 235 项测试与 3 项发布脚本测试通过；常规真实 Electron E2E 54 项通过，2 项 packaged 测试在未设置 `PACKAGED_APP_PATH` 时按条件跳过。最近 macOS arm64 目录包仍来自 Session E 后续修复 `4c13dc8`，全新与已有 V2 userData 的 2 项 packaged smoke 已单独通过；Session F 未重新打包。测试数量随功能增长会变化，发布判断以当次命令结果为准。
 
 ## 核心 E2E 场景
 
@@ -223,3 +223,15 @@
 - 没有改变 SQLite schema、migration、IPC/Zod、备份格式、Provider 协议、后台任务、安全上限、依赖或权限；全新 userData、已有 V2 userData、旧 schema migration、恢复前备份、故障回滚和中断恢复由现有 E2E 继续覆盖。
 - 扫描、查询、索引、分页、启动和后台任务路径未改变，未重跑 `PERF_SIZES=1000,5000,10000 PERF_RUNS=5 npm run benchmark:performance`；最近性能证据仍为 `output/performance/session-e-session-f-template-service-split-final.md`。Session F 仍未重新打包。
 - 外部限制不变：当前 `security find-identity -v -p codesigning` 为 `0 valid identities found`，主机为 macOS arm64，没有真实 Windows 安装环境；正式签名/notarization、Windows Authenticode/安装验收、VoiceOver 长流程和 Windows Narrator/高对比实机检查仍未完成。
+
+## Session F 第十切片实测（2026-07-21）
+
+- 基线：`b8f4456 docs: hand off session f data backup split`；特征测试提交：`289e665 test: characterize interrupted recovery workspace`；代码提交：`436ff70 refactor: split interrupted recovery panel`；文档交接提交见本文所在提交。
+- `data-management-workspace.tsx` 从 1,029 行降至 889 行；新增 190 行 `data-interrupted-recovery-panel.tsx`。父工作区继续承载生命周期刷新、隔离治理、全部 `dataManagement` Preload 调用、恢复结果发布、重新诊断、状态播报和页面组合；新组件只接收受控数据与回调。
+- 先新增 3 项特征测试，再移动实现：锁定可恢复/受保护条目及精确预览 ID、状态变化时阻止确认与恢复，以及显式确认后的精确 `confirmRecovery: true` / `operationId` / `retentionPolicy` 请求、诊断刷新和成功播报。实现提交前定向 6 项通过，typecheck、ESLint 0 warnings、Prettier 通过。
+- `npm run check`：36 个 Vitest 文件/235 项通过；3 项发布脚本测试通过；TypeScript、ESLint 0 warnings、Prettier 全部通过。
+- `npm run test:e2e`：首次沙箱运行因 Electron GUI/本地端口 `EPERM` 失败；授权后完整 Playwright 结果为 `passed` 且无失败测试，即 54 项常规真实 Electron E2E 通过、2 项 packaged 因未设置 `PACKAGED_APP_PATH` 条件跳过。
+- 数据管理中断恢复真实 Electron E2E 继续覆盖中断隔离退回、SQLite 提交前恢复旧状态和提交后完成新状态；本切片没有视觉意图，复用并人工复核 `output/playwright/session-d-final/` 中 1440×900 亮暗、1024×640 紧凑和 200% 深色数据管理原图，未改变 DOM/class、滚动、焦点、live region 或视觉 token。
+- 没有改变 SQLite schema、migration、IPC/Zod、备份/中断恢复格式、Provider 协议、后台任务、安全上限、依赖或权限；全新 userData、已有 V2 userData、旧 schema migration、恢复前备份、故障回滚和中断恢复由现有 E2E 继续覆盖。
+- 扫描、查询、索引、分页、启动和后台任务路径未改变，未重跑 `PERF_SIZES=1000,5000,10000 PERF_RUNS=5 npm run benchmark:performance`；最近性能证据仍为 `output/performance/session-e-session-f-template-service-split-final.md`。Session F 仍未重新打包。
+- 外部限制不变：当前 `security find-identity -v -p codesigning` 为 `0 valid identities found`，主机为 Darwin 25.5.0 arm64，没有真实 Windows 安装环境；正式签名/notarization、Windows Authenticode/安装验收、VoiceOver 长流程和 Windows Narrator/高对比实机检查仍未完成。
