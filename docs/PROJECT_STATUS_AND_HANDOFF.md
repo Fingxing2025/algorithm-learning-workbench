@@ -124,7 +124,7 @@ Session C 新增事实：
 - 候选一次生成 DMG/ZIP、SHA-256、CycloneDX SBOM、构建元数据、发布说明草稿与制品验证报告；验证覆盖 Info.plist、App/原生模块架构、图标、DMG、签名/公证真实状态和隐私内容。
 - GitHub Actions 固定 checkout/setup-node/upload-artifact 的 commit SHA；原生 macOS arm64 与 Windows x64 runner 各运行候选构建和两项打包入口 smoke。CI Windows 结果仍只代表构建与未安装 App 启动，不代表 NSIS 实机验收。
 - `scripts/release/windows-acceptance.ps1` 可在真实 Windows 主机验证摘要、Authenticode、NSIS 安装、启动、已有 V2 数据、快捷方式、卸载和 userData 保留，并输出不含用户路径的证据 JSON。
-- 最终本机候选来自干净提交 `5817eab`；macOS signed 预检在 `0 valid identities found` 时按设计失败，preview 候选则完整通过。
+- Session C 历史本机候选来自干净提交 `5817eab`；macOS signed 预检在 `0 valid identities found` 时按设计失败，preview 候选则完整通过。本次 Session F 最终候选另见“最终收尾与 unsigned beta 实测”。
 
 Session D 新增事实：
 
@@ -628,7 +628,7 @@ Session D 截图显示 1024×640 下导航、列表/树、详情和页头主操�
 - `npm run check` 通过 36 个 Vitest 文件/232 项与 3 项发布脚本测试；TypeScript、ESLint 0 warnings、Prettier 均通过。`npm run test:e2e` 在授权 GUI/本地 mock 端口后通过 54 项常规真实 Electron E2E，2 项 packaged 条件跳过，总耗时约 2.7 分钟；首次沙箱 `EPERM` 已分类为环境限制。
 - 数据管理真实 Electron 导出/恢复流程继续通过；本切片没有视觉意图，复用并人工复核 `output/playwright/session-d-final/` 的 1440×900、1280×720、1024×640、200% 亮暗数据管理截图矩阵，DOM/class、滚动、焦点、live region 和主题 token 不变。
 - 兼容性：全新 userData、已有 V2 userData、旧 schema migration、恢复前备份、故障回滚和中断恢复由现有 E2E 继续覆盖；没有改变 SQLite schema、migration、IPC/Zod、备份格式、后台任务、Provider 协议、安全上限、依赖或权限。扫描/查询/索引/分页/启动路径未受影响，未重跑性能基准；最近性能证据仍为 `output/performance/session-e-session-f-template-service-split-final.md`。
-- 平台限制：`security find-identity -v -p codesigning` 仍为 `0 valid identities found`；当前主机为 macOS arm64，没有真实 Windows 安装环境。正式签名/notarization、Windows Authenticode/安装验收、VoiceOver 长流程和 Windows Narrator/高对比实机检查仍未完成；Session F 未重新打包。
+- 平台限制（第九切片结束时）：`security find-identity -v -p codesigning` 仍为 `0 valid identities found`；当前主机为 macOS arm64，没有真实 Windows 安装环境。正式签名/notarization、Windows Authenticode/安装验收、VoiceOver 长流程和 Windows Narrator/高对比实机检查仍未完成；该切片未重新打包。
 - 交接时工作树只保留用户已有未跟踪 `问题反馈.txt`；`.codex/config.toml` 未修改、未暂存，旧项目未触碰，也未推送远程。
 
 第十切片已完成：
@@ -639,7 +639,7 @@ Session D 截图显示 1024×640 下导航、列表/树、详情和页头主操�
 - `npm run check` 通过 36 个 Vitest 文件/235 项与 3 项发布脚本测试；TypeScript、ESLint 0 warnings、Prettier 均通过。`npm run test:e2e` 首次沙箱运行因 Electron GUI/本地端口 `EPERM` 失败，授权后完整 Playwright 结果为 `passed` 且无失败测试，即 54 项常规真实 Electron E2E 通过、2 项 packaged 条件跳过。
 - 数据管理中断恢复真实 Electron E2E 继续覆盖中断隔离退回、SQLite 提交前恢复旧状态和提交后完成新状态；本切片没有视觉意图，复用并人工复核 `output/playwright/session-d-final/` 的 1440×900 亮暗、1024×640 紧凑和 200% 深色数据管理原图，DOM/class、滚动、焦点、live region 和主题 token 不变。
 - 兼容性：全新 userData、已有 V2 userData、旧 schema migration、恢复前备份、故障回滚和中断恢复由现有 E2E 继续覆盖；没有改变 SQLite schema、migration、IPC/Zod、备份/中断恢复格式、后台任务、Provider 协议、安全上限、依赖或权限。扫描/查询/索引/分页/启动路径未受影响，未重跑性能基准；最近性能证据仍为 `output/performance/session-e-session-f-template-service-split-final.md`。
-- 平台限制：`security find-identity -v -p codesigning` 仍为 `0 valid identities found`；当前主机为 Darwin 25.5.0 arm64，没有真实 Windows 安装环境。正式签名/notarization、Windows Authenticode/安装验收、VoiceOver 长流程和 Windows Narrator/高对比实机检查仍未完成；Session F 未重新打包。
+- 平台限制（第十切片结束时）：`security find-identity -v -p codesigning` 仍为 `0 valid identities found`；当前主机为 Darwin 25.5.0 arm64，没有真实 Windows 安装环境。正式签名/notarization、Windows Authenticode/安装验收、VoiceOver 长流程和 Windows Narrator/高对比实机检查仍未完成；该切片未重新打包，最终收尾另有 unsigned beta 证据。
 - 交接时工作树只保留用户已有未跟踪 `问题反馈.txt`；`.codex/config.toml` 未修改、未暂存，旧项目未触碰，也未推送远程。
 
 验收：

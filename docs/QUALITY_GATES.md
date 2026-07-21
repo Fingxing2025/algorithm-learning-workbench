@@ -221,7 +221,7 @@
 - `npm run test:e2e`：授权 GUI/本地 mock 端口后 54 项常规真实 Electron E2E 通过；2 项 packaged 因未设置 `PACKAGED_APP_PATH` 条件跳过，总耗时约 2.7 分钟。首次沙箱尝试的 Electron/端口 `EPERM` 是环境限制，非应用失败。
 - Playwright 真实数据管理导出/恢复流程通过；本切片没有视觉意图，复用并人工复核 `output/playwright/session-d-final/` 中 1440×900、1280×720、1024×640 和 200% 亮暗数据管理矩阵，未改变 DOM/class、滚动、焦点、live region 或视觉 token。
 - 没有改变 SQLite schema、migration、IPC/Zod、备份格式、Provider 协议、后台任务、安全上限、依赖或权限；全新 userData、已有 V2 userData、旧 schema migration、恢复前备份、故障回滚和中断恢复由现有 E2E 继续覆盖。
-- 扫描、查询、索引、分页、启动和后台任务路径未改变，未重跑 `PERF_SIZES=1000,5000,10000 PERF_RUNS=5 npm run benchmark:performance`；最近性能证据仍为 `output/performance/session-e-session-f-template-service-split-final.md`。Session F 仍未重新打包。
+- 扫描、查询、索引、分页、启动和后台任务路径未改变，未重跑 `PERF_SIZES=1000,5000,10000 PERF_RUNS=5 npm run benchmark:performance`；最近性能证据仍为 `output/performance/session-e-session-f-template-service-split-final.md`。该切片阶段未重新打包，最终收尾另有 unsigned beta 证据。
 - 外部限制不变：当前 `security find-identity -v -p codesigning` 为 `0 valid identities found`，主机为 macOS arm64，没有真实 Windows 安装环境；正式签名/notarization、Windows Authenticode/安装验收、VoiceOver 长流程和 Windows Narrator/高对比实机检查仍未完成。
 
 ## Session F 第十切片实测（2026-07-21）
@@ -233,7 +233,7 @@
 - `npm run test:e2e`：首次沙箱运行因 Electron GUI/本地端口 `EPERM` 失败；授权后完整 Playwright 结果为 `passed` 且无失败测试，即 54 项常规真实 Electron E2E 通过、2 项 packaged 因未设置 `PACKAGED_APP_PATH` 条件跳过。
 - 数据管理中断恢复真实 Electron E2E 继续覆盖中断隔离退回、SQLite 提交前恢复旧状态和提交后完成新状态；本切片没有视觉意图，复用并人工复核 `output/playwright/session-d-final/` 中 1440×900 亮暗、1024×640 紧凑和 200% 深色数据管理原图，未改变 DOM/class、滚动、焦点、live region 或视觉 token。
 - 没有改变 SQLite schema、migration、IPC/Zod、备份/中断恢复格式、Provider 协议、后台任务、安全上限、依赖或权限；全新 userData、已有 V2 userData、旧 schema migration、恢复前备份、故障回滚和中断恢复由现有 E2E 继续覆盖。
-- 扫描、查询、索引、分页、启动和后台任务路径未改变，未重跑 `PERF_SIZES=1000,5000,10000 PERF_RUNS=5 npm run benchmark:performance`；最近性能证据仍为 `output/performance/session-e-session-f-template-service-split-final.md`。Session F 仍未重新打包。
+- 扫描、查询、索引、分页、启动和后台任务路径未改变，未重跑 `PERF_SIZES=1000,5000,10000 PERF_RUNS=5 npm run benchmark:performance`；最近性能证据仍为 `output/performance/session-e-session-f-template-service-split-final.md`。第十切片阶段未重新打包，最终收尾另有 unsigned beta 证据。
 - 外部限制不变：当前 `security find-identity -v -p codesigning` 为 `0 valid identities found`，主机为 Darwin 25.5.0 arm64，没有真实 Windows 安装环境；正式签名/notarization、Windows Authenticode/安装验收、VoiceOver 长流程和 Windows Narrator/高对比实机检查仍未完成。
 
 ## Session F 最终收尾门禁（本次）

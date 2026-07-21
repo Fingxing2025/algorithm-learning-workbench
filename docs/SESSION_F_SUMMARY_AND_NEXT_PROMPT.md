@@ -71,7 +71,7 @@ Session F 第十切片完成了 `data-management-workspace.tsx` 中“异常中�
 
 本切片只移动 Renderer 展示组合，没有改变扫描、查询、索引、分页、启动、备份算法或后台任务实现，因此未重跑 `PERF_SIZES=1000,5000,10000 PERF_RUNS=5 npm run benchmark:performance`。最近正式性能证据仍为 `output/performance/session-e-session-f-template-service-split-final.md`；不声明新的性能提升。
 
-结束时实时检查 `security find-identity -v -p codesigning` 仍为 `0 valid identities found`；当前主机为 Darwin 25.5.0 arm64，没有真实 Windows 安装环境。因此 macOS Developer ID/notarization、Windows Authenticode/真实安装、macOS VoiceOver 长流程和 Windows Narrator/高对比实机检查仍未完成；Session F 未重新打包。
+第十切片结束时实时检查 `security find-identity -v -p codesigning` 仍为 `0 valid identities found`；当前主机为 Darwin 25.5.0 arm64，没有真实 Windows 安装环境。第十切片本身未重新打包；最终收尾已从 `39421c0329c463657cb43c4e552949e48bee93c9` 生成并验证 unsigned beta。macOS Developer ID/notarization、Windows Authenticode/真实安装、macOS VoiceOver 长流程和 Windows Narrator/高对比实机检查仍未完成。
 
 交接时 `git status --short` 只显示用户已有未跟踪 `问题反馈.txt`；`.codex/config.toml` 未修改、未暂存，旧项目未修改，也未推送远程。
 
