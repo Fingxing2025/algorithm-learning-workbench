@@ -1,93 +1,76 @@
-# Session F 第八切片总结与下一 Session 启动提示
+# Session F 第九切片总结与下一 Session 启动提示
 
 - 日期：2026-07-21
-- 主题：文件管理只读审计面板行为保持拆分
-- 本 Session 基线：`7ca17b0 docs: hand off session f file plan review split`
-- 特征测试提交：`fecfdfc test: characterize file management audit`
-- 源码实现结束提交：`a0254a9 refactor: split file management audit panel`
+- 主题：数据管理备份/恢复展示区行为保持拆分
+- 本 Session 基线：`d942ce4 docs: hand off session f file management audit split`
+- 特征测试提交：`361a7b6 test: characterize data backup restore workspace`
+- 源码实现提交：`85064b6 refactor: split data backup restore panel`
 - 文档交接提交：本文所在最终本地提交
 - 分支：`main`
 - 版本：`0.1.2`
 - 远程：未推送
-- 受保护文件：`.codex/config.toml` 未修改；`问题反馈.txt` 保持未跟踪，未暂存或提交
+- 受保护文件：`.codex/config.toml` 未修改；`问题反馈.txt` 保持用户已有未跟踪状态，未暂存或提交
 
 ## 1. 本切片结论
 
-Session F 第八切片完成了 `file-management-workspace.tsx` 中“只读审计”结果展示区的行为保持拆分。新组件只负责排队/运行/取消中的进度、结果时间、截断说明和下一步、问题分类/路径/确定性说明、40 条展示上限与无问题空状态；父工作区继续协调审计启动、后台任务轮询/取消、审计结果发布、AI 请求预览/生成/取消、全部命名 Preload 调用、任务状态、错误/成功播报和数据刷新。
+Session F 第九切片完成了 `data-management-workspace.tsx` 中“导出与验证”区域的行为保持拆分。新组件承载导出范围勾选、导出/验证/恢复预览按钮、manifest 与校验结果、恢复冲突、恢复确认焦点以及恢复结果展示；父工作区继续协调生命周期/中断恢复/隔离流程、所有 `window.desktop.dataManagement` 调用、诊断刷新、恢复前后状态播报和页面组合。
 
-`src/renderer/src/features/ai/file-management-workspace.tsx` 从 654 行降至 573 行；新增 99 行的 `file-management-audit-panel.tsx`。拆分后真实 Electron 入口、App 路由、布局、DOM/class、内部滚动、焦点、键盘、live region、主题、视觉 token 和 Preload API 均未改变；新组件不访问 `window.desktop`。
+`src/renderer/src/features/data/data-management-workspace.tsx` 从 1,164 行降至 1,029 行；新增 194 行的 `data-backup-restore-panel.tsx`。真实 Electron 入口、App 路由、布局、滚动、焦点、键盘、live region、主题、视觉 token 和 Preload API 均保持不变；新组件不访问 `window.desktop`。
 
 ## 2. Renderer 职责边界
 
-| 文件                                    | 行数 | 职责                                                                                                         |
-| --------------------------------------- | ---: | ------------------------------------------------------------------------------------------------------------ |
-| `file-management-workspace.tsx`         |  573 | 审计启动/轮询/取消、AI 预览/生成/取消、计划与历史领域动作、全部 Preload 调用、任务状态、播报、刷新和页面组合 |
-| `file-management-audit-panel.tsx`       |   99 | 审计进度、结果时间、截断原因/下一步、问题分类/路径/说明、40 条上限和无问题空状态                             |
-| `file-management-plan-review-panel.tsx` |  269 | 计划分组/Diff、勾选、两类空状态、取消/诊断按钮和执行二次确认；本切片未重复拆分                               |
-| `file-management-history-panel.tsx`     |  403 | 计划历史、执行记录、分页、键盘定位与归档/删除/回滚确认；本切片未重复拆分                                     |
-| `file-management-workspace.test.tsx`    |  460 | 既有历史/计划审查 6 项，加上审计进度/取消、分类详情、空结果/截断/40 条边界 3 项特征测试                      |
+| 文件                                 |  行数 | 职责                                                                                                    |
+| ------------------------------------ | ----: | ------------------------------------------------------------------------------------------------------- |
+| `data-management-workspace.tsx`      | 1,029 | 诊断、生命周期、隔离/撤销、中断恢复、所有命名 Preload 调用、`run` 错误/成功播报、恢复前后刷新和页面组合 |
+| `data-backup-restore-panel.tsx`      |   194 | 导出范围、导出/校验/恢复预览操作、manifest/校验结果、冲突、确认焦点和恢复结果的受控展示                 |
+| `data-management-workspace.test.tsx` |   193 | 3 项备份/恢复职责与调用特征测试，锁定导出、校验、恢复确认和结果播报                                     |
 
-审计组件通过受控 `audit` 与 `auditTask` 工作，只组合已有数据和本地化展示。父组件继续发起 `startAudit`、`backgroundTasks.get`、`backgroundTasks.cancel`，使用原 `waitForBackgroundTask` 发布进度/结果，并保留取消与安全播报语义。
+新组件只接收受控结果、布尔状态、焦点引用和回调。恢复请求仍由父组件使用原 `packagePath`、`confirmRestore: true` 和 `templateSourceStrategy: 'skip'` 构造；恢复完成后仍先重新诊断，再按 Provider 密钥是否需要重填播报。
 
-## 3. 本地提交
-
-从基线 `7ca17b0` 起新增：
-
-1. `fecfdfc test: characterize file management audit`
-2. `a0254a9 refactor: split file management audit panel`
-3. 本文所在文档交接提交（最终 HEAD；不推送）
-
-Session F 第一至第七切片及 Session A–E 提交均保留在基线之前；本 Session 没有修改旧项目。
-
-## 4. 特征测试与验证
+## 3. 特征测试与验证
 
 ### 测试先行与逐提交门禁
 
-- 先在 `file-management-workspace.test.tsx` 新增 3 项组件特征测试，再移动实现。
-- 测试锁定：运行中显示 `processedCount / totalCount` 并由父组件向原任务 ID 发起取消；完全重复/失效关联的分类、路径和确定性说明保持；无问题空状态、截断多行说明/下一步及 `slice(0, 40)` 的第 40/41 条边界保持。
-- 测试环境加入真实 `I18nProvider`，使计数和路径插值按真实 Renderer 规则断言；没有修改生产本地化资源。
-- 测试提交前和实现提交前均通过定向 9 项 Vitest、typecheck、ESLint 0 warnings 与 Prettier。
+- 先新增 3 项组件特征测试，再移动 JSX：
+  1. 选择“包含模板源码副本”后导出，调用参数与 manifest 展示保持；
+  2. “验证备份包”仍只调用命名 `verifyBackup` 并展示校验结果；
+  3. 恢复预览后焦点进入确认复选框，只有显式确认才调用精确恢复参数，完成后保持密钥重填播报并触发第二次诊断。
+- 测试提交前和实现提交前均通过定向 3 项 Vitest、typecheck、ESLint（0 warnings）与 Prettier。
 
 ### 完整代码与桌面门禁
 
-- `npm run check`：TypeScript、ESLint（0 warnings）、Prettier、35 个 Vitest 文件/229 项通过、3 项发布脚本测试通过。
-- `npm run test:e2e`：单次完整运行 54 项常规真实 Electron E2E 通过，2 项 packaged 因未设置 `PACKAGED_APP_PATH` 按条件跳过，总耗时约 3.1 分钟。
-- 文件管理真实 Electron 流程继续覆盖只读审计完成、AI 生成取消、外部修改整批拒绝、默认/手动勾选、二次确认焦点、选择执行、备份、关系稳定、回滚、历史键盘、计划归档和执行记录删除。
+- `npm run check`：TypeScript、ESLint（0 warnings）、Prettier、36 个 Vitest 文件/232 项通过、3 项发布脚本测试通过。
+- `npm run test:e2e`：授权 GUI 与本地 mock 端口后单次完整运行 54 项常规真实 Electron E2E 通过，2 项 packaged 因未设置 `PACKAGED_APP_PATH` 按条件跳过，总耗时约 2.7 分钟。首次沙箱运行的 Electron/端口 `EPERM` 已分类为环境限制，授权后重跑通过。
+- 数据管理 E2E 继续覆盖全新 userData 导出/校验、已有 V2 数据恢复、恢复前预备份、模板源码跳过、Provider 密钥不恢复、篡改拒绝、故障回滚、中断恢复、隔离/撤销和废纸篓移交。
 
 ### Playwright 与截图
 
-- 本次重新生成并人工复核：
-  - `output/playwright/stage5-file-plan-light.png`（1440×900 亮色）
-  - `output/playwright/stage5-file-plan-light-1280x720.png`（紧凑亮色）
-  - `output/playwright/stage5-file-plan-dark.png`（1440×900 深色）
-- 只读审计标题、8 项计数、问题分类、结果时间、内部滚动、右侧历史排列、主题层级和主操作无视觉变化；没有横向溢出或不可达操作。Session D 的 1024×640、200% 和减少动效矩阵继续有效。
+本切片无视觉意图，只移动原有 JSX 组合。完整 Playwright E2E 已通过；人工复用并复核既有 `output/playwright/session-d-final/` 数据管理截图矩阵：
 
-### 性能
+- 1440×900、1280×720、1024×640；
+- 亮色、深色和 200% 关键状态；
+- 诊断、生命周期、导出/恢复区域的滚动边界、焦点、主题层级和主操作。
 
-本切片只移动 Renderer 展示组合，没有改变扫描、审计算法、轮询、查询、启动、索引、分页或后台任务实现，因此没有重跑 `PERF_SIZES=1000,5000,10000 PERF_RUNS=5 npm run benchmark:performance`。Session F 第二切片的 1k/5k/10k 报告仍是最近性能证据；本次不声明新的性能提升。
+没有新增视觉 token、布局偏好或截图矩阵。
 
-## 5. 数据、安全与兼容性
+## 4. 数据、安全与兼容性
 
-- 数据库：没有改变 SQLite schema、migration、索引格式或持久化字段。
-- IPC/Preload：没有改变 IPC 名称、Zod 输入输出或 `DesktopApi`；Renderer 仍无 Node、SQLite、文件系统或密钥权限。
-- 后台任务：没有改变 `workspace-audit` 种类、状态机、轮询间隔、取消协议、结果格式或发布时机。
-- AI/文件数据：Provider 协议、请求预览、生成取消、文件计划安全校验、执行前备份、外部修改复检、失败回滚与撤销语义保持不变。
-- 全新 userData：空白工作区、首个模板、只读审计和真实桌面文件管理入口继续通过。
-- 已有 V2 userData：审计问题、草稿计划、计划执行、历史、回滚和重新草拟语义继续通过。
-- 旧 V2 schema/异常中断：本切片无 migration、备份格式或恢复协议变化；完整 E2E 继续覆盖原位升级、数据恢复、审计取消、文件执行/回滚和异常补偿。
-- 打包：本 Session 不重新打包；继续区分源码 HEAD 与来自 `4c13dc8` 的已验证 macOS arm64 目录包。
+- SQLite：没有改变 schema、migration、索引或持久化字段。
+- IPC/Preload：没有改变 IPC 名称、Zod 输入输出或 `DesktopApi`；所有数据管理调用仍只在父工作区，Renderer 无 Node、SQLite、文件系统或密钥权限。
+- 备份/恢复：没有改变 `v1` manifest、校验、恢复前备份、模板源码 `skip` 策略、回滚或 Provider `secret_ref` 排除语义。
+- 后台任务/Provider：没有改变后台任务、Provider 协议、请求上限、错误分类或取消边界。
+- 全新 userData：空白工作区可以从真实桌面入口完成诊断、导出、校验和恢复预览；不依赖旧项目或预置个人数据。
+- 已有 V2 userData：已有备份、题目、图片、关系、模板元数据和 Provider 非密钥配置继续原位工作；旧项目仍只读且未触碰。
 
-## 6. 外部平台门禁
+## 5. 性能、平台限制与未提交文件
 
-结束前实时复核 `security find-identity -v -p codesigning` 为 `0 valid identities found`；当前主机为 Darwin 25.5.0 arm64，也没有真实 Windows 安装环境。因此没有恢复 Session C 的 signed/notarization 或 Windows 实机流程。
+本切片只移动 Renderer 展示组合，没有改变扫描、查询、索引、分页、启动、备份算法或后台任务实现，因此未重跑 `PERF_SIZES=1000,5000,10000 PERF_RUNS=5 npm run benchmark:performance`。最近正式性能证据仍为 `output/performance/session-e-session-f-template-service-split-final.md`；不声明新的性能提升。
 
-未完成项仍是 macOS Developer ID/notarization、Windows Authenticode/真实安装验收、macOS VoiceOver 长流程和 Windows Narrator/高对比实机检查。
+结束时实时检查 `security find-identity -v -p codesigning` 仍为 `0 valid identities found`；当前主机为 macOS arm64，没有真实 Windows 安装环境。因此 macOS Developer ID/notarization、Windows Authenticode/真实安装、macOS VoiceOver 长流程和 Windows Narrator/高对比实机检查仍未完成；Session F 未重新打包。
 
-## 7. 未提交文件与保护边界
+交接时 `git status --short` 只显示用户已有未跟踪 `问题反馈.txt`；`.codex/config.toml` 未修改、未暂存，旧项目未修改，也未推送远程。
 
-文档交接提交完成后，预期工作树只保留用户已有未跟踪的 `问题反馈.txt`；`.codex/config.toml` 未修改。两者都没有被覆盖、格式化、暂存或提交，也没有推送远程。
-
-## 8. 下一 Session 可直接复制提示词
+## 6. 下一 Session 可直接复制提示词
 
 ```text
 继续开发“智能算法学习助手 V2”。
@@ -96,7 +79,7 @@ Session F 第一至第七切片及 Session A–E 提交均保留在基线之前�
 /Users/ffxx/Desktop/项目/智能算法学习助手-v2
 
 本 Session：
-Session F 第九切片：继续大型 Renderer 文件行为保持拆分（或在外部凭据齐备时恢复 Session C 平台门禁）
+Session F 第十切片：继续大型 Renderer 文件行为保持拆分（或在外部凭据齐备时恢复 Session C 平台门禁）
 
 当前基线：
 先执行 git status --short、git log -5 --oneline 和 wc -l；以 docs/SESSION_F_SUMMARY_AND_NEXT_PROMPT.md 所在最终交接提交为准。
@@ -113,8 +96,8 @@ Session F 第九切片：继续大型 Renderer 文件行为保持拆分（或在
 
 目标：
 - 只做行为保持的维护性拆分，先建立职责/调用特征测试，再移动实现。
-- 优先从 src/renderer/src/features/data/data-management-workspace.tsx 的备份/恢复或生命周期区域、features/problems/problem-analysis-dialog.tsx 的剩余题目字段/AI 区中选择一个边界清晰且尚未拆分的职责。
-- 不要重复拆分 problem-analysis-relations.tsx、problem-details-panel.tsx、file-management-history-panel.tsx、file-management-plan-review-panel.tsx 或 file-management-audit-panel.tsx。
+- 优先从 src/renderer/src/features/data/data-management-workspace.tsx 的生命周期/中断恢复剩余区域、features/problems/problem-analysis-dialog.tsx 的剩余题目字段/AI 区中选择一个边界清晰且尚未拆分的职责；数据管理备份/恢复区已在第九切片完成。
+- 不要重复拆分 problem-analysis-relations.tsx、problem-details-panel.tsx、file-management-history-panel.tsx、file-management-plan-review-panel.tsx、file-management-audit-panel.tsx 或 data-backup-restore-panel.tsx。
 - 保持真实 Electron 入口、App 路由、布局、焦点、键盘、live region、主题、视觉 token 和 Preload API 不变。
 - 不改变 SQLite schema、migration、IPC、Zod、后台任务、备份格式、Provider 协议或安全上限。
 - .codex/config.toml 与 问题反馈.txt 受保护；旧项目只读；不推送远程。

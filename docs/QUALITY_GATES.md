@@ -9,7 +9,7 @@
 - 受影响的 Playwright E2E 通过。
 - Electron 可以从开发入口真实启动。
 
-当前累计基线（2026-07-21，Session F 第八切片代码提交 `a0254a9`）：35 个 Vitest 文件中的 229 项测试与 3 项发布脚本测试通过；常规真实 Electron E2E 54 项通过，2 项 packaged 测试在未设置 `PACKAGED_APP_PATH` 时按条件跳过。最近 macOS arm64 目录包仍来自 Session E 后续修复 `4c13dc8`，全新与已有 V2 userData 的 2 项 packaged smoke 已单独通过；Session F 未重新打包。测试数量随功能增长会变化，发布判断以当次命令结果为准。
+当前累计基线（2026-07-21，Session F 第九切片代码提交 `85064b6`）：36 个 Vitest 文件中的 232 项测试与 3 项发布脚本测试通过；常规真实 Electron E2E 54 项通过，2 项 packaged 测试在未设置 `PACKAGED_APP_PATH` 时按条件跳过。最近 macOS arm64 目录包仍来自 Session E 后续修复 `4c13dc8`，全新与已有 V2 userData 的 2 项 packaged smoke 已单独通过；Session F 未重新打包。测试数量随功能增长会变化，发布判断以当次命令结果为准。
 
 ## 核心 E2E 场景
 
@@ -211,3 +211,15 @@
 - `npm run test:e2e`：54 项常规真实 Electron E2E 通过；2 项 packaged 因未设置 `PACKAGED_APP_PATH` 按条件跳过，总耗时约 3.1 分钟。
 - Playwright 重新生成并人工复核 `stage5-file-plan-light.png`、`stage5-file-plan-light-1280x720.png` 和 `stage5-file-plan-dark.png`；审计标题/计数、问题分类、内部滚动、侧栏排列、主题和主操作无视觉变化。扫描、查询、启动和后台任务实现未改变，未重跑性能基准；未重新打包。
 - 本切片没有改变 SQLite schema、migration、IPC/Zod、后台任务种类/协议、备份格式、Provider 协议、安全上限、布局偏好、视觉 token、依赖或 ADR；全新 userData、已有 V2 userData、旧 schema 原位升级、审计取消、文件执行/回滚和异常中断回归继续由现有 E2E 覆盖。Windows 实机、VoiceOver 长流程和正式签名/notarization 仍未完成。
+
+## Session F 第九切片实测（2026-07-21）
+
+- 基线：`d942ce4 docs: hand off session f file management audit split`；特征测试提交：`361a7b6 test: characterize data backup restore workspace`；代码提交：`85064b6 refactor: split data backup restore panel`；文档交接提交见本文所在提交。
+- `data-management-workspace.tsx` 从 1,164 行降至 1,029 行；新增 194 行 `data-backup-restore-panel.tsx`。父工作区继续承载生命周期/中断恢复/隔离流程、全部 `dataManagement` Preload 调用、诊断刷新、恢复确认焦点引用、状态播报和页面组合；新组件只接收受控数据与回调。
+- 先新增 3 项特征测试，再移动实现：锁定导出源码范围与 manifest 展示、独立校验调用、恢复预览焦点/显式确认/精确恢复参数及 Provider 密钥重填播报。实现提交前定向 3 项通过，typecheck、ESLint 0 warnings、Prettier 通过。
+- `npm run check`：36 个 Vitest 文件/232 项通过；3 项发布脚本测试通过；TypeScript、ESLint 0 warnings、Prettier 全部通过。
+- `npm run test:e2e`：授权 GUI/本地 mock 端口后 54 项常规真实 Electron E2E 通过；2 项 packaged 因未设置 `PACKAGED_APP_PATH` 条件跳过，总耗时约 2.7 分钟。首次沙箱尝试的 Electron/端口 `EPERM` 是环境限制，非应用失败。
+- Playwright 真实数据管理导出/恢复流程通过；本切片没有视觉意图，复用并人工复核 `output/playwright/session-d-final/` 中 1440×900、1280×720、1024×640 和 200% 亮暗数据管理矩阵，未改变 DOM/class、滚动、焦点、live region 或视觉 token。
+- 没有改变 SQLite schema、migration、IPC/Zod、备份格式、Provider 协议、后台任务、安全上限、依赖或权限；全新 userData、已有 V2 userData、旧 schema migration、恢复前备份、故障回滚和中断恢复由现有 E2E 继续覆盖。
+- 扫描、查询、索引、分页、启动和后台任务路径未改变，未重跑 `PERF_SIZES=1000,5000,10000 PERF_RUNS=5 npm run benchmark:performance`；最近性能证据仍为 `output/performance/session-e-session-f-template-service-split-final.md`。Session F 仍未重新打包。
+- 外部限制不变：当前 `security find-identity -v -p codesigning` 为 `0 valid identities found`，主机为 macOS arm64，没有真实 Windows 安装环境；正式签名/notarization、Windows Authenticode/安装验收、VoiceOver 长流程和 Windows Narrator/高对比实机检查仍未完成。

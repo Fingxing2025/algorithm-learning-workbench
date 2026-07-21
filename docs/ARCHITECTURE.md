@@ -214,6 +214,16 @@ Session F 第八切片继续保持工作区审计的启动、轮询、取消、�
 
 审计组件继续使用原 `section`、DOM 层级、class、滚动边界、问题顺序、accessible text、亮暗主题和视觉 token；本切片没有新增数据库字段、migration、IPC/Zod 契约、后台任务种类/协议、备份格式、Provider 协议、安全上限、依赖或 ADR。
 
+### Session F 数据管理备份/恢复 Renderer 边界
+
+Session F 第九切片在保持数据管理页的生命周期、诊断和备份协议不变的前提下，把“导出与验证”区域拆为受控展示组件。父工作区继续持有所有状态、`run` 错误/成功播报、恢复确认焦点引用、诊断刷新和命名 Preload 调用；新组件不访问 `window.desktop`、Node、SQLite、文件系统或密钥。
+
+- `data-backup-restore-panel.tsx`：导出范围勾选、导出/验证/恢复预览按钮、manifest/校验结果、恢复冲突、恢复确认焦点和恢复结果展示；通过受控 props 与回调接收数据和动作。
+- `data-management-workspace.tsx`：保留生命周期/中断恢复/隔离流程、所有 `dataManagement` 调用、恢复前后诊断刷新、`userData` 恢复安全提示和最终页面组合。
+- `data-management-workspace.test.tsx`：新增 3 项特征测试，锁定导出源码范围与 manifest 展示、独立校验调用、恢复预览焦点/显式确认/精确 `templateSourceStrategy: 'skip'` 请求及恢复后密钥重填播报。
+
+拆分保持原 `section`、按钮/复选框 accessible name、确认焦点、加载禁用态、live region、亮暗主题和视觉 token；没有新增数据库字段、migration、IPC/Zod 契约、备份格式、Provider 协议、安全上限、依赖或 ADR。
+
 安全与发布文档：
 
 - `docs/智能算法学习助手-v2-threat-model.md`
