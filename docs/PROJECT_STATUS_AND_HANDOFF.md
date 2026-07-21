@@ -18,15 +18,16 @@
 - Session F 第九切片代码结束提交：`85064b6 refactor: split data backup restore panel`
 - Session F 第十切片特征测试提交：`289e665 test: characterize interrupted recovery workspace`
 - Session F 第十切片代码结束提交：`436ff70 refactor: split interrupted recovery panel`
-- 本次交接提交：本文所在提交
+- Session F 收尾提交：待本次本地提交生成（只含文档）
+- unsigned beta 候选来源提交：待收尾提交后生成
 - 源码版本：`0.1.2` 开发快照
-- 产品阶段：0.1.2 功能闭环、Session A/B、九项 Bugfix、Session C 发布候选工程、Session D UX/可访问性与 Session E 大型工作区性能均完成；正式签名和 Windows 实机验收仍受外部条件阻塞
+- 产品阶段：0.1.2 功能闭环、Session A/B、九项 Bugfix、Session C 发布候选工程、Session D UX/可访问性、Session E 大型工作区性能与 Session F 代码健康收尾均完成；unsigned beta 可在本机生成，正式签名和 Windows 实机验收仍受外部条件阻塞
 
 ## 0. 新阶段入口
 
-本阶段基于 0.1.2 功能冻结基线继续建设发布可信度。后续不再横向增加 AI 页面或临时补丁；当前目标是让已经承载用户模板、题目、图片、关系和 AI 配置的 V2 数据可恢复，AI 任务可诊断、可取消并在五类协议下具有一致边界。
+本阶段基于 0.1.2 功能冻结基线完成发布可信度收尾。后续不再横向增加 AI 页面、临时补丁或维护性拆分；只有真实 Bug、用户反馈或发布门禁触发时才重新开启工程任务。
 
-当前状态：**Session A：数据可靠性与恢复、Session B：AI 稳定性与兼容矩阵、九项 Bugfix Session、Session C：可审计发布候选工程、Session D：UX/可访问性与 Session E：大型工作区性能均已完成；Session F 已完成 `App.tsx`、模板管理服务、AI Provider 工作区、题目分析关联编辑器、题目工作区详情、文件管理历史、文件计划审查、文件只读审计、数据管理备份/恢复和异常中断恢复十个行为保持切片。当前实时检查仍为 `0 valid identities found`，主机为 macOS arm64 且没有 Windows 实机，因此签名、公证和 Windows 安装验收仍明确未完成；下一主线是继续小步拆分剩余大型 Renderer 文件或在外部条件齐备后恢复平台门禁。**
+当前状态：**Session A：数据可靠性与恢复、Session B：AI 稳定性与兼容矩阵、九项 Bugfix Session、Session C：可审计发布候选工程、Session D：UX/可访问性、Session E：大型工作区性能与 Session F 代码健康收尾均已完成。Session F 的十个行为保持切片已冻结，源码不再继续第十一切片或其他维护性拆分。当前实时检查仍为 `0 valid identities found`，主机为 macOS arm64 且没有 Windows 实机；本次 unsigned beta 候选和正式签名/notarization、Windows 安装验收分别记录独立证据。**
 
 Session D 的布局、键盘、焦点、状态播报、截图结论和可直接复制的下一 Session 提示词见 `docs/SESSION_D_SUMMARY_AND_NEXT_PROMPT.md`；Session C 候选证据仍保留在 `docs/SESSION_C_SUMMARY_AND_NEXT_PROMPT.md`，但没有被本 Session 重新打包或复用为新候选摘要。
 
@@ -287,7 +288,7 @@ Main
 - `features/data/data-management-workspace.tsx` 已从 1,164 行降至 889 行；194 行的 `data-backup-restore-panel.tsx` 独立承载导出/校验/恢复展示与确认，190 行的 `data-interrupted-recovery-panel.tsx` 独立承载异常中断条目/预览/确认，数据管理 Preload 调用仍留在原工作区。
 - `batch-template-import-dialog.tsx` 约 643 行。
 
-架构分层本身清楚，但上述文件已进入继续扩展会明显增加回归风险的尺寸。后续重构应以行为不变、测试先行的方式拆分：
+架构分层本身清楚，但上述文件已进入继续扩展会明显增加回归风险的尺寸。本 Session 已完成冻结；除真实 Bug、用户反馈或发布门禁外，不再继续维护性拆分。若未来重新开启任务，必须先记录问题证据和影响范围，再以行为不变、测试先行的方式拆分：
 
 - `App.tsx`：第一切片已完成；应用壳、导航/快捷键、Dashboard、布局状态、对话框和领域路由均有独立边界。
 - `template-management-service.ts`：第二切片已拆为审计、AI 计划生成、计划安全校验、文件执行器和计划历史五个协作者；批量入库、分类和 IPC façade 仍保持稳定。
@@ -510,16 +511,18 @@ Session D 截图显示 1024×640 下导航、列表/树、详情和页头主操�
 
 ### Session F：代码健康与文档发布候选
 
-状态：进行中。第一至第九切片已完成 `App.tsx`、模板管理服务、AI Provider、题目分析关联、题目详情、文件管理历史/计划审查/只读审计和数据管理备份/恢复拆分；第十切片以 `b8f4456` 为基线完成数据管理异常中断恢复展示区拆分，特征测试提交为 `289e665`，代码提交为 `436ff70`，文档交接提交见本文所在提交。
+状态：已完成并冻结。第一至第十切片已完成 `App.tsx`、模板管理服务、AI Provider、题目分析关联、题目详情、文件管理历史/计划审查/只读审计和数据管理备份/恢复/异常中断恢复拆分；第十切片以 `b8f4456` 为基线完成异常中断恢复展示区拆分，特征测试提交为 `289e665`，代码提交为 `436ff70`。本次仅补齐收尾文档、源码门禁与 unsigned beta 证据，不新增功能、不重构业务代码、不调整视觉系统。
 
-目标：在功能稳定后降低长期维护成本，并统一项目事实来源。
+目标：在功能稳定后降低长期维护成本，并统一项目事实来源；该目标已完成，Session F 不再循环拆分。
 
-主要范围：
+已完成范围：
 
 - 行为不变地拆分 `App.tsx`、模板管理服务和大型页面组件。
 - 为拆出的领域逻辑补单元测试。
 - 建立 `CHANGELOG.md`，同步 README、用户指南、发布、安全和 ADR 索引。
 - 统一版本号与发布候选清单。
+
+冻结规则：除真实 Bug、用户反馈或发布门禁外，不再开启第十一切片或其他维护性拆分；重新开启时必须先记录触发证据和最小范围。
 
 第一切片已完成：
 
@@ -627,9 +630,7 @@ Session D 截图显示 1024×640 下导航、列表/树、详情和页头主操�
 - README 不再包含过时版本、测试数字或 ADR 范围。
 - 文档明确区分源码版本、最后已打包版本和最后正式签名版本。
 
-启动提示：
-
-> 阅读 AGENTS.md、docs/PROJECT_STATUS_AND_HANDOFF.md、docs/SESSION_F_SUMMARY_AND_NEXT_PROMPT.md、docs/VISUAL_DESIGN.md 和 docs/QUALITY_GATES.md，执行 Session F 第十一切片。先执行 `git status --short`、`git log -5 --oneline` 和 `wc -l`，以 `docs/SESSION_F_SUMMARY_AND_NEXT_PROMPT.md` 所在最终交接提交为准。继续只做行为保持的维护性拆分：优先从 `data-management-workspace.tsx` 治理清单/隔离撤销/废纸篓移交剩余区域或 `problem-analysis-dialog.tsx` 剩余题目字段/AI 区选择一个边界清晰职责，先补职责/调用特征测试再移动实现；不要重复拆分已有组件，不要改变 SQLite schema、migration、IPC、Zod、后台任务、备份/中断恢复格式、Provider 协议、安全上限、视觉 token 或 Preload API。若 Apple Developer ID/notarization 凭据或 Windows 实机已齐备，则优先恢复 Session C 平台门禁；否则继续 Renderer 代码健康拆分。保留 `.codex/config.toml` 与 `问题反馈.txt`，旧项目只读，不推送远程。
+Session F 已结束，不再生成“继续第十一切片”的启动提示。下一次任务仅在真实 Bug、用户反馈、Apple Developer ID/notarization 凭据或真实 Windows 实机出现时重新建立；届时先重新执行基线检查和范围审查，保持 `.codex/config.toml`、`问题反馈.txt`、旧项目和远程仓库的保护规则。
 
 ## 10. 推荐执行顺序和依赖
 
@@ -645,8 +646,8 @@ Session A/B/C                  ┘
 ```
 
 - Session A、B、C 自动化与 Session D/E 均已完成；签名、公证和 Windows 实机证据等待证书、账号与硬件。
-- 无外部发布条件时，Session F 现在是推荐主线；若条件齐备则先恢复 Session C 的外部门禁。
-- Session F 必须保持 Session D 的布局/键盘/focus/live 与 Session E 的增量索引、取消、分页和基准回归。
+- Session F 已完成并冻结；无外部发布条件时不再继续维护性拆分。
+- 仅在真实 Bug、用户反馈或外部签名/Windows 条件齐备时恢复相应门禁，并保持 Session D 的布局/键盘/focus/live 与 Session E 的增量索引、取消、分页和基准回归。
 
 ## 11. 每个 Session 的统一交接格式
 

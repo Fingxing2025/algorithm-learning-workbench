@@ -1,11 +1,12 @@
-# Session F 第十切片总结与下一 Session 启动提示
+# Session F 最终收尾与 unsigned beta 交接
 
 - 日期：2026-07-21
 - 主题：数据管理异常中断恢复展示区行为保持拆分
 - 本 Session 基线：`b8f4456 docs: hand off session f data backup split`
 - 特征测试提交：`289e665 test: characterize interrupted recovery workspace`
 - 源码实现提交：`436ff70 refactor: split interrupted recovery panel`
-- 文档交接提交：本文所在最终本地提交
+- Session F 收尾文档提交：本文所在最终本地提交
+- unsigned beta 候选来源提交：收尾文档提交之后的独立源码快照（待生成）
 - 分支：`main`
 - 版本：`0.1.2`
 - 远程：未推送
@@ -14,6 +15,8 @@
 ## 1. 本切片结论
 
 Session F 第十切片完成了 `data-management-workspace.tsx` 中“异常中断恢复”区域的行为保持拆分。新组件承载异常中断条目、可恢复/受保护状态、恢复动作与原因标签、恢复预览、显式确认和加载态；父工作区继续协调生命周期刷新、所有 `window.desktop.dataManagement` 调用、恢复结果发布、重新诊断、错误/成功播报和页面组合。
+
+这也是 Session F 的最终收尾：十个切片已经冻结，不再执行第十一切片，不新增功能、不重构业务代码、不调整视觉系统。后续只有真实 Bug、用户反馈或发布门禁触发时才重新开启任务。
 
 `src/renderer/src/features/data/data-management-workspace.tsx` 从 1,029 行降至 889 行；新增 190 行的 `data-interrupted-recovery-panel.tsx`。真实 Electron 入口、App 路由、DOM/class、布局、滚动、焦点、键盘、live region、主题、视觉 token 和 Preload API 均保持不变；新组件不访问 `window.desktop`。
 
@@ -72,42 +75,9 @@ Session F 第十切片完成了 `data-management-workspace.tsx` 中“异常中�
 
 交接时 `git status --short` 只显示用户已有未跟踪 `问题反馈.txt`；`.codex/config.toml` 未修改、未暂存，旧项目未修改，也未推送远程。
 
-## 6. 下一 Session 可直接复制提示词
+## 6. Session F 结束条件与后续触发
 
-```text
-继续开发“智能算法学习助手 V2”。
-
-工作目录：
-/Users/ffxx/Desktop/项目/智能算法学习助手-v2
-
-本 Session：
-Session F 第十一切片：继续大型 Renderer 文件行为保持拆分（或在外部凭据齐备时恢复 Session C 平台门禁）
-
-当前基线：
-先执行 git status --short、git log -5 --oneline 和 wc -l；以 docs/SESSION_F_SUMMARY_AND_NEXT_PROMPT.md 所在最终交接提交为准。
-
-开始前完整阅读：
-- AGENTS.md
-- docs/PROJECT_STATUS_AND_HANDOFF.md
-- docs/SESSION_F_SUMMARY_AND_NEXT_PROMPT.md
-- docs/VISUAL_DESIGN.md
-- docs/QUALITY_GATES.md
-- docs/V2_PRODUCT_SPEC.md
-- docs/ARCHITECTURE.md
-- docs/IMPLEMENTATION_PLAN.md
-
-目标：
-- 只做行为保持的维护性拆分，先建立职责/调用特征测试，再移动实现。
-- 优先从 src/renderer/src/features/data/data-management-workspace.tsx 的治理清单/隔离撤销/废纸篓移交剩余区域、features/problems/problem-analysis-dialog.tsx 的剩余题目字段/AI 区中选择一个边界清晰且尚未拆分的职责。
-- 不要重复拆分 problem-analysis-relations.tsx、problem-details-panel.tsx、file-management-history-panel.tsx、file-management-plan-review-panel.tsx、file-management-audit-panel.tsx、data-backup-restore-panel.tsx 或 data-interrupted-recovery-panel.tsx。
-- 保持真实 Electron 入口、App 路由、布局、焦点、键盘、live region、主题、视觉 token 和 Preload API 不变。
-- 不改变 SQLite schema、migration、IPC、Zod、后台任务、备份/中断恢复格式、Provider 协议或安全上限。
-- .codex/config.toml 与 问题反馈.txt 受保护；旧项目只读；不推送远程。
-
-最低验收：
-- 每个小提交运行相关 Vitest、typecheck、lint 和格式检查。
-- 完成后运行 npm run check 与 npm run test:e2e。
-- 若扫描/查询/启动受影响，再运行 PERF_SIZES=1000,5000,10000 PERF_RUNS=5 npm run benchmark:performance。
-- 修改 UI 时使用 Playwright 并人工复核亮色、深色和紧凑截图；无视觉变化时明确复用既有矩阵。
-- 更新五份交接文档，记录基线/提交/测试数量/职责边界/兼容性/性能/平台限制/未提交文件和下一步提示。
-```
+- Session F 已完成并冻结；没有“继续第十一切片”的启动提示。
+- 收尾提交只允许修改文档、发布元数据或打包修复；本次不修改产品代码。
+- 后续任务只在真实 Bug、用户反馈、Apple Developer ID/notarization 凭据或真实 Windows 实机出现时重新开启，并重新建立基线、范围和门禁证据。
+- 正式签名/notarization、Windows Authenticode 与真实安装验收仍未完成；unsigned/ad-hoc beta 只用于测试分发，不得描述为正式签名版本。

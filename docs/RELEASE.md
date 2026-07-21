@@ -166,7 +166,15 @@ GitHub Actions 使用固定 commit SHA 的 checkout、setup-node 与 upload-arti
 - 安装包不得包含 userData、数据库、个人模板、题目、图片、Provider、API Key、测试输出或本机绝对路径。
 - 自动更新、更新回滚和签名轮换仍未决；实现前必须新增 ADR。
 
-## 当前本机候选记录
+## 候选、源码与正式发布状态
+
+- 最终源码 HEAD：以当前交接文档所在最终提交为准；若候选生成后又提交证据文档，最终 HEAD 会晚于候选来源提交。
+- 本次 unsigned beta 候选来源提交：必须是 Session F 收尾文档形成后的干净提交，实际哈希由 `build-metadata.json` 记录。
+- 最后已验证打包版本：`0.1.2` macOS arm64 preview；本次重建完成前，下面的 Session C 记录只作为历史证据。
+- 正式签名版本：不存在。本机 `security find-identity -v -p codesigning` 为 `0 valid identities found`，不得把 ad-hoc App 描述为 Developer ID signed/notarized。
+- Windows 实机状态：未完成；没有 Authenticode、NSIS 安装/升级/卸载或真实 Windows userData 验收证据。
+
+## 历史本机候选记录
 
 Session C 最终候选来自干净提交 `5817eab7ab0274b6dcc8830334e300dfe1cbe2ae`，完整证据位于 `release/candidates/0.1.2-mac-arm64-preview/`：
 
