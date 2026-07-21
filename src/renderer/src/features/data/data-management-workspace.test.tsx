@@ -3,9 +3,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type {
   BackupExportResult,
+  BackupLifecycleInventory,
   BackupManifest,
   BackupVerification,
   DataDiagnostics,
+  InterruptedRecoveryPreview,
   RestoreBackupResult,
   RestorePreview,
 } from '@core/contracts/data-management'
@@ -82,7 +84,10 @@ const restoreResult: RestoreBackupResult = {
   skippedTemplateSources: true,
 }
 
-const lifecycle = {
+const interruptedOperationId = 'b'.repeat(64)
+const protectedInterruptedOperationId = 'c'.repeat(64)
+
+const lifecycle: BackupLifecycleInventory = {
   areas: [],
   candidates: [],
   checkedAt,
@@ -95,13 +100,57 @@ const lifecycle = {
   totalManagedBytes: 0,
 }
 
-function installDesktopMock() {
+const lifecycleWithInterrupted: BackupLifecycleInventory = {
+  ...lifecycle,
+  interruptedOperationCount: 2,
+  interruptedOperations: [
+    {
+      action: 'restore-preflight',
+      bytes: 2048,
+      canRecover: true,
+      createdAt: checkedAt,
+      id: interruptedOperationId,
+      kind: 'restore-operation',
+      reason: 'restore-preflight-ready',
+    },
+    {
+      action: 'none',
+      bytes: 1024,
+      canRecover: false,
+      createdAt: checkedAt,
+      id: protectedInterruptedOperationId,
+      kind: 'unknown',
+      reason: 'journal-invalid',
+    },
+  ],
+}
+
+const interruptedPreview: InterruptedRecoveryPreview = {
+  canExecute: true,
+  checkedAt,
+  errors: [],
+  operation: lifecycleWithInterrupted.interruptedOperations[0]!,
+}
+
+function installDesktopMock({
+  interruptedPreviewResult = interruptedPreview,
+  lifecycleResult = lifecycle,
+}: {
+  interruptedPreviewResult?: InterruptedRecoveryPreview
+  lifecycleResult?: BackupLifecycleInventory
+} = {}) {
   const diagnose = vi.fn().mockResolvedValue(diagnostics)
-  const inspectBackupLifecycle = vi.fn().mockResolvedValue(lifecycle)
+  const inspectBackupLifecycle = vi.fn().mockResolvedValue(lifecycleResult)
   const exportBackup = vi.fn().mockResolvedValue(exportResult)
   const verifyBackup = vi.fn().mockResolvedValue(verification)
   const previewRestore = vi.fn().mockResolvedValue(restorePreview)
   const restoreBackup = vi.fn().mockResolvedValue(restoreResult)
+  const previewInterruptedRecovery = vi.fn().mockResolvedValue(interruptedPreviewResult)
+  const recoverInterruptedOperation = vi.fn().mockResolvedValue({
+    action: 'restore-preflight',
+    inventory: lifecycle,
+    operationId: interruptedOperationId,
+  })
 
   Object.defineProperty(window, 'desktop', {
     configurable: true,
@@ -110,14 +159,24 @@ function installDesktopMock() {
         diagnose,
         exportBackup,
         inspectBackupLifecycle,
+        previewInterruptedRecovery,
         previewRestore,
+        recoverInterruptedOperation,
         restoreBackup,
         verifyBackup,
       },
     },
   })
 
-  return { diagnose, exportBackup, previewRestore, restoreBackup, verifyBackup }
+  return {
+    diagnose,
+    exportBackup,
+    previewInterruptedRecovery,
+    previewRestore,
+    recoverInterruptedOperation,
+    restoreBackup,
+    verifyBackup,
+  }
 }
 
 function renderWorkspace() {
@@ -189,5 +248,77 @@ describe('DataManagementWorkspace backup and restore behavior', () => {
       '恢复完成。Provider 密钥未恢复，请重新配置密钥。',
     )
     expect(desktop.diagnose).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('DataManagementWorkspace interrupted recovery behavior', () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+  })
+
+  it('distinguishes recoverable and protected interruptions before previewing one operation', async () => {
+    const desktop = installDesktopMock({ lifecycleResult: lifecycleWithInterrupted })
+    renderWorkspace()
+
+    expect(await screen.findByText(/提交前中断，可安全恢复旧状态/)).toBeInTheDocument()
+    expect(screen.getByText(/日志缺失或损坏，保持只读保护/)).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: '预览异常恢复' })).toHaveLength(1)
+
+    fireEvent.click(screen.getByRole('button', { name: '预览异常恢复' }))
+
+    await waitFor(() =>
+      expect(desktop.previewInterruptedRecovery).toHaveBeenCalledWith({
+        operationId: interruptedOperationId,
+      }),
+    )
+    expect(await screen.findByText('异常恢复预览可继续')).toBeInTheDocument()
+    expect(screen.getByText('将执行：恢复到操作前状态。')).toBeInTheDocument()
+  })
+
+  it('keeps a changed interrupted operation blocked without exposing confirmation', async () => {
+    const desktop = installDesktopMock({
+      interruptedPreviewResult: {
+        canExecute: false,
+        checkedAt,
+        errors: ['state-changed'],
+        operation: lifecycleWithInterrupted.interruptedOperations[0]!,
+      },
+      lifecycleResult: lifecycleWithInterrupted,
+    })
+    renderWorkspace()
+
+    fireEvent.click(await screen.findByRole('button', { name: '预览异常恢复' }))
+
+    expect(await screen.findByText('异常恢复预览已阻止')).toBeInTheDocument()
+    expect(screen.getByText('操作状态或恢复预备份已变化，请重新诊断。')).toBeInTheDocument()
+    expect(
+      screen.queryByLabelText('我已核对异常恢复预览，并允许应用执行所示安全恢复操作。'),
+    ).not.toBeInTheDocument()
+    expect(desktop.recoverInterruptedOperation).not.toHaveBeenCalled()
+  })
+
+  it('recovers only after explicit confirmation and refreshes diagnostics', async () => {
+    const desktop = installDesktopMock({ lifecycleResult: lifecycleWithInterrupted })
+    renderWorkspace()
+
+    fireEvent.click(await screen.findByRole('button', { name: '预览异常恢复' }))
+    const confirmation = await screen.findByLabelText(
+      '我已核对异常恢复预览，并允许应用执行所示安全恢复操作。',
+    )
+    expect(screen.getByRole('button', { name: '确认异常恢复' })).toBeDisabled()
+
+    fireEvent.click(confirmation)
+    fireEvent.click(screen.getByRole('button', { name: '确认异常恢复' }))
+
+    await waitFor(() =>
+      expect(desktop.recoverInterruptedOperation).toHaveBeenCalledWith({
+        confirmRecovery: true,
+        operationId: interruptedOperationId,
+        retentionPolicy: 'forever',
+      }),
+    )
+    expect(screen.getByRole('status')).toHaveTextContent('异常操作已按预览安全处理。')
+    expect(desktop.diagnose).toHaveBeenCalledTimes(2)
+    expect(screen.queryByText('异常恢复预览可继续')).not.toBeInTheDocument()
   })
 })
