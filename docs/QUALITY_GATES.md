@@ -238,4 +238,13 @@
 
 ## Session F 最终收尾门禁（本次）
 
-Session F 已正式结束，不再执行第十一切片或继续维护性拆分。最终 `npm run check`、`npm run test:e2e`、macOS arm64 unsigned beta、全新/已有 V2 userData packaged smoke 和候选隐私/架构/元数据证据将在本节补齐；性能基准不重跑，因为本次没有修改扫描、查询、索引或启动实现。
+Session F 已正式结束，不再执行第十一切片或继续维护性拆分。源码候选来源为干净提交 `39421c0329c463657cb43c4e552949e48bee93c9`；最终文档提交晚于候选来源时，不能把最终 HEAD 与候选来源混为一谈。
+
+- `npm run check`：36 个 Vitest 文件/235 项、3 项发布脚本测试通过；TypeScript、ESLint（0 warnings）、Prettier 通过。
+- `npm run test:e2e`：54 项常规真实 Electron E2E 通过，2 项 packaged 条件跳过；授权 GUI/本地端口后完整 56 项无失败。
+- `npm run release:mac:preview`：成功生成 `0.1.2` macOS arm64 unsigned/ad-hoc beta；DMG 138,104,754 B / `798c94f809bb42a87eb2bff12c861f507c3b6c8fc44c5e1cf0b357a3ac742662`，ZIP 137,580,378 B / `e918b578d465b5eda1c146e14dff2d30721a4f1c7a941baddd1c4a922f73943b`。
+- App 与 `better_sqlite3.node` 均为 Mach-O arm64；Info.plist appId/版本/最低系统版本正确；源 PNG 与打包 `icon.icns` 均 1024×1024 alpha；`hdiutil verify`、ZIP 完整性和 `SHA256SUMS.txt` 通过。
+- 候选证据含 CycloneDX SBOM（93 个组件）、构建元数据、发布说明和隐私报告；ASAR 10,739 条目、App 文件 316 个，禁用内容、个人绝对路径和疑似密钥均 0 命中。
+- packaged smoke：候选 App 的全新 userData 和已有 V2 userData 重启各 1 项通过。
+- 签名状态：无 Authority/TeamIdentifier、未 staple、Gatekeeper 不接受；该产物明确是测试分发用 unsigned/ad-hoc beta，不是正式签名版本。
+- 性能基准不重跑；本次只改文档，没有触及扫描、查询、索引或启动实现。正式 macOS signed/notarized、Windows Authenticode/真实安装、VoiceOver 长流程和 Windows 辅助技术仍未完成。

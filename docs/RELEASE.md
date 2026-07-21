@@ -168,11 +168,25 @@ GitHub Actions 使用固定 commit SHA 的 checkout、setup-node 与 upload-arti
 
 ## 候选、源码与正式发布状态
 
-- 最终源码 HEAD：以当前交接文档所在最终提交为准；若候选生成后又提交证据文档，最终 HEAD 会晚于候选来源提交。
-- 本次 unsigned beta 候选来源提交：必须是 Session F 收尾文档形成后的干净提交，实际哈希由 `build-metadata.json` 记录。
-- 最后已验证打包版本：`0.1.2` macOS arm64 preview；本次重建完成前，下面的 Session C 记录只作为历史证据。
+- 最终源码 HEAD：以当前交接文档所在最终提交为准；本次候选生成后又提交证据文档，因此最终 HEAD 晚于候选来源提交。
+- 本次 unsigned beta 候选来源提交：`39421c0329c463657cb43c4e552949e48bee93c9`，实际哈希由 `build-metadata.json` 记录。
+- 最后已验证打包版本：`0.1.2` macOS arm64 preview；本次候选已通过完整架构、隐私、元数据和 packaged smoke 验证。
 - 正式签名版本：不存在。本机 `security find-identity -v -p codesigning` 为 `0 valid identities found`，不得把 ad-hoc App 描述为 Developer ID signed/notarized。
 - Windows 实机状态：未完成；没有 Authenticode、NSIS 安装/升级/卸载或真实 Windows userData 验收证据。
+
+本次候选证据目录：`release/candidates/0.1.2-mac-arm64-preview/`。
+
+| 制品                                 |      字节数 | SHA-256                                                            |
+| ------------------------------------ | ----------: | ------------------------------------------------------------------ |
+| `算法学习工作台-0.1.2-mac-arm64.dmg` | 138,104,754 | `798c94f809bb42a87eb2bff12c861f507c3b6c8fc44c5e1cf0b357a3ac742662` |
+| `算法学习工作台-0.1.2-mac-arm64.zip` | 137,580,378 | `e918b578d465b5eda1c146e14dff2d30721a4f1c7a941baddd1c4a922f73943b` |
+
+- App 主程序与 `better_sqlite3.node`：Mach-O 64-bit arm64；Electron module ABI `148`。
+- Info.plist：appId `com.algorithmworkbench.desktop`，版本/build `0.1.2`，最低 macOS `12.0`；源 PNG 与打包 `icon.icns` 均 1024×1024 alpha，四角透明，alpha bbox `(48,48)-(976,976)`。
+- DMG `hdiutil verify`、ZIP 完整性和 `SHA256SUMS.txt` 复核通过；CycloneDX SBOM 为 1.5、93 个组件。
+- 隐私扫描：ASAR 10,739 条目、App 文件 316 个；禁用条目、禁用外部文件、个人绝对路径和疑似密钥均 0 命中。
+- packaged smoke：全新 userData 与已有 V2 userData 重启各 1 项通过。
+- 签名：unsigned/ad-hoc，无 Authority/TeamIdentifier，未 staple，Gatekeeper 不接受；仅适合测试分发，不是正式签名版本。
 
 ## 历史本机候选记录
 

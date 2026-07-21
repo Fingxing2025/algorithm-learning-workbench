@@ -6,7 +6,7 @@
 
 - Session F 十个行为保持切片完成并正式冻结：应用壳、模板管理服务、AI Provider、题目分析关联、题目详情、文件管理历史/计划审查/只读审计和数据管理备份/恢复/异常中断恢复均已按语义边界归位。
 - 保持现有产品模块、视觉系统、IPC、SQLite schema、迁移、Provider 协议和安全边界不变；本次收尾不新增功能、不重构业务代码。
-- 生成当前源码的 macOS arm64 unsigned/ad-hoc beta 候选；候选摘要、SBOM、架构、隐私和 packaged smoke 证据以发布候选目录为准。该产物只用于测试分发，不是正式签名版本。
+- 由干净源码提交 `39421c0329c463657cb43c4e552949e48bee93c9` 生成 macOS arm64 unsigned/ad-hoc beta 候选；候选摘要、SBOM、架构、隐私和 packaged smoke 证据位于 `release/candidates/0.1.2-mac-arm64-preview/`。该产物只用于测试分发，不是正式签名版本。
 
 ## [0.1.2] - 2026-07-18
 

@@ -135,7 +135,7 @@
 - 新增快捷键与路由纯逻辑测试；完整桌面回归证明布局、焦点、键盘、增量索引、分页、取消和数据恢复行为不变。
 - 本阶段没有数据库字段、migration、IPC、后台任务协议、系统权限、依赖或视觉系统变化；本次收尾仅补齐文档、最终源码门禁和 unsigned beta 发布证据。
 
-验收：第十切片 `npm run check` 通过 36 个 Vitest 文件/235 项与 3 项发布脚本测试；完整 Electron E2E 为 54 项通过、2 项 packaged 按条件跳过。数据管理中断恢复真实 Electron E2E、亮暗/紧凑/200% 回归继续通过；本切片无视觉意图，复用既有数据管理原图并人工复核。扫描、查询、启动和后台任务实现未改变，因此未重跑性能基准；最终收尾门禁和 unsigned beta 证据记录在本次提交后的交接文档中。Session F 已完成，除真实 Bug、用户反馈或发布门禁外不再继续维护性拆分。
+验收：最终源码 `npm run check` 通过 36 个 Vitest 文件/235 项与 3 项发布脚本测试；完整 Electron E2E 为 54 项通过、2 项 packaged 按条件跳过。以干净提交 `39421c0329c463657cb43c4e552949e48bee93c9` 生成的 `0.1.2` macOS arm64 unsigned/ad-hoc beta 通过 App/native 架构、Info.plist、图标、DMG/ZIP、SHA-256、SBOM、隐私和全新/已有 V2 userData packaged smoke 验证。数据管理中断恢复真实 Electron E2E、亮暗/紧凑/200% 回归继续通过；本次无视觉意图。扫描、查询、启动和后台任务实现未改变，因此未重跑性能基准。Session F 已完成，除真实 Bug、用户反馈或发布门禁外不再继续维护性拆分。
 
 ## 后续阶段
 

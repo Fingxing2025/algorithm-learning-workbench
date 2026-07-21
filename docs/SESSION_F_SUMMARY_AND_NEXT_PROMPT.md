@@ -5,8 +5,8 @@
 - 本 Session 基线：`b8f4456 docs: hand off session f data backup split`
 - 特征测试提交：`289e665 test: characterize interrupted recovery workspace`
 - 源码实现提交：`436ff70 refactor: split interrupted recovery panel`
-- Session F 收尾文档提交：本文所在最终本地提交
-- unsigned beta 候选来源提交：收尾文档提交之后的独立源码快照（待生成）
+- Session F 收尾文档提交：`39421c0 docs: close session f development`
+- unsigned beta 候选来源提交：`39421c0329c463657cb43c4e552949e48bee93c9`（与收尾提交相同）
 - 分支：`main`
 - 版本：`0.1.2`
 - 远程：未推送
@@ -74,6 +74,15 @@ Session F 第十切片完成了 `data-management-workspace.tsx` 中“异常中�
 结束时实时检查 `security find-identity -v -p codesigning` 仍为 `0 valid identities found`；当前主机为 Darwin 25.5.0 arm64，没有真实 Windows 安装环境。因此 macOS Developer ID/notarization、Windows Authenticode/真实安装、macOS VoiceOver 长流程和 Windows Narrator/高对比实机检查仍未完成；Session F 未重新打包。
 
 交接时 `git status --short` 只显示用户已有未跟踪 `问题反馈.txt`；`.codex/config.toml` 未修改、未暂存，旧项目未修改，也未推送远程。
+
+## 5.1 最终源码门禁与 unsigned beta
+
+- 最终源码门禁：`npm run check` 通过 36 个 Vitest 文件/235 项与 3 项发布脚本测试；`npm run test:e2e` 在授权 GUI/本地端口后通过 54 项常规真实 Electron E2E，2 项 packaged 条件跳过。
+- 候选来源：干净提交 `39421c0329c463657cb43c4e552949e48bee93c9`，版本 `0.1.2`，macOS arm64，Electron `43.1.0`，electron-builder `26.15.3`。
+- 候选制品：DMG `release/算法学习工作台-0.1.2-mac-arm64.dmg`，138,104,754 B，SHA-256 `798c94f809bb42a87eb2bff12c861f507c3b6c8fc44c5e1cf0b357a3ac742662`；ZIP `release/算法学习工作台-0.1.2-mac-arm64.zip`，137,580,378 B，SHA-256 `e918b578d465b5eda1c146e14dff2d30721a4f1c7a941baddd1c4a922f73943b`。
+- 验证：App 与 `better_sqlite3.node` 为 arm64；Info.plist、1024×1024 alpha 图标、DMG/ZIP、SHA-256、CycloneDX SBOM、隐私扫描均通过；全新和已有 V2 userData packaged smoke 各 1 项通过。
+- 签名：候选为 unsigned/ad-hoc beta，无 Authority/TeamIdentifier、未 staple、Gatekeeper 不接受；不属于正式签名版本。正式 macOS signed/notarized、Windows Authenticode 和 Windows 实机安装验收仍等待外部条件。
+- 候选证据目录：`release/candidates/0.1.2-mac-arm64-preview/`；候选不含 API Key、用户数据库、题目图片、个人模板、Provider 配置、个人绝对路径、`.codex/config.toml` 或 `问题反馈.txt`。性能基准未重跑。
 
 ## 6. Session F 结束条件与后续触发
 

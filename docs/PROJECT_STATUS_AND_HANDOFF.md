@@ -18,16 +18,16 @@
 - Session F 第九切片代码结束提交：`85064b6 refactor: split data backup restore panel`
 - Session F 第十切片特征测试提交：`289e665 test: characterize interrupted recovery workspace`
 - Session F 第十切片代码结束提交：`436ff70 refactor: split interrupted recovery panel`
-- Session F 收尾提交：待本次本地提交生成（只含文档）
-- unsigned beta 候选来源提交：待收尾提交后生成
+- Session F 收尾提交：`39421c0 docs: close session f development`
+- unsigned beta 候选来源提交：`39421c0329c463657cb43c4e552949e48bee93c9`（与收尾提交相同）
 - 源码版本：`0.1.2` 开发快照
-- 产品阶段：0.1.2 功能闭环、Session A/B、九项 Bugfix、Session C 发布候选工程、Session D UX/可访问性、Session E 大型工作区性能与 Session F 代码健康收尾均完成；unsigned beta 可在本机生成，正式签名和 Windows 实机验收仍受外部条件阻塞
+- 产品阶段：0.1.2 功能闭环、Session A/B、九项 Bugfix、Session C 发布候选工程、Session D UX/可访问性、Session E 大型工作区性能与 Session F 代码健康收尾均完成；当前 unsigned beta 已由 `39421c0` 生成并验证，正式签名和 Windows 实机验收仍受外部条件阻塞
 
 ## 0. 新阶段入口
 
 本阶段基于 0.1.2 功能冻结基线完成发布可信度收尾。后续不再横向增加 AI 页面、临时补丁或维护性拆分；只有真实 Bug、用户反馈或发布门禁触发时才重新开启工程任务。
 
-当前状态：**Session A：数据可靠性与恢复、Session B：AI 稳定性与兼容矩阵、九项 Bugfix Session、Session C：可审计发布候选工程、Session D：UX/可访问性、Session E：大型工作区性能与 Session F 代码健康收尾均已完成。Session F 的十个行为保持切片已冻结，源码不再继续第十一切片或其他维护性拆分。当前实时检查仍为 `0 valid identities found`，主机为 macOS arm64 且没有 Windows 实机；本次 unsigned beta 候选和正式签名/notarization、Windows 安装验收分别记录独立证据。**
+当前状态：**Session A：数据可靠性与恢复、Session B：AI 稳定性与兼容矩阵、九项 Bugfix Session、Session C：可审计发布候选工程、Session D：UX/可访问性、Session E：大型工作区性能与 Session F 代码健康收尾均已完成。Session F 的十个行为保持切片已冻结，源码不再继续第十一切片或其他维护性拆分。本次候选来源为 `39421c0329c463657cb43c4e552949e48bee93c9`；最终交接文档 HEAD 会晚于该候选来源提交。当前实时检查仍为 `0 valid identities found`，主机为 macOS arm64 且没有 Windows 实机；正式签名/notarization、Windows 安装验收分别记录独立证据。**
 
 Session D 的布局、键盘、焦点、状态播报、截图结论和可直接复制的下一 Session 提示词见 `docs/SESSION_D_SUMMARY_AND_NEXT_PROMPT.md`；Session C 候选证据仍保留在 `docs/SESSION_C_SUMMARY_AND_NEXT_PROMPT.md`，但没有被本 Session 重新打包或复用为新候选摘要。
 
@@ -327,6 +327,25 @@ Main
 | 备份与隐私复核                     | 扫描 10,739 个 ASAR 条目和 316 个 App 文件；用户数据、密钥形态、个人绝对路径和禁用文件命中均为 0                          |
 
 说明：打包入口 smoke test 需要先生成 `release/mac-arm64` 目录包并设置 `PACKAGED_APP_PATH`，因此常规 E2E 中 2 项跳过是预期行为。本次已对最终候选单独执行并通过；任何新候选仍必须重新运行，不能沿用本次摘要。
+
+### Session F 最终收尾与 unsigned beta 实测（2026-07-21）
+
+本次收尾没有修改产品源码，只提交文档并以干净提交 `39421c0329c463657cb43c4e552949e48bee93c9` 生成候选。最终文档提交晚于候选来源提交时，必须继续区分两者；候选的机器可读来源以 `release/candidates/0.1.2-mac-arm64-preview/build-metadata.json` 为准。
+
+| 检查               | 结果                                                                                                                                                                                                                                                                             |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run check`    | 通过：36 个 Vitest 文件、235 项测试、3 项发布脚本测试；TypeScript、ESLint（0 warnings）、Prettier 均通过                                                                                                                                                                         |
+| `npm run test:e2e` | 授权 GUI/本地端口后通过：54 项常规真实 Electron E2E；2 项 packaged 条件跳过；完整套件 56 项无失败                                                                                                                                                                                |
+| 候选命令           | `npm run release:mac:preview` 成功；`sourceTree=clean`，版本 `0.1.2`，平台/架构 `mac/arm64`，Electron `43.1.0`，electron-builder `26.15.3`                                                                                                                                       |
+| 候选制品           | `release/算法学习工作台-0.1.2-mac-arm64.dmg`：138,104,754 B，SHA-256 `798c94f809bb42a87eb2bff12c861f507c3b6c8fc44c5e1cf0b357a3ac742662`；`release/算法学习工作台-0.1.2-mac-arm64.zip`：137,580,378 B，SHA-256 `e918b578d465b5eda1c146e14dff2d30721a4f1c7a941baddd1c4a922f73943b` |
+| App/原生模块       | App 主程序与 `better_sqlite3.node` 均为 Mach-O 64-bit arm64；Electron module ABI `148`                                                                                                                                                                                           |
+| Info.plist/图标    | appId `com.algorithmworkbench.desktop`，版本/build `0.1.2`，最低 macOS `12.0`；源 PNG 与打包 `icon.icns` 均 1024×1024、alpha corners `(0,0,0,0)`、alpha bbox `(48,48)-(976,976)`                                                                                                 |
+| DMG/ZIP            | `hdiutil verify` 有效；`unzip -tq` 完整通过；候选 `SHA256SUMS.txt` 复核通过                                                                                                                                                                                                      |
+| SBOM/隐私          | CycloneDX 1.5，93 个组件；ASAR 10,739 条目、App 文件 316 个；禁用条目、禁用外部文件、个人绝对路径、疑似密钥均 0 命中                                                                                                                                                             |
+| packaged smoke     | 使用候选 App，`tests/e2e/packaged.spec.ts` 全新 userData 与已有 V2 userData 重启均通过，2 项                                                                                                                                                                                     |
+| 签名状态           | unsigned/ad-hoc preview；无 Authority/TeamIdentifier，未 staple，Gatekeeper 不接受；不得描述为正式签名版本                                                                                                                                                                       |
+
+候选证据目录：`release/candidates/0.1.2-mac-arm64-preview/`，包含 `SHA256SUMS.txt`、`RELEASE_NOTES.md`、`artifact-verification.json`、`build-metadata.json`、`sbom.cyclonedx.json`。候选不包含 API Key、用户数据库、题目图片、个人模板、Provider 配置、个人绝对路径、`.codex/config.toml` 或 `问题反馈.txt`；后两者也未被暂存或提交。性能基准未重跑，因为本次没有修改扫描、查询、索引或启动实现。
 
 Session D 截图显示 1024×640 下导航、列表/树、详情和页头主操作仍可达；200% 下使用紧凑图标导航，主操作通过在视口断言。首页在窄视口隐藏重复装饰并压缩 Hero，但不隐藏三个核心入口。玻璃与环境光仍须限定在导航、浮层和重点状态，不能扩散到长文本或表格主体。
 
