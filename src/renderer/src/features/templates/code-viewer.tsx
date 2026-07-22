@@ -7,6 +7,7 @@ import {
   highlightActiveLine,
   highlightActiveLineGutter,
   lineNumbers,
+  keymap,
 } from '@codemirror/view'
 import { tags } from '@lezer/highlight'
 import hljs from 'highlight.js/lib/core'
@@ -329,6 +330,136 @@ function CppCodeEditor({ source, theme }: { source: string; theme: ResolvedCodeT
       role="region"
       tabIndex={0}
     />
+  )
+}
+
+export function SourceCodeEditor({
+  code,
+  language,
+  onCancelRequest,
+  onChange,
+  onSaveRequest,
+}: {
+  code: string
+  language: string
+  onCancelRequest: () => void
+  onChange: (value: string) => void
+  onSaveRequest: () => void
+}) {
+  const { t } = useI18n()
+  const [theme, setTheme] = useState<CodeTheme>(getInitialCodeTheme)
+  const hostRef = useRef<HTMLDivElement>(null)
+  const currentCodeRef = useRef(code)
+  const onCancelRef = useRef(onCancelRequest)
+  const onChangeRef = useRef(onChange)
+  const onSaveRef = useRef(onSaveRequest)
+  const isApplicationDark = useApplicationDarkMode()
+  const resolvedTheme = resolveCodeTheme(theme, isApplicationDark)
+  const usesLightChrome = resolvedTheme === 'vscode-light'
+  onCancelRef.current = onCancelRequest
+  onChangeRef.current = onChange
+  onSaveRef.current = onSaveRequest
+
+  useEffect(() => {
+    window.localStorage.setItem(CODE_THEME_STORAGE_KEY, theme)
+  }, [theme])
+
+  useEffect(() => {
+    if (!hostRef.current) return
+    const editor = new EditorView({
+      parent: hostRef.current,
+      state: EditorState.create({
+        doc: currentCodeRef.current,
+        extensions: [
+          ...(cppLanguages.has(language) ? [cpp()] : []),
+          drawSelection(),
+          lineNumbers(),
+          highlightActiveLineGutter(),
+          highlightActiveLine(),
+          bracketMatching(),
+          ...(cppLanguages.has(language) ? [cppCodeVisuals] : []),
+          keymap.of([
+            {
+              key: 'Mod-s',
+              preventDefault: true,
+              run: () => {
+                onSaveRef.current()
+                return true
+              },
+            },
+            {
+              key: 'Escape',
+              run: () => {
+                onCancelRef.current()
+                return true
+              },
+            },
+          ]),
+          EditorView.updateListener.of(update => {
+            if (!update.docChanged) return
+            currentCodeRef.current = update.state.doc.toString()
+            onChangeRef.current(currentCodeRef.current)
+          }),
+          createEditorTheme(resolvedTheme),
+        ],
+      }),
+    })
+    editor.focus()
+    return () => editor.destroy()
+  }, [language, resolvedTheme])
+
+  return (
+    <div
+      aria-label={t('模板代码编辑器')}
+      className={cn(
+        'window-no-drag relative flex h-[clamp(440px,62vh,720px)] min-h-[440px] shrink-0 flex-col overflow-hidden rounded-xl shadow-[0_12px_32px_-20px_rgba(15,23,42,0.7)]',
+        usesLightChrome
+          ? 'border border-[#d0d7de] bg-white ring-1 ring-black/5'
+          : 'border border-black/15 bg-code ring-1 ring-white/5',
+      )}
+    >
+      <div
+        className={cn(
+          'flex h-11 shrink-0 items-center gap-2 border-b px-3.5',
+          usesLightChrome
+            ? 'border-[#d0d7de] bg-[#f6f8fa] text-[#24292f]'
+            : 'border-white/10 bg-[#181818] text-code-foreground',
+        )}
+      >
+        <span className="text-[11px] font-semibold">{language}</span>
+        <span className="rounded bg-warning/12 px-2 py-0.5 text-[10px] font-medium text-warning">
+          {t('编辑中')}
+        </span>
+        <label className="ml-auto flex items-center gap-2 text-[10px]">
+          <span className="hidden sm:inline">{t('代码主题')}</span>
+          <select
+            aria-label={t('代码主题')}
+            className={cn(
+              'h-7 rounded-md border px-2.5 text-[10px] outline-none focus:ring-2',
+              usesLightChrome
+                ? 'border-[#d0d7de] bg-white text-[#24292f] focus:ring-[#0969da]'
+                : 'border-white/12 bg-white/6 text-code-foreground focus:ring-[#007acc]',
+            )}
+            onChange={event => setTheme(event.target.value as CodeTheme)}
+            value={theme}
+          >
+            {codeThemes.map(option => (
+              <option key={option.value} value={option.value}>
+                {t(option.label)}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <div
+        aria-label={t('可编辑模板源码')}
+        className="code-editor-surface min-h-0 flex-1 overflow-hidden"
+        data-code-theme={resolvedTheme}
+        ref={hostRef}
+        role="textbox"
+        tabIndex={0}
+      />
+    </div>
   )
 }
 

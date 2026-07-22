@@ -217,6 +217,20 @@ export function AppWorkspaceRoute({
           void problemState.reload()
           onNotice(t('模板已安全重命名或移动，并保留原有元数据与题目关联'))
         }}
+        onSourceEdited={(templateId, result) => {
+          replaceWorkspace(result.workspace)
+          setSelectedTemplateId(templateId)
+          void loadTemplate(templateId)
+          source.reload()
+          void problemState.reload()
+          onNotice(
+            t(
+              result.backupCleanupPending
+                ? '模板源码已保存；事务备份稍后可在数据管理中清理'
+                : '模板源码已安全保存，并保留原有元数据与题目关联',
+            ),
+          )
+        }}
         onSearchProblems={problemState.searchProblems}
         onSearchTemplates={searchTemplates}
         onRescan={() => void handleRescan()}

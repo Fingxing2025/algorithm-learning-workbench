@@ -52,10 +52,12 @@ export const IPC_CHANNELS = {
     preview: 'problem-analysis:preview',
   },
   templates: {
+    applySourceEdit: 'templates:apply-source-edit',
     create: 'templates:create',
     getSummary: 'templates:get-summary',
     listPage: 'templates:list-page',
     performAction: 'templates:perform-action',
+    previewSourceEdit: 'templates:preview-source-edit',
     readSource: 'templates:read-source',
   },
   templateManagement: {

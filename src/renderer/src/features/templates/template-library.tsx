@@ -9,6 +9,7 @@ import type {
 import type { BackgroundTaskStatus } from '@core/contracts/background-task'
 import type { FileChangeMutationResult } from '@core/contracts/template-management'
 import type {
+  ApplyTemplateSourceEditResult,
   TemplateActionRequest,
   TemplatePage,
   TemplateSummary,
@@ -54,6 +55,7 @@ export function TemplateLibrary({
   sourceState,
   onReloadSource,
   onRelocated,
+  onSourceEdited,
   onSearchProblems,
   onSearchTemplates,
   problemTotalCount,
@@ -72,6 +74,7 @@ export function TemplateLibrary({
   onLoadMoreTemplates: () => void
   onReloadSource: () => void
   onRelocated: (templateId: string, result: FileChangeMutationResult) => void
+  onSourceEdited: (templateId: string, result: ApplyTemplateSourceEditResult) => void
   onSearchProblems: (query: string) => Promise<Problem[]>
   onSearchTemplates: (query: string) => Promise<TemplatePage>
   onRescan: () => void
@@ -246,6 +249,7 @@ export function TemplateLibrary({
             onOpenProblem={onOpenProblem}
             onReload={onReloadSource}
             onRelocated={onRelocated}
+            onSourceEdited={onSourceEdited}
             onSearchProblems={onSearchProblems}
             onUpsertProblemRelation={handleUpsertProblemRelation}
             problemError={problemError}

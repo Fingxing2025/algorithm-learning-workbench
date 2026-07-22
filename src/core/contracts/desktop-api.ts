@@ -92,15 +92,19 @@ import type {
   UpsertProblemRelationRequest,
 } from './problem'
 import type {
+  ApplyTemplateSourceEditRequest,
+  ApplyTemplateSourceEditResult,
   ChooseWorkspaceRequest,
   CreateTemplateRequest,
   CreateTemplateResult,
+  PreviewTemplateSourceEditRequest,
   TemplateActionRequest,
   TemplatePage,
   TemplatePageRequest,
   TemplateRequest,
   TemplateSummary,
   TemplateSource,
+  TemplateSourceEditPreview,
   WorkspaceSnapshot,
 } from './workspace'
 
@@ -164,10 +168,16 @@ export interface DesktopApi {
     upsertRelation: (request: UpsertProblemRelationRequest) => Promise<Problem>
   }
   templates: {
+    applySourceEdit: (
+      request: ApplyTemplateSourceEditRequest,
+    ) => Promise<ApplyTemplateSourceEditResult>
     create: (request: CreateTemplateRequest) => Promise<CreateTemplateResult>
     getSummary: (request: TemplateRequest) => Promise<TemplateSummary>
     listPage: (request: TemplatePageRequest) => Promise<TemplatePage>
     performAction: (request: TemplateActionRequest) => Promise<void>
+    previewSourceEdit: (
+      request: PreviewTemplateSourceEditRequest,
+    ) => Promise<TemplateSourceEditPreview>
     readSource: (templateId: string) => Promise<TemplateSource>
   }
   templateManagement: {

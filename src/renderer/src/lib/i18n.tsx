@@ -1416,6 +1416,124 @@ Object.assign(english, {
   本地严格校验: 'Strict local validation',
 })
 
+Object.assign(english, {
+  '模板源码已保存；事务备份稍后可在数据管理中清理':
+    'Template source saved. The transactional backup can be cleaned up later in Data Management.',
+  '模板源码已安全保存，并保留原有元数据与题目关联':
+    'Template source saved safely. Existing metadata and problem relations were preserved.',
+  'Provider 详情滚动区': 'Provider details scroll area',
+  'Provider 列表滚动区': 'Provider list scroll area',
+  '已加载 {processed} / {total} 份计划；确认后永久删除历史与专属撤销备份。':
+    'Loaded {processed} / {total} plans. Confirmation permanently deletes history and its dedicated rollback backups.',
+  '将永久删除 {count} 份计划：{cancelled} 份已取消、{applied} 份已执行、{rolledBack} 份已撤销；其中 {archived} 份为旧归档记录。':
+    'Permanently delete {count} plans: {cancelled} cancelled, {applied} applied, and {rolledBack} rolled back. {archived} are legacy archived records.',
+  '同时永久删除 {executions} 条子执行和 {backups} 份现存撤销备份；另有 {missing} 份备份已缺失。当前模板文件不会恢复、移动或修改。删除后计划、执行记录和撤销能力均无法恢复。':
+    'Also permanently delete {executions} child executions and {backups} existing rollback backups; {missing} backups are already missing. Current template files will not be restored, moved, or changed. The plans, execution records, and rollback capability cannot be recovered afterward.',
+  确认永久删除计划记录: 'Confirm permanent plan record deletion',
+  '暂无可删除计划记录。': 'No plan records can be deleted.',
+  旧归档记录: 'Legacy archived records',
+  永久清理旧归档: 'Permanently clean legacy archives',
+  '没有旧版软归档记录。': 'No legacy soft-archived records.',
+  旧归档: 'Legacy archive',
+  永久删除旧归档记录: 'Permanently delete legacy archived record',
+  加载更多旧归档记录: 'Load more legacy archived records',
+  '将永久删除 {count} 条执行记录：{applied} 条已执行、{rolledBack} 条已撤销。':
+    'Permanently delete {count} execution records: {applied} applied and {rolledBack} rolled back.',
+  '将永久删除 {backups} 份现存撤销备份，另有 {missing} 份已缺失；当前模板、题目、关系和源码不会被撤销或修改。已执行记录删除后无法再从备份撤销，本次历史删除无法恢复。':
+    'Permanently delete {backups} existing rollback backups; {missing} are already missing. Current templates, problems, relations, and source files will not be rolled back or changed. Applied records can no longer be rolled back from backup, and this history deletion cannot be recovered.',
+  确认永久删除执行记录: 'Confirm permanent execution record deletion',
+  永久删除执行记录: 'Permanently delete execution record',
+  '已永久删除 {count} 份计划、{executions} 条子执行和 {backups} 份撤销备份；当前模板文件未修改。':
+    'Permanently deleted {count} plans, {executions} child executions, and {backups} rollback backups. Current template files were not changed.',
+  '已永久删除 {count} 条执行记录和 {backups} 份撤销备份；当前模板文件未修改。':
+    'Permanently deleted {count} execution records and {backups} rollback backups. Current template files were not changed.',
+  清理已完成历史删除标记: 'Clear completed history-deletion marker',
+  完成已提交历史删除的备份清理: 'Finish backup cleanup for committed history deletion',
+  '历史删除已提交，可安全完成备份清理':
+    'History deletion is committed and its backup cleanup can be completed safely.',
+  '源码没有变化，无需保存。': 'The source has not changed, so there is nothing to save.',
+  '无法生成源码 Diff，请重试。': 'Unable to generate the source diff. Try again.',
+  '源码保存失败，原文件已保持或恢复。':
+    'Source save failed. The original file was preserved or restored.',
+  '编辑模式 · Cmd/Ctrl+S 查看 Diff · Escape 取消':
+    'Edit mode · Cmd/Ctrl+S to review the diff · Escape to cancel',
+  未保存: 'Unsaved',
+  '查看 Diff': 'Review diff',
+  编辑代码: 'Edit code',
+  '放弃未保存的源码修改？': 'Discard unsaved source changes?',
+  '取消编辑不会写入文件，当前修改将从编辑器中移除。':
+    'Cancelling does not write the file. Current changes will be removed from the editor.',
+  确认放弃: 'Discard changes',
+  继续编辑: 'Keep editing',
+  '源码修改 Diff': 'Source change diff',
+  确认源码修改: 'Confirm source changes',
+  '原文件 SHA-256 已锁定；确认前文件变化会拒绝覆盖。':
+    'The original file SHA-256 is locked. If the file changes before confirmation, overwrite will be refused.',
+  修改前: 'Before',
+  '（无内容）': '(No content)',
+  修改后: 'After',
+  '关闭 Diff 或取消不会写入；确认保存后将原子替换源码并重新同步索引。':
+    'Closing the diff or cancelling does not write the file. Confirming save atomically replaces the source and resynchronizes the index.',
+  确认保存源码: 'Confirm source save',
+  返回编辑: 'Return to editing',
+  模板代码编辑器: 'Template code editor',
+  编辑中: 'Editing',
+  可编辑模板源码: 'Editable template source',
+  '执行记录包含重复的撤销备份目录。':
+    'Execution records contain duplicate rollback backup directories.',
+  '执行记录中的撤销备份路径格式无效。':
+    'A rollback backup path in the execution records has an invalid format.',
+  '撤销备份不是受管普通目录，已取消整批删除。':
+    'A rollback backup is not a managed regular directory. Batch deletion was cancelled.',
+  '撤销备份包含符号链接，已取消整批删除。':
+    'A rollback backup contains a symbolic link. Batch deletion was cancelled.',
+  '撤销备份已变化，整批删除已取消。': 'A rollback backup changed. Batch deletion was cancelled.',
+  '撤销备份在确认后发生变化，整批删除已取消。':
+    'A rollback backup changed after confirmation. Batch deletion was cancelled.',
+  '模拟历史删除暂存失败。': 'Simulated history-deletion staging failure.',
+  '模拟历史删除提交后异常中断。': 'Simulated interruption after history deletion was committed.',
+  '历史删除失败且撤销备份恢复未完成，请在数据管理页检查异常残留。':
+    'History deletion failed and rollback backup recovery did not finish. Inspect interrupted items in Data Management.',
+  '历史已删除，备份清理将在数据管理的异常恢复中完成。':
+    'History was deleted. Backup cleanup will be completed from interrupted recovery in Data Management.',
+  '历史删除失败，数据库记录与撤销备份均保持原状。':
+    'History deletion failed. Database records and rollback backups remain unchanged.',
+  '已提交历史删除记录不完整。': 'The committed history-deletion record is incomplete.',
+  '历史删除中断状态已变化，清理已取消。':
+    'The interrupted history-deletion state changed. Cleanup was cancelled.',
+  '历史删除提交标记当前不能清理。':
+    'The history-deletion commit marker cannot currently be cleared.',
+  '执行记录不存在、不属于当前工作区或状态已变化，未删除任何记录。':
+    'An execution record does not exist, belongs to another workspace, or changed state. Nothing was deleted.',
+  '执行记录或撤销备份信息在确认后发生变化，未删除任何记录。':
+    'Execution record or rollback backup details changed after confirmation. Nothing was deleted.',
+  '计划不存在、不属于当前工作区、仍为草稿或状态已变化，未删除任何记录。':
+    'A plan does not exist, belongs to another workspace, is still a draft, or changed state. Nothing was deleted.',
+  '计划、子执行或撤销备份信息在确认后发生变化，未删除任何记录。':
+    'Plan, child execution, or rollback backup details changed after confirmation. Nothing was deleted.',
+  '历史删除服务尚未就绪，请重启应用后重试。':
+    'The history-deletion service is not ready. Restart the app and try again.',
+  '删除预览不存在、已过期或工作区已变化，请重新预览。':
+    'The deletion preview does not exist, expired, or belongs to a changed workspace. Preview again.',
+  '该文件不是有效的 UTF-8 文本源码。': 'This file is not valid UTF-8 text source.',
+  '模板源码超过 2 MiB，无法保存。': 'Template source exceeds 2 MiB and cannot be saved.',
+  '模板文件超过 2 MiB，无法在应用内编辑。':
+    'The template file exceeds 2 MiB and cannot be edited in the app.',
+  '源码编辑预览已过期或不属于当前工作区，请重新预览。':
+    'The source edit preview expired or does not belong to the current workspace. Preview again.',
+  '模板索引已变化，请重新读取并预览。':
+    'The template index changed. Read the source and preview again.',
+  '源码编辑备份目录未初始化。': 'The source edit backup directory is not initialized.',
+  '源码已在预览后被外部修改，拒绝覆盖；请重新读取。':
+    'The source was modified externally after the preview. Overwrite was refused; read it again.',
+  '源码已在确认保存时发生变化，拒绝覆盖；请重新读取。':
+    'The source changed while save was being confirmed. Overwrite was refused; read it again.',
+  '源码已写入，但模板索引同步失败。':
+    'The source was written, but template index synchronization failed.',
+  '源码保存失败且自动恢复未完成；安全备份已保留，请停止编辑并检查工作区。':
+    'Source save failed and automatic recovery did not finish. A safety backup was retained; stop editing and inspect the workspace.',
+})
+
 const englishPatterns: Array<{
   pattern: RegExp
   replace: (matches: RegExpMatchArray) => string

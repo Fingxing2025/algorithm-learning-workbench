@@ -6,15 +6,19 @@ import {
   startBackgroundTaskRequestSchema,
 } from '@core/contracts/background-task'
 import {
+  applyTemplateSourceEditRequestSchema,
+  applyTemplateSourceEditResultSchema,
   chooseWorkspaceRequestSchema,
   createTemplateRequestSchema,
   createTemplateResultSchema,
+  previewTemplateSourceEditRequestSchema,
   templateActionRequestSchema,
   templatePageRequestSchema,
   templatePageSchema,
   templateRequestSchema,
   templateSummarySchema,
   templateSourceSchema,
+  templateSourceEditPreviewSchema,
   workspaceSnapshotSchema,
 } from '@core/contracts/workspace'
 import { IPC_CHANNELS } from '@core/ipc/channels'
@@ -81,6 +85,20 @@ export function registerWorkspaceIpc(
     handler: () => workspaceService.rescanCurrentWorkspace(),
     inputSchema: z.void(),
     outputSchema: workspaceSnapshotSchema,
+  })
+
+  registerValidatedHandler({
+    channel: IPC_CHANNELS.templates.previewSourceEdit,
+    handler: request => workspaceService.previewTemplateSourceEdit(request),
+    inputSchema: previewTemplateSourceEditRequestSchema,
+    outputSchema: templateSourceEditPreviewSchema,
+  })
+
+  registerValidatedHandler({
+    channel: IPC_CHANNELS.templates.applySourceEdit,
+    handler: request => workspaceService.applyTemplateSourceEdit(request),
+    inputSchema: applyTemplateSourceEditRequestSchema,
+    outputSchema: applyTemplateSourceEditResultSchema,
   })
 
   registerValidatedHandler({

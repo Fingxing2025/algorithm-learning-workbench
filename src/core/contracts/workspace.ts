@@ -118,6 +118,64 @@ export const templateSourceSchema = z
   })
   .strict()
 
+export const previewTemplateSourceEditRequestSchema = z
+  .object({
+    content: z.string().max(2 * 1024 * 1024),
+    templateId: templateIdSchema,
+  })
+  .strict()
+export type PreviewTemplateSourceEditRequest = z.infer<
+  typeof previewTemplateSourceEditRequestSchema
+>
+
+export const templateSourceEditDiffSchema = z
+  .object({
+    after: z.string().max(2 * 1024 * 1024),
+    afterEndLine: z.number().int().nonnegative(),
+    afterStartLine: z.number().int().positive(),
+    before: z.string().max(2 * 1024 * 1024),
+    beforeEndLine: z.number().int().nonnegative(),
+    beforeStartLine: z.number().int().positive(),
+  })
+  .strict()
+export type TemplateSourceEditDiff = z.infer<typeof templateSourceEditDiffSchema>
+
+export const templateSourceEditPreviewSchema = z
+  .object({
+    diff: templateSourceEditDiffSchema,
+    expiresAt: z.string().datetime(),
+    originalSha256: z.string().regex(/^[a-f0-9]{64}$/),
+    originalSizeBytes: z
+      .number()
+      .int()
+      .nonnegative()
+      .max(2 * 1024 * 1024),
+    previewId: z.string().uuid(),
+    relativePath: z.string().min(1).max(4096),
+    templateId: templateIdSchema,
+    updatedSizeBytes: z
+      .number()
+      .int()
+      .nonnegative()
+      .max(2 * 1024 * 1024),
+  })
+  .strict()
+export type TemplateSourceEditPreview = z.infer<typeof templateSourceEditPreviewSchema>
+
+export const applyTemplateSourceEditRequestSchema = z
+  .object({ confirmed: z.literal(true), previewId: z.string().uuid() })
+  .strict()
+export type ApplyTemplateSourceEditRequest = z.infer<typeof applyTemplateSourceEditRequestSchema>
+
+export const applyTemplateSourceEditResultSchema = z
+  .object({
+    backupCleanupPending: z.boolean(),
+    source: templateSourceSchema,
+    workspace: workspaceSnapshotSchema,
+  })
+  .strict()
+export type ApplyTemplateSourceEditResult = z.infer<typeof applyTemplateSourceEditResultSchema>
+
 export const createTemplateResultSchema = z
   .object({
     templateId: templateIdSchema,

@@ -87,12 +87,14 @@ const desktopApi: DesktopApi = {
     preview: request => invokeResult(IPC_CHANNELS.problemAnalysis.preview, request),
   },
   templates: {
+    applySourceEdit: request => invokeResult(IPC_CHANNELS.templates.applySourceEdit, request),
     create: request => invokeResult(IPC_CHANNELS.templates.create, request),
     getSummary: request => invokeResult(IPC_CHANNELS.templates.getSummary, request),
     listPage: request => invokeResult(IPC_CHANNELS.templates.listPage, request),
     performAction: async request => {
       await invokeResult<null>(IPC_CHANNELS.templates.performAction, request)
     },
+    previewSourceEdit: request => invokeResult(IPC_CHANNELS.templates.previewSourceEdit, request),
     readSource: templateId => invokeResult(IPC_CHANNELS.templates.readSource, { templateId }),
   },
   templateManagement: {

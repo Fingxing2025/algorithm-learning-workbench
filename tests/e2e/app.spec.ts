@@ -11,6 +11,10 @@ import {
   type Page,
 } from '@playwright/test'
 
+import type { DesktopApi } from '@core/contracts/desktop-api'
+
+declare const window: { desktop: DesktopApi }
+
 let blankWorkspace: string
 let electronApp: ElectronApplication
 let existingWorkspace: string
@@ -262,6 +266,106 @@ test('creates an empty workspace and the first template without allowing overwri
   if (await closeNoticeButton.isVisible().catch(() => false)) {
     await closeNoticeButton.click()
   }
+})
+
+test('edits template source through Diff confirmation with zero-write cancellation and conflict safety', async () => {
+  const sourcePath = join(blankWorkspace, 'dijkstra.cpp')
+  const originalSource = await readFile(sourcePath, 'utf8')
+  const cancelledSource = 'void dijkstra_cancelled() {}\n'
+  const savedSource = 'void dijkstra_saved() { /* safe edit */ }\n'
+
+  await page.getByRole('button', { name: '编辑代码' }).click()
+  const editableSource = page.getByLabel('可编辑模板源码').locator('.cm-content')
+  await editableSource.fill(cancelledSource)
+  await expect(page.getByText('未保存', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: '取消编辑' }).click()
+  await expect(page.getByText('放弃未保存的源码修改？')).toBeVisible()
+  await page.getByRole('button', { name: '确认放弃' }).click()
+  expect(await readFile(sourcePath, 'utf8')).toBe(originalSource)
+
+  await page.getByRole('button', { name: '编辑代码' }).click()
+  await page.getByLabel('可编辑模板源码').locator('.cm-content').fill(savedSource)
+  await page.keyboard.press(process.platform === 'darwin' ? 'Meta+S' : 'Control+S')
+  await expect(page.getByRole('region', { name: '源码修改 Diff' })).toBeVisible()
+  expect(await readFile(sourcePath, 'utf8')).toBe(originalSource)
+  await page.screenshot({
+    animations: 'disabled',
+    path: resolve('output/playwright/template-source-diff-light.png'),
+  })
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('region', { name: '源码修改 Diff' })).toHaveCount(0)
+  expect(await readFile(sourcePath, 'utf8')).toBe(originalSource)
+
+  await page.getByRole('button', { name: '查看 Diff' }).click()
+  await page.getByRole('button', { name: '确认保存源码' }).click()
+  await expect(page.getByRole('status')).toContainText('模板源码已安全保存')
+  await expect(page.getByRole('heading', { level: 1, name: 'dijkstra' })).toBeVisible()
+  expect(await readFile(sourcePath, 'utf8')).toBe(savedSource)
+
+  const strictValidationErrors = await page.evaluate(
+    async templateId => {
+      const templates = window.desktop.templates as unknown as {
+        applySourceEdit: (request: Record<string, unknown>) => Promise<unknown>
+        previewSourceEdit: (request: Record<string, unknown>) => Promise<unknown>
+      }
+      const previewError = await templates
+        .previewSourceEdit({ content: 'forbidden', path: '/tmp/outside.cpp', templateId })
+        .then(() => null)
+        .catch(error => (error instanceof Error ? error.message : String(error)))
+      const applyError = await templates
+        .applySourceEdit({
+          confirmed: true,
+          path: '/tmp/outside.cpp',
+          previewId: '40000000-0000-4000-8000-000000000099',
+        })
+        .then(() => null)
+        .catch(error => (error instanceof Error ? error.message : String(error)))
+      return { applyError, previewError }
+    },
+    await page.evaluate(
+      async () => (await window.desktop.workspace.getCurrent())!.templates[0]!.id,
+    ),
+  )
+  expect(strictValidationErrors.previewError).toBeTruthy()
+  expect(strictValidationErrors.applyError).toBeTruthy()
+  expect(await readFile(sourcePath, 'utf8')).toBe(savedSource)
+
+  await electronApp.close()
+  await launchApplication()
+  await page.getByRole('button', { name: '模板库', exact: true }).click()
+  await page.getByText('dijkstra.cpp', { exact: true }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'dijkstra' })).toBeVisible()
+  await expect(page.getByLabel('高亮模板源码')).toContainText('dijkstra_saved')
+
+  await page.getByRole('button', { name: '编辑代码' }).click()
+  await page
+    .getByLabel('可编辑模板源码')
+    .locator('.cm-content')
+    .fill('void dijkstra_conflicting_edit() {}\n')
+  await page.getByRole('button', { name: '查看 Diff' }).click()
+  await writeFile(sourcePath, 'void externally_modified() {}\n', 'utf8')
+  await page.getByRole('button', { name: '确认保存源码' }).click()
+  await expect(page.getByRole('alert')).toContainText('已在预览后被外部修改')
+  expect(await readFile(sourcePath, 'utf8')).toBe('void externally_modified() {}\n')
+  await page.getByRole('button', { name: '取消编辑' }).click()
+  await page.getByRole('button', { name: '确认放弃' }).click()
+  await page.getByRole('button', { name: '重新读取源码' }).click()
+  await expect(page.getByLabel('高亮模板源码')).toContainText('externally_modified')
+
+  await electronApp.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0]?.setSize(1024, 640),
+  )
+  await page.getByRole('button', { name: '切换到深色主题' }).click()
+  await page.getByRole('button', { name: '编辑代码' }).click()
+  await page.screenshot({
+    animations: 'disabled',
+    path: resolve('output/playwright/template-source-editor-dark-1024x640.png'),
+  })
+  await page.getByRole('button', { name: '取消编辑' }).click()
+  await page.getByRole('button', { name: '切换到浅色主题' }).click()
+  await electronApp.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0]?.setSize(1440, 900),
+  )
 })
 
 test('scans an existing directory read-only and opens a folded tree result by keyboard search', async () => {
