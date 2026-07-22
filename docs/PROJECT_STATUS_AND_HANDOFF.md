@@ -1,6 +1,10 @@
 # 项目状态、审计与多 Session 交接
 
-- 更新日期：2026-07-21
+- 更新日期：2026-07-23
+- 完整 AI 模板目录 Session 原始起点：`89dbde315457e95be0ec8198c7830c3c69b10288`
+- 并发 Windows 发布工作结束后的实际提交基座：`95a7795a8aac249714f4f6a3ddecd4e3066cdf87`
+- 完整 AI 模板目录 ADR 提交：`ac69d14 docs: decide complete ai template catalog`
+- 完整 AI 模板目录源码提交：`720fca6 feat: provide complete template catalog to ai tasks`
 - Session E 实际开发基线：`0ef1afa docs: record native template close fix`
 - Session F 第一切片实现结束提交：`1a153bf refactor: extract workspace route renderer`
 - Session F 第二切片代码结束提交：`9c195b6 refactor: split template management plan services`
@@ -21,15 +25,32 @@
 - Session F 收尾提交：`39421c0 docs: close session f development`
 - unsigned beta 候选来源提交：`39421c0329c463657cb43c4e552949e48bee93c9`（与收尾提交相同）
 - 源码版本：`0.1.2` 开发快照
-- 产品阶段：0.1.2 功能闭环、Session A/B、九项 Bugfix、Session C 发布候选工程、Session D UX/可访问性、Session E 大型工作区性能与 Session F 代码健康收尾均完成；当前 unsigned beta 已由 `39421c0` 生成并验证，正式签名和 Windows 实机验收仍受外部条件阻塞
+- 产品阶段：0.1.2 功能闭环、Session A/B、九项 Bugfix、Session C 发布候选工程、Session D UX/可访问性、Session E 大型工作区性能与 Session F 代码健康收尾均完成；随后又针对明确产品需求完成两个现有 AI 入口的完整模板目录改进。历史 unsigned beta 仍来自 `39421c0`，本 Session 没有重新打包或推送
 
 ## 0. 新阶段入口
 
 本阶段基于 0.1.2 功能冻结基线完成发布可信度收尾。后续不再横向增加 AI 页面、临时补丁或维护性拆分；只有真实 Bug、用户反馈或发布门禁触发时才重新开启工程任务。
 
-当前状态：**Session A：数据可靠性与恢复、Session B：AI 稳定性与兼容矩阵、九项 Bugfix Session、Session C：可审计发布候选工程、Session D：UX/可访问性、Session E：大型工作区性能与 Session F 代码健康收尾均已完成。Session F 的十个行为保持切片已冻结，源码不再继续第十一切片或其他维护性拆分。本次候选来源为 `39421c0329c463657cb43c4e552949e48bee93c9`；最终交接文档 HEAD 会晚于该候选来源提交。当前实时检查仍为 `0 valid identities found`，主机为 macOS arm64 且没有 Windows 实机；正式签名/notarization、Windows 安装验收分别记录独立证据。**
+当前状态：**Session A：数据可靠性与恢复、Session B：AI 稳定性与兼容矩阵、九项 Bugfix Session、Session C：可审计发布候选工程、Session D：UX/可访问性、Session E：大型工作区性能与 Session F 代码健康收尾均已完成。Session F 的十个行为保持切片仍然冻结；2026-07-23 重新开发是由明确的 AI 完整目录产品需求触发，仅覆盖新建模板和新建题目两个既有 AI 入口，没有开启第十一拆分切片。Windows 发布 Session 在本 Session 期间向 `main` 增加了 5 个发布脚本/依赖提交，本次以 `95a7795` 为并发后基座，未改动其文件、未重新打包、未推送。**
 
 Session D 的布局、键盘、焦点、状态播报、截图结论和可直接复制的下一 Session 提示词见 `docs/SESSION_D_SUMMARY_AND_NEXT_PROMPT.md`；Session C 候选证据仍保留在 `docs/SESSION_C_SUMMARY_AND_NEXT_PROMPT.md`，但没有被本 Session 重新打包或复用为新候选摘要。
+
+### 完整工作区 AI 模板目录 Session（2026-07-23）
+
+本 Session 的原始任务起点为 `89dbde315457e95be0ec8198c7830c3c69b10288`。并发 Windows 发布工作结束后，本 Session 在不修改发布脚本、依赖和平台验收证据的前提下，以 `95a7795a8aac249714f4f6a3ddecd4e3066cdf87` 为实际基座完成源码。
+
+- 新增 ADR-0022 与 `schemaVersion: 1` 的 `WorkspaceTemplateCatalog`；目录树确定性排序，根目录模板使用 `rootTemplates`，每份模板保留稳定 ID、名称、语言、工作区相对目录与确定性紧凑元数据。
+- 0～300 个可用模板时，两个 AI 入口的稳定上下文均包含全部目录、ID 和名称；题目候选使用完整 `catalogTemplateRefs` 复检，最多 8 项，伪造、重复、不可用或跨工作区 ID 均被过滤。
+- 完整目录继续通过现有 Provider Adapter 进入 OpenAI Chat Completions、OpenAI Responses、Anthropic Messages、Gemini GenerateContent 和 Ollama；没有增加第二次精排请求。
+- 保留最多 24 份、每份最多 2,000 字符、合计最多 30,000 字符的相关源码片段，但它们只是辅助详情，不再决定哪些模板有推荐资格。文件计划 AI 仍保持旧的有界策略。
+- 输入安全预算为 96,000 个估算 Token，工作区上下文最多 240,000 字符。超限时依次把 summary 从 320 缩到 120 字符、省略附加元数据、省略源码片段；若仍无法保留全部目录/ID/名称，或可用模板超过 300 个，网络发送前以 `AI_CONTEXT_TOO_LARGE` 明确失败，不退回局部 24 项。
+- 新建模板会发送当前源码、纯文件名、不含 notes 的用户草稿、完整 catalog 和可选相关详情；新建题目会发送用户题面、主动加入的 PNG/JPEG/WebP、完整 catalog 和可选相关详情。两者都带输出语言与 Prompt Cache 版本。
+- 工作区绝对路径、数据库/图片/备份路径、API Key、自定义鉴权头、密钥引用、错误日志、模板 `notes`、历史文件计划和全库完整源码仍明确不发送。
+- 请求预览现显示模板名称覆盖数、摘要数、目录节点、相关源码数/字符数、估算 Token、三类退化标志以及“名称无裁剪”状态；模板/题目预览各有 1440×900 亮色、1440×900 深色、1280×720 和 1024×640 截图已人工复核。
+- 没有 SQLite schema、migration、IPC 名称、持久化文件格式、Provider timeout/重试边界、系统权限或新依赖变化。全新、空白和已有 V2 userData 都使用相同的运行时 catalog 生成逻辑，无需数据迁移。
+- Provider 边界仍为：`timeoutMs` 分别限制连接与响应读取；只对限流、连接突断/超时及 408/500/502/503/504 最多尝试 3 次，`Retry-After` 实际等待上限 10 秒；响应超时和流中断不自动重试。估算 Token 不是供应商模型窗口保证，具体 Provider 仍可能拒绝极端长请求。
+
+源码提交 `720fca6` 的最终证据：定向 Vitest 6 个文件/28 项通过；`npm run check` 通过 TypeScript、ESLint 0 warnings、Prettier、39 个 Vitest 文件/259 项和 7 项发布脚本测试；两个受影响 Electron 规格 14/14 通过；最终完整 Electron E2E 为 57 项常规用例通过、2 项 packaged 因未设置 `PACKAGED_APP_PATH` 条件跳过。本 Session 没有重跑性能基准、没有重新打包，也没有推送远程。
 
 Session A 已交付四条可运行纵向切片：第一切片完成备份 ADR、版本化数据管理契约、只读一致性诊断、`.awb-backup` 目录备份包导出、全包 SHA-256 验证、损坏包拒绝和只读恢复预览；第二切片开放恢复执行、恢复前自动预备份以及 SQLite/userData 事务式恢复和故障回滚；第三切片补齐备份保留建议、空间统计、异常残留保护、逐项清理预览、应用隔离区和可撤销回滚；最终切片用版本化 journal、SQLite 事务提交标记和内容指纹完成异常中断后的人工安全恢复，并允许把已验证隔离记录移交系统废纸篓。
 
@@ -304,7 +325,7 @@ Main
 
 ## 6. 当前验证基线
 
-2026-07-21 在 Session F 第十切片最终源码重新执行：`npm run check` 通过 36 个 Vitest 文件/235 项和 3 项发布脚本测试，`npm run test:e2e` 授权 GUI/本地端口后完整 Playwright 结果为 `passed`，即 54 项常规真实 Electron E2E 通过、2 项 packaged 条件跳过。数据管理异常中断恢复流程通过；本切片无视觉意图，复用并人工复核 `output/playwright/session-d-final/` 的数据管理亮暗/紧凑/200% 原图。下面的打包、候选和完整 Session D 截图矩阵仍是历史平台证据，不替代本次源码门禁，也没有被本切片重新打包：
+2026-07-23 在完整工作区 AI 模板目录源码提交 `720fca6` 重新执行：`npm run check` 通过 39 个 Vitest 文件/259 项和 7 项发布脚本测试，TypeScript、ESLint 0 warnings 与 Prettier 全部通过；`npm run test:e2e` 最终为 57 项常规真实 Electron E2E 通过、2 项 packaged 条件跳过。新建模板/题目 AI 预览八张亮暗与紧凑窗口截图已人工复核。下面的打包、候选和完整 Session D 截图矩阵仍是历史平台证据，不替代本次源码门禁，也没有被本 Session 重新打包：
 
 | 检查                               | 结果                                                                                                                      |
 | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
@@ -312,9 +333,9 @@ Main
 | TypeScript                         | 通过                                                                                                                      |
 | ESLint（0 warnings）               | 通过                                                                                                                      |
 | Prettier check                     | 通过                                                                                                                      |
-| Vitest                             | 36 个文件，235 项通过；新增异常中断恢复职责/调用特征测试，并保持布局、五协议、数据恢复和发布逻辑回归                      |
+| Vitest                             | 39 个文件，259 项通过；新增完整 catalog、300 模板、退化/超限、旧 24 项外候选、路径与隐私回归                              |
 | 统一题目 Electron E2E              | 7 项通过；覆盖纯手动、文本/图文 AI、取消、预览 X/Escape、忙碌 X 取消连接、空候选、零写入和重启持久化                      |
-| `npm run test:e2e`                 | 54 项常规 Electron E2E 通过，2 项 packaged 按条件跳过；第十切片授权后完整 Playwright 结果为 `passed`                      |
+| `npm run test:e2e`                 | 57 项常规 Electron E2E 通过，2 项 packaged 因未设置 `PACKAGED_APP_PATH` 按条件跳过                                        |
 | 数据管理 Electron E2E              | 8 项通过；导出/恢复、隔离/撤销、提交前后中断恢复和故障回滚全部保持通过                                                    |
 | 打包入口 smoke test                | 最终 macOS arm64 候选以全新 userData 启动，并写入工作区/模板后用同一 userData 重启，2 项通过                              |
 | `npm audit --audit-level=moderate` | 通过，0 个漏洞                                                                                                            |
@@ -381,7 +402,7 @@ Session D 截图显示 1024×640 下导航、列表/树、详情和页头主操�
 - 完整审计最多遍历前 2,000 个模板。
 - 相同/相似源码分析最多保留前 500 个可读取文件参与相似度比较。
 - AI 文件计划优先取审计问题与本地检索相关候选，最多 250 个模板；源码片段总量最多约 120,000 字符。
-- 模板补全/题目 AI 的稳定分类快照最多 80,000 字符，每次本地检索最多 24 个相关模板、源码片段合计最多 30,000 字符。
+- 模板补全/题目 AI 在 0～300 个可用模板时发送完整目录、ID 和名称；工作区上下文最多 240,000 字符，请求估算预算 96,000 Token。超过 300 个模板或保留必需信息后仍超预算时会发送前明确失败；相关详情仍最多 24 个模板、源码片段合计最多 30,000 字符，但不再限制题目候选资格。
 - 单题最多 12 张本地图片；单次分析最多 6 张、合计 24 MiB。
 - 文件计划和执行历史界面各最多读取最近 100 条。
 
