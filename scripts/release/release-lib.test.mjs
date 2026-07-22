@@ -3,6 +3,7 @@ import { test } from 'node:test'
 
 import {
   getReleasePaths,
+  normalizeAsarEntry,
   packagedElectronAbiInvocation,
   parseReleaseOptions,
   readProjectFacts,
@@ -102,4 +103,12 @@ test('Windows signature verification prefers PowerShell 7 and safely escapes pat
     assert.equal(invocation.options.allowFailure, true)
     assert.equal(invocation.options.capture, true)
   }
+})
+
+test('ASAR entries use one normalized separator on macOS and Windows', () => {
+  assert.equal(normalizeAsarEntry('/out/main/index.js'), 'out/main/index.js')
+  assert.equal(
+    normalizeAsarEntry('\\node_modules\\better-sqlite3\\package.json'),
+    'node_modules/better-sqlite3/package.json',
+  )
 })

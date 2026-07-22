@@ -83,6 +83,10 @@ export async function readProjectFacts() {
   }
 }
 
+export function normalizeAsarEntry(entry) {
+  return entry.replace(/^[\\/]+/, '').replaceAll('\\', '/')
+}
+
 function expandArtifactName(template, variables) {
   return template.replace(/\$\{([^}]+)\}/g, (_, name) => {
     const value = variables[name]

@@ -7,6 +7,7 @@ import { createReadStream } from 'node:fs'
 
 import {
   getReleasePaths,
+  normalizeAsarEntry,
   parseReleaseOptions,
   pathExists,
   readProjectFacts,
@@ -61,7 +62,7 @@ async function fileContainsMarker(path, markers) {
 
 async function verifyPrivacy(paths) {
   const entries = listPackage(paths.appAsarPath)
-  const normalizedEntries = entries.map(entry => entry.replace(/^\//, ''))
+  const normalizedEntries = entries.map(normalizeAsarEntry)
   const forbiddenEntries = []
   const forbiddenDataDirectory = /(^|\/)(?:secrets?|problem-images|file-plan-backups|batch-import-backups|restore-preflight-backups|data-management-quarantine|test-results|playwright-report)(?:\/|$)/i
   const forbiddenExtension = /\.(?:sqlite3?|db|awb-backup|p12|pfx|pem|key|log)$/i
@@ -81,15 +82,21 @@ async function verifyPrivacy(paths) {
     }
   }
 
-  const externalFiles = await listFilesRecursively(paths.resourcesDirectory)
+  const externalFiles = (await listFilesRecursively(paths.resourcesDirectory)).map(path => ({
+    entry: normalizeAsarEntry(relative(paths.resourcesDirectory, path).split(sep).join('/')),
+    path,
+  }))
+  const isPackagedRuntimeExternal = entry =>
+    entry === 'app.asar' || entry.startsWith('app.asar.unpacked/node_modules/')
   const forbiddenExternalFiles = externalFiles
-    .map(path => relative(paths.resourcesDirectory, path).split(sep).join('/'))
+    .map(file => file.entry)
     .filter(entry => {
-      if (entry === 'app.asar' || entry.startsWith('app.asar.unpacked/node_modules/')) {
+      if (isPackagedRuntimeExternal(entry)) {
         return false
       }
       return forbiddenDataDirectory.test(entry) || forbiddenExtension.test(entry)
     })
+  const scannableExternalFiles = externalFiles.filter(file => !isPackagedRuntimeExternal(file.entry))
 
   const codeEntries = normalizedEntries.filter(
     entry => entry === 'package.json' || /^out\/.*\.(?:css|html|js|json)$/.test(entry),
@@ -104,10 +111,12 @@ async function verifyPrivacy(paths) {
     if (findSensitiveContent(contents)) {
       secretPatternHits += 1
     }
+    if (absoluteMarkers.some(marker => contents.includes(marker))) {
+      absolutePathHits += 1
+    }
   }
-  const applicationFiles = await listFilesRecursively(paths.appBundlePath)
-  for (const path of applicationFiles) {
-    if (await fileContainsMarker(path, absoluteMarkers)) {
+  for (const file of scannableExternalFiles) {
+    if (await fileContainsMarker(file.path, absoluteMarkers)) {
       absolutePathHits += 1
     }
   }
@@ -129,7 +138,7 @@ async function verifyPrivacy(paths) {
     forbiddenEntryCount: forbiddenEntries.length,
     forbiddenExternalFileCount: forbiddenExternalFiles.length,
     passed,
-    scannedApplicationFileCount: applicationFiles.length,
+    scannedApplicationFileCount: scannableExternalFiles.length,
     scannedApplicationEntryCount: codeEntries.length,
     secretPatternHits,
   }
