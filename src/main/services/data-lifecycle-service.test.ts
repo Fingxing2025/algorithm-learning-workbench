@@ -3,6 +3,7 @@ import {
   mkdir,
   mkdtemp,
   readFile,
+  readdir,
   rename,
   rm,
   stat,
@@ -38,8 +39,16 @@ describe('DataLifecycleService', () => {
       client: {
         prepare: (sql: string) => {
           if (sql.includes('file_change_executions')) return { all: () => executionRecords }
+          if (sql.includes('SELECT value FROM app_state')) {
+            return {
+              get: (key: string) => restoreStateRows.find(row => row.key === key),
+            }
+          }
           if (sql.includes('SELECT key, value FROM app_state')) {
-            return { all: () => restoreStateRows }
+            return {
+              all: (pattern: string) =>
+                restoreStateRows.filter(row => row.key.startsWith(pattern.replace('%', ''))),
+            }
           }
           if (sql.includes('DELETE FROM app_state')) {
             return {
@@ -62,6 +71,8 @@ describe('DataLifecycleService', () => {
     delete process.env.E2E_CLEANUP_FAIL_AFTER_UNDO_MOVES
     delete process.env.E2E_CLEANUP_INTERRUPT_AFTER_MOVES
     delete process.env.E2E_RECOVERY_FAIL_AFTER_MOVES
+    delete process.env.E2E_HISTORY_DELETE_FAIL_AFTER_MOVES
+    delete process.env.E2E_HISTORY_DELETE_INTERRUPT_AFTER_COMMIT
     await rm(temporaryRoot, { force: true, recursive: true })
   })
 
@@ -84,6 +95,17 @@ describe('DataLifecycleService', () => {
         formatVersion: 'v1',
         restoreId,
         rollbackBackupName,
+      }),
+    })
+  }
+
+  function insertHistoryDeletionMarker(operationId: string) {
+    restoreStateRows.push({
+      key: `file_history_delete_commit:${operationId}`,
+      value: JSON.stringify({
+        committedAt: new Date().toISOString(),
+        formatVersion: 'v1',
+        operationId,
       }),
     })
   }
@@ -323,6 +345,98 @@ describe('DataLifecycleService', () => {
     expect(recovered.inventory.interruptedOperationCount).toBe(0)
     await expect(stat(first)).resolves.toBeTruthy()
     await expect(stat(second)).resolves.toBeTruthy()
+  })
+
+  it('stages managed history backups, restores them on database failure, and rejects symlinks', async () => {
+    const firstId = randomUUID()
+    const secondId = randomUUID()
+    const firstRelative = `file-plan-backups/${firstId}`
+    const secondRelative = `file-plan-backups/${secondId}`
+    const first = await createManagedDirectory(firstRelative)
+    const second = await createManagedDirectory(secondRelative)
+
+    await expect(
+      service.executeManagedHistoryDeletion([firstRelative, secondRelative], () => {
+        throw new Error('injected database failure')
+      }),
+    ).rejects.toThrow('数据库记录与撤销备份均保持原状')
+    await expect(stat(first)).resolves.toBeTruthy()
+    await expect(stat(second)).resolves.toBeTruthy()
+
+    const linkedId = randomUUID()
+    const linkedRelative = `file-plan-backups/${linkedId}`
+    await mkdir(join(userDataPath, 'file-plan-backups'), { recursive: true })
+    await symlink(first, join(userDataPath, ...linkedRelative.split('/')))
+    await expect(service.inspectManagedHistoryBackups([linkedRelative])).rejects.toThrow(
+      '不是受管普通目录',
+    )
+  })
+
+  it('restores staged backups when a filesystem move fails before the database transaction', async () => {
+    const firstId = randomUUID()
+    const secondId = randomUUID()
+    const relativePaths = [`file-plan-backups/${firstId}`, `file-plan-backups/${secondId}`]
+    for (const relativePath of relativePaths) await createManagedDirectory(relativePath)
+    process.env.E2E_HISTORY_DELETE_FAIL_AFTER_MOVES = '1'
+    let commitCalled = false
+
+    await expect(
+      service.executeManagedHistoryDeletion(relativePaths, () => {
+        commitCalled = true
+      }),
+    ).rejects.toThrow('模拟历史删除暂存失败')
+    expect(commitCalled).toBe(false)
+    for (const relativePath of relativePaths) {
+      await expect(stat(join(userDataPath, ...relativePath.split('/')))).resolves.toBeTruthy()
+    }
+  })
+
+  it('completes committed history deletion after interruption and can clear a marker-only residue', async () => {
+    const executionId = randomUUID()
+    const relativePath = `file-plan-backups/${executionId}`
+    const original = await createManagedDirectory(relativePath)
+    process.env.E2E_HISTORY_DELETE_INTERRUPT_AFTER_COMMIT = '1'
+
+    await expect(
+      service.executeManagedHistoryDeletion([relativePath], operationId => {
+        expect(operationId).not.toBeNull()
+        insertHistoryDeletionMarker(operationId!)
+      }),
+    ).rejects.toThrow('模拟历史删除提交后异常中断')
+    await expect(stat(original)).rejects.toThrow()
+    let inventory = await service.inspect({ retentionPolicy: 'forever' })
+    expect(inventory.interruptedOperations).toHaveLength(1)
+    expect(inventory.interruptedOperations[0]).toMatchObject({
+      action: 'complete-history-deletion',
+      canRecover: true,
+      reason: 'committed-history-deletion-ready',
+    })
+    await service.recoverInterruptedOperation({
+      confirmRecovery: true,
+      operationId: inventory.interruptedOperations[0]!.id,
+      retentionPolicy: 'forever',
+    })
+    inventory = await service.inspect({ retentionPolicy: 'forever' })
+    expect(inventory.interruptedOperationCount).toBe(0)
+    expect(restoreStateRows).toEqual([])
+
+    const markerOnlyId = randomUUID()
+    insertHistoryDeletionMarker(markerOnlyId)
+    const quarantineEntries = await readdir(join(userDataPath, 'data-management-quarantine')).catch(
+      () => [],
+    )
+    expect(quarantineEntries).toEqual([])
+    inventory = await service.inspect({ retentionPolicy: 'forever' })
+    expect(inventory.interruptedOperations[0]).toMatchObject({
+      action: 'clear-history-deletion-marker',
+      canRecover: true,
+    })
+    await service.recoverInterruptedOperation({
+      confirmRecovery: true,
+      operationId: inventory.interruptedOperations[0]!.id,
+      retentionPolicy: 'forever',
+    })
+    expect(restoreStateRows).toEqual([])
   })
 
   it('returns to a recoverable interrupted state when journal recovery fails', async () => {

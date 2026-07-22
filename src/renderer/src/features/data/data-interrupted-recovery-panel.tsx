@@ -59,8 +59,12 @@ export function DataInterruptedRecoveryPanel({
     action: BackupLifecycleInventory['interruptedOperations'][number]['action'],
   ) => {
     switch (action) {
+      case 'clear-history-deletion-marker':
+        return t('清理已完成历史删除标记')
       case 'clear-restore-marker':
         return t('清理已完成恢复标记')
+      case 'complete-history-deletion':
+        return t('完成已提交历史删除的备份清理')
       case 'complete-restore':
         return t('完成已提交恢复的收尾')
       case 'none':
@@ -80,6 +84,8 @@ export function DataInterruptedRecoveryPanel({
         return t('隔离日志有效，可安全退回')
       case 'committed-restore-ready':
         return t('数据库已提交，可安全完成收尾')
+      case 'committed-history-deletion-ready':
+        return t('历史删除已提交，可安全完成备份清理')
       case 'journal-invalid':
         return t('日志缺失或损坏，保持只读保护')
       case 'preflight-invalid':

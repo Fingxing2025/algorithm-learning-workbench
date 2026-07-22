@@ -341,21 +341,21 @@ test('applies a selected plan with backup, stable relations, and rollback', asyn
   await page.getByRole('button', { name: '预览并执行' }).click()
   await page.getByRole('button', { name: '确认执行' }).click()
   await expect(page.getByRole('status').filter({ hasText: '保留撤销备份' })).toBeVisible()
-  await expect(page.getByRole('button', { name: '一键删除执行记录' })).toBeDisabled()
+  await expect(page.getByRole('button', { name: '一键删除执行记录' })).toBeEnabled()
   const appliedExecutionId = await page.evaluate(async () => {
     const execution = (await window.desktop.templateManagement.listFileExecutions())[0]
     if (!execution) throw new Error('expected applied execution')
     return execution.id
   })
-  const appliedDeleteError = await page.evaluate(async executionId => {
-    try {
-      await window.desktop.templateManagement.deleteFileExecutions({ executionIds: [executionId] })
-      return null
-    } catch (error) {
-      return error instanceof Error ? error.message : String(error)
-    }
+  const appliedDeletePreview = await page.evaluate(async executionId => {
+    return window.desktop.templateManagement.previewDeleteFileExecutions({
+      executionIds: [executionId],
+    })
   }, appliedExecutionId)
-  expect(appliedDeleteError).toContain('仍可撤销的记录请先从备份撤销')
+  expect(appliedDeletePreview).toMatchObject({
+    appliedExecutionCount: 1,
+    rolledBackExecutionCount: 0,
+  })
 
   expect(await pathExists(join(workspaceRoot, 'Old Name.cpp'))).toBe(false)
   expect(await pathExists(join(workspaceRoot, '整理', '旧名称.cpp'))).toBe(true)
@@ -401,7 +401,7 @@ test('applies a selected plan with backup, stable relations, and rollback', asyn
     .getByRole('button', { name: /删除计划记录 File Management Test/ })
     .first()
     .click()
-  await expect(page.getByText(/将归档 1 份计划/)).toBeVisible()
+  await expect(page.getByText(/将永久删除 1 份计划/)).toBeVisible()
   await page.screenshot({
     animations: 'disabled',
     path: resolve('output/playwright/file-plan-delete-confirm-light-1440x900.png'),
@@ -446,7 +446,7 @@ test('applies a selected plan with backup, stable relations, and rollback', asyn
   })
   const mixedDeleteError = await page.evaluate(async executionId => {
     try {
-      await window.desktop.templateManagement.deleteFileExecutions({
+      await window.desktop.templateManagement.previewDeleteFileExecutions({
         executionIds: [executionId, '40000000-0000-4000-8000-000000000099'],
       })
       return null
@@ -454,7 +454,7 @@ test('applies a selected plan with backup, stable relations, and rollback', asyn
       return error instanceof Error ? error.message : String(error)
     }
   }, rolledBackExecutionId)
-  expect(mixedDeleteError).toContain('只有当前工作区中已撤销的执行记录可以删除')
+  expect(mixedDeleteError).toContain('执行记录不存在')
   await expect
     .poll(() => page.evaluate(() => window.desktop.templateManagement.listFileExecutions()))
     .toHaveLength(1)
@@ -463,15 +463,15 @@ test('applies a selected plan with backup, stable relations, and rollback', asyn
   await expect(page.getByTestId('data-count-file-executions')).toContainText('1')
   await page.getByRole('button', { name: 'AI 管理', exact: true }).click()
 
-  const singleExecutionDelete = page.getByRole('button', { name: /^删除执行记录 ·/ })
+  const singleExecutionDelete = page.getByRole('button', { name: /^永久删除执行记录 ·/ })
   await singleExecutionDelete.click()
-  await expect(page.getByRole('button', { name: '确认删除执行记录' })).toBeFocused()
+  await expect(page.getByRole('button', { name: '确认永久删除执行记录' })).toBeFocused()
   await page.getByRole('button', { name: '取消', exact: true }).click()
   await expect(singleExecutionDelete).toBeFocused()
 
   await page.getByRole('button', { name: '一键删除执行记录' }).click()
-  await expect(page.getByText('将删除 1 条已撤销执行记录。')).toBeVisible()
-  await expect(page.getByRole('button', { name: '确认删除执行记录' })).toBeFocused()
+  await expect(page.getByText(/将永久删除 1 条执行记录：0 条已执行、1 条已撤销/)).toBeVisible()
+  await expect(page.getByRole('button', { name: '确认永久删除执行记录' })).toBeFocused()
   await page.screenshot({
     animations: 'disabled',
     path: resolve('output/playwright/file-execution-delete-confirm-light-1440x900.png'),
@@ -482,8 +482,8 @@ test('applies a selected plan with backup, stable relations, and rollback', asyn
     path: resolve('output/playwright/file-execution-delete-confirm-dark-1440x900.png'),
   })
   await page.locator('html').evaluate(root => root.classList.remove('dark'))
-  await page.getByRole('button', { name: '确认删除执行记录' }).click()
-  await expect(page.getByRole('status')).toContainText('数据管理统计已同步')
+  await page.getByRole('button', { name: '确认永久删除执行记录' }).click()
+  await expect(page.getByRole('status')).toContainText('当前模板文件未修改')
   await expect(page.getByText('暂无文件执行记录。')).toBeVisible()
   await expect
     .poll(() => page.evaluate(() => window.desktop.templateManagement.listFileExecutions()))
@@ -496,4 +496,106 @@ test('applies a selected plan with backup, stable relations, and rollback', asyn
     path: resolve('output/playwright/file-execution-delete-data-sync-light-1440x900.png'),
   })
   expect(await readFile(join(workspaceRoot, 'Old Name.cpp'), 'utf8')).toBe('void oldName() {}\n')
+
+  await page.getByRole('button', { name: 'AI 管理', exact: true }).click()
+  await page.getByRole('button', { name: '生成 AI 计划' }).click()
+  await page.getByRole('button', { name: '确认发送并生成' }).click()
+  await page.getByRole('button', { name: '预览并执行' }).click()
+  await page.getByRole('button', { name: '确认执行' }).click()
+  await page.getByRole('button', { name: '从备份撤销' }).click()
+  await page.getByRole('button', { name: '确认撤销' }).click()
+  await expect(page.getByRole('status').filter({ hasText: '已从备份撤销' })).toBeVisible()
+  const rolledBackPlanId = await page.evaluate(async () => {
+    const execution = (await window.desktop.templateManagement.listFileExecutions())[0]
+    if (!execution || execution.status !== 'rolled-back') {
+      throw new Error('expected a rolled-back execution for plan deletion')
+    }
+    return execution.planId
+  })
+  await page
+    .getByRole('button', { name: /删除计划记录 File Management Test/ })
+    .first()
+    .click()
+  await expect(page.getByText(/1 份已撤销/)).toBeVisible()
+  await expect(page.getByText(/同时永久删除 1 条子执行/)).toBeVisible()
+  await page.getByRole('button', { name: '确认永久删除计划记录' }).click()
+  await expect(page.getByRole('status')).toContainText('当前模板文件未修改')
+  await expect
+    .poll(() =>
+      page.evaluate(
+        planId =>
+          window.desktop.templateManagement
+            .listFilePlans()
+            .then(plans => plans.some(plan => plan.id === planId)),
+        rolledBackPlanId,
+      ),
+    )
+    .toBe(false)
+  expect(await readFile(join(workspaceRoot, 'Old Name.cpp'), 'utf8')).toBe('void oldName() {}\n')
+
+  await page.getByRole('button', { name: '生成 AI 计划' }).click()
+  await page.getByRole('button', { name: '确认发送并生成' }).click()
+  await page.getByRole('button', { name: '预览并执行' }).click()
+  await page.getByRole('button', { name: '确认执行' }).click()
+  await expect(page.getByRole('status').filter({ hasText: '保留撤销备份' })).toBeVisible()
+  const appliedRecord = await page.evaluate(async () => {
+    const execution = (await window.desktop.templateManagement.listFileExecutions())[0]
+    if (!execution || execution.status !== 'applied') throw new Error('expected applied execution')
+    return execution
+  })
+  const appliedBackup = join(userDataDirectory, 'file-plan-backups', appliedRecord.id)
+  expect(await pathExists(appliedBackup)).toBe(true)
+  const appliedWorkspaceState = {
+    oldName: await pathExists(join(workspaceRoot, 'Old Name.cpp')),
+    organized: await readFile(join(workspaceRoot, '整理', '旧名称.cpp'), 'utf8'),
+  }
+  await page.getByRole('button', { name: '一键删除执行记录' }).click()
+  await expect(page.getByText(/1 条执行记录：1 条已执行、0 条已撤销/)).toBeVisible()
+  await expect(page.getByText(/永久删除 1 份现存撤销备份/)).toBeVisible()
+  await page.getByRole('button', { name: '确认永久删除执行记录' }).click()
+  await expect(page.getByRole('button', { name: '从备份撤销' })).toHaveCount(0)
+  expect(await pathExists(appliedBackup)).toBe(false)
+  expect(await pathExists(join(workspaceRoot, 'Old Name.cpp'))).toBe(appliedWorkspaceState.oldName)
+  expect(await readFile(join(workspaceRoot, '整理', '旧名称.cpp'), 'utf8')).toBe(
+    appliedWorkspaceState.organized,
+  )
+
+  await page
+    .getByRole('button', { name: /删除计划记录 File Management Test/ })
+    .first()
+    .click()
+  await expect(page.getByText(/1 份已执行/)).toBeVisible()
+  await page.getByRole('button', { name: '确认永久删除计划记录' }).click()
+  const appliedPlanId = appliedRecord.planId
+  await electronApp.close()
+  await launchApplication()
+  await page.getByRole('button', { name: 'AI 管理', exact: true }).click()
+  const deletedRecordsStayDeleted = await page.evaluate(
+    async ({ executionId, planId }) => {
+      const [executions, plans] = await Promise.all([
+        window.desktop.templateManagement.listFileExecutions(),
+        window.desktop.templateManagement.listFilePlans(),
+      ])
+      return {
+        executionPresent: executions.some(record => record.id === executionId),
+        planPresent: plans.some(record => record.id === planId),
+      }
+    },
+    { executionId: appliedRecord.id, planId: appliedPlanId },
+  )
+  expect(deletedRecordsStayDeleted).toEqual({ executionPresent: false, planPresent: false })
+
+  const deleteAllPlans = page.getByRole('button', { name: '一键删除计划记录' })
+  await expect(deleteAllPlans).toBeEnabled()
+  await deleteAllPlans.click()
+  await expect(page.getByText(/将永久删除 .* 份计划/)).toBeVisible()
+  await page.getByRole('button', { name: '确认永久删除计划记录' }).click()
+  await expect(page.getByText('暂无可删除计划记录。')).toBeVisible()
+  await page.getByRole('button', { name: '数据管理', exact: true }).click()
+  await expect(page.getByTestId('data-count-file-plans')).toContainText('0')
+  await expect(page.getByTestId('data-count-file-executions')).toContainText('0')
+  expect(await pathExists(join(workspaceRoot, 'Old Name.cpp'))).toBe(false)
+  expect(await readFile(join(workspaceRoot, '整理', '旧名称.cpp'), 'utf8')).toBe(
+    appliedWorkspaceState.organized,
+  )
 })

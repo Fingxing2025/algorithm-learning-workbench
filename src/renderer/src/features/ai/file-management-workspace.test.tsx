@@ -17,6 +17,8 @@ import { FileManagementWorkspace } from './file-management-workspace'
 const workspaceId = '11111111-1111-4111-8111-111111111111'
 const planId = '22222222-2222-4222-8222-222222222222'
 const executionId = '33333333-3333-4333-8333-333333333333'
+const planDeletePreviewId = '33333333-3333-4333-8333-333333333334'
+const executionDeletePreviewId = '33333333-3333-4333-8333-333333333335'
 const moveOperationId = '55555555-5555-4555-8555-555555555555'
 const deleteOperationId = '66666666-6666-4666-8666-666666666666'
 const auditTaskId = '77777777-7777-4777-8777-777777777777'
@@ -120,6 +122,20 @@ const execution: FileChangeExecution = {
   status: 'rolled-back',
 }
 
+const appliedExecution: FileChangeExecution = {
+  ...execution,
+  canRollback: true,
+  id: '33333333-3333-4333-8333-333333333336',
+  rolledBackAt: null,
+  status: 'applied',
+}
+
+const archivedPlan: FileChangePlan = {
+  ...plan,
+  id: '22222222-2222-4222-8222-222222222223',
+  providerName: '旧归档 Provider',
+}
+
 const emptyAudit: WorkspaceAudit = {
   generatedAt: createdAt,
   issues: [],
@@ -208,16 +224,68 @@ const runningAuditTask: BackgroundTaskStatus = {
 function installDesktopMock(
   planItems: FileChangePlan[] = [plan],
   auditStartStatus: BackgroundTaskStatus = completedAuditTask(emptyAudit),
+  archivedPlanItems: FileChangePlan[] = [],
+  executionItems: FileChangeExecution[] = [execution],
 ) {
   const applyFilePlan = vi.fn().mockResolvedValue({ execution, workspace })
-  const archiveFilePlans = vi.fn().mockResolvedValue({ archivedAt: createdAt, planIds: [planId] })
   const cancelFilePlan = vi.fn().mockImplementation(async (cancelledPlanId: string) => ({
     ...(planItems.find(item => item.id === cancelledPlanId) ?? plan),
     status: 'cancelled',
   }))
   const deleteFileExecutions = vi.fn().mockResolvedValue({
+    cleanupPending: false,
     deletedAt: createdAt,
-    deletedExecutionIds: [executionId],
+    deletedBackupDirectoryCount: 0,
+    deletedExecutionCount: 1,
+    deletedPlanCount: 0,
+    kind: 'executions',
+    missingBackupDirectoryCount: 1,
+    recordIds: [executionId],
+  })
+  const deleteFilePlans = vi.fn().mockResolvedValue({
+    cleanupPending: false,
+    deletedAt: createdAt,
+    deletedBackupDirectoryCount: 0,
+    deletedExecutionCount: 0,
+    deletedPlanCount: 1,
+    kind: 'plans',
+    missingBackupDirectoryCount: 0,
+    recordIds: [planId],
+  })
+  const previewDeleteFileExecutions = vi.fn().mockImplementation(async request => {
+    const selected = executionItems.filter(item => request.executionIds.includes(item.id))
+    return {
+      appliedExecutionCount: selected.filter(item => item.status === 'applied').length,
+      appliedPlanCount: 0,
+      archivedPlanCount: 0,
+      backupDirectoryCount: 0,
+      cancelledPlanCount: 0,
+      executionCount: selected.length,
+      expiresAt: '2026-07-20T00:10:00.000Z',
+      kind: 'executions',
+      missingBackupDirectoryCount: 1,
+      planCount: 0,
+      previewId: executionDeletePreviewId,
+      recordIds: request.executionIds,
+      rolledBackExecutionCount: selected.filter(item => item.status === 'rolled-back').length,
+      rolledBackPlanCount: 0,
+    }
+  })
+  const previewDeleteFilePlans = vi.fn().mockResolvedValue({
+    appliedExecutionCount: 0,
+    appliedPlanCount: 0,
+    archivedPlanCount: 0,
+    backupDirectoryCount: 0,
+    cancelledPlanCount: 1,
+    executionCount: 0,
+    expiresAt: '2026-07-20T00:10:00.000Z',
+    kind: 'plans',
+    missingBackupDirectoryCount: 0,
+    planCount: 1,
+    previewId: planDeletePreviewId,
+    recordIds: [planId],
+    rolledBackExecutionCount: 0,
+    rolledBackPlanCount: 0,
   })
   const exportFilePlanDiagnostic = vi.fn().mockResolvedValue(true)
   const cancelBackgroundTask = vi.fn().mockResolvedValue(cancelledAuditTask)
@@ -238,11 +306,21 @@ function installDesktopMock(
     truncatedReason: null,
   })
   const listFileExecutionsPage = vi.fn().mockResolvedValue({
-    items: [execution],
+    items: executionItems,
     nextAction: null,
     nextCursor: null,
-    processedCount: 1,
-    totalCount: 1,
+    processedCount: executionItems.length,
+    totalCount: executionItems.length,
+    truncated: false,
+    truncatedReason: null,
+  })
+  const listArchivedFilePlansPage = vi.fn().mockResolvedValue({
+    draftCount: 0,
+    items: archivedPlanItems,
+    nextAction: null,
+    nextCursor: null,
+    processedCount: archivedPlanItems.length,
+    totalCount: archivedPlanItems.length,
     truncated: false,
     truncatedReason: null,
   })
@@ -256,12 +334,15 @@ function installDesktopMock(
       },
       templateManagement: {
         applyFilePlan,
-        archiveFilePlans,
         cancelFilePlan,
         deleteFileExecutions,
+        deleteFilePlans,
         exportFilePlanDiagnostic,
         listFileExecutionsPage,
+        listArchivedFilePlansPage,
         listFilePlansPage,
+        previewDeleteFileExecutions,
+        previewDeleteFilePlans,
         redraftFilePlan,
         rollbackFileExecution,
         startAudit,
@@ -271,22 +352,30 @@ function installDesktopMock(
 
   return {
     applyFilePlan,
-    archiveFilePlans,
     cancelBackgroundTask,
     cancelFilePlan,
     deleteFileExecutions,
+    deleteFilePlans,
     exportFilePlanDiagnostic,
     getBackgroundTask,
     listFileExecutionsPage,
+    listArchivedFilePlansPage,
     listFilePlansPage,
+    previewDeleteFileExecutions,
+    previewDeleteFilePlans,
     redraftFilePlan,
     rollbackFileExecution,
     startAudit,
   }
 }
 
-function renderWorkspace(planItems?: FileChangePlan[], auditStartStatus?: BackgroundTaskStatus) {
-  const desktop = installDesktopMock(planItems, auditStartStatus)
+function renderWorkspace(
+  planItems?: FileChangePlan[],
+  auditStartStatus?: BackgroundTaskStatus,
+  archivedPlanItems?: FileChangePlan[],
+  executionItems?: FileChangeExecution[],
+) {
+  const desktop = installDesktopMock(planItems, auditStartStatus, archivedPlanItems, executionItems)
   render(
     <I18nProvider>
       <FileManagementWorkspace
@@ -310,14 +399,18 @@ describe('FileManagementWorkspace history actions', () => {
     expect(screen.getByRole('button', { name: /0 项 · Fixture Provider/ })).toHaveFocus()
   })
 
-  it('requires confirmation before archiving a plan and delegates redrafting', async () => {
+  it('requires a Main preview before permanently deleting a plan and delegates redrafting', async () => {
     const desktop = renderWorkspace()
 
     fireEvent.click(await screen.findByRole('button', { name: /删除计划记录 Fixture Provider/ }))
-    fireEvent.click(screen.getByRole('button', { name: '确认删除计划记录' }))
+    fireEvent.click(await screen.findByRole('button', { name: '确认永久删除计划记录' }))
     await waitFor(() =>
-      expect(desktop.archiveFilePlans).toHaveBeenCalledWith({ planIds: [planId] }),
+      expect(desktop.previewDeleteFilePlans).toHaveBeenCalledWith({ planIds: [planId] }),
     )
+    expect(desktop.deleteFilePlans).toHaveBeenCalledWith({
+      confirmed: true,
+      previewId: planDeletePreviewId,
+    })
 
     fireEvent.click(screen.getAllByRole('button', { name: '复制为新计划' })[0]!)
     await waitFor(() => expect(desktop.redraftFilePlan).toHaveBeenCalledWith(planId))
@@ -331,9 +424,34 @@ describe('FileManagementWorkspace history actions', () => {
     await waitFor(() => expect(desktop.rollbackFileExecution).toHaveBeenCalledWith(executionId))
 
     fireEvent.click(screen.getByRole('button', { name: '一键删除执行记录' }))
-    fireEvent.click(screen.getByRole('button', { name: '确认删除执行记录' }))
+    fireEvent.click(await screen.findByRole('button', { name: '确认永久删除执行记录' }))
     await waitFor(() =>
-      expect(desktop.deleteFileExecutions).toHaveBeenCalledWith({ executionIds: [executionId] }),
+      expect(desktop.previewDeleteFileExecutions).toHaveBeenCalledWith({
+        executionIds: [executionId],
+      }),
+    )
+    expect(desktop.deleteFileExecutions).toHaveBeenCalledWith({
+      confirmed: true,
+      previewId: executionDeletePreviewId,
+    })
+  })
+
+  it('offers permanent deletion for applied executions and exposes old archived plans', async () => {
+    const desktop = renderWorkspace(
+      [plan],
+      completedAuditTask(emptyAudit),
+      [archivedPlan],
+      [appliedExecution],
+    )
+
+    expect(await screen.findByText(/旧归档 Provider/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '永久清理旧归档' })).toBeEnabled()
+    fireEvent.click(screen.getByRole('button', { name: /永久删除执行记录/ }))
+    expect(await screen.findByText(/1 条执行记录：1 条已执行、0 条已撤销/)).toBeInTheDocument()
+    await waitFor(() =>
+      expect(desktop.previewDeleteFileExecutions).toHaveBeenCalledWith({
+        executionIds: [appliedExecution.id],
+      }),
     )
   })
 })

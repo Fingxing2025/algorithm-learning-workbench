@@ -83,6 +83,7 @@ async function bootstrap(): Promise<void> {
     workspaceAiContextService,
     aiTaskRunRegistry,
   )
+  const dataManagementService = new DataManagementService(appDatabase, app.getPath('userData'))
   const templateManagementService = new TemplateManagementService(
     aiProviderService,
     templateManagementRepository,
@@ -91,8 +92,8 @@ async function bootstrap(): Promise<void> {
     app.getPath('userData'),
     workspaceAiContextService,
     aiTaskRunRegistry,
+    dataManagementService.getLifecycleService(),
   )
-  const dataManagementService = new DataManagementService(appDatabase, app.getPath('userData'))
   registerAppIpc()
   registerBackgroundTaskIpc(backgroundTaskRegistry)
   registerAiProviderIpc(aiProviderService)

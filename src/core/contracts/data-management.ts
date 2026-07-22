@@ -257,6 +257,8 @@ export const backupLifecycleInventorySchema = z
           .object({
             action: z.enum([
               'clear-restore-marker',
+              'clear-history-deletion-marker',
+              'complete-history-deletion',
               'complete-restore',
               'none',
               'restore-preflight',
@@ -269,6 +271,7 @@ export const backupLifecycleInventorySchema = z
             kind: z.enum(['cleanup-operation', 'restore-marker', 'restore-operation', 'unknown']),
             reason: z.enum([
               'cleanup-journal-ready',
+              'committed-history-deletion-ready',
               'committed-restore-ready',
               'journal-invalid',
               'preflight-invalid',
@@ -426,6 +429,15 @@ export const restoreCommitMarkerSchema = z
   })
   .strict()
 export type RestoreCommitMarker = z.infer<typeof restoreCommitMarkerSchema>
+
+export const historyDeletionCommitMarkerSchema = z
+  .object({
+    committedAt: z.string().datetime(),
+    formatVersion: z.literal('v1'),
+    operationId: z.string().uuid(),
+  })
+  .strict()
+export type HistoryDeletionCommitMarker = z.infer<typeof historyDeletionCommitMarkerSchema>
 
 export const interruptedRecoveryPreviewRequestSchema = z
   .object({ operationId: z.string().regex(/^[a-f0-9]{64}$/) })

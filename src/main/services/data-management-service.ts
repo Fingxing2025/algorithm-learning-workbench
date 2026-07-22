@@ -129,6 +129,10 @@ export class DataManagementService {
     )
   }
 
+  getLifecycleService(): DataLifecycleService {
+    return this.lifecycleService
+  }
+
   async diagnose(): Promise<DataDiagnostics> {
     const counts = await this.collectCounts()
     const database = this.checkDatabase(this.database.client)

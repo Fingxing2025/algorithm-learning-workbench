@@ -18,11 +18,11 @@ import {
   updateTemplateMetadataRequestSchema,
   applyFileChangePlanRequestSchema,
   applyTemplateRelocationRequestSchema,
-  archiveFilePlansRequestSchema,
-  archiveFilePlansResultSchema,
   cancelFilePlanGenerationRequestSchema,
   deleteFileExecutionsRequestSchema,
   deleteFileExecutionsResultSchema,
+  deleteFilePlansRequestSchema,
+  deleteFilePlansResultSchema,
   exportFilePlanDiagnosticRequestSchema,
   fileChangeExecutionListSchema,
   fileChangeExecutionPageSchema,
@@ -30,10 +30,13 @@ import {
   fileChangeMutationResultSchema,
   fileChangePlanListSchema,
   fileChangePlanPageSchema,
+  fileHistoryDeletionPreviewSchema,
   fileChangePlanRequestSchema,
   fileChangePlanSchema,
   filePlanGenerationRequestSchema,
   previewFilePlanResultSchema,
+  previewDeleteFileExecutionsRequestSchema,
+  previewDeleteFilePlansRequestSchema,
   previewBatchTemplateClassificationRequestSchema,
   previewBatchTemplateClassificationResultSchema,
   previewTemplateRelocationRequestSchema,
@@ -68,12 +71,6 @@ export function registerTemplateManagementIpc(
     handler: request => service.applyTemplateRelocation(request),
     inputSchema: applyTemplateRelocationRequestSchema,
     outputSchema: fileChangeMutationResultSchema,
-  })
-  registerValidatedHandler({
-    channel: IPC_CHANNELS.templateManagement.archiveFilePlans,
-    handler: request => service.archiveFilePlans(request),
-    inputSchema: archiveFilePlansRequestSchema,
-    outputSchema: archiveFilePlansResultSchema,
   })
   registerValidatedHandler({
     channel: IPC_CHANNELS.templateManagement.chooseBatchImportFiles,
@@ -171,6 +168,12 @@ export function registerTemplateManagementIpc(
     outputSchema: fileChangePlanPageSchema,
   })
   registerValidatedHandler({
+    channel: IPC_CHANNELS.templateManagement.listArchivedFilePlansPage,
+    handler: request => service.listArchivedFilePlansPage(request),
+    inputSchema: fileHistoryPageRequestSchema,
+    outputSchema: fileChangePlanPageSchema,
+  })
+  registerValidatedHandler({
     channel: IPC_CHANNELS.templateManagement.cancelFilePlan,
     handler: request => service.cancelFilePlan(request.planId),
     inputSchema: fileChangePlanRequestSchema,
@@ -195,10 +198,28 @@ export function registerTemplateManagementIpc(
     outputSchema: fileChangeExecutionPageSchema,
   })
   registerValidatedHandler({
+    channel: IPC_CHANNELS.templateManagement.previewDeleteFileExecutions,
+    handler: request => service.previewDeleteFileExecutions(request),
+    inputSchema: previewDeleteFileExecutionsRequestSchema,
+    outputSchema: fileHistoryDeletionPreviewSchema,
+  })
+  registerValidatedHandler({
     channel: IPC_CHANNELS.templateManagement.deleteFileExecutions,
     handler: request => service.deleteFileExecutions(request),
     inputSchema: deleteFileExecutionsRequestSchema,
     outputSchema: deleteFileExecutionsResultSchema,
+  })
+  registerValidatedHandler({
+    channel: IPC_CHANNELS.templateManagement.previewDeleteFilePlans,
+    handler: request => service.previewDeleteFilePlans(request),
+    inputSchema: previewDeleteFilePlansRequestSchema,
+    outputSchema: fileHistoryDeletionPreviewSchema,
+  })
+  registerValidatedHandler({
+    channel: IPC_CHANNELS.templateManagement.deleteFilePlans,
+    handler: request => service.deleteFilePlans(request),
+    inputSchema: deleteFilePlansRequestSchema,
+    outputSchema: deleteFilePlansResultSchema,
   })
   registerValidatedHandler({
     channel: IPC_CHANNELS.templateManagement.rollbackFileExecution,

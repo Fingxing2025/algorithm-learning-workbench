@@ -4,6 +4,7 @@ import {
   batchImportTemplateRequestSchema,
   deleteFileExecutionsRequestSchema,
   deleteFileExecutionsResultSchema,
+  previewDeleteFileExecutionsRequestSchema,
   fileChangePlanPayloadSchema,
   inspectBatchTemplateImportResultSchema,
   parseStoredFileChangePlanPayload,
@@ -13,29 +14,44 @@ describe('file execution deletion contracts', () => {
   const firstExecutionId = '40000000-0000-4000-8000-000000000017'
   const secondExecutionId = '40000000-0000-4000-8000-000000000018'
 
-  it('accepts distinct execution UUIDs and a bounded deletion result', () => {
+  it('requires a distinct-ID preview before confirmed deletion', () => {
     expect(
-      deleteFileExecutionsRequestSchema.parse({
+      previewDeleteFileExecutionsRequestSchema.parse({
         executionIds: [firstExecutionId, secondExecutionId],
       }),
     ).toEqual({ executionIds: [firstExecutionId, secondExecutionId] })
     expect(
-      deleteFileExecutionsResultSchema.parse({
-        deletedAt: '2026-07-18T10:00:00.000Z',
-        deletedExecutionIds: [firstExecutionId, secondExecutionId],
+      deleteFileExecutionsRequestSchema.parse({
+        confirmed: true,
+        previewId: firstExecutionId,
       }),
-    ).toMatchObject({ deletedExecutionIds: [firstExecutionId, secondExecutionId] })
+    ).toEqual({ confirmed: true, previewId: firstExecutionId })
+    expect(
+      deleteFileExecutionsResultSchema.parse({
+        cleanupPending: false,
+        deletedAt: '2026-07-18T10:00:00.000Z',
+        deletedBackupDirectoryCount: 1,
+        deletedExecutionCount: 2,
+        deletedPlanCount: 0,
+        kind: 'executions',
+        missingBackupDirectoryCount: 1,
+        recordIds: [firstExecutionId, secondExecutionId],
+      }),
+    ).toMatchObject({ deletedExecutionCount: 2, kind: 'executions' })
   })
 
   it('rejects duplicate, empty, and non-UUID execution identifiers', () => {
     expect(() =>
-      deleteFileExecutionsRequestSchema.parse({
+      previewDeleteFileExecutionsRequestSchema.parse({
         executionIds: [firstExecutionId, firstExecutionId],
       }),
     ).toThrow()
-    expect(() => deleteFileExecutionsRequestSchema.parse({ executionIds: [] })).toThrow()
+    expect(() => previewDeleteFileExecutionsRequestSchema.parse({ executionIds: [] })).toThrow()
     expect(() =>
-      deleteFileExecutionsRequestSchema.parse({ executionIds: ['not-an-execution-id'] }),
+      previewDeleteFileExecutionsRequestSchema.parse({ executionIds: ['not-an-execution-id'] }),
+    ).toThrow()
+    expect(() =>
+      deleteFileExecutionsRequestSchema.parse({ confirmed: false, previewId: firstExecutionId }),
     ).toThrow()
   })
 })

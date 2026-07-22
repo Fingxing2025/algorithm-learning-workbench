@@ -101,8 +101,6 @@ const desktopApi: DesktopApi = {
     applyTemplateRelocation: request =>
       invokeResult(IPC_CHANNELS.templateManagement.applyTemplateRelocation, request),
     applyFilePlan: request => invokeResult(IPC_CHANNELS.templateManagement.applyFilePlan, request),
-    archiveFilePlans: request =>
-      invokeResult(IPC_CHANNELS.templateManagement.archiveFilePlans, request),
     auditWorkspace: () => invokeResult(IPC_CHANNELS.templateManagement.auditWorkspace),
     startAudit: request => invokeResult(IPC_CHANNELS.templateManagement.startAudit, request),
     cancelFilePlanGeneration: async requestId => {
@@ -127,6 +125,8 @@ const desktopApi: DesktopApi = {
       invokeResult(IPC_CHANNELS.templateManagement.deleteTemplate, { templateId }),
     deleteFileExecutions: request =>
       invokeResult(IPC_CHANNELS.templateManagement.deleteFileExecutions, request),
+    deleteFilePlans: request =>
+      invokeResult(IPC_CHANNELS.templateManagement.deleteFilePlans, request),
     exportFilePlanDiagnostic: planId =>
       invokeResult(IPC_CHANNELS.templateManagement.exportFilePlanDiagnostic, { planId }),
     getMetadata: templateId =>
@@ -143,6 +143,10 @@ const desktopApi: DesktopApi = {
       invokeResult(IPC_CHANNELS.templateManagement.previewClassification, request),
     previewFilePlan: request =>
       invokeResult(IPC_CHANNELS.templateManagement.previewFilePlan, request),
+    previewDeleteFileExecutions: request =>
+      invokeResult(IPC_CHANNELS.templateManagement.previewDeleteFileExecutions, request),
+    previewDeleteFilePlans: request =>
+      invokeResult(IPC_CHANNELS.templateManagement.previewDeleteFilePlans, request),
     previewTemplateRelocation: request =>
       invokeResult(IPC_CHANNELS.templateManagement.previewTemplateRelocation, request),
     generateFilePlan: request =>
@@ -150,6 +154,8 @@ const desktopApi: DesktopApi = {
     listFileExecutions: () => invokeResult(IPC_CHANNELS.templateManagement.listFileExecutions),
     listFileExecutionsPage: request =>
       invokeResult(IPC_CHANNELS.templateManagement.listFileExecutionsPage, request),
+    listArchivedFilePlansPage: request =>
+      invokeResult(IPC_CHANNELS.templateManagement.listArchivedFilePlansPage, request),
     listFilePlans: () => invokeResult(IPC_CHANNELS.templateManagement.listFilePlans),
     listFilePlansPage: request =>
       invokeResult(IPC_CHANNELS.templateManagement.listFilePlansPage, request),

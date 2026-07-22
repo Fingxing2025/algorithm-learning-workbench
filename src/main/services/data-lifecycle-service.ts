@@ -8,6 +8,7 @@ import {
   cleanupOperationJournalSchema,
   cleanupPreviewSchema,
   cleanupQuarantineManifestSchema,
+  historyDeletionCommitMarkerSchema,
   interruptedRecoveryPreviewSchema,
   quarantineCleanupResultSchema,
   quarantineReleasePreviewSchema,
@@ -29,6 +30,7 @@ import {
   type CleanupPreviewRequest,
   type CleanupQuarantineManifest,
   type CleanupQuarantineOperation,
+  type HistoryDeletionCommitMarker,
   type InterruptedDataOperation,
   type InterruptedRecoveryPreview,
   type InterruptedRecoveryPreviewRequest,
@@ -56,6 +58,7 @@ const MANIFEST_PATH = 'manifest.json'
 const QUARANTINE_DIRECTORY = 'data-management-quarantine'
 const RESTORE_JOURNAL_PATH = 'restore-journal.json'
 export const RESTORE_COMMIT_MARKER_PREFIX = 'data_restore_commit:'
+export const HISTORY_DELETION_COMMIT_MARKER_PREFIX = 'file_history_delete_commit:'
 const MAX_MANAGED_ITEMS = 2_000
 const RETENTION_DAYS: Record<Exclude<BackupRetentionPolicy, 'forever'>, number> = {
   '7-days': 7,
@@ -89,10 +92,23 @@ interface QuarantineRecord {
 
 interface InterruptedOperationRecord {
   cleanupJournal: CleanupOperationJournal | null
+  historyDeletionMarker: HistoryDeletionCommitMarker | null
   marker: RestoreCommitMarker | null
   operation: InterruptedDataOperation
   restoreJournal: RestoreOperationJournal | null
   root: string | null
+}
+
+export interface ManagedHistoryBackupInspection {
+  existingRelativePaths: string[]
+  missingCount: number
+}
+
+export interface ManagedHistoryDeletionResult<Result> {
+  cleanupPending: boolean
+  deletedBackupDirectoryCount: number
+  missingBackupDirectoryCount: number
+  result: Result
 }
 
 type VerifyBackupPath = (packagePath: string) => Promise<BackupVerification>
@@ -151,6 +167,157 @@ export class DataLifecycleService {
       schemaVersion: 1,
       totalManagedBytes: areas.reduce((total, area) => total + area.bytes, 0),
     })
+  }
+
+  async inspectManagedHistoryBackups(
+    relativePaths: readonly string[],
+  ): Promise<ManagedHistoryBackupInspection> {
+    if (new Set(relativePaths).size !== relativePaths.length) {
+      throw new PublicError('INVALID_REQUEST', '执行记录包含重复的撤销备份目录。')
+    }
+    const existingRelativePaths: string[] = []
+    let missingCount = 0
+    for (const relativePath of [...relativePaths].sort()) {
+      if (
+        !/^file-plan-backups\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(
+          relativePath,
+        )
+      ) {
+        throw new PublicError('PATH_NOT_AUTHORIZED', '执行记录中的撤销备份路径格式无效。')
+      }
+      const absolutePath = this.resolveManagedRelativePath(relativePath)
+      const stats = await lstat(absolutePath).catch(error => {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null
+        throw error
+      })
+      if (!stats) {
+        missingCount += 1
+        continue
+      }
+      if (stats.isSymbolicLink() || !stats.isDirectory()) {
+        throw new PublicError('PATH_NOT_AUTHORIZED', '撤销备份不是受管普通目录，已取消整批删除。')
+      }
+      const inspection = await this.inspectTree(absolutePath)
+      if (inspection.hasSymbolicLink) {
+        throw new PublicError('PATH_NOT_AUTHORIZED', '撤销备份包含符号链接，已取消整批删除。')
+      }
+      existingRelativePaths.push(relativePath)
+    }
+    return { existingRelativePaths, missingCount }
+  }
+
+  async executeManagedHistoryDeletion<Result>(
+    relativePaths: readonly string[],
+    commit: (operationId: string | null) => Result,
+  ): Promise<ManagedHistoryDeletionResult<Result>> {
+    const inspection = await this.inspectManagedHistoryBackups(relativePaths)
+    if (inspection.existingRelativePaths.length === 0) {
+      return {
+        cleanupPending: false,
+        deletedBackupDirectoryCount: 0,
+        missingBackupDirectoryCount: inspection.missingCount,
+        result: commit(null),
+      }
+    }
+
+    const operationId = randomUUID()
+    const quarantineRoot = join(this.userDataPath, QUARANTINE_DIRECTORY)
+    const stagingRoot = join(quarantineRoot, `.cleanup-${operationId}.tmp`)
+    const moved: MovedItem[] = []
+    await mkdir(quarantineRoot, { recursive: true })
+    await this.assertMissing(stagingRoot)
+    await mkdir(stagingRoot)
+    const createdAt = new Date().toISOString()
+    try {
+      const items = await Promise.all(
+        inspection.existingRelativePaths.map(async relativePath => {
+          const absolutePath = this.resolveManagedRelativePath(relativePath)
+          const tree = await this.inspectTree(absolutePath)
+          if (tree.hasSymbolicLink) {
+            throw new PublicError('PATH_NOT_AUTHORIZED', '撤销备份已变化，整批删除已取消。')
+          }
+          return {
+            absolutePath,
+            bytes: tree.bytes,
+            candidateId: this.candidateId('file-plan-backup', relativePath, tree),
+            category: 'file-plan-backup' as const,
+            fingerprint: tree.fingerprint,
+            originalRelativePath: relativePath,
+          }
+        }),
+      )
+      await this.writeJsonAtomic(
+        join(stagingRoot, CLEANUP_JOURNAL_PATH),
+        cleanupOperationJournalSchema.parse({
+          createdAt,
+          formatVersion: 'v1',
+          items: items.map(item => ({
+            bytes: item.bytes,
+            candidateId: item.candidateId,
+            category: item.category,
+            fingerprint: item.fingerprint,
+            originalRelativePath: item.originalRelativePath,
+          })),
+          operationId,
+        }),
+      )
+      for (const item of items) {
+        const current = await this.inspectTree(item.absolutePath)
+        if (current.hasSymbolicLink || current.fingerprint !== item.fingerprint) {
+          throw new PublicError('INVALID_REQUEST', '撤销备份在确认后发生变化，整批删除已取消。')
+        }
+        const target = this.resolveInside(
+          join(stagingRoot, 'items'),
+          item.originalRelativePath,
+          '历史删除暂存路径无效。',
+        )
+        await mkdir(dirname(target), { recursive: true })
+        await rename(item.absolutePath, target)
+        moved.push({ source: item.absolutePath, target })
+        if (this.shouldInjectFailure('E2E_HISTORY_DELETE_FAIL_AFTER_MOVES', moved.length)) {
+          throw new PublicError('UNKNOWN', '模拟历史删除暂存失败。')
+        }
+      }
+
+      const result = commit(operationId)
+      if (this.shouldInjectFailure('E2E_HISTORY_DELETE_INTERRUPT_AFTER_COMMIT', 1)) {
+        throw new PublicError('UNKNOWN', '模拟历史删除提交后异常中断。')
+      }
+      let cleanupPending = await rm(stagingRoot, { force: true, recursive: true })
+        .then(() => false)
+        .catch(() => true)
+      if (!cleanupPending) {
+        cleanupPending = await Promise.resolve()
+          .then(() => this.clearHistoryDeletionCommitMarker(operationId))
+          .then(() => false)
+          .catch(() => true)
+      }
+      return {
+        cleanupPending,
+        deletedBackupDirectoryCount: items.length,
+        missingBackupDirectoryCount: inspection.missingCount,
+        result,
+      }
+    } catch (error) {
+      const committed = this.hasHistoryDeletionCommitMarker(operationId)
+      if (!committed) {
+        const rollbackOk = await this.rollbackMoves(moved)
+        if (!rollbackOk) {
+          throw new PublicError(
+            'UNKNOWN',
+            '历史删除失败且撤销备份恢复未完成，请在数据管理页检查异常残留。',
+          )
+        }
+        await rm(stagingRoot, { force: true, recursive: true }).catch(() => undefined)
+      }
+      if (error instanceof PublicError) throw error
+      throw new PublicError(
+        'DATABASE_ERROR',
+        committed
+          ? '历史已删除，备份清理将在数据管理的异常恢复中完成。'
+          : '历史删除失败，数据库记录与撤销备份均保持原状。',
+      )
+    }
   }
 
   async preview(request: CleanupPreviewRequest): Promise<CleanupPreview> {
@@ -380,7 +547,11 @@ export class DataLifecycleService {
     }
     const action = record.operation.action
     if (action === 'rollback-cleanup') await this.rollbackInterruptedCleanup(record)
-    else if (action === 'restore-preflight') await this.rollbackInterruptedRestore(record)
+    else if (action === 'complete-history-deletion') {
+      await this.completeCommittedHistoryDeletion(record)
+    } else if (action === 'clear-history-deletion-marker') {
+      await this.clearHistoryDeletionMarker(record)
+    } else if (action === 'restore-preflight') await this.rollbackInterruptedRestore(record)
     else if (action === 'complete-restore') await this.completeCommittedRestore(record)
     else if (action === 'clear-restore-marker') await this.clearRestoreMarker(record)
     else throw new PublicError('INVALID_REQUEST', '异常操作当前没有可执行的恢复策略。')
@@ -455,6 +626,20 @@ export class DataLifecycleService {
     this.database.client
       .prepare('DELETE FROM app_state WHERE key = ?')
       .run(`${RESTORE_COMMIT_MARKER_PREFIX}${restoreId}`)
+  }
+
+  clearHistoryDeletionCommitMarker(operationId: string): void {
+    this.database.client
+      .prepare('DELETE FROM app_state WHERE key = ?')
+      .run(`${HISTORY_DELETION_COMMIT_MARKER_PREFIX}${operationId}`)
+  }
+
+  private hasHistoryDeletionCommitMarker(operationId: string): boolean {
+    return Boolean(
+      this.database.client
+        .prepare('SELECT value FROM app_state WHERE key = ?')
+        .get(`${HISTORY_DELETION_COMMIT_MARKER_PREFIX}${operationId}`),
+    )
   }
 
   hasCommittedRestoreMarker(restoreId: string): boolean {
@@ -749,7 +934,9 @@ export class DataLifecycleService {
   ): Promise<InterruptedOperationRecord[]> {
     const records: InterruptedOperationRecord[] = []
     const markers = this.listRestoreCommitMarkers()
+    const historyDeletionMarkers = this.listHistoryDeletionCommitMarkers()
     const seenRestoreIds = new Set<string>()
+    const seenHistoryDeletionIds = new Set<string>()
     const userDataEntries = await readdir(this.userDataPath, { withFileTypes: true }).catch(
       () => [],
     )
@@ -792,9 +979,14 @@ export class DataLifecycleService {
       )
       records.push(
         cleanupMatch?.[1]
-          ? await this.buildInterruptedCleanupRecord(path, cleanupMatch[1])
+          ? await this.buildInterruptedCleanupRecord(
+              path,
+              cleanupMatch[1],
+              historyDeletionMarkers.get(cleanupMatch[1]) ?? null,
+            )
           : await this.buildUnknownInterruptedRecord(path),
       )
+      if (cleanupMatch?.[1]) seenHistoryDeletionIds.add(cleanupMatch[1])
     }
 
     for (const [restoreId, marker] of markers) {
@@ -804,6 +996,7 @@ export class DataLifecycleService {
         .digest('hex')
       records.push({
         cleanupJournal: null,
+        historyDeletionMarker: null,
         marker,
         operation: {
           action: marker ? 'clear-restore-marker' : 'none',
@@ -813,6 +1006,29 @@ export class DataLifecycleService {
           id: this.interruptedOperationId('restore-marker', restoreId, markerFingerprint),
           kind: 'restore-marker',
           reason: marker ? 'restore-marker-only' : 'journal-invalid',
+        },
+        restoreJournal: null,
+        root: null,
+      })
+    }
+
+    for (const [operationId, marker] of historyDeletionMarkers) {
+      if (seenHistoryDeletionIds.has(operationId)) continue
+      const markerFingerprint = createHash('sha256')
+        .update(JSON.stringify(marker ?? { operationId }))
+        .digest('hex')
+      records.push({
+        cleanupJournal: null,
+        historyDeletionMarker: marker,
+        marker: null,
+        operation: {
+          action: marker ? 'clear-history-deletion-marker' : 'none',
+          bytes: 0,
+          canRecover: Boolean(marker),
+          createdAt: marker?.committedAt ?? new Date(0).toISOString(),
+          id: this.interruptedOperationId('cleanup-operation', operationId, markerFingerprint),
+          kind: 'cleanup-operation',
+          reason: marker ? 'committed-history-deletion-ready' : 'journal-invalid',
         },
         restoreJournal: null,
         root: null,
@@ -859,6 +1075,7 @@ export class DataLifecycleService {
     const fingerprint = inspection?.fingerprint ?? createHash('sha256').update(root).digest('hex')
     return {
       cleanupJournal: null,
+      historyDeletionMarker: null,
       marker,
       operation: {
         action,
@@ -881,16 +1098,26 @@ export class DataLifecycleService {
   private async buildInterruptedCleanupRecord(
     root: string,
     operationId: string,
+    historyDeletionMarker: HistoryDeletionCommitMarker | null,
   ): Promise<InterruptedOperationRecord> {
     const inspection = await this.inspectTree(root).catch(() => null)
     const journal = await this.readCleanupJournal(root, operationId)
-    const stateOk = journal ? await this.canRollbackInterruptedCleanup(root, journal) : false
+    const stateOk = journal
+      ? historyDeletionMarker
+        ? await this.canCompleteInterruptedHistoryDeletion(root, journal)
+        : await this.canRollbackInterruptedCleanup(root, journal)
+      : false
     const canRecover = Boolean(journal && stateOk && !inspection?.hasSymbolicLink)
     return {
       cleanupJournal: journal,
+      historyDeletionMarker,
       marker: null,
       operation: {
-        action: canRecover ? 'rollback-cleanup' : 'none',
+        action: canRecover
+          ? historyDeletionMarker
+            ? 'complete-history-deletion'
+            : 'rollback-cleanup'
+          : 'none',
         bytes: inspection?.bytes ?? 0,
         canRecover,
         createdAt: journal?.createdAt ?? inspection?.createdAt ?? new Date(0).toISOString(),
@@ -903,7 +1130,9 @@ export class DataLifecycleService {
         reason: !journal
           ? 'journal-invalid'
           : canRecover
-            ? 'cleanup-journal-ready'
+            ? historyDeletionMarker
+              ? 'committed-history-deletion-ready'
+              : 'cleanup-journal-ready'
             : 'state-conflict',
       },
       restoreJournal: null,
@@ -916,6 +1145,7 @@ export class DataLifecycleService {
     const fingerprint = inspection?.fingerprint ?? createHash('sha256').update(root).digest('hex')
     return {
       cleanupJournal: null,
+      historyDeletionMarker: null,
       marker: null,
       operation: {
         action: 'none',
@@ -943,6 +1173,23 @@ export class DataLifecycleService {
           return [restoreId, marker.restoreId === restoreId ? marker : null]
         } catch {
           return [restoreId, null]
+        }
+      }),
+    )
+  }
+
+  private listHistoryDeletionCommitMarkers(): Map<string, HistoryDeletionCommitMarker | null> {
+    const rows = this.database.client
+      .prepare('SELECT key, value FROM app_state WHERE key LIKE ?')
+      .all(`${HISTORY_DELETION_COMMIT_MARKER_PREFIX}%`) as Array<{ key: string; value: string }>
+    return new Map(
+      rows.map(row => {
+        const operationId = row.key.slice(HISTORY_DELETION_COMMIT_MARKER_PREFIX.length)
+        try {
+          const marker = historyDeletionCommitMarkerSchema.parse(JSON.parse(row.value))
+          return [operationId, marker.operationId === operationId ? marker : null]
+        } catch {
+          return [operationId, null]
         }
       }),
     )
@@ -1082,6 +1329,27 @@ export class DataLifecycleService {
     return true
   }
 
+  private async canCompleteInterruptedHistoryDeletion(
+    root: string,
+    journal: CleanupOperationJournal,
+  ): Promise<boolean> {
+    for (const item of journal.items) {
+      try {
+        const original = this.resolveManagedRelativePath(item.originalRelativePath)
+        const staged = this.resolveInside(
+          join(root, 'items'),
+          item.originalRelativePath,
+          '历史删除恢复路径无效。',
+        )
+        if ((await this.pathExists(original)) || !(await this.pathExists(staged))) return false
+        if (!(await this.pathMatchesFingerprint(staged, item.fingerprint))) return false
+      } catch {
+        return false
+      }
+    }
+    return true
+  }
+
   private async rollbackInterruptedCleanup(record: InterruptedOperationRecord): Promise<void> {
     if (!record.root || !record.cleanupJournal) {
       throw new PublicError('INVALID_REQUEST', '清理恢复日志不可用。')
@@ -1192,6 +1460,29 @@ export class DataLifecycleService {
       throw new PublicError('INVALID_REQUEST', '恢复提交标记当前不能清理。')
     }
     this.clearCommittedRestoreMarker(record.marker.restoreId)
+  }
+
+  private async completeCommittedHistoryDeletion(
+    record: InterruptedOperationRecord,
+  ): Promise<void> {
+    if (!record.historyDeletionMarker || !record.root || !record.cleanupJournal) {
+      throw new PublicError('INVALID_REQUEST', '已提交历史删除记录不完整。')
+    }
+    if (
+      record.cleanupJournal.operationId !== record.historyDeletionMarker.operationId ||
+      !(await this.canCompleteInterruptedHistoryDeletion(record.root, record.cleanupJournal))
+    ) {
+      throw new PublicError('INVALID_REQUEST', '历史删除中断状态已变化，清理已取消。')
+    }
+    await rm(record.root, { force: true, recursive: true })
+    this.clearHistoryDeletionCommitMarker(record.historyDeletionMarker.operationId)
+  }
+
+  private async clearHistoryDeletionMarker(record: InterruptedOperationRecord): Promise<void> {
+    if (!record.historyDeletionMarker || record.root) {
+      throw new PublicError('INVALID_REQUEST', '历史删除提交标记当前不能清理。')
+    }
+    this.clearHistoryDeletionCommitMarker(record.historyDeletionMarker.operationId)
   }
 
   private async canReleaseManifest(

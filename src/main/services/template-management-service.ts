@@ -24,8 +24,8 @@ import {
   previewBatchTemplateClassificationRequestSchema,
   previewTemplateRelocationRequestSchema,
   type ApplyTemplateRelocationRequest,
-  type ArchiveFilePlansRequest,
-  type ArchiveFilePlansResult,
+  type DeleteFilePlansRequest,
+  type DeleteFilePlansResult,
   type DeleteFileExecutionsRequest,
   type DeleteFileExecutionsResult,
   type BatchImportTemplateRequest,
@@ -39,9 +39,12 @@ import {
   type FileChangePlan,
   type FileChangePlanPage,
   type FileHistoryPageRequest,
+  type FileHistoryDeletionPreview,
   type FilePlanGenerationRequest,
   type TemplateRelocationPreview,
   type PreviewTemplateRelocationRequest,
+  type PreviewDeleteFileExecutionsRequest,
+  type PreviewDeleteFilePlansRequest,
 } from '@core/contracts/template-management'
 import type { AiRequestPreview } from '@core/contracts/ai-request'
 
@@ -71,6 +74,7 @@ import {
 import { TemplateFilePlanExecutor } from './template-file-plan-executor'
 import { TemplateFilePlanGenerationService } from './template-file-plan-generation-service'
 import { TemplateFilePlanHistoryService } from './template-file-plan-history-service'
+import type { DataLifecycleService } from './data-lifecycle-service'
 import { TemplateFilePlanSafety } from './template-file-plan-safety'
 import { TemplateWorkspaceAuditService } from './template-workspace-audit-service'
 import type { WorkspaceAuditOptions } from './template-workspace-audit-service'
@@ -99,6 +103,10 @@ export class TemplateManagementService {
     private readonly userDataPath: string,
     private readonly workspaceAiContextService: WorkspaceAiContextService,
     private readonly aiTaskRunRegistry: AiTaskRunRegistry,
+    historyDeletionLifecycle: Pick<
+      DataLifecycleService,
+      'executeManagedHistoryDeletion' | 'inspectManagedHistoryBackups'
+    > | null = null,
   ) {
     this.auditService = new TemplateWorkspaceAuditService(
       this.metadataRepository,
@@ -128,6 +136,7 @@ export class TemplateManagementService {
       this.workspaceRepository,
       this.auditService,
       this.filePlanSafety,
+      historyDeletionLifecycle,
     )
   }
 
@@ -137,12 +146,26 @@ export class TemplateManagementService {
     return workspace.id
   }
 
-  archiveFilePlans(rawRequest: ArchiveFilePlansRequest): ArchiveFilePlansResult {
-    return this.filePlanHistoryService.archiveFilePlans(rawRequest)
+  previewDeleteFileExecutions(
+    rawRequest: PreviewDeleteFileExecutionsRequest,
+  ): Promise<FileHistoryDeletionPreview> {
+    return this.filePlanHistoryService.previewDeleteFileExecutions(rawRequest)
   }
 
-  deleteFileExecutions(rawRequest: DeleteFileExecutionsRequest): DeleteFileExecutionsResult {
+  deleteFileExecutions(
+    rawRequest: DeleteFileExecutionsRequest,
+  ): Promise<DeleteFileExecutionsResult> {
     return this.filePlanHistoryService.deleteFileExecutions(rawRequest)
+  }
+
+  previewDeleteFilePlans(
+    rawRequest: PreviewDeleteFilePlansRequest,
+  ): Promise<FileHistoryDeletionPreview> {
+    return this.filePlanHistoryService.previewDeleteFilePlans(rawRequest)
+  }
+
+  deleteFilePlans(rawRequest: DeleteFilePlansRequest): Promise<DeleteFilePlansResult> {
+    return this.filePlanHistoryService.deleteFilePlans(rawRequest)
   }
 
   async previewTemplateRelocation(
@@ -395,6 +418,10 @@ export class TemplateManagementService {
 
   listFilePlansPage(request: FileHistoryPageRequest): FileChangePlanPage {
     return this.filePlanHistoryService.listFilePlansPage(request)
+  }
+
+  listArchivedFilePlansPage(request: FileHistoryPageRequest): FileChangePlanPage {
+    return this.filePlanHistoryService.listArchivedFilePlansPage(request)
   }
 
   listFileExecutions(): FileChangeExecution[] {

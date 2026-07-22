@@ -48,8 +48,8 @@ import type {
 } from './problem-analysis'
 import type {
   ApplyTemplateRelocationRequest,
-  ArchiveFilePlansRequest,
-  ArchiveFilePlansResult,
+  DeleteFilePlansRequest,
+  DeleteFilePlansResult,
   DeleteFileExecutionsRequest,
   DeleteFileExecutionsResult,
   BatchImportTemplateRequest,
@@ -70,12 +70,15 @@ import type {
   FileChangeExecution,
   FileChangeExecutionPage,
   FileHistoryPageRequest,
+  FileHistoryDeletionPreview,
   FileChangeMutationResult,
   FileChangePlan,
   FileChangePlanPage,
   FilePlanGenerationRequest,
   WorkspaceAudit,
   PreviewTemplateClassificationRequest,
+  PreviewDeleteFileExecutionsRequest,
+  PreviewDeleteFilePlansRequest,
 } from './template-management'
 import type {
   CreateProblemRequest,
@@ -188,7 +191,6 @@ export interface DesktopApi {
       operationIds: string[]
       planId: string
     }) => Promise<FileChangeMutationResult>
-    archiveFilePlans: (request: ArchiveFilePlansRequest) => Promise<ArchiveFilePlansResult>
     auditWorkspace: () => Promise<WorkspaceAudit>
     startAudit: (request: StartBackgroundTaskRequest) => Promise<BackgroundTaskStatus>
     cancelFilePlanGeneration: (requestId: string) => Promise<void>
@@ -202,6 +204,7 @@ export interface DesktopApi {
     deleteFileExecutions: (
       request: DeleteFileExecutionsRequest,
     ) => Promise<DeleteFileExecutionsResult>
+    deleteFilePlans: (request: DeleteFilePlansRequest) => Promise<DeleteFilePlansResult>
     exportFilePlanDiagnostic: (planId: string | null) => Promise<boolean>
     getMetadata: (templateId: string) => Promise<TemplateMetadata | null>
     importTemplate: (request: ImportTemplateRequest) => Promise<ImportTemplateResult>
@@ -218,6 +221,12 @@ export interface DesktopApi {
       request: PreviewTemplateClassificationRequest,
     ) => Promise<AiRequestPreview>
     previewFilePlan: (request: FilePlanGenerationRequest) => Promise<AiRequestPreview>
+    previewDeleteFileExecutions: (
+      request: PreviewDeleteFileExecutionsRequest,
+    ) => Promise<FileHistoryDeletionPreview>
+    previewDeleteFilePlans: (
+      request: PreviewDeleteFilePlansRequest,
+    ) => Promise<FileHistoryDeletionPreview>
     previewTemplateRelocation: (
       request: PreviewTemplateRelocationRequest,
     ) => Promise<TemplateRelocationPreview>
@@ -226,6 +235,7 @@ export interface DesktopApi {
     listFileExecutionsPage: (request: FileHistoryPageRequest) => Promise<FileChangeExecutionPage>
     listFilePlans: () => Promise<FileChangePlan[]>
     listFilePlansPage: (request: FileHistoryPageRequest) => Promise<FileChangePlanPage>
+    listArchivedFilePlansPage: (request: FileHistoryPageRequest) => Promise<FileChangePlanPage>
     redraftFilePlan: (planId: string) => Promise<FileChangePlan>
     rollbackFileExecution: (executionId: string) => Promise<FileChangeMutationResult>
     updateMetadata: (request: UpdateTemplateMetadataRequest) => Promise<TemplateMetadata>

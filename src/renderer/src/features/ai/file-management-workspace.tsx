@@ -14,6 +14,7 @@ import type { AiRequestPreview } from '@core/contracts/ai-request'
 import type {
   FileChangeExecution,
   FileChangePlan,
+  FileHistoryDeletionPreview,
   WorkspaceAudit,
 } from '@core/contracts/template-management'
 import type { WorkspaceSnapshot } from '@core/contracts/workspace'
@@ -51,8 +52,10 @@ export function FileManagementWorkspace({
   const [audit, setAudit] = useState<WorkspaceAudit | null>(null)
   const [auditTask, setAuditTask] = useState<BackgroundTaskStatus | null>(null)
   const [busyAction, setBusyAction] = useState<string | null>(null)
-  const [confirmArchiveIds, setConfirmArchiveIds] = useState<string[] | null>(null)
-  const [confirmDeleteExecutionIds, setConfirmDeleteExecutionIds] = useState<string[] | null>(null)
+  const [confirmDeletePlanPreview, setConfirmDeletePlanPreview] =
+    useState<FileHistoryDeletionPreview | null>(null)
+  const [confirmDeleteExecutionPreview, setConfirmDeleteExecutionPreview] =
+    useState<FileHistoryDeletionPreview | null>(null)
   const [confirmRollbackId, setConfirmRollbackId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [executions, setExecutions] = useState<FileChangeExecution[]>([])
@@ -61,6 +64,9 @@ export function FileManagementWorkspace({
   const [filePlanPreview, setFilePlanPreview] = useState<AiRequestPreview | null>(null)
   const [filePlanRequestId, setFilePlanRequestId] = useState<string | null>(null)
   const [plans, setPlans] = useState<FileChangePlan[]>([])
+  const [archivedPlans, setArchivedPlans] = useState<FileChangePlan[]>([])
+  const [archivedPlanCursor, setArchivedPlanCursor] = useState<string | null>(null)
+  const [archivedPlanTotalCount, setArchivedPlanTotalCount] = useState(0)
   const [planReviewSelectionPreset, setPlanReviewSelectionPreset] =
     useState<FileManagementPlanReviewSelectionPreset | null>(null)
   const [planCursor, setPlanCursor] = useState<string | null>(null)
@@ -73,16 +79,14 @@ export function FileManagementWorkspace({
   const executionSectionRef = useRef<HTMLDivElement>(null)
   const previewReturnFocusRef = useRef<HTMLElement | null>(null)
   const draftPlan = useMemo(() => plans.find(plan => plan.status === 'draft') ?? null, [plans])
-  const deletableExecutions = useMemo(
-    () => executions.filter(execution => execution.status === 'rolled-back'),
-    [executions],
-  )
+  const deletableExecutions = executions
   const historyPlans = useMemo(() => plans.filter(plan => plan.status !== 'draft'), [plans])
 
   const refreshHistory = async () => {
-    const [planPage, executionPage] = await Promise.all([
+    const [planPage, executionPage, archivedPlanPage] = await Promise.all([
       window.desktop.templateManagement.listFilePlansPage({ cursor: null, limit: 50 }),
       window.desktop.templateManagement.listFileExecutionsPage({ cursor: null, limit: 50 }),
+      window.desktop.templateManagement.listArchivedFilePlansPage({ cursor: null, limit: 50 }),
     ])
     setPlans(planPage.items)
     setPlanCursor(planPage.nextCursor)
@@ -90,6 +94,9 @@ export function FileManagementWorkspace({
     setExecutions(executionPage.items)
     setExecutionCursor(executionPage.nextCursor)
     setExecutionTotalCount(executionPage.totalCount)
+    setArchivedPlans(archivedPlanPage.items)
+    setArchivedPlanCursor(archivedPlanPage.nextCursor)
+    setArchivedPlanTotalCount(archivedPlanPage.totalCount)
   }
 
   const loadMorePlans = async () => {
@@ -127,6 +134,27 @@ export function FileManagementWorkspace({
       })
       setExecutionCursor(page.nextCursor)
       setExecutionTotalCount(page.totalCount)
+    } catch (caught) {
+      setError(t(errorMessage(caught)))
+    } finally {
+      setIsLoadingMoreHistory(false)
+    }
+  }
+
+  const loadMoreArchivedPlans = async () => {
+    if (!archivedPlanCursor || isLoadingMoreHistory) return
+    setIsLoadingMoreHistory(true)
+    try {
+      const page = await window.desktop.templateManagement.listArchivedFilePlansPage({
+        cursor: archivedPlanCursor,
+        limit: 50,
+      })
+      setArchivedPlans(current => {
+        const known = new Set(current.map(plan => plan.id))
+        return [...current, ...page.items.filter(plan => !known.has(plan.id))]
+      })
+      setArchivedPlanCursor(page.nextCursor)
+      setArchivedPlanTotalCount(page.totalCount)
     } catch (caught) {
       setError(t(errorMessage(caught)))
     } finally {
@@ -208,8 +236,8 @@ export function FileManagementWorkspace({
   }
 
   useEffect(() => {
-    if (confirmDeleteExecutionIds) confirmDeleteExecutionButtonRef.current?.focus()
-  }, [confirmDeleteExecutionIds])
+    if (confirmDeleteExecutionPreview) confirmDeleteExecutionButtonRef.current?.focus()
+  }, [confirmDeleteExecutionPreview])
 
   const restoreExecutionDeleteFocus = () => {
     window.requestAnimationFrame(() => {
@@ -221,11 +249,16 @@ export function FileManagementWorkspace({
 
   const openExecutionDeleteConfirmation = (executionIds: string[], trigger: HTMLButtonElement) => {
     executionDeleteReturnFocusRef.current = trigger
-    setConfirmDeleteExecutionIds(executionIds)
+    void run('preview-delete-executions', async () => {
+      const preview = await window.desktop.templateManagement.previewDeleteFileExecutions({
+        executionIds,
+      })
+      setConfirmDeleteExecutionPreview(preview)
+    })
   }
 
   const closeExecutionDeleteConfirmation = () => {
-    setConfirmDeleteExecutionIds(null)
+    setConfirmDeleteExecutionPreview(null)
     restoreExecutionDeleteFocus()
   }
 
@@ -329,26 +362,44 @@ export function FileManagementWorkspace({
       )
     })
 
-  const archivePlans = (planIds: string[]) =>
-    run('archive-plans', async () => {
-      await window.desktop.templateManagement.archiveFilePlans({ planIds })
+  const requestDeletePlans = (planIds: string[]) =>
+    run('preview-delete-plans', async () => {
+      const preview = await window.desktop.templateManagement.previewDeleteFilePlans({ planIds })
+      setConfirmDeletePlanPreview(preview)
+    })
+
+  const deletePlans = (preview: FileHistoryDeletionPreview) =>
+    run('delete-plans', async () => {
+      const result = await window.desktop.templateManagement.deleteFilePlans({
+        confirmed: true,
+        previewId: preview.previewId,
+      })
       await refreshHistory()
-      setConfirmArchiveIds(null)
+      setConfirmDeletePlanPreview(null)
       setSuccess(
-        t('已从普通列表隐藏 {count} 份计划；执行记录、撤销能力和安全备份保持不变。', {
-          count: planIds.length,
-        }),
+        t(
+          '已永久删除 {count} 份计划、{executions} 条子执行和 {backups} 份撤销备份；当前模板文件未修改。',
+          {
+            backups: result.deletedBackupDirectoryCount,
+            count: result.deletedPlanCount,
+            executions: result.deletedExecutionCount,
+          },
+        ),
       )
     })
 
-  const deleteExecutions = (executionIds: string[]) =>
+  const deleteExecutions = (preview: FileHistoryDeletionPreview) =>
     run('delete-executions', async () => {
-      await window.desktop.templateManagement.deleteFileExecutions({ executionIds })
+      const result = await window.desktop.templateManagement.deleteFileExecutions({
+        confirmed: true,
+        previewId: preview.previewId,
+      })
       await refreshHistory()
-      setConfirmDeleteExecutionIds(null)
+      setConfirmDeleteExecutionPreview(null)
       setSuccess(
-        t('已删除 {count} 条已撤销执行记录；数据管理统计已同步。', {
-          count: executionIds.length,
+        t('已永久删除 {count} 条执行记录和 {backups} 份撤销备份；当前模板文件未修改。', {
+          backups: result.deletedBackupDirectoryCount,
+          count: result.deletedExecutionCount,
         }),
       )
       restoreExecutionDeleteFocus()
@@ -517,10 +568,13 @@ export function FileManagementWorkspace({
               <FileManagementAuditPanel audit={audit} auditTask={auditTask} />
 
               <FileManagementHistoryPanel
+                archivedPlanCursor={archivedPlanCursor}
+                archivedPlanTotalCount={archivedPlanTotalCount}
+                archivedPlans={archivedPlans}
                 busyAction={busyAction}
-                confirmArchiveIds={confirmArchiveIds}
+                confirmDeletePlanPreview={confirmDeletePlanPreview}
                 confirmDeleteExecutionButtonRef={confirmDeleteExecutionButtonRef}
-                confirmDeleteExecutionIds={confirmDeleteExecutionIds}
+                confirmDeleteExecutionPreview={confirmDeleteExecutionPreview}
                 confirmRollbackId={confirmRollbackId}
                 deletableExecutions={deletableExecutions}
                 executionCursor={executionCursor}
@@ -530,17 +584,18 @@ export function FileManagementWorkspace({
                 hasDraftPlan={Boolean(draftPlan)}
                 historyPlans={historyPlans}
                 isLoadingMoreHistory={isLoadingMoreHistory}
-                onCancelArchive={() => setConfirmArchiveIds(null)}
+                onCancelDeletePlans={() => setConfirmDeletePlanPreview(null)}
                 onCancelRollback={() => setConfirmRollbackId(null)}
                 onCloseExecutionDeleteConfirmation={closeExecutionDeleteConfirmation}
-                onConfirmArchive={archivePlans}
+                onConfirmDeletePlans={deletePlans}
                 onConfirmDeleteExecutions={deleteExecutions}
                 onConfirmRollback={rollback}
                 onLoadMoreExecutions={loadMoreExecutions}
+                onLoadMoreArchivedPlans={loadMoreArchivedPlans}
                 onLoadMorePlans={loadMorePlans}
                 onOpenExecutionDeleteConfirmation={openExecutionDeleteConfirmation}
                 onRedraft={redraft}
-                onRequestArchive={setConfirmArchiveIds}
+                onRequestDeletePlans={requestDeletePlans}
                 onRequestRollback={setConfirmRollbackId}
                 onSelectHistoryPlan={setSelectedHistoryPlanId}
                 planCursor={planCursor}

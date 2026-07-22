@@ -1,7 +1,11 @@
 import { FileClock, LoaderCircle, RotateCcw, Trash2 } from 'lucide-react'
 import type { KeyboardEvent, RefObject } from 'react'
 
-import type { FileChangeExecution, FileChangePlan } from '@core/contracts/template-management'
+import type {
+  FileChangeExecution,
+  FileChangePlan,
+  FileHistoryDeletionPreview,
+} from '@core/contracts/template-management'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -9,9 +13,12 @@ import { useI18n } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 
 export interface FileManagementHistoryPanelProps {
+  archivedPlanCursor: string | null
+  archivedPlanTotalCount: number
+  archivedPlans: FileChangePlan[]
   busyAction: string | null
-  confirmArchiveIds: string[] | null
-  confirmDeleteExecutionIds: string[] | null
+  confirmDeletePlanPreview: FileHistoryDeletionPreview | null
+  confirmDeleteExecutionPreview: FileHistoryDeletionPreview | null
   confirmRollbackId: string | null
   confirmDeleteExecutionButtonRef: RefObject<HTMLButtonElement | null>
   deletableExecutions: FileChangeExecution[]
@@ -22,17 +29,18 @@ export interface FileManagementHistoryPanelProps {
   historyPlans: FileChangePlan[]
   hasDraftPlan: boolean
   isLoadingMoreHistory: boolean
-  onCancelArchive: () => void
+  onCancelDeletePlans: () => void
   onCancelRollback: () => void
   onCloseExecutionDeleteConfirmation: () => void
-  onConfirmArchive: (planIds: string[]) => void | Promise<void>
-  onConfirmDeleteExecutions: (executionIds: string[]) => void | Promise<void>
+  onConfirmDeletePlans: (preview: FileHistoryDeletionPreview) => void | Promise<void>
+  onConfirmDeleteExecutions: (preview: FileHistoryDeletionPreview) => void | Promise<void>
   onConfirmRollback: (executionId: string) => void | Promise<void>
   onLoadMoreExecutions: () => void | Promise<void>
+  onLoadMoreArchivedPlans: () => void | Promise<void>
   onLoadMorePlans: () => void | Promise<void>
   onOpenExecutionDeleteConfirmation: (executionIds: string[], trigger: HTMLButtonElement) => void
   onRedraft: (planId: string) => void | Promise<void>
-  onRequestArchive: (planIds: string[]) => void
+  onRequestDeletePlans: (planIds: string[]) => void
   onRequestRollback: (executionId: string) => void
   onSelectHistoryPlan: (planId: string) => void
   planCursor: string | null
@@ -42,9 +50,12 @@ export interface FileManagementHistoryPanelProps {
 }
 
 export function FileManagementHistoryPanel({
+  archivedPlanCursor,
+  archivedPlanTotalCount,
+  archivedPlans,
   busyAction,
-  confirmArchiveIds,
-  confirmDeleteExecutionIds,
+  confirmDeletePlanPreview,
+  confirmDeleteExecutionPreview,
   confirmRollbackId,
   confirmDeleteExecutionButtonRef,
   deletableExecutions,
@@ -55,17 +66,18 @@ export function FileManagementHistoryPanel({
   hasDraftPlan,
   historyPlans,
   isLoadingMoreHistory,
-  onCancelArchive,
+  onCancelDeletePlans,
   onCancelRollback,
   onCloseExecutionDeleteConfirmation,
-  onConfirmArchive,
+  onConfirmDeletePlans,
   onConfirmDeleteExecutions,
   onConfirmRollback,
   onLoadMoreExecutions,
+  onLoadMoreArchivedPlans,
   onLoadMorePlans,
   onOpenExecutionDeleteConfirmation,
   onRedraft,
-  onRequestArchive,
+  onRequestDeletePlans,
   onRequestRollback,
   onSelectHistoryPlan,
   planCursor,
@@ -106,7 +118,7 @@ export function FileManagementHistoryPanel({
         <div>
           <h2 className="text-sm font-semibold">{t('计划记录与撤销')}</h2>
           <p className="mt-0.5 text-[10px] text-muted-foreground">
-            {t('已加载 {processed} / {total} 份计划；删除采用安全归档。', {
+            {t('已加载 {processed} / {total} 份计划；确认后永久删除历史与专属撤销备份。', {
               processed: plans.length,
               total: planTotalCount,
             })}
@@ -115,7 +127,7 @@ export function FileManagementHistoryPanel({
         <Button
           className="ml-auto"
           disabled={Boolean(busyAction) || historyPlans.length === 0}
-          onClick={() => onRequestArchive(historyPlans.map(plan => plan.id))}
+          onClick={() => onRequestDeletePlans(historyPlans.map(plan => plan.id))}
           size="compact"
           type="button"
           variant="ghost"
@@ -125,35 +137,43 @@ export function FileManagementHistoryPanel({
         </Button>
       </div>
 
-      {confirmArchiveIds && (
+      {confirmDeletePlanPreview && (
         <div className="mt-3 rounded-xl border border-warning/25 bg-warning/7 p-3 text-[11px] leading-5">
           <p className="font-semibold text-foreground">
-            {t('将归档 {count} 份计划：{cancelled} 份已取消，{applied} 份已执行。', {
-              applied: historyPlans.filter(
-                plan => confirmArchiveIds.includes(plan.id) && plan.status === 'applied',
-              ).length,
-              cancelled: historyPlans.filter(
-                plan => confirmArchiveIds.includes(plan.id) && plan.status === 'cancelled',
-              ).length,
-              count: confirmArchiveIds.length,
-            })}
+            {t(
+              '将永久删除 {count} 份计划：{cancelled} 份已取消、{applied} 份已执行、{rolledBack} 份已撤销；其中 {archived} 份为旧归档记录。',
+              {
+                applied: confirmDeletePlanPreview.appliedPlanCount,
+                archived: confirmDeletePlanPreview.archivedPlanCount,
+                cancelled: confirmDeletePlanPreview.cancelledPlanCount,
+                count: confirmDeletePlanPreview.planCount,
+                rolledBack: confirmDeletePlanPreview.rolledBackPlanCount,
+              },
+            )}
           </p>
           <p className="mt-1 text-muted-foreground">
-            {t('只从普通列表隐藏计划；模板源码、执行记录、撤销备份和用户数据不会删除。')}
+            {t(
+              '同时永久删除 {executions} 条子执行和 {backups} 份现存撤销备份；另有 {missing} 份备份已缺失。当前模板文件不会恢复、移动或修改。删除后计划、执行记录和撤销能力均无法恢复。',
+              {
+                backups: confirmDeletePlanPreview.backupDirectoryCount,
+                executions: confirmDeletePlanPreview.executionCount,
+                missing: confirmDeletePlanPreview.missingBackupDirectoryCount,
+              },
+            )}
           </p>
           <div className="mt-2 flex gap-2">
             <Button
               disabled={Boolean(busyAction)}
-              onClick={() => void onConfirmArchive(confirmArchiveIds)}
+              onClick={() => void onConfirmDeletePlans(confirmDeletePlanPreview)}
               size="compact"
               type="button"
               variant="outline"
             >
-              {t('确认删除计划记录')}
+              {t('确认永久删除计划记录')}
             </Button>
             <Button
               disabled={Boolean(busyAction)}
-              onClick={onCancelArchive}
+              onClick={onCancelDeletePlans}
               size="compact"
               type="button"
               variant="ghost"
@@ -173,7 +193,7 @@ export function FileManagementHistoryPanel({
       >
         {historyPlans.length === 0 ? (
           <p className="rounded-lg border border-dashed border-border p-3 text-center text-xs text-muted-foreground">
-            {t('暂无可归档计划记录。')}
+            {t('暂无可删除计划记录。')}
           </p>
         ) : (
           historyPlans.map(plan => (
@@ -214,7 +234,7 @@ export function FileManagementHistoryPanel({
               <Button
                 aria-label={`${t('删除计划记录')} ${plan.providerName}`}
                 disabled={Boolean(busyAction)}
-                onClick={() => onRequestArchive([plan.id])}
+                onClick={() => onRequestDeletePlans([plan.id])}
                 size="icon"
                 type="button"
                 variant="ghost"
@@ -236,6 +256,68 @@ export function FileManagementHistoryPanel({
             {isLoadingMoreHistory && <LoaderCircle className="size-3.5 animate-spin" />}
             {t('加载更多计划记录')} · {plans.length} / {planTotalCount}
           </Button>
+        )}
+      </div>
+
+      <div className="mt-3 border-t border-border pt-3">
+        <div className="mb-2 flex items-center gap-2">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+            {t('旧归档记录')}
+          </p>
+          <span className="text-[10px] text-muted-foreground">
+            {archivedPlans.length} / {archivedPlanTotalCount}
+          </span>
+          <Button
+            className="ml-auto"
+            disabled={Boolean(busyAction) || archivedPlans.length === 0}
+            onClick={() => onRequestDeletePlans(archivedPlans.map(plan => plan.id))}
+            size="compact"
+            type="button"
+            variant="ghost"
+          >
+            <Trash2 aria-hidden="true" className="size-3.5" />
+            {t('永久清理旧归档')}
+          </Button>
+        </div>
+        {archivedPlans.length === 0 ? (
+          <p className="text-xs text-muted-foreground">{t('没有旧版软归档记录。')}</p>
+        ) : (
+          <div className="max-h-40 space-y-2 overflow-y-auto pr-1">
+            {archivedPlans.map(plan => (
+              <article
+                className="flex items-center gap-2 rounded-lg border border-border bg-background/60 p-2.5"
+                key={plan.id}
+              >
+                <Badge tone="neutral">{t('旧归档')}</Badge>
+                <span className="min-w-0 flex-1 truncate text-[11px]">
+                  {plan.operations.length} {t('项')} · {plan.providerName}
+                </span>
+                <Button
+                  aria-label={`${t('永久删除旧归档记录')} ${plan.providerName}`}
+                  disabled={Boolean(busyAction)}
+                  onClick={() => onRequestDeletePlans([plan.id])}
+                  size="icon"
+                  type="button"
+                  variant="ghost"
+                >
+                  <Trash2 aria-hidden="true" className="size-3.5 text-red-500" />
+                </Button>
+              </article>
+            ))}
+            {archivedPlanCursor && (
+              <Button
+                className="w-full"
+                disabled={isLoadingMoreHistory}
+                onClick={() => void onLoadMoreArchivedPlans()}
+                size="compact"
+                type="button"
+                variant="outline"
+              >
+                {isLoadingMoreHistory && <LoaderCircle className="size-3.5 animate-spin" />}
+                {t('加载更多旧归档记录')} · {archivedPlans.length} / {archivedPlanTotalCount}
+              </Button>
+            )}
+          </div>
         )}
       </div>
 
@@ -268,28 +350,34 @@ export function FileManagementHistoryPanel({
             {t('一键删除执行记录')}
           </Button>
         </div>
-        {confirmDeleteExecutionIds && (
+        {confirmDeleteExecutionPreview && (
           <div className="mb-3 rounded-xl border border-warning/25 bg-warning/7 p-3 text-[11px] leading-5">
             <p className="font-semibold text-foreground">
-              {t('将删除 {count} 条已撤销执行记录。', {
-                count: confirmDeleteExecutionIds.length,
+              {t('将永久删除 {count} 条执行记录：{applied} 条已执行、{rolledBack} 条已撤销。', {
+                applied: confirmDeleteExecutionPreview.appliedExecutionCount,
+                count: confirmDeleteExecutionPreview.executionCount,
+                rolledBack: confirmDeleteExecutionPreview.rolledBackExecutionCount,
               })}
             </p>
             <p className="mt-1 text-muted-foreground">
               {t(
-                '只删除已撤销的历史记录；模板、题目、关系和源码不变。对应的复制为新计划入口将消失，数据管理统计会同步减少。',
+                '将永久删除 {backups} 份现存撤销备份，另有 {missing} 份已缺失；当前模板、题目、关系和源码不会被撤销或修改。已执行记录删除后无法再从备份撤销，本次历史删除无法恢复。',
+                {
+                  backups: confirmDeleteExecutionPreview.backupDirectoryCount,
+                  missing: confirmDeleteExecutionPreview.missingBackupDirectoryCount,
+                },
               )}
             </p>
             <div className="mt-2 flex gap-2">
               <Button
                 disabled={Boolean(busyAction)}
-                onClick={() => void onConfirmDeleteExecutions(confirmDeleteExecutionIds)}
+                onClick={() => void onConfirmDeleteExecutions(confirmDeleteExecutionPreview)}
                 ref={confirmDeleteExecutionButtonRef}
                 size="compact"
                 type="button"
                 variant="outline"
               >
-                {t('确认删除执行记录')}
+                {t('确认永久删除执行记录')}
               </Button>
               <Button
                 disabled={Boolean(busyAction)}
@@ -354,8 +442,8 @@ export function FileManagementHistoryPanel({
                       {t('从备份撤销')}
                     </Button>
                   ))}
-                {execution.status === 'rolled-back' && (
-                  <div className="mt-2 flex flex-wrap gap-2">
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {execution.status === 'rolled-back' && (
                     <Button
                       disabled={Boolean(busyAction) || hasDraftPlan}
                       onClick={() => void onRedraft(execution.planId)}
@@ -366,20 +454,20 @@ export function FileManagementHistoryPanel({
                       <FileClock aria-hidden="true" className="size-3.5" />
                       {t('复制为新计划')}
                     </Button>
-                    <Button
-                      aria-label={`${t('删除执行记录')} · ${new Date(execution.createdAt).toLocaleString(locale)}`}
-                      disabled={Boolean(busyAction)}
-                      onClick={event =>
-                        onOpenExecutionDeleteConfirmation([execution.id], event.currentTarget)
-                      }
-                      size="icon"
-                      type="button"
-                      variant="ghost"
-                    >
-                      <Trash2 aria-hidden="true" className="size-3.5 text-red-500" />
-                    </Button>
-                  </div>
-                )}
+                  )}
+                  <Button
+                    aria-label={`${t('永久删除执行记录')} · ${new Date(execution.createdAt).toLocaleString(locale)}`}
+                    disabled={Boolean(busyAction)}
+                    onClick={event =>
+                      onOpenExecutionDeleteConfirmation([execution.id], event.currentTarget)
+                    }
+                    size="icon"
+                    type="button"
+                    variant="ghost"
+                  >
+                    <Trash2 aria-hidden="true" className="size-3.5 text-red-500" />
+                  </Button>
+                </div>
               </article>
             ))
           )}

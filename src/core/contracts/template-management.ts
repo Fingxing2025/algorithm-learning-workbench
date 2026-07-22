@@ -439,18 +439,21 @@ export const exportFilePlanDiagnosticRequestSchema = z
   .strict()
 
 export const fileChangePlanRequestSchema = z.object({ planId: z.string().uuid() }).strict()
-export const archiveFilePlansRequestSchema = z
-  .object({ planIds: z.array(z.string().uuid()).min(1).max(100) })
+const uniqueFileHistoryIdsSchema = z
+  .array(z.string().uuid())
+  .min(1)
+  .max(100)
+  .refine(ids => new Set(ids).size === ids.length, '历史记录 ID 不能重复。')
+
+export const previewDeleteFilePlansRequestSchema = z
+  .object({ planIds: uniqueFileHistoryIdsSchema })
   .strict()
-  .refine(request => new Set(request.planIds).size === request.planIds.length, '计划 ID 不能重复。')
-export type ArchiveFilePlansRequest = z.infer<typeof archiveFilePlansRequestSchema>
-export const archiveFilePlansResultSchema = z
-  .object({
-    archivedAt: z.string().datetime(),
-    planIds: z.array(z.string().uuid()).min(1).max(100),
-  })
+export type PreviewDeleteFilePlansRequest = z.infer<typeof previewDeleteFilePlansRequestSchema>
+
+export const deleteFilePlansRequestSchema = z
+  .object({ confirmed: z.literal(true), previewId: z.string().uuid() })
   .strict()
-export type ArchiveFilePlansResult = z.infer<typeof archiveFilePlansResultSchema>
+export type DeleteFilePlansRequest = z.infer<typeof deleteFilePlansRequestSchema>
 
 export const previewTemplateRelocationRequestSchema = z
   .object({ targetRelativePath: relativePathSchema, templateId: templateIdSchema })
@@ -498,21 +501,54 @@ export type FileChangeExecutionPage = z.infer<typeof fileChangeExecutionPageSche
 export const rollbackFileChangeExecutionRequestSchema = z
   .object({ executionId: z.string().uuid() })
   .strict()
-export const deleteFileExecutionsRequestSchema = z
-  .object({ executionIds: z.array(z.string().uuid()).min(1).max(100) })
+export const previewDeleteFileExecutionsRequestSchema = z
+  .object({ executionIds: uniqueFileHistoryIdsSchema })
   .strict()
-  .refine(
-    request => new Set(request.executionIds).size === request.executionIds.length,
-    '执行记录 ID 不能重复。',
-  )
+export type PreviewDeleteFileExecutionsRequest = z.infer<
+  typeof previewDeleteFileExecutionsRequestSchema
+>
+export const deleteFileExecutionsRequestSchema = z
+  .object({ confirmed: z.literal(true), previewId: z.string().uuid() })
+  .strict()
 export type DeleteFileExecutionsRequest = z.infer<typeof deleteFileExecutionsRequestSchema>
-export const deleteFileExecutionsResultSchema = z
+
+export const fileHistoryDeletionPreviewSchema = z
   .object({
-    deletedAt: z.string().datetime(),
-    deletedExecutionIds: z.array(z.string().uuid()).min(1).max(100),
+    appliedExecutionCount: z.number().int().nonnegative(),
+    appliedPlanCount: z.number().int().nonnegative(),
+    archivedPlanCount: z.number().int().nonnegative(),
+    backupDirectoryCount: z.number().int().nonnegative(),
+    cancelledPlanCount: z.number().int().nonnegative(),
+    executionCount: z.number().int().nonnegative(),
+    expiresAt: z.string().datetime(),
+    kind: z.enum(['executions', 'plans']),
+    missingBackupDirectoryCount: z.number().int().nonnegative(),
+    planCount: z.number().int().nonnegative(),
+    previewId: z.string().uuid(),
+    recordIds: z.array(z.string().uuid()).min(1).max(100),
+    rolledBackExecutionCount: z.number().int().nonnegative(),
+    rolledBackPlanCount: z.number().int().nonnegative(),
   })
   .strict()
-export type DeleteFileExecutionsResult = z.infer<typeof deleteFileExecutionsResultSchema>
+export type FileHistoryDeletionPreview = z.infer<typeof fileHistoryDeletionPreviewSchema>
+
+export const fileHistoryDeletionResultSchema = z
+  .object({
+    cleanupPending: z.boolean(),
+    deletedAt: z.string().datetime(),
+    deletedBackupDirectoryCount: z.number().int().nonnegative(),
+    deletedExecutionCount: z.number().int().nonnegative(),
+    deletedPlanCount: z.number().int().nonnegative(),
+    kind: z.enum(['executions', 'plans']),
+    missingBackupDirectoryCount: z.number().int().nonnegative(),
+    recordIds: z.array(z.string().uuid()).min(1).max(100),
+  })
+  .strict()
+export type FileHistoryDeletionResult = z.infer<typeof fileHistoryDeletionResultSchema>
+export const deleteFileExecutionsResultSchema = fileHistoryDeletionResultSchema
+export const deleteFilePlansResultSchema = fileHistoryDeletionResultSchema
+export type DeleteFileExecutionsResult = FileHistoryDeletionResult
+export type DeleteFilePlansResult = FileHistoryDeletionResult
 export const fileChangeMutationResultSchema = z
   .object({ execution: fileChangeExecutionSchema.nullable(), workspace: workspaceSnapshotSchema })
   .strict()

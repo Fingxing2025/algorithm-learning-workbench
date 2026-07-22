@@ -1,9 +1,15 @@
-import { mkdtemp, mkdir, readFile, realpath, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, readFile, realpath, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
 
 import { _electron as electron, expect, test, type ElectronApplication } from '@playwright/test'
+
+async function pathExists(path: string): Promise<boolean> {
+  return stat(path)
+    .then(() => true)
+    .catch(() => false)
+}
 
 test('upgrades a stage 1 database without losing the existing workspace or template index', async () => {
   const temporaryRoot = await mkdtemp(join(tmpdir(), 'algorithm-workbench-migration-'))
@@ -120,6 +126,116 @@ test('upgrades a stage 1 database without losing the existing workspace or templ
       id: 'a'.repeat(64),
       index_version: 0,
     })
+  } finally {
+    await electronApp?.close()
+    await rm(temporaryRoot, { force: true, recursive: true })
+  }
+})
+
+test('shows and permanently cleans an old archived plan without changing current workspace files', async () => {
+  const temporaryRoot = await mkdtemp(join(tmpdir(), 'algorithm-workbench-archived-plan-'))
+  const userDataDirectory = join(temporaryRoot, 'user-data')
+  const workspaceRoot = join(temporaryRoot, 'workspace')
+  const sourcePath = join(workspaceRoot, 'legacy-history.cpp')
+  const planId = '50000000-0000-4000-8000-000000000001'
+  const executionId = '50000000-0000-4000-8000-000000000002'
+  const backupRelative = `file-plan-backups/${executionId}`
+  const backupPath = join(userDataDirectory, backupRelative)
+  await mkdir(userDataDirectory)
+  await mkdir(workspaceRoot)
+  await writeFile(sourcePath, 'void current_workspace_state() {}\n', 'utf8')
+  const electronExecutable = (
+    await readFile(resolve('node_modules/electron/path.txt'), 'utf8')
+  ).trim()
+  const electronPath = resolve('node_modules/electron/dist', electronExecutable)
+  let electronApp: ElectronApplication | null = null
+  try {
+    electronApp = await electron.launch({
+      args: [resolve('.')],
+      env: { ...process.env, E2E_USER_DATA_DIR: userDataDirectory, NODE_ENV: 'test' },
+    })
+    let page = await electronApp.firstWindow()
+    await electronApp.evaluate(({ dialog }, selectedDirectory) => {
+      dialog.showOpenDialog = (async () => ({
+        canceled: false,
+        filePaths: [selectedDirectory],
+      })) as typeof dialog.showOpenDialog
+    }, workspaceRoot)
+    await page.getByRole('button', { name: '选择目录' }).click()
+    await expect(page.getByText('legacy-history.cpp')).toBeVisible()
+    await electronApp.close()
+    electronApp = null
+
+    await mkdir(backupPath, { recursive: true })
+    await writeFile(join(backupPath, 'legacy.backup'), 'legacy rollback evidence\n', 'utf8')
+    const seedScript = String.raw`
+      const Database = require('better-sqlite3');
+      const db = new Database(process.env.SEED_DB);
+      db.pragma('foreign_keys = ON');
+      const workspaceId = db.prepare("SELECT value FROM app_state WHERE key = 'active_workspace_id'").pluck().get();
+      const templateId = db.prepare('SELECT id FROM templates WHERE workspace_id = ? LIMIT 1').pluck().get(workspaceId);
+      const now = new Date().toISOString();
+      const operations = JSON.stringify([{ id: '50000000-0000-4000-8000-000000000003', kind: 'delete', reason: '旧归档兼容夹具', sourcePath: 'legacy-history.cpp', templateId }]);
+      db.prepare('INSERT INTO file_change_plans (id, workspace_id, provider_name, model, status, operations_json, created_at, updated_at, archived_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(process.env.PLAN_ID, workspaceId, '旧归档 Provider', 'legacy-model', 'applied', operations, now, now, now);
+      db.prepare('INSERT INTO file_change_executions (id, plan_id, operations_json, backup_directory, status, created_at, rolled_back_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(process.env.EXECUTION_ID, process.env.PLAN_ID, operations, process.env.BACKUP_RELATIVE, 'rolled-back', now, now);
+      db.close();
+    `
+    const seeded = spawnSync(electronPath, ['-e', seedScript], {
+      cwd: resolve('.'),
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        BACKUP_RELATIVE: backupRelative,
+        ELECTRON_RUN_AS_NODE: '1',
+        EXECUTION_ID: executionId,
+        PLAN_ID: planId,
+        SEED_DB: join(userDataDirectory, 'algorithm-workbench.sqlite'),
+      },
+    })
+    expect(seeded.status, seeded.stderr || seeded.stdout).toBe(0)
+
+    electronApp = await electron.launch({
+      args: [resolve('.')],
+      env: { ...process.env, E2E_USER_DATA_DIR: userDataDirectory, NODE_ENV: 'test' },
+    })
+    page = await electronApp.firstWindow()
+    await page.getByRole('button', { name: 'AI 管理', exact: true }).click()
+    await expect(page.getByText(/旧归档 Provider/)).toBeVisible()
+    await page.getByRole('button', { name: '永久清理旧归档' }).click()
+    await expect(page.getByText(/其中 1 份为旧归档记录/)).toBeVisible()
+    await expect(page.getByText(/同时永久删除 1 条子执行和 1 份现存撤销备份/)).toBeVisible()
+    await page.screenshot({
+      animations: 'disabled',
+      path: resolve('output/playwright/legacy-archived-plan-delete-light.png'),
+    })
+    await page.getByRole('button', { name: '确认永久删除计划记录' }).click()
+    await expect(page.getByText('没有旧版软归档记录。')).toBeVisible()
+    expect(await pathExists(backupPath)).toBe(false)
+    expect(await readFile(sourcePath, 'utf8')).toBe('void current_workspace_state() {}\n')
+
+    await electronApp.close()
+    electronApp = null
+    const inspectScript = String.raw`
+      const Database = require('better-sqlite3');
+      const db = new Database(process.env.SEED_DB, { readonly: true });
+      const counts = {
+        executions: db.prepare('SELECT COUNT(*) FROM file_change_executions').pluck().get(),
+        plans: db.prepare('SELECT COUNT(*) FROM file_change_plans').pluck().get(),
+      };
+      process.stdout.write(JSON.stringify(counts));
+      db.close();
+    `
+    const inspected = spawnSync(electronPath, ['-e', inspectScript], {
+      cwd: resolve('.'),
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        ELECTRON_RUN_AS_NODE: '1',
+        SEED_DB: join(userDataDirectory, 'algorithm-workbench.sqlite'),
+      },
+    })
+    expect(inspected.status, inspected.stderr || inspected.stdout).toBe(0)
+    expect(JSON.parse(inspected.stdout)).toEqual({ executions: 0, plans: 0 })
   } finally {
     await electronApp?.close()
     await rm(temporaryRoot, { force: true, recursive: true })

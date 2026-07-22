@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 
-import { and, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNotNull, isNull, lt, or, sql } from 'drizzle-orm'
 
 import {
   templateMetadataFieldsSchema,
@@ -26,6 +26,28 @@ interface FileHistoryCursor {
   createdAt: string
   id: string
 }
+
+export interface FileExecutionDeletionRecord {
+  backupDirectory: string
+  id: string
+  planId: string
+  status: 'applied' | 'rolled-back'
+}
+
+export interface FilePlanDeletionRecord {
+  archivedAt: string | null
+  executions: FileExecutionDeletionRecord[]
+  id: string
+  status: 'applied' | 'cancelled'
+}
+
+export interface FileHistoryDatabaseDeletionResult {
+  deletedAt: string
+  deletedExecutionCount: number
+  deletedPlanCount: number
+}
+
+const HISTORY_DELETION_COMMIT_MARKER_PREFIX = 'file_history_delete_commit:'
 
 function decodeFileHistoryCursor(value: string | null): FileHistoryCursor | null {
   if (!value) return null
@@ -63,60 +85,7 @@ function parseTags(value: string): string[] {
 }
 
 export class TemplateManagementRepository {
-  constructor(
-    private readonly database: AppDatabase,
-    private readonly archiveFailureAfter: number | null = null,
-  ) {}
-
-  archivePlans(
-    workspaceId: string,
-    planIds: string[],
-  ): { archivedAt: string; planIds: string[] } | null {
-    const archivedAt = new Date().toISOString()
-    const environmentFailureAfter =
-      process.env.NODE_ENV === 'test'
-        ? Number.parseInt(process.env.E2E_PLAN_ARCHIVE_FAILURE_AFTER ?? '', 10)
-        : Number.NaN
-    const failureAfter =
-      this.archiveFailureAfter ??
-      (Number.isInteger(environmentFailureAfter) && environmentFailureAfter > 0
-        ? environmentFailureAfter
-        : null)
-    const placeholders = planIds.map(() => '?').join(', ')
-    const transaction = this.database.client.transaction(() => {
-      const records = this.database.client
-        .prepare(
-          `SELECT id, status, archived_at AS archivedAt
-           FROM file_change_plans
-           WHERE workspace_id = ? AND id IN (${placeholders})`,
-        )
-        .all(workspaceId, ...planIds) as Array<{
-        archivedAt: string | null
-        id: string
-        status: string
-      }>
-      if (
-        records.length !== planIds.length ||
-        records.some(
-          record => record.archivedAt || !['applied', 'cancelled'].includes(record.status),
-        )
-      ) {
-        return null
-      }
-      const archive = this.database.client.prepare(
-        'UPDATE file_change_plans SET archived_at = ?, updated_at = ? WHERE id = ? AND archived_at IS NULL',
-      )
-      for (let index = 0; index < planIds.length; index += 1) {
-        const result = archive.run(archivedAt, archivedAt, planIds[index])
-        if (result.changes !== 1) throw new Error('File plan archive state changed')
-        if (failureAfter !== null && index + 1 === failureAfter) {
-          throw new Error('Injected file plan archive failure')
-        }
-      }
-      return { archivedAt, planIds }
-    })
-    return transaction()
-  }
+  constructor(private readonly database: AppDatabase) {}
 
   countTemplateRelations(templateId: string): number {
     return this.database.client
@@ -125,37 +94,150 @@ export class TemplateManagementRepository {
       .get(templateId) as number
   }
 
-  deleteRolledBackExecutions(
+  inspectFileExecutionsForDeletion(
     workspaceId: string,
     executionIds: string[],
-  ): { deletedAt: string; deletedExecutionIds: string[] } | null {
+  ): FileExecutionDeletionRecord[] | null {
     if (executionIds.length === 0) return null
-    const deletedAt = new Date().toISOString()
     const placeholders = executionIds.map(() => '?').join(', ')
-    const transaction = this.database.client.transaction(() => {
-      const records = this.database.client
-        .prepare(
-          `SELECT e.id, e.status
-           FROM file_change_executions e
-           INNER JOIN file_change_plans p ON p.id = e.plan_id
-           WHERE p.workspace_id = ? AND e.id IN (${placeholders})`,
-        )
-        .all(workspaceId, ...executionIds) as Array<{ id: string; status: string }>
-      if (
-        records.length !== executionIds.length ||
-        records.some(record => record.status !== 'rolled-back')
-      ) {
-        return null
-      }
-
-      const remove = this.database.client.prepare(
-        "DELETE FROM file_change_executions WHERE id = ? AND status = 'rolled-back'",
+    const records = this.database.client
+      .prepare(
+        `SELECT e.id, e.plan_id AS planId, e.status, e.backup_directory AS backupDirectory
+         FROM file_change_executions e
+         INNER JOIN file_change_plans p ON p.id = e.plan_id
+         WHERE p.workspace_id = ? AND e.id IN (${placeholders})`,
       )
-      for (const executionId of executionIds) {
-        const result = remove.run(executionId)
-        if (result.changes !== 1) throw new Error('File execution delete state changed')
+      .all(workspaceId, ...executionIds) as Array<{
+      backupDirectory: string
+      id: string
+      planId: string
+      status: string
+    }>
+    if (
+      records.length !== executionIds.length ||
+      records.some(record => record.status !== 'applied' && record.status !== 'rolled-back')
+    ) {
+      return null
+    }
+    return records
+      .map(record => ({ ...record, status: record.status as 'applied' | 'rolled-back' }))
+      .sort((left, right) => left.id.localeCompare(right.id))
+  }
+
+  inspectFilePlansForDeletion(
+    workspaceId: string,
+    planIds: string[],
+  ): FilePlanDeletionRecord[] | null {
+    if (planIds.length === 0) return null
+    const placeholders = planIds.map(() => '?').join(', ')
+    const plans = this.database.client
+      .prepare(
+        `SELECT id, status, archived_at AS archivedAt
+         FROM file_change_plans
+         WHERE workspace_id = ? AND id IN (${placeholders})`,
+      )
+      .all(workspaceId, ...planIds) as Array<{
+      archivedAt: string | null
+      id: string
+      status: string
+    }>
+    if (
+      plans.length !== planIds.length ||
+      plans.some(plan => plan.status !== 'applied' && plan.status !== 'cancelled')
+    ) {
+      return null
+    }
+    const executions = this.database.client
+      .prepare(
+        `SELECT e.id, e.plan_id AS planId, e.status, e.backup_directory AS backupDirectory
+         FROM file_change_executions e
+         WHERE e.plan_id IN (${placeholders})`,
+      )
+      .all(...planIds) as Array<{
+      backupDirectory: string
+      id: string
+      planId: string
+      status: string
+    }>
+    if (executions.some(record => record.status !== 'applied' && record.status !== 'rolled-back')) {
+      return null
+    }
+    const byPlan = new Map<string, FileExecutionDeletionRecord[]>()
+    for (const record of executions) {
+      const bucket = byPlan.get(record.planId) ?? []
+      bucket.push({ ...record, status: record.status as 'applied' | 'rolled-back' })
+      byPlan.set(record.planId, bucket)
+    }
+    return plans
+      .map(plan => ({
+        ...plan,
+        executions: (byPlan.get(plan.id) ?? []).sort((left, right) =>
+          left.id.localeCompare(right.id),
+        ),
+        status: plan.status as 'applied' | 'cancelled',
+      }))
+      .sort((left, right) => left.id.localeCompare(right.id))
+  }
+
+  deleteFileExecutions(
+    workspaceId: string,
+    expected: FileExecutionDeletionRecord[],
+    operationId: string | null,
+  ): FileHistoryDatabaseDeletionResult | null {
+    const transaction = this.database.client.transaction(() => {
+      const current = this.inspectFileExecutionsForDeletion(
+        workspaceId,
+        expected.map(record => record.id),
+      )
+      if (!current || JSON.stringify(current) !== JSON.stringify(expected)) return null
+      const remove = this.database.client.prepare('DELETE FROM file_change_executions WHERE id = ?')
+      for (const record of expected) {
+        if (remove.run(record.id).changes !== 1)
+          throw new Error('File execution delete state changed')
       }
-      return { deletedAt, deletedExecutionIds: executionIds }
+      const deletedAt = new Date().toISOString()
+      if (operationId) this.insertHistoryDeletionCommitMarker(operationId, deletedAt)
+      return {
+        deletedAt,
+        deletedExecutionCount: expected.length,
+        deletedPlanCount: 0,
+      }
+    })
+    return transaction()
+  }
+
+  deleteFilePlans(
+    workspaceId: string,
+    expected: FilePlanDeletionRecord[],
+    operationId: string | null,
+  ): FileHistoryDatabaseDeletionResult | null {
+    const transaction = this.database.client.transaction(() => {
+      const current = this.inspectFilePlansForDeletion(
+        workspaceId,
+        expected.map(record => record.id),
+      )
+      if (!current || JSON.stringify(current) !== JSON.stringify(expected)) return null
+      const removeExecution = this.database.client.prepare(
+        'DELETE FROM file_change_executions WHERE id = ?',
+      )
+      const removePlan = this.database.client.prepare('DELETE FROM file_change_plans WHERE id = ?')
+      let deletedExecutionCount = 0
+      for (const plan of expected) {
+        for (const execution of plan.executions) {
+          if (removeExecution.run(execution.id).changes !== 1) {
+            throw new Error('File plan child execution delete state changed')
+          }
+          deletedExecutionCount += 1
+        }
+        if (removePlan.run(plan.id).changes !== 1) throw new Error('File plan delete state changed')
+      }
+      const deletedAt = new Date().toISOString()
+      if (operationId) this.insertHistoryDeletionCommitMarker(operationId, deletedAt)
+      return {
+        deletedAt,
+        deletedExecutionCount,
+        deletedPlanCount: expected.length,
+      }
     })
     return transaction()
   }
@@ -328,10 +410,22 @@ export class TemplateManagementRepository {
   }
 
   listPlansPage(workspaceId: string, request: FileHistoryPageRequest): FileChangePlanPage {
+    return this.listPlansPageByArchiveState(workspaceId, request, false)
+  }
+
+  listArchivedPlansPage(workspaceId: string, request: FileHistoryPageRequest): FileChangePlanPage {
+    return this.listPlansPageByArchiveState(workspaceId, request, true)
+  }
+
+  private listPlansPageByArchiveState(
+    workspaceId: string,
+    request: FileHistoryPageRequest,
+    archived: boolean,
+  ): FileChangePlanPage {
     const cursor = decodeFileHistoryCursor(request.cursor)
     const filters = [
       eq(fileChangePlans.workspaceId, workspaceId),
-      isNull(fileChangePlans.archivedAt),
+      archived ? isNotNull(fileChangePlans.archivedAt) : isNull(fileChangePlans.archivedAt),
     ]
     if (cursor) {
       filters.push(
@@ -359,7 +453,10 @@ export class TemplateManagementRepository {
         .select({ count: sql<number>`count(*)` })
         .from(fileChangePlans)
         .where(
-          and(eq(fileChangePlans.workspaceId, workspaceId), isNull(fileChangePlans.archivedAt)),
+          and(
+            eq(fileChangePlans.workspaceId, workspaceId),
+            archived ? isNotNull(fileChangePlans.archivedAt) : isNull(fileChangePlans.archivedAt),
+          ),
         )
         .get()?.count ?? 0,
     )
@@ -370,7 +467,7 @@ export class TemplateManagementRepository {
         .where(
           and(
             eq(fileChangePlans.workspaceId, workspaceId),
-            isNull(fileChangePlans.archivedAt),
+            archived ? isNotNull(fileChangePlans.archivedAt) : isNull(fileChangePlans.archivedAt),
             eq(fileChangePlans.status, 'draft'),
           ),
         )
@@ -379,12 +476,20 @@ export class TemplateManagementRepository {
     return {
       draftCount,
       items,
-      nextAction: hasMore ? '继续加载下一批计划记录。' : null,
+      nextAction: hasMore
+        ? archived
+          ? '继续加载下一批旧归档记录。'
+          : '继续加载下一批计划记录。'
+        : null,
       nextCursor: hasMore && pageRows.length > 0 ? encodeFileHistoryCursor(pageRows.at(-1)!) : null,
       processedCount: items.length,
       totalCount,
       truncated: hasMore,
-      truncatedReason: hasMore ? '计划记录按创建时间分批加载。' : null,
+      truncatedReason: hasMore
+        ? archived
+          ? '旧归档记录按创建时间分批加载。'
+          : '计划记录按创建时间分批加载。'
+        : null,
     }
   }
 
@@ -661,6 +766,15 @@ export class TemplateManagementRepository {
         fields.commonMistakes,
         fields.notes,
         updatedAt,
+      )
+  }
+
+  private insertHistoryDeletionCommitMarker(operationId: string, committedAt: string): void {
+    this.database.client
+      .prepare('INSERT INTO app_state (key, value) VALUES (?, ?)')
+      .run(
+        `${HISTORY_DELETION_COMMIT_MARKER_PREFIX}${operationId}`,
+        JSON.stringify({ committedAt, formatVersion: 'v1', operationId }),
       )
   }
 }
