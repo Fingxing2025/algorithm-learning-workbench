@@ -101,6 +101,7 @@ tests/
 - `docs/decisions/0020-incremental-index-background-tasks-and-keyset-pagination.md`
 - `docs/decisions/0021-safe-source-editing-and-permanent-file-history-deletion.md`
 - `docs/decisions/0022-complete-workspace-ai-template-catalog.md`
+- `docs/decisions/0023-workspace-file-ai-complete-catalog-and-preview-snapshot.md`
 
 ## Session E 大型工作区架构
 
