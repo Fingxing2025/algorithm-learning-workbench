@@ -13,6 +13,7 @@ import {
   rootDirectory,
   runCommand,
   sha256File,
+  windowsSignatureInvocations,
 } from './release-lib.mjs'
 
 const require = createRequire(import.meta.url)
@@ -291,14 +292,25 @@ async function readPeArchitectureFromFile(path) {
 }
 
 async function powershellSignature(path) {
-  const escapedPath = path.replaceAll("'", "''")
-  const command = `$s=Get-AuthenticodeSignature -LiteralPath '${escapedPath}'; [pscustomobject]@{Status=$s.Status.ToString();Subject=$s.SignerCertificate.Subject} | ConvertTo-Json -Compress`
-  const result = await runCommand(
-    'powershell.exe',
-    ['-NoProfile', '-NonInteractive', '-Command', command],
-    { capture: true },
-  )
-  return JSON.parse(result.stdout.trim())
+  const failures = []
+  for (const invocation of windowsSignatureInvocations(path)) {
+    try {
+      const result = await runCommand(invocation.command, invocation.args, invocation.options)
+      if (result.code !== 0) {
+        failures.push(`${invocation.command}: ${result.stderr.trim() || `退出码 ${result.code}`}`)
+        continue
+      }
+      const report = JSON.parse(result.stdout.trim())
+      if (!report?.Status) {
+        failures.push(`${invocation.command}: 未返回 Authenticode 状态`)
+        continue
+      }
+      return { ...report, tool: invocation.command }
+    } catch (error) {
+      failures.push(`${invocation.command}: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+  throw new Error(`无法读取 Windows Authenticode 状态。${failures.join('\n')}`)
 }
 
 async function powershellVersion(path) {
@@ -353,6 +365,7 @@ async function verifyWindows(facts, options, paths) {
       executableStatus: executableSignature.Status,
       installerStatus: installerSignature.Status,
       kind: signed ? 'authenticode' : 'unsigned',
+      verificationTool: executableSignature.tool,
       verified: signed,
     },
   }

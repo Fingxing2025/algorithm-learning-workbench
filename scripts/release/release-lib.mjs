@@ -252,6 +252,16 @@ export function packagedElectronAbiInvocation(executablePath, environment = proc
   }
 }
 
+export function windowsSignatureInvocations(path) {
+  const escapedPath = path.replaceAll("'", "''")
+  const script = `$ErrorActionPreference='Stop'; Import-Module Microsoft.PowerShell.Security; $s=Get-AuthenticodeSignature -LiteralPath '${escapedPath}'; [pscustomobject]@{Status=$s.Status.ToString();Subject=$(if ($null -eq $s.SignerCertificate) {$null} else {$s.SignerCertificate.Subject})} | ConvertTo-Json -Compress`
+  return ['pwsh.exe', 'powershell.exe'].map(command => ({
+    args: ['-NoProfile', '-NonInteractive', '-Command', script],
+    command,
+    options: { allowFailure: true, capture: true },
+  }))
+}
+
 export function signingFreeEnvironment(environment = process.env) {
   const result = { ...environment, CSC_IDENTITY_AUTO_DISCOVERY: 'false' }
   const secretNames = [

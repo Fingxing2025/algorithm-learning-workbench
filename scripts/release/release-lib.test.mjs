@@ -8,6 +8,7 @@ import {
   readProjectFacts,
   resolveSpawnInvocation,
   signingFreeEnvironment,
+  windowsSignatureInvocations,
 } from './release-lib.mjs'
 
 test('release options only accept the supported native platform and architecture pairs', () => {
@@ -86,4 +87,19 @@ test('Electron ABI is queried from the packaged application executable', () => {
   assert.equal(invocation.options.env.ELECTRON_RUN_AS_NODE, '1')
   assert.equal(invocation.options.env.SAFE_VALUE, 'kept')
   assert.doesNotMatch(invocation.command, /node_modules[\\/]electron/)
+})
+
+test('Windows signature verification prefers PowerShell 7 and safely escapes paths', () => {
+  const invocations = windowsSignatureInvocations("D:\\release\\user's app.exe")
+
+  assert.deepEqual(
+    invocations.map(invocation => invocation.command),
+    ['pwsh.exe', 'powershell.exe'],
+  )
+  for (const invocation of invocations) {
+    assert.deepEqual(invocation.args.slice(0, 3), ['-NoProfile', '-NonInteractive', '-Command'])
+    assert.match(invocation.args[3], /user''s app\.exe/)
+    assert.equal(invocation.options.allowFailure, true)
+    assert.equal(invocation.options.capture, true)
+  }
 })
