@@ -8,7 +8,51 @@ import {
   fileChangePlanPayloadSchema,
   inspectBatchTemplateImportResultSchema,
   parseStoredFileChangePlanPayload,
+  previewTemplateClassificationRequestSchema,
 } from './template-management'
+
+describe('template AI draft contracts', () => {
+  const request = {
+    content: 'void template_source() {}',
+    fileName: 'template.cpp',
+    metadata: {
+      commonMistakes: '',
+      constraints: '',
+      notes: '',
+      prerequisites: '',
+      solves: '',
+      spaceComplexity: null,
+      tags: [],
+      timeComplexity: null,
+    },
+    outputLanguage: 'zh-CN',
+  } as const
+
+  it('accepts a plain optional draft file name but rejects absolute or nested paths', () => {
+    expect(previewTemplateClassificationRequestSchema.parse(request).fileName).toBe('template.cpp')
+    expect(
+      previewTemplateClassificationRequestSchema.parse({ ...request, fileName: '' }).fileName,
+    ).toBe('')
+    expect(() =>
+      previewTemplateClassificationRequestSchema.parse({
+        ...request,
+        fileName: '/private/project/template.cpp',
+      }),
+    ).toThrow()
+    expect(() =>
+      previewTemplateClassificationRequestSchema.parse({
+        ...request,
+        fileName: 'directory/template.cpp',
+      }),
+    ).toThrow()
+    expect(() =>
+      previewTemplateClassificationRequestSchema.parse({
+        ...request,
+        fileName: String.raw`C:\private\template.cpp`,
+      }),
+    ).toThrow()
+  })
+})
 
 describe('file execution deletion contracts', () => {
   const firstExecutionId = '40000000-0000-4000-8000-000000000017'

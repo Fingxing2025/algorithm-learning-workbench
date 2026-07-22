@@ -65,6 +65,20 @@ const preview: AiRequestPreview = {
   providerName: 'Fixture AI',
   task: 'problem-image-analysis',
   truncated: false,
+  workspaceCatalog: {
+    directoryCount: 12,
+    estimatedInputTokens: 96,
+    relatedSourceCharacters: 4_096,
+    relatedSourceTemplateCount: 3,
+    schemaVersion: 1,
+    sentTemplateNameCount: 300,
+    sourceSnippetsOmitted: false,
+    summarizedTemplateCount: 288,
+    summaryShortened: true,
+    supplementalMetadataOmitted: false,
+    templateCount: 300,
+    templateNamesTruncated: false,
+  },
 }
 
 const candidate: ProblemAnalysisCandidate = {
@@ -228,6 +242,10 @@ describe('ProblemAnalysisDialog', () => {
         outputLanguage: 'zh-CN',
         text: '用户保留题面',
       }),
+    )
+    expect(await screen.findByLabelText('完整工作区目录覆盖')).toHaveTextContent('300 / 300')
+    expect(screen.getByLabelText('完整工作区目录覆盖')).toHaveTextContent(
+      '模板名称完整，无不可接受裁剪。',
     )
     fireEvent.click(await screen.findByRole('button', { name: '确认发送并生成' }))
 

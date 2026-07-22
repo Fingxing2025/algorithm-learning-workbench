@@ -59,7 +59,12 @@ async function setNextSelection(path: string | string[]) {
 async function openBatchImportDialog() {
   await page.getByRole('button', { name: '新建模板' }).click()
   await expect(page.getByRole('heading', { name: '新建算法模板' })).toBeVisible()
-  await page.getByRole('button', { name: '批量导入 C++' }).click()
+  const batchImportButton = page.getByRole('button', { name: '批量导入 C++' })
+  await expect(batchImportButton).toBeVisible()
+  await expect(batchImportButton).toBeEnabled()
+  // The lazily rendered source editor can replace the surrounding form while Playwright waits
+  // for pointer-action stability. Dispatch only after the user-visible actionability checks pass.
+  await batchImportButton.dispatchEvent('click')
   await expect(page.getByRole('heading', { name: '批量导入 C++ 模板' })).toBeVisible()
 }
 
@@ -274,7 +279,45 @@ test('merges pasted-source AI metadata without overwriting user fields', async (
   await page.getByRole('button', { name: '立即补全' }).click()
 
   await expect(page.getByRole('heading', { name: '确认发送给 AI' })).toBeVisible()
-  await expect(page.getByText('工作区分类快照')).toBeVisible()
+  await expect(page.getByText('完整工作区模板目录')).toBeVisible()
+  await expect(page.getByLabel('完整工作区目录覆盖')).toContainText('0 / 0')
+  const templatePreview = page.getByRole('dialog', { name: '确认发送给 AI' })
+  await expect(templatePreview.locator(':focus')).toHaveCount(1)
+  await page.screenshot({
+    animations: 'disabled',
+    path: resolve('output/playwright/ai-catalog-template-preview-light-1440x900.png'),
+  })
+  await page.locator('html').evaluate(root => root.classList.add('dark'))
+  await page.screenshot({
+    animations: 'disabled',
+    path: resolve('output/playwright/ai-catalog-template-preview-dark-1440x900.png'),
+  })
+  await page.locator('html').evaluate(root => root.classList.remove('dark'))
+  await electronApp.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0]?.setSize(1280, 720),
+  )
+  await page.screenshot({
+    animations: 'disabled',
+    path: resolve('output/playwright/ai-catalog-template-preview-light-1280x720.png'),
+  })
+  await electronApp.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0]?.setSize(1024, 640),
+  )
+  const templatePreviewScroll = templatePreview.locator('div.overflow-y-auto').first()
+  await expect
+    .poll(() =>
+      templatePreviewScroll.evaluate(element => element.scrollHeight > element.clientHeight),
+    )
+    .toBe(true)
+  await templatePreviewScroll.evaluate(element => element.scrollTo({ top: element.scrollHeight }))
+  await expect(page.getByText('模板名称完整，无不可接受裁剪。')).toBeVisible()
+  await page.screenshot({
+    animations: 'disabled',
+    path: resolve('output/playwright/ai-catalog-template-preview-light-1024x640.png'),
+  })
+  await electronApp.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0]?.setSize(1440, 900),
+  )
   holdNextTemplateResponse = true
   await page.getByRole('button', { name: '确认发送并生成' }).click()
   await expect.poll(() => heldTemplateResponseStarted).toBe(true)

@@ -99,13 +99,23 @@ export type InspectBatchTemplateImportResult = z.infer<
 export const templateMetadataLanguageSchema = z.enum(['zh-CN', 'en']).default('zh-CN')
 export type TemplateMetadataLanguage = z.infer<typeof templateMetadataLanguageSchema>
 
+const templateDraftFileNameSchema = z
+  .string()
+  .max(255)
+  .refine(value => {
+    const normalized = value.trim()
+    return (
+      !normalized || (normalized !== '.' && normalized !== '..' && !/[\\/\0]/u.test(normalized))
+    )
+  }, '文件名不能包含路径分隔符。')
+
 export const previewTemplateClassificationRequestSchema = z
   .object({
     content: z
       .string()
       .min(1)
       .max(2 * 1024 * 1024),
-    fileName: z.string().max(255),
+    fileName: templateDraftFileNameSchema,
     metadata: templateMetadataFieldsSchema,
     outputLanguage: templateMetadataLanguageSchema,
   })

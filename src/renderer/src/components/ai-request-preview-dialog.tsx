@@ -122,6 +122,76 @@ export function AiRequestPreviewDialog({
               })}
             </div>
 
+            {preview.workspaceCatalog && (
+              <section
+                aria-label={t('完整工作区目录覆盖')}
+                className="mt-4 rounded-xl border border-border bg-background/65 p-3"
+              >
+                <p className="text-xs font-semibold">{t('完整工作区目录覆盖')}</p>
+                <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-[11px] sm:grid-cols-3">
+                  <div>
+                    <dt className="text-muted-foreground">{t('模板名称')}</dt>
+                    <dd className="mt-0.5 font-semibold">
+                      {preview.workspaceCatalog.sentTemplateNameCount.toLocaleString()} /{' '}
+                      {preview.workspaceCatalog.templateCount.toLocaleString()}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">{t('目录节点')}</dt>
+                    <dd className="mt-0.5 font-semibold">
+                      {preview.workspaceCatalog.directoryCount.toLocaleString()}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">{t('模板摘要')}</dt>
+                    <dd className="mt-0.5 font-semibold">
+                      {preview.workspaceCatalog.summarizedTemplateCount.toLocaleString()}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">{t('相关源码片段')}</dt>
+                    <dd className="mt-0.5 font-semibold">
+                      {preview.workspaceCatalog.relatedSourceTemplateCount.toLocaleString()} ·{' '}
+                      {preview.workspaceCatalog.relatedSourceCharacters.toLocaleString()}{' '}
+                      {t('字符')}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">{t('目录上下文 Token')}</dt>
+                    <dd className="mt-0.5 font-semibold">
+                      ≈ {preview.workspaceCatalog.estimatedInputTokens.toLocaleString()}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">Schema</dt>
+                    <dd className="mt-0.5 font-semibold">
+                      v{preview.workspaceCatalog.schemaVersion}
+                    </dd>
+                  </div>
+                </dl>
+                <div className="mt-3 space-y-1 text-[11px] text-muted-foreground">
+                  <p>
+                    {t('摘要缩短')}：{t(preview.workspaceCatalog.summaryShortened ? '是' : '否')} ·{' '}
+                    {t('附加字段省略')}：
+                    {t(preview.workspaceCatalog.supplementalMetadataOmitted ? '是' : '否')} ·{' '}
+                    {t('源码片段省略')}：
+                    {t(preview.workspaceCatalog.sourceSnippetsOmitted ? '是' : '否')}
+                  </p>
+                  <p
+                    className={
+                      preview.workspaceCatalog.templateNamesTruncated
+                        ? 'text-warning'
+                        : 'text-success'
+                    }
+                  >
+                    {preview.workspaceCatalog.templateNamesTruncated
+                      ? t('存在不可接受的模板名称裁剪，禁止发送。')
+                      : t('模板名称完整，无不可接受裁剪。')}
+                  </p>
+                </div>
+              </section>
+            )}
+
             <section className="mt-4 rounded-xl border border-primary/18 bg-primary/6 p-3 text-xs">
               <p className="font-semibold">{t('Prompt 缓存')}</p>
               <p className="mt-1 break-all font-mono text-[10px] text-muted-foreground">
@@ -131,7 +201,7 @@ export function AiRequestPreviewDialog({
               </p>
               {preview.truncated && (
                 <p className="mt-2 text-warning">
-                  {t('上下文超过安全上限，发送内容已截断；原始本地文件未被修改。')}
+                  {t('已按安全预算缩减可选上下文或当前输入；完整目录、模板 ID 和名称仍全部保留。')}
                 </p>
               )}
             </section>

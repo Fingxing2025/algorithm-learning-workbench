@@ -86,16 +86,26 @@ describe('problem analysis contracts', () => {
       },
       templateCandidates: [
         {
+          applicableWhen: [],
           confidence: 0.8,
+          evidence: [],
+          matchedCapabilities: [],
+          notApplicableWhen: [],
           reason: '直接解法',
           role: 'direct-solution',
           templateId: 'a'.repeat(64),
+          warnings: [],
         },
         {
+          applicableWhen: [],
           confidence: 0.7,
+          evidence: [],
+          matchedCapabilities: [],
+          notApplicableWhen: [],
           reason: '替代解法',
           role: 'alternative-solution',
           templateId: 'b'.repeat(64),
+          warnings: [],
         },
       ],
       title: '多方向题目',
@@ -109,11 +119,58 @@ describe('problem analysis contracts', () => {
         ...parsed,
         templateCandidates: [
           {
+            applicableWhen: [],
             confidence: 0.9,
+            evidence: [],
+            matchedCapabilities: [],
+            notApplicableWhen: [],
+            reason: '无效角色',
             role: 'database-relation-type',
             templateId: 'c'.repeat(64),
+            warnings: [],
           },
         ],
+      }),
+    ).toThrow()
+  })
+
+  it('allows an empty recommendation set but rejects more than eight model candidates', () => {
+    const base = {
+      aiSummary: '',
+      analysis: {
+        algorithmSignals: [],
+        constraints: [],
+        edgeCases: [],
+        examples: [],
+        inputDescription: '',
+        outputDescription: '',
+      },
+      title: '候选上限测试',
+    }
+    expect(
+      modelProblemAnalysisSchema.parse({ ...base, templateCandidates: [] }).templateCandidates,
+    ).toEqual([])
+    expect(() => modelProblemAnalysisSchema.parse(base)).toThrow()
+    expect(() =>
+      modelProblemAnalysisSchema.parse({
+        ...base,
+        templateCandidates: [{ templateId: 'a'.repeat(64) }],
+      }),
+    ).toThrow()
+    expect(() =>
+      modelProblemAnalysisSchema.parse({
+        ...base,
+        templateCandidates: Array.from({ length: 9 }, (_, index) => ({
+          applicableWhen: [],
+          confidence: 0.5,
+          evidence: [],
+          matchedCapabilities: [],
+          notApplicableWhen: [],
+          reason: '候选上限测试',
+          role: 'direct-solution',
+          templateId: (index + 1).toString(16).padStart(64, '0'),
+          warnings: [],
+        })),
       }),
     ).toThrow()
   })

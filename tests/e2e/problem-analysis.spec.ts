@@ -302,6 +302,44 @@ test('closes the whole problem card from the AI preview X before and during gene
   await page.getByLabel('原始题面').fill('打开 AI 发送预览后直接关闭整个题目卡片。')
   await page.getByRole('button', { name: 'AI 分析并补全' }).click()
   await expect(page.getByRole('heading', { name: '确认发送给 AI' })).toBeVisible()
+  const problemPreview = page.getByRole('dialog', { name: '确认发送给 AI' })
+  await expect(page.getByLabel('完整工作区目录覆盖')).toContainText('5 / 5')
+  await expect(problemPreview.locator(':focus')).toHaveCount(1)
+  await page.screenshot({
+    animations: 'disabled',
+    path: resolve('output/playwright/ai-catalog-problem-preview-light-1440x900.png'),
+  })
+  await page.locator('html').evaluate(root => root.classList.add('dark'))
+  await page.screenshot({
+    animations: 'disabled',
+    path: resolve('output/playwright/ai-catalog-problem-preview-dark-1440x900.png'),
+  })
+  await page.locator('html').evaluate(root => root.classList.remove('dark'))
+  await electronApp.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0]?.setSize(1280, 720),
+  )
+  await page.screenshot({
+    animations: 'disabled',
+    path: resolve('output/playwright/ai-catalog-problem-preview-light-1280x720.png'),
+  })
+  await electronApp.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0]?.setSize(1024, 640),
+  )
+  const problemPreviewScroll = problemPreview.locator('div.overflow-y-auto').first()
+  await expect
+    .poll(() =>
+      problemPreviewScroll.evaluate(element => element.scrollHeight > element.clientHeight),
+    )
+    .toBe(true)
+  await problemPreviewScroll.evaluate(element => element.scrollTo({ top: element.scrollHeight }))
+  await expect(page.getByText('模板名称完整，无不可接受裁剪。')).toBeVisible()
+  await page.screenshot({
+    animations: 'disabled',
+    path: resolve('output/playwright/ai-catalog-problem-preview-light-1024x640.png'),
+  })
+  await electronApp.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0]?.setSize(1440, 900),
+  )
   await closePreviewButton.click()
   await expect(closePreviewButton).toHaveCount(0)
   await expect(closeProblemButton).toHaveCount(0)

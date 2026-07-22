@@ -49,6 +49,7 @@ describe('WorkspaceAiContextService', () => {
   let rootPath = ''
   let templates: TemplateSummary[]
   let dijkstraMetadata: TemplateMetadata
+  let fallbackMetadata: TemplateMetadata
   let relatedPlatform = '洛谷'
 
   beforeEach(async () => {
@@ -65,6 +66,7 @@ describe('WorkspaceAiContextService', () => {
       template(dsuId, '数据结构/并查集/dsu.cpp', 'dsu'),
     ]
     dijkstraMetadata = metadata(dijkstraId, '单源非负权最短路', '绝对不得发送的用户笔记')
+    fallbackMetadata = metadata(flowId, '最大流', '私密笔记')
   })
 
   afterEach(async () => {
@@ -86,7 +88,7 @@ describe('WorkspaceAiContextService', () => {
                 prerequisites: '树结构',
                 tags: ['数据结构', '并查集'],
               }
-            : metadata(flowId, '最大流', '私密笔记'),
+            : fallbackMetadata,
       listMetadataMap: (templateIds: readonly string[]) =>
         new Map(
           templateIds.map(templateId => [
@@ -99,7 +101,7 @@ describe('WorkspaceAiContextService', () => {
                     prerequisites: '树结构',
                     tags: ['数据结构', '并查集'],
                   }
-                : metadata(flowId, '最大流', '私密笔记'),
+                : fallbackMetadata,
           ]),
         ),
     } as unknown as TemplateManagementRepository
@@ -130,8 +132,10 @@ describe('WorkspaceAiContextService', () => {
   it('builds a valid taxonomy snapshot and excludes user notes', async () => {
     const context = await build()
     const stable = JSON.parse(context.stableContext) as {
-      directories: Array<{ path: string }>
-      workspaceContextVersion: string
+      workspaceCatalog: {
+        directories: Array<{ children: unknown[]; relativePath: string }>
+        workspaceContextVersion: string
+      }
     }
     const related = JSON.parse(context.relatedContext) as {
       relatedTemplates: Array<{
@@ -141,22 +145,35 @@ describe('WorkspaceAiContextService', () => {
       }>
     }
 
-    expect(stable.directories.map(directory => directory.path)).toEqual([
+    const directoryPaths = stable.workspaceCatalog.directories.flatMap(directory => [
+      directory.relativePath,
+      ...directory.children.flatMap(child =>
+        typeof child === 'object' && child !== null && 'relativePath' in child
+          ? [(child as { relativePath: string }).relativePath]
+          : [],
+      ),
+    ])
+    expect(directoryPaths).toEqual([
       '图论',
       '图论/最短路',
       '图论/网络流',
       '数据结构',
       '数据结构/并查集',
     ])
-    expect(stable.workspaceContextVersion).toBe(context.version)
+    expect(stable.workspaceCatalog.workspaceContextVersion).toBe(context.version)
     expect(context.stableContext).not.toContain('绝对不得发送的用户笔记')
     expect(context.relatedContext).not.toContain('私密笔记')
+    expect(context.stableContext).not.toContain(rootPath)
+    expect(context.relatedContext).not.toContain(rootPath)
     expect(related.relatedTemplates[0]?.sourceSnippet).toContain('dijkstra')
     expect(related.relatedTemplates[0]?.relationSummary).toEqual({
       platforms: ['洛谷'],
       problemCount: 1,
     })
     expect(context.cacheKey).toContain(context.version)
+    expect(context.catalogTemplateRefs).toHaveLength(3)
+    expect(context.sentTemplateNameCount).toBe(3)
+    expect(context.templateNamesTruncated).toBe(false)
   })
 
   it('uses Chinese n-grams and keeps multiple algorithm directions in the candidate pool', async () => {
@@ -178,7 +195,7 @@ describe('WorkspaceAiContextService', () => {
     )
   })
 
-  it('excludes an indexed template when its source can no longer be read safely', async () => {
+  it('keeps every indexed available template eligible when an optional source snippet is unreadable', async () => {
     await unlink(join(rootPath, '数据结构', '并查集', 'dsu.cpp'))
     const context = await createService().build({
       model: 'fixture-model',
@@ -189,8 +206,121 @@ describe('WorkspaceAiContextService', () => {
       task: 'problem-image-analysis',
     })
 
-    expect(context.relatedTemplateRefs.some(template => template.id === dsuId)).toBe(false)
-    expect(context.relatedContext).not.toContain(dsuId)
+    expect(context.catalogTemplateRefs.some(template => template.id === dsuId)).toBe(true)
+    expect(context.relatedTemplateRefs.some(template => template.id === dsuId)).toBe(true)
+    expect(context.relatedContext).toContain(dsuId)
+    expect(context.relatedSourceTemplateCount).toBeLessThan(context.relatedTemplateCount)
+  })
+
+  it('keeps all 300 template IDs, names, and directory paths visible for a pure-image query beyond the detailed 24', async () => {
+    templates = Array.from({ length: 300 }, (_, index) => {
+      const suffix = String(index + 1).padStart(3, '0')
+      return template(
+        (index + 1).toString(16).padStart(64, '0'),
+        `分类-${String(Math.floor(index / 25) + 1).padStart(2, '0')}/模板-${suffix}.cpp`,
+        `完整目录模板-${suffix}`,
+      )
+    })
+
+    const context = await createService().build({
+      model: 'fixture-model',
+      outputLanguage: 'zh-CN',
+      promptSchemaVersion: 'problem-analysis-v3',
+      providerId: 'fixture-provider',
+      query: '',
+      task: 'problem-image-analysis',
+    })
+    const last = templates.at(-1)!
+
+    expect(context.templateCount).toBe(300)
+    expect(context.sentTemplateNameCount).toBe(300)
+    expect(context.catalogTemplateRefs).toHaveLength(300)
+    expect(context.catalogTemplateRefs.at(-1)).toMatchObject({
+      id: last.id,
+      name: last.name,
+      path: last.relativePath,
+    })
+    expect(context.relatedTemplateCount).toBeLessThanOrEqual(24)
+    expect(context.relatedTemplateRefs.some(item => item.id === last.id)).toBe(false)
+    expect(context.stableContext).toContain(last.id)
+    expect(context.stableContext).toContain(last.name)
+    expect(context.stableContext).toContain('分类-12')
+    expect(context.templateNamesTruncated).toBe(false)
+  })
+
+  it('drops optional metadata before names when the estimated input budget is tight', async () => {
+    templates = Array.from({ length: 300 }, (_, index) => {
+      const suffix = String(index + 1).padStart(3, '0')
+      return template(
+        (index + 1).toString(16).padStart(64, '0'),
+        `预算分类-${String(Math.floor(index / 30) + 1).padStart(2, '0')}/模板-${suffix}.cpp`,
+        `预算模板-${suffix}`,
+      )
+    })
+    fallbackMetadata = {
+      ...fallbackMetadata,
+      commonMistakes: '错误'.repeat(2_000),
+      constraints: '约束'.repeat(2_000),
+      prerequisites: '前置'.repeat(2_000),
+      solves: '能力摘要'.repeat(2_000),
+      tags: Array.from({ length: 20 }, (_, index) => `超长标签-${index}-${'标'.repeat(30)}`),
+    }
+
+    const context = await createService().build({
+      model: 'fixture-model',
+      outputLanguage: 'en',
+      promptSchemaVersion: 'template-placement-v3',
+      providerId: 'fixture-provider',
+      query: 'budget fixture',
+      reservedInputTokens: 70_000,
+      task: 'template-metadata',
+    })
+
+    expect(context.summaryShortened).toBe(true)
+    expect(context.supplementalMetadataOmitted).toBe(true)
+    expect(context.sentTemplateNameCount).toBe(300)
+    expect(context.catalogTemplateRefs).toHaveLength(300)
+    expect(context.templateNamesTruncated).toBe(false)
+    expect(context.stableContext).toContain('预算模板-300')
+    expect(context.estimatedInputTokens).toBeLessThanOrEqual(26_000)
+  })
+
+  it('fails before sending instead of silently hiding template names above 300 templates', async () => {
+    templates = Array.from({ length: 301 }, (_, index) =>
+      template(
+        (index + 1).toString(16).padStart(64, '0'),
+        `超限/模板-${String(index + 1).padStart(3, '0')}.cpp`,
+        `超限模板-${String(index + 1).padStart(3, '0')}`,
+      ),
+    )
+
+    await expect(build()).rejects.toMatchObject({
+      code: 'AI_CONTEXT_TOO_LARGE',
+      message: expect.stringContaining('301'),
+    })
+  })
+
+  it('keeps workspace file-plan context on its existing bounded policy', async () => {
+    templates = Array.from({ length: 301 }, (_, index) =>
+      template(
+        (index + 1).toString(16).padStart(64, '0'),
+        `文件计划/模板-${String(index + 1).padStart(3, '0')}.cpp`,
+        `文件计划模板-${String(index + 1).padStart(3, '0')}`,
+      ),
+    )
+
+    const context = await createService().build({
+      model: 'fixture-model',
+      outputLanguage: 'zh-CN',
+      promptSchemaVersion: 'workspace-plan-v2',
+      providerId: 'fixture-provider',
+      query: '检查文件计划',
+      task: 'workspace-management',
+    })
+
+    expect(context.templateCount).toBe(301)
+    expect(context.relatedTemplateCount).toBeLessThanOrEqual(24)
+    expect(context.stableContext).not.toContain('workspaceCatalog')
   })
 
   it('is deterministic and invalidates the version for metadata or relation changes', async () => {
@@ -200,6 +330,26 @@ describe('WorkspaceAiContextService', () => {
     expect(reordered.version).toBe(first.version)
     expect(reordered.stableContext).toBe(first.stableContext)
 
+    const english = await createService().build({
+      model: 'fixture-model',
+      outputLanguage: 'en',
+      promptSchemaVersion: 'problem-analysis-v2',
+      providerId: 'fixture-provider',
+      query: '求单源最短路',
+      task: 'problem-image-analysis',
+    })
+    expect(english.version).toBe(first.version)
+    expect(english.stableContext).toBe(first.stableContext)
+
+    dijkstraMetadata = {
+      ...dijkstraMetadata,
+      notes: '更新后仍不参与 AI 上下文的私密笔记',
+      updatedAt: '2026-07-23T01:00:00.000Z',
+    }
+    const notesChanged = await build()
+    expect(notesChanged.version).toBe(first.version)
+    expect(notesChanged.stableContext).toBe(first.stableContext)
+
     dijkstraMetadata = { ...dijkstraMetadata, solves: '单源最短路与最短路计数' }
     const metadataChanged = await build()
     expect(metadataChanged.version).not.toBe(first.version)
@@ -207,5 +357,17 @@ describe('WorkspaceAiContextService', () => {
     relatedPlatform = 'Codeforces'
     const relationChanged = await build()
     expect(relationChanged.version).not.toBe(metadataChanged.version)
+
+    templates[0] = {
+      ...templates[0]!,
+      fileName: 'dijkstra-renamed.cpp',
+      relativePath: '图论/最短路/dijkstra-renamed.cpp',
+    }
+    const pathChanged = await build()
+    expect(pathChanged.version).not.toBe(relationChanged.version)
+
+    templates = templates.filter(template => template.id !== flowId)
+    const availabilityChanged = await build()
+    expect(availabilityChanged.version).not.toBe(pathChanged.version)
   })
 })

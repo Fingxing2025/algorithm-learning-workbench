@@ -117,20 +117,21 @@ export const modelProblemAnalysisSchema = z
     tags: z.array(z.string().trim().min(1).max(40)).max(20).optional(),
     templateCandidates: z
       .array(
-        z.object({
-          confidence: z.number().min(0).max(1).optional(),
-          applicableWhen: z.array(z.string().max(500)).max(20).optional(),
-          evidence: z.array(z.string().max(500)).max(20).optional(),
-          matchedCapabilities: z.array(z.string().max(500)).max(20).optional(),
-          notApplicableWhen: z.array(z.string().max(500)).max(20).optional(),
-          reason: z.string().max(500).optional(),
-          role: problemAnalysisCandidateRoleSchema.optional(),
-          templateId: templateIdSchema,
-          warnings: z.array(z.string().max(500)).max(20).optional(),
-        }),
+        z
+          .object({
+            confidence: z.number().min(0).max(1),
+            applicableWhen: z.array(z.string().max(500)).max(20),
+            evidence: z.array(z.string().max(500)).max(20),
+            matchedCapabilities: z.array(z.string().max(500)).max(20),
+            notApplicableWhen: z.array(z.string().max(500)).max(20),
+            reason: z.string().max(500),
+            role: problemAnalysisCandidateRoleSchema,
+            templateId: templateIdSchema,
+            warnings: z.array(z.string().max(500)).max(20),
+          })
+          .strict(),
       )
-      .max(16)
-      .optional(),
+      .max(8),
     title: z.string().trim().min(1).max(200),
     url: z.string().max(2048).nullable().optional(),
   })
