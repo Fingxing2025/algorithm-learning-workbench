@@ -5,6 +5,7 @@ import {
   getGitFacts,
   getReleasePaths,
   npmCommand,
+  packagedElectronAbiInvocation,
   parseReleaseOptions,
   pathExists,
   readProjectFacts,
@@ -24,24 +25,9 @@ function changelogSection(changelog, version) {
   return changelog.slice(start, next < 0 ? undefined : next).trim()
 }
 
-async function electronModuleAbi(platform) {
-  const binary =
-    platform === 'mac'
-      ? join(
-          rootDirectory,
-          'node_modules',
-          'electron',
-          'dist',
-          'Electron.app',
-          'Contents',
-          'MacOS',
-          'Electron',
-        )
-      : join(rootDirectory, 'node_modules', 'electron', 'dist', 'electron.exe')
-  const result = await runCommand(binary, ['-p', 'process.versions.modules'], {
-    capture: true,
-    env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
-  })
+async function electronModuleAbi(executablePath) {
+  const invocation = packagedElectronAbiInvocation(executablePath)
+  const result = await runCommand(invocation.command, invocation.args, invocation.options)
   return result.stdout.trim()
 }
 
@@ -57,7 +43,7 @@ export async function generateReleaseMetadata(options = parseReleaseOptions()) {
     verifyArtifacts(options),
     getGitFacts(),
     runCommand(npmCommand(), ['--version'], { capture: true }),
-    electronModuleAbi(options.platform),
+    electronModuleAbi(paths.executablePath),
     readFile(join(rootDirectory, 'CHANGELOG.md'), 'utf8'),
   ])
   if (git.sourceTree !== 'clean') {

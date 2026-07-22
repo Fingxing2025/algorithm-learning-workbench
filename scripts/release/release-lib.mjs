@@ -238,6 +238,20 @@ export function npmCommand() {
   return process.platform === 'win32' ? 'npm.cmd' : 'npm'
 }
 
+export function packagedElectronAbiInvocation(executablePath, environment = process.env) {
+  if (!executablePath) {
+    throw new Error('查询 Electron ABI 时缺少已打包应用主程序路径。')
+  }
+  return {
+    args: ['-p', 'process.versions.modules'],
+    command: executablePath,
+    options: {
+      capture: true,
+      env: { ...environment, ELECTRON_RUN_AS_NODE: '1' },
+    },
+  }
+}
+
 export function signingFreeEnvironment(environment = process.env) {
   const result = { ...environment, CSC_IDENTITY_AUTO_DISCOVERY: 'false' }
   const secretNames = [

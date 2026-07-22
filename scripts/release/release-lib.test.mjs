@@ -3,6 +3,7 @@ import { test } from 'node:test'
 
 import {
   getReleasePaths,
+  packagedElectronAbiInvocation,
   parseReleaseOptions,
   readProjectFacts,
   resolveSpawnInvocation,
@@ -71,4 +72,18 @@ test('Windows batch commands run through cmd.exe without enabling a shell for ot
     args: ['status'],
     command: 'git',
   })
+})
+
+test('Electron ABI is queried from the packaged application executable', () => {
+  const executablePath = 'D:\\release\\win-unpacked\\算法学习工作台.exe'
+  const invocation = packagedElectronAbiInvocation(executablePath, {
+    SAFE_VALUE: 'kept',
+  })
+
+  assert.equal(invocation.command, executablePath)
+  assert.deepEqual(invocation.args, ['-p', 'process.versions.modules'])
+  assert.equal(invocation.options.capture, true)
+  assert.equal(invocation.options.env.ELECTRON_RUN_AS_NODE, '1')
+  assert.equal(invocation.options.env.SAFE_VALUE, 'kept')
+  assert.doesNotMatch(invocation.command, /node_modules[\\/]electron/)
 })
