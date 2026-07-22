@@ -181,11 +181,24 @@ export async function sha256File(path) {
   return hash.digest('hex')
 }
 
+export function resolveSpawnInvocation(command, args, options = {}) {
+  const { comspec = process.env.ComSpec, platform = process.platform } = options
+  if (platform !== 'win32' || !/\.(?:cmd|bat)$/i.test(command)) {
+    return { args, command }
+  }
+
+  return {
+    args: ['/d', '/s', '/c', command, ...args],
+    command: comspec || 'cmd.exe',
+  }
+}
+
 export function runCommand(command, args, options = {}) {
   const { allowFailure = false, capture = false, cwd = rootDirectory, env = process.env } = options
+  const invocation = resolveSpawnInvocation(command, args)
 
   return new Promise((resolveCommand, rejectCommand) => {
-    const child = spawn(command, args, {
+    const child = spawn(invocation.command, invocation.args, {
       cwd,
       env,
       shell: false,

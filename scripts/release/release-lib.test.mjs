@@ -5,6 +5,7 @@ import {
   getReleasePaths,
   parseReleaseOptions,
   readProjectFacts,
+  resolveSpawnInvocation,
   signingFreeEnvironment,
 } from './release-lib.mjs'
 
@@ -53,4 +54,21 @@ test('preview environment strips every supported signing and notarization secret
   assert.equal(sanitized.APPLE_API_KEY, undefined)
   assert.equal(sanitized.CSC_LINK, undefined)
   assert.equal(sanitized.WIN_CSC_LINK, undefined)
+})
+
+test('Windows batch commands run through cmd.exe without enabling a shell for other commands', () => {
+  assert.deepEqual(
+    resolveSpawnInvocation('npm.cmd', ['run', 'build'], {
+      comspec: 'C:\\Windows\\System32\\cmd.exe',
+      platform: 'win32',
+    }),
+    {
+      args: ['/d', '/s', '/c', 'npm.cmd', 'run', 'build'],
+      command: 'C:\\Windows\\System32\\cmd.exe',
+    },
+  )
+  assert.deepEqual(resolveSpawnInvocation('git', ['status'], { platform: 'win32' }), {
+    args: ['status'],
+    command: 'git',
+  })
 })
