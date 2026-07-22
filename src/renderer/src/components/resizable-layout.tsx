@@ -142,7 +142,11 @@ export function ResizableLayout({
 
   return (
     <div
-      className={cn('grid min-h-0 min-w-0', isDragging && 'select-none', className)}
+      className={cn(
+        'grid h-full min-h-0 min-w-0 grid-rows-[minmax(0,1fr)] overflow-hidden',
+        isDragging && 'select-none',
+        className,
+      )}
       data-layout-id={storageKey}
       data-layout-size={renderedSize}
       ref={containerRef}

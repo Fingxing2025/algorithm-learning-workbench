@@ -33,6 +33,11 @@ describe('ResizableLayout', () => {
   it('persists bounded keyboard resizing and exposes separator semantics', () => {
     const separator = renderLayout()
 
+    expect(separator.parentElement).toHaveClass(
+      'h-full',
+      'grid-rows-[minmax(0,1fr)]',
+      'overflow-hidden',
+    )
     expect(separator).toHaveAttribute('aria-orientation', 'vertical')
     expect(separator).toHaveAttribute('aria-valuemin', '220')
     expect(separator).toHaveAttribute('aria-valuemax', '420')

@@ -15,7 +15,11 @@ export function AiProviderList({ onSelect, profiles, selectedId }: AiProviderLis
   const { t } = useI18n()
 
   return (
-    <aside className="h-full min-h-0 overflow-y-auto bg-sidebar/75 p-3">
+    <aside
+      aria-label={t('Provider 列表滚动区')}
+      className="h-full min-h-0 overflow-y-auto bg-sidebar/75 p-3"
+      data-testid="provider-list-scroll"
+    >
       <div className="mb-3 flex items-center justify-between px-1">
         <span className="text-[10px] font-semibold uppercase tracking-[0.11em] text-muted-foreground">
           {t('Provider 配置')}

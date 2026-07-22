@@ -90,7 +90,12 @@ export function AiProviderEditor({
   const { t } = useI18n()
 
   return (
-    <section className="relative min-h-0 overflow-y-auto bg-background/75">
+    <section
+      aria-label={t('Provider 详情滚动区')}
+      className="relative h-full min-h-0 overflow-y-auto bg-background/75 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+      data-testid="provider-detail-scroll"
+      tabIndex={0}
+    >
       <div
         aria-hidden="true"
         className="app-grid-texture pointer-events-none absolute inset-x-0 top-0 h-72 opacity-35"

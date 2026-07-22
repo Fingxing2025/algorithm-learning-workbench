@@ -174,6 +174,93 @@ test('configures and tests two different provider protocols from a zero-data des
   }
 })
 
+test('scrolls provider detail independently with wheel and keyboard at normal and compact sizes', async () => {
+  await electronApp.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0]?.setSize(1280, 720),
+  )
+  await expect
+    .poll(async () =>
+      electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.getSize()),
+    )
+    .toEqual([1280, 720])
+  await page.getByRole('button', { name: 'AI 设置', exact: true }).click()
+  const detail = page.getByTestId('provider-detail-scroll')
+  const providerList = page.getByTestId('provider-list-scroll')
+  await expect(detail).toBeVisible()
+  const initialMetrics = await detail.evaluate(element => ({
+    clientHeight: element.clientHeight,
+    scrollHeight: element.scrollHeight,
+    scrollTop: element.scrollTop,
+  }))
+  expect(initialMetrics.scrollHeight).toBeGreaterThan(initialMetrics.clientHeight)
+  await detail.evaluate(element => {
+    element.scrollTop = 0
+  })
+  const listScrollTop = await providerList.evaluate(element => element.scrollTop)
+  const bounds = await detail.boundingBox()
+  expect(bounds).not.toBeNull()
+  await page.mouse.move(bounds!.x + bounds!.width / 2, bounds!.y + bounds!.height / 2)
+  await page.mouse.wheel(0, 520)
+  await expect.poll(() => detail.evaluate(element => element.scrollTop)).toBeGreaterThan(0)
+  const afterWheel = await detail.evaluate(element => element.scrollTop)
+  expect(await providerList.evaluate(element => element.scrollTop)).toBe(listScrollTop)
+
+  await detail.focus()
+  await page.keyboard.press('PageDown')
+  await expect.poll(() => detail.evaluate(element => element.scrollTop)).toBeGreaterThan(afterWheel)
+  await page.keyboard.press('End')
+  await expect
+    .poll(() =>
+      detail.evaluate(element =>
+        Math.abs(element.scrollHeight - element.clientHeight - element.scrollTop),
+      ),
+    )
+    .toBeLessThanOrEqual(2)
+  await expect(page.getByRole('button', { name: '保存更改' })).toBeInViewport()
+  await expect(page.getByRole('button', { name: '删除配置' })).toBeInViewport()
+  await page.getByRole('button', { name: '保存更改' }).click()
+  await expect(page.getByRole('status')).toContainText('Provider 配置已更新')
+  await detail.focus()
+  await page.keyboard.press('Home')
+  await expect.poll(() => detail.evaluate(element => element.scrollTop)).toBe(0)
+
+  await page.getByRole('button', { name: /OpenAI 测试服务/ }).click()
+  await detail.evaluate(element => {
+    element.scrollTop = 0
+  })
+  await page.mouse.move(bounds!.x + bounds!.width / 2, bounds!.y + bounds!.height / 2)
+  await page.mouse.wheel(0, 360)
+  await expect.poll(() => detail.evaluate(element => element.scrollTop)).toBeGreaterThan(0)
+  await page.screenshot({
+    animations: 'disabled',
+    path: resolve('output/playwright/ai-provider-scroll-light-1280x720.png'),
+  })
+
+  await page.getByRole('button', { name: '添加 Provider' }).click()
+  await electronApp.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0]?.setSize(1024, 640),
+  )
+  await expect
+    .poll(async () =>
+      electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.getSize()),
+    )
+    .toEqual([1024, 640])
+  expect(await detail.evaluate(element => element.scrollHeight > element.clientHeight)).toBe(true)
+  await page.getByRole('button', { name: '切换到深色主题' }).click()
+  await detail.focus()
+  await page.keyboard.press('End')
+  await expect(page.getByRole('button', { name: '保存 Provider' })).toBeInViewport()
+  await page.screenshot({
+    animations: 'disabled',
+    path: resolve('output/playwright/ai-provider-scroll-dark-1024x640.png'),
+  })
+  await page.getByRole('button', { name: '切换到浅色主题' }).click()
+  await electronApp.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0]?.setSize(1440, 900),
+  )
+  await page.getByRole('button', { name: /Anthropic 测试服务/ }).click()
+})
+
 test('shows actionable model errors and captures light, compact, and dark provider states', async () => {
   await page.getByLabel('模型名称').fill('missing-model')
   await page.getByRole('button', { name: '保存更改' }).click()
