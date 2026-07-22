@@ -87,6 +87,10 @@ export function normalizeAsarEntry(entry) {
   return entry.replace(/^[\\/]+/, '').replaceAll('\\', '/')
 }
 
+export function asarExtractionEntry(entry) {
+  return entry.replace(/^[\\/]+/, '')
+}
+
 function expandArtifactName(template, variables) {
   return template.replace(/\$\{([^}]+)\}/g, (_, name) => {
     const value = variables[name]

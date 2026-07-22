@@ -6,6 +6,7 @@ import { open, readdir, stat } from 'node:fs/promises'
 import { createReadStream } from 'node:fs'
 
 import {
+  asarExtractionEntry,
   getReleasePaths,
   normalizeAsarEntry,
   parseReleaseOptions,
@@ -62,7 +63,11 @@ async function fileContainsMarker(path, markers) {
 
 async function verifyPrivacy(paths) {
   const entries = listPackage(paths.appAsarPath)
-  const normalizedEntries = entries.map(normalizeAsarEntry)
+  const archiveEntries = entries.map(entry => ({
+    extractionEntry: asarExtractionEntry(entry),
+    normalizedEntry: normalizeAsarEntry(entry),
+  }))
+  const normalizedEntries = archiveEntries.map(entry => entry.normalizedEntry)
   const forbiddenEntries = []
   const forbiddenDataDirectory = /(^|\/)(?:secrets?|problem-images|file-plan-backups|batch-import-backups|restore-preflight-backups|data-management-quarantine|test-results|playwright-report)(?:\/|$)/i
   const forbiddenExtension = /\.(?:sqlite3?|db|awb-backup|p12|pfx|pem|key|log)$/i
@@ -98,8 +103,10 @@ async function verifyPrivacy(paths) {
     })
   const scannableExternalFiles = externalFiles.filter(file => !isPackagedRuntimeExternal(file.entry))
 
-  const codeEntries = normalizedEntries.filter(
-    entry => entry === 'package.json' || /^out\/.*\.(?:css|html|js|json)$/.test(entry),
+  const codeEntries = archiveEntries.filter(
+    entry =>
+      entry.normalizedEntry === 'package.json' ||
+      /^out\/.*\.(?:css|html|js|json)$/.test(entry.normalizedEntry),
   )
   const absoluteMarkers = [...new Set([homedir(), rootDirectory])].map(marker =>
     Buffer.from(marker, 'utf8'),
@@ -107,7 +114,7 @@ async function verifyPrivacy(paths) {
   let absolutePathHits = 0
   let secretPatternHits = 0
   for (const entry of codeEntries) {
-    const contents = extractFile(paths.appAsarPath, entry)
+    const contents = extractFile(paths.appAsarPath, entry.extractionEntry)
     if (findSensitiveContent(contents)) {
       secretPatternHits += 1
     }

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
 import {
+  asarExtractionEntry,
   getReleasePaths,
   normalizeAsarEntry,
   packagedElectronAbiInvocation,
@@ -110,5 +111,13 @@ test('ASAR entries use one normalized separator on macOS and Windows', () => {
   assert.equal(
     normalizeAsarEntry('\\node_modules\\better-sqlite3\\package.json'),
     'node_modules/better-sqlite3/package.json',
+  )
+})
+
+test('ASAR extraction strips the archive root but preserves platform separators', () => {
+  assert.equal(asarExtractionEntry('/out/main/index.js'), 'out/main/index.js')
+  assert.equal(
+    asarExtractionEntry('\\out\\main\\index.js'),
+    'out\\main\\index.js',
   )
 })
