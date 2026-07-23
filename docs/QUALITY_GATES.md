@@ -249,14 +249,16 @@ Session F 已正式结束，不再执行第十一切片或继续维护性拆分�
 - 签名状态：无 Authority/TeamIdentifier、未 staple、Gatekeeper 不接受；该产物明确是测试分发用 unsigned/ad-hoc beta，不是正式签名版本。
 - 性能基准不重跑；本次只改文档，没有触及扫描、查询、索引或启动实现。正式 macOS signed/notarized、Windows Authenticode/真实安装、VoiceOver 长流程和 Windows 辅助技术仍未完成。
 
-## 完整工作区 AI 模板目录实测（2026-07-23）
+## 完整工作区与总体文件 AI 上下文实测（2026-07-23）
 
-- 原始任务起点 `89dbde315457e95be0ec8198c7830c3c69b10288`；并发 Windows 工作结束后的实际基座 `95a7795a8aac249714f4f6a3ddecd4e3066cdf87`；ADR 提交 `ac69d14`；功能与测试提交 `720fca6`。
-- 定向 Vitest：6 个文件/28 项通过；覆盖完整目录构建、300 个模板、纯图片查询、旧 24 项外候选、去重/伪造 ID、字段严格性、路径拒绝、用户草稿保留和隐私排除。
-- `npm run check`：TypeScript 通过，ESLint 0 warnings，Prettier 通过，39 个 Vitest 文件/259 项通过，7 项发布脚本测试通过。
-- 受影响 Electron 规格：`template-intake.spec.ts` 与 `problem-analysis.spec.ts` 合计 14/14 通过。最终 `npm run test:e2e`：57 项常规真实 Electron E2E 通过，2 项 packaged 因未设置 `PACKAGED_APP_PATH` 按条件跳过，完整套件无失败。
-- 截图：`output/playwright/ai-catalog-template-preview-*.png` 和 `output/playwright/ai-catalog-problem-preview-*.png`，分别覆盖 1440×900 亮色/深色、1280×720 与 1024×640，共 8 张。已人工复核内容区滚动、固定页脚、焦点与完整覆盖状态。
-- 超限行为：估算输入超预算时依次缩短 summary、省略附加元数据、省略相关源码片段；保留全部目录/ID/名称后仍超预算，或可用模板超过 300 个时，网络请求前返回 `AI_CONTEXT_TOO_LARGE`，不静默裁剪名称。
-- 隐私边界：新测试确认工作区绝对路径、模板 notes 和密钥不进入请求；完整目录使用相对路径，默认不发送全库完整源码。
-- 兼容性：没有 schema、migration、IPC 名称、持久化格式、依赖或权限变化；全新 userData、空白工作区和已有 V2 userData 都通过相同的运行时上下文生成路径。Provider `timeoutMs`、最多 3 次网络尝试、10 秒 `Retry-After` 上限、1 MiB 响应上限、取消与结构化降级边界均未改变。
-- 本 Session 没有修改 Windows 发布脚本/依赖，没有重跑性能基准，没有打包、没有推送。`.codex/config.toml` 与 `问题反馈.txt` 始终保持在暂存/提交之外。
+- 新建模板/题目完整目录阶段从 `89dbde315457e95be0ec8198c7830c3c69b10288` 开始，并发 Windows 工作后的实际基座为 `95a7795a8aac249714f4f6a3ddecd4e3066cdf87`；ADR/功能提交为 `ac69d14`、`720fca6`。总体文件 AI 阶段从 `fabb334` 开始，提交为 `ce3b999`、`700f342`、`b1ccd6a`、`327614a`、`1174131`。
+- 三类 AI 入口统一使用完整 `WorkspaceTemplateCatalog`；不再设置 300 个模板或 250 个候选的产品级数量硬上限。301 个短模板实测为 98,774 字符/估算 24,694 Token，500 个短模板为 162,916 字符/估算 40,729 Token，全部 ID、名称、相对路径、语言和分级树均保留，`templateNamesTruncated === false`。
+- 总体文件请求统一按最终序列化 payload 预算；先缩短摘要、省略附加元数据和可选源码，再省略非审计详细候选。审计必需候选或最小完整目录仍超 96,000 输入 Token 安全预算时，在网络前返回 `AI_CONTEXT_TOO_LARGE`，不发送残缺目录。
+- `previewFilePlan` 创建 Main 内存中 5 分钟 TTL、一次性消费的 `previewId` 快照；`generateFilePlan` 只消费该快照。发送前复检工作区、Provider/模型、catalog、候选 SHA-256/mtime/size 与 metadata 版本；预览过期、重复消费、跨工作区或外部修改均拒绝发送。
+- 用户笔记默认不发送；显式开启后才进入候选元数据、字符/Token 预算和预览统计。SHA-256、mtime、大小、绝对路径、数据库/备份路径、API Key、密钥引用和自定义鉴权头只留在 Main，不进入 Provider payload。
+- 计划审查显示 `solves`、`constraints`、`prerequisites`、`commonMistakes`、`timeComplexity`、`spaceComplexity`、`tags`、`notes` 的旧值到新值；notes 标记高风险，旧计划没有 `previousMetadata` 时兼容展示。所有删除默认不选，高度相似删除显示本地保留项证据。
+- 定向 Vitest 最终为 4 个文件/33 项通过；`npm run check` 通过 TypeScript、ESLint 0 warnings、Prettier、40 个 Vitest 文件/270 项和 8 项发布脚本测试。受影响的文件管理、题目分析、模板入库 Electron 规格合计 18/18 通过。
+- 最终单次 `npm run test:e2e` 为 57 项常规真实 Electron E2E 通过，2 项 packaged 因未设置 `PACKAGED_APP_PATH` 条件跳过。首次沙箱运行的 Electron `EPERM` 属环境限制；完整套件曾检出一处重复英文翻译覆盖，修复并定向通过后再次全量运行无失败。
+- 文件计划新增 9 张截图：notes 开/关预览、1440×900 亮/暗、1280×720、1024×640、完整元数据 Diff 与二次确认。已人工复核完整目录统计、预算退化提示、删除默认态、滚动、焦点和固定操作区；原有模板/题目完整目录 8 张截图继续有效。
+- 兼容性：没有 SQLite schema、migration、依赖、权限、执行备份或回滚格式变化；文件计划 IPC/Zod 改为 `previewId` 生成协议，`operations_json` 继续兼容旧数组和缺少旧值快照的计划。全新 userData、空白工作区、已有 V2 userData、旧 schema migration、备份/回滚/撤销均由最终 E2E 覆盖。
+- 本 Session 没有修改 release 脚本/依赖，没有重跑性能基准，没有打包、没有推送。`.codex/config.toml` 与 `问题反馈.txt` 始终保持在暂存/提交之外。

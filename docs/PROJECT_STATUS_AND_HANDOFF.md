@@ -5,6 +5,12 @@
 - 并发 Windows 发布工作结束后的实际提交基座：`95a7795a8aac249714f4f6a3ddecd4e3066cdf87`
 - 完整 AI 模板目录 ADR 提交：`ac69d14 docs: decide complete ai template catalog`
 - 完整 AI 模板目录源码提交：`720fca6 feat: provide complete template catalog to ai tasks`
+- 总体文件 AI 实际基座：`fabb334 fix: preserve Windows asar extraction paths`
+- 总体文件 AI ADR 提交：`ce3b999 docs: define workspace ai preview snapshots`
+- 总体文件 AI 完整目录提交：`700f342 feat: remove workspace catalog count limits`
+- 总体文件 AI 快照提交：`b1ccd6a feat: lock file plan request snapshots`
+- 总体文件 AI 审查收尾提交：`327614a test: finalize file plan review safeguards`
+- 总体文件 AI 门禁修复提交：`1174131 fix: pass file plan quality gates`
 - Session E 实际开发基线：`0ef1afa docs: record native template close fix`
 - Session F 第一切片实现结束提交：`1a153bf refactor: extract workspace route renderer`
 - Session F 第二切片代码结束提交：`9c195b6 refactor: split template management plan services`
@@ -25,32 +31,32 @@
 - Session F 收尾提交：`39421c0 docs: close session f development`
 - unsigned beta 候选来源提交：`39421c0329c463657cb43c4e552949e48bee93c9`（与收尾提交相同）
 - 源码版本：`0.1.2` 开发快照
-- 产品阶段：0.1.2 功能闭环、Session A/B、九项 Bugfix、Session C 发布候选工程、Session D UX/可访问性、Session E 大型工作区性能与 Session F 代码健康收尾均完成；随后又针对明确产品需求完成两个现有 AI 入口的完整模板目录改进。历史 unsigned beta 仍来自 `39421c0`，本 Session 没有重新打包或推送
+- 产品阶段：0.1.2 功能闭环、Session A/B、九项 Bugfix、Session C 发布候选工程、Session D UX/可访问性、Session E 大型工作区性能与 Session F 代码健康收尾均完成；随后针对明确产品需求完成新建模板、题目分析和总体文件管理三个 AI 入口的完整模板目录、可信预览与预算改进。历史 unsigned beta 仍来自 `39421c0`，本 Session 没有重新打包或推送
 
 ## 0. 新阶段入口
 
 本阶段基于 0.1.2 功能冻结基线完成发布可信度收尾。后续不再横向增加 AI 页面、临时补丁或维护性拆分；只有真实 Bug、用户反馈或发布门禁触发时才重新开启工程任务。
 
-当前状态：**Session A：数据可靠性与恢复、Session B：AI 稳定性与兼容矩阵、九项 Bugfix Session、Session C：可审计发布候选工程、Session D：UX/可访问性、Session E：大型工作区性能与 Session F 代码健康收尾均已完成。Session F 的十个行为保持切片仍然冻结；2026-07-23 重新开发是由明确的 AI 完整目录产品需求触发，仅覆盖新建模板和新建题目两个既有 AI 入口，没有开启第十一拆分切片。Windows 发布 Session 在本 Session 期间向 `main` 增加了 5 个发布脚本/依赖提交，本次以 `95a7795` 为并发后基座，未改动其文件、未重新打包、未推送。**
+当前状态：**Session A：数据可靠性与恢复、Session B：AI 稳定性与兼容矩阵、九项 Bugfix Session、Session C：可审计发布候选工程、Session D：UX/可访问性、Session E：大型工作区性能与 Session F 代码健康收尾均已完成。Session F 的十个行为保持切片仍然冻结；2026-07-23 的重新开发由明确的 AI 完整目录产品需求触发，先覆盖新建模板与题目分析，再独立升级总体文件 AI 管理，没有开启第十一拆分切片。Windows 发布 Session 的提交保持不变，本阶段未修改 release 文件、未重新打包、未推送。**
 
 Session D 的布局、键盘、焦点、状态播报、截图结论和可直接复制的下一 Session 提示词见 `docs/SESSION_D_SUMMARY_AND_NEXT_PROMPT.md`；Session C 候选证据仍保留在 `docs/SESSION_C_SUMMARY_AND_NEXT_PROMPT.md`，但没有被本 Session 重新打包或复用为新候选摘要。
 
-### 完整工作区 AI 模板目录 Session（2026-07-23）
+### 完整工作区与总体文件 AI 上下文 Sessions（2026-07-23）
 
-本 Session 的原始任务起点为 `89dbde315457e95be0ec8198c7830c3c69b10288`。并发 Windows 发布工作结束后，本 Session 在不修改发布脚本、依赖和平台验收证据的前提下，以 `95a7795a8aac249714f4f6a3ddecd4e3066cdf87` 为实际基座完成源码。
+新建模板/题目目录阶段的原始任务起点为 `89dbde315457e95be0ec8198c7830c3c69b10288`，并发 Windows 发布工作结束后的实际基座为 `95a7795a8aac249714f4f6a3ddecd4e3066cdf87`。总体文件 AI 阶段以 `fabb334` 为实际起点；两个阶段都未修改发布脚本、依赖或平台验收证据。
 
-- 新增 ADR-0022 与 `schemaVersion: 1` 的 `WorkspaceTemplateCatalog`；目录树确定性排序，根目录模板使用 `rootTemplates`，每份模板保留稳定 ID、名称、语言、工作区相对目录与确定性紧凑元数据。
-- 0～300 个可用模板时，两个 AI 入口的稳定上下文均包含全部目录、ID 和名称；题目候选使用完整 `catalogTemplateRefs` 复检，最多 8 项，伪造、重复、不可用或跨工作区 ID 均被过滤。
-- 完整目录继续通过现有 Provider Adapter 进入 OpenAI Chat Completions、OpenAI Responses、Anthropic Messages、Gemini GenerateContent 和 Ollama；没有增加第二次精排请求。
-- 保留最多 24 份、每份最多 2,000 字符、合计最多 30,000 字符的相关源码片段，但它们只是辅助详情，不再决定哪些模板有推荐资格。文件计划 AI 仍保持旧的有界策略。
-- 输入安全预算为 96,000 个估算 Token，工作区上下文最多 240,000 字符。超限时依次把 summary 从 320 缩到 120 字符、省略附加元数据、省略源码片段；若仍无法保留全部目录/ID/名称，或可用模板超过 300 个，网络发送前以 `AI_CONTEXT_TOO_LARGE` 明确失败，不退回局部 24 项。
-- 新建模板会发送当前源码、纯文件名、不含 notes 的用户草稿、完整 catalog 和可选相关详情；新建题目会发送用户题面、主动加入的 PNG/JPEG/WebP、完整 catalog 和可选相关详情。两者都带输出语言与 Prompt Cache 版本。
-- 工作区绝对路径、数据库/图片/备份路径、API Key、自定义鉴权头、密钥引用、错误日志、模板 `notes`、历史文件计划和全库完整源码仍明确不发送。
-- 请求预览现显示模板名称覆盖数、摘要数、目录节点、相关源码数/字符数、估算 Token、三类退化标志以及“名称无裁剪”状态；模板/题目预览各有 1440×900 亮色、1440×900 深色、1280×720 和 1024×640 截图已人工复核。
-- 没有 SQLite schema、migration、IPC 名称、持久化文件格式、Provider timeout/重试边界、系统权限或新依赖变化。全新、空白和已有 V2 userData 都使用相同的运行时 catalog 生成逻辑，无需数据迁移。
-- Provider 边界仍为：`timeoutMs` 分别限制连接与响应读取；只对限流、连接突断/超时及 408/500/502/503/504 最多尝试 3 次，`Retry-After` 实际等待上限 10 秒；响应超时和流中断不自动重试。估算 Token 不是供应商模型窗口保证，具体 Provider 仍可能拒绝极端长请求。
+- ADR-0022 引入 `schemaVersion: 1` 的 `WorkspaceTemplateCatalog`；ADR-0023 将同一完整目录标准扩展到总体文件 AI，并定义最终输入预算、一次性 `previewId` 快照、notes 隐私与旧计划兼容。目录树确定性排序，根目录模板使用 `rootTemplates`，每份模板保留稳定 ID、名称、语言、工作区相对路径与紧凑元数据。
+- 三个 AI 入口都包含全部目录、ID、名称、相对路径和语言，不设置 300 个模板或 250 个文件计划候选的产品级硬上限。题目候选仍用完整 `catalogTemplateRefs` 复检，最多返回 8 项；伪造、重复、不可用或跨工作区 ID 均被过滤。
+- 301 个短模板实测稳定上下文 98,774 字符/估算 24,694 Token；500 个短模板为 162,916 字符/估算 40,729 Token。两组均完整发送名称、ID、相对路径和分级树，`templateNamesTruncated === false`。
+- 完整目录继续通过现有 Provider Adapter 进入 OpenAI Chat Completions、OpenAI Responses、Anthropic Messages、Gemini GenerateContent 和 Ollama，没有增加第二次精排请求。相关模板、详细候选和有限源码只作为补充，不再决定目录覆盖或候选资格。
+- 输入安全预算为 96,000 个估算 Token，并覆盖最终稳定 catalog、审计 JSON、候选元数据/notes/源码、system prompt、Schema 与协议开销。退化顺序为缩短摘要、省略附加元数据、省略或缩短源码、再省略非审计详细候选；最小完整目录或审计必需候选仍超预算时，在网络发送前以 `AI_CONTEXT_TOO_LARGE` 失败。
+- `previewFilePlan` 在 Main 内存创建 5 分钟 TTL、一次性消费的快照；正式生成只接受 `previewId`，发送前复检工作区与 Provider/模型、catalog、候选源码指纹和 metadata 版本。过期、重复消费、跨工作区、Provider 变化或外部文件变化均要求重新预览。
+- 总体文件 AI 的用户笔记默认不发送，明确开启后才计入预览数量、字符数和总预算；新建模板/题目的 catalog 仍不含 notes。绝对路径、数据库/图片/备份路径、API Key、自定义鉴权头、密钥引用、错误日志、SHA-256、mtime 和大小不进入 Provider payload。
+- 文件计划预览显示完整目录覆盖、详细候选、源码/元数据/notes 字符、总输入 Token、退化标志、输入哈希与到期时间。计划审查显示八个元数据字段的旧值到新值，notes 标为高风险；所有删除默认未选，高度相似删除显示本地保留项证据；缺少 `previousMetadata` 的旧计划继续可读。
+- 没有 SQLite schema、migration、持久化文件格式、Provider timeout/重试边界、系统权限或新依赖变化。文件计划 IPC/Zod 的正式生成参数改为 `previewId`，快照不落库、不跨重启；全新、空白和已有 V2 userData 使用同一运行时 catalog，无需数据迁移。
+- Provider 边界仍为：`timeoutMs` 分别限制连接与响应读取；只对限流、连接突断/超时及 408/500/502/503/504 最多尝试 3 次，`Retry-After` 实际等待上限 10 秒；响应超时和流中断不自动重试。Token 是本地估算，不是供应商窗口保证，极端请求仍可能被特定 Provider 拒绝。
 
-源码提交 `720fca6` 的最终证据：定向 Vitest 6 个文件/28 项通过；`npm run check` 通过 TypeScript、ESLint 0 warnings、Prettier、39 个 Vitest 文件/259 项和 7 项发布脚本测试；两个受影响 Electron 规格 14/14 通过；最终完整 Electron E2E 为 57 项常规用例通过、2 项 packaged 因未设置 `PACKAGED_APP_PATH` 条件跳过。本 Session 没有重跑性能基准、没有重新打包，也没有推送远程。
+当前源码的最终证据：定向 Vitest 4 个文件/33 项通过；`npm run check` 通过 TypeScript、ESLint 0 warnings、Prettier、40 个 Vitest 文件/270 项和 8 项发布脚本测试；文件管理、题目分析与模板入库 18/18 通过；最终单次完整 Electron E2E 为 57 项常规用例通过、2 项 packaged 因未设置 `PACKAGED_APP_PATH` 条件跳过。总体文件 AI 新增 9 张、原有模板/题目目录 8 张截图均已人工复核。本阶段没有重跑性能基准、没有重新打包，也没有推送远程。
 
 Session A 已交付四条可运行纵向切片：第一切片完成备份 ADR、版本化数据管理契约、只读一致性诊断、`.awb-backup` 目录备份包导出、全包 SHA-256 验证、损坏包拒绝和只读恢复预览；第二切片开放恢复执行、恢复前自动预备份以及 SQLite/userData 事务式恢复和故障回滚；第三切片补齐备份保留建议、空间统计、异常残留保护、逐项清理预览、应用隔离区和可撤销回滚；最终切片用版本化 journal、SQLite 事务提交标记和内容指纹完成异常中断后的人工安全恢复，并允许把已验证隔离记录移交系统废纸篓。
 
@@ -382,7 +388,7 @@ Session D 截图显示 1024×640 下导航、列表/树、详情和页头主操�
 1. 在发布候选使用实际计划支持的云端账号做人工 Provider smoke；Session B 的自动化矩阵使用本地 mock，不代表外部账号、配额和区域权限认证。
 2. 为文件计划执行与回滚增加故障注入单元/集成测试，覆盖第 N 步失败、磁盘满、目标占用和数据库提交失败；外部修改整批拒绝已覆盖。
 3. 在 macOS 上做 VoiceOver 长流程真人审计，并在真实 Windows 上验证 Narrator、高对比模式和 200% 缩放；当前仅有语义树、键盘自动化和 macOS 截图证据。
-4. 建立大型工作区基准、增量索引和后台任务；不要直接提高现有 500/2000/250 等安全上限。
+4. 建立大型工作区基准、增量索引和后台任务；不要直接提高仍在生效的 500/2,000 等安全上限，AI 上下文继续按实际序列化预算治理。
 5. 拆分超大组件和服务，避免在同一提交混入新功能与视觉重构。
 6. 为批量导入增加直接恢复到工作区的用户可见撤销；其备份统计、保留建议和隔离入口已完成。
 
@@ -401,8 +407,8 @@ Session D 截图显示 1024×640 下导航、列表/树、详情和页头主操�
 - 单模板源码最大 2 MiB。
 - 完整审计最多遍历前 2,000 个模板。
 - 相同/相似源码分析最多保留前 500 个可读取文件参与相似度比较。
-- AI 文件计划优先取审计问题与本地检索相关候选，最多 250 个模板；源码片段总量最多约 120,000 字符。
-- 模板补全/题目 AI 在 0～300 个可用模板时发送完整目录、ID 和名称；工作区上下文最多 240,000 字符，请求估算预算 96,000 Token。超过 300 个模板或保留必需信息后仍超预算时会发送前明确失败；相关详情仍最多 24 个模板、源码片段合计最多 30,000 字符，但不再限制题目候选资格。
+- AI 文件计划必须详细表达全部审计必需候选，再按预算补充本地相关候选；不设候选数量硬上限，源码片段总量最多约 120,000 字符。若审计组路径本身截断或必需候选超预算，会在网络前明确失败并要求缩小范围。
+- 模板补全、题目分析和总体文件 AI 都发送完整目录、ID、名称、相对路径和语言，不设模板数量硬上限；工作区上下文最多 240,000 字符，总请求估算预算 96,000 Token。保留必需信息后仍超预算时会在发送前明确失败；相关详情仍是可退化补充，不限制目录覆盖或题目候选资格。
 - 单题最多 12 张本地图片；单次分析最多 6 张、合计 24 MiB。
 - 文件计划和执行历史界面各最多读取最近 100 条。
 
