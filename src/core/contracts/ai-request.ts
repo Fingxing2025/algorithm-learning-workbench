@@ -25,7 +25,7 @@ export const workspaceCatalogPreviewSchema = z
     summarizedTemplateCount: z.number().int().nonnegative(),
     summaryShortened: z.boolean(),
     supplementalMetadataOmitted: z.boolean(),
-    templateCount: z.number().int().nonnegative().max(300),
+    templateCount: z.number().int().nonnegative(),
     templateNamesTruncated: z.boolean(),
   })
   .strict()

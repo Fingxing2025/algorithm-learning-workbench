@@ -212,8 +212,8 @@ describe('WorkspaceAiContextService', () => {
     expect(context.relatedSourceTemplateCount).toBeLessThan(context.relatedTemplateCount)
   })
 
-  it('keeps all 300 template IDs, names, and directory paths visible for a pure-image query beyond the detailed 24', async () => {
-    templates = Array.from({ length: 300 }, (_, index) => {
+  it('keeps all 500 template IDs, names, and relative paths visible beyond the detailed 24', async () => {
+    templates = Array.from({ length: 500 }, (_, index) => {
       const suffix = String(index + 1).padStart(3, '0')
       return template(
         (index + 1).toString(16).padStart(64, '0'),
@@ -232,9 +232,9 @@ describe('WorkspaceAiContextService', () => {
     })
     const last = templates.at(-1)!
 
-    expect(context.templateCount).toBe(300)
-    expect(context.sentTemplateNameCount).toBe(300)
-    expect(context.catalogTemplateRefs).toHaveLength(300)
+    expect(context.templateCount).toBe(500)
+    expect(context.sentTemplateNameCount).toBe(500)
+    expect(context.catalogTemplateRefs).toHaveLength(500)
     expect(context.catalogTemplateRefs.at(-1)).toMatchObject({
       id: last.id,
       name: last.name,
@@ -244,7 +244,8 @@ describe('WorkspaceAiContextService', () => {
     expect(context.relatedTemplateRefs.some(item => item.id === last.id)).toBe(false)
     expect(context.stableContext).toContain(last.id)
     expect(context.stableContext).toContain(last.name)
-    expect(context.stableContext).toContain('分类-12')
+    expect(context.stableContext).toContain('分类-20')
+    expect(context.stableContext).toContain(last.relativePath)
     expect(context.templateNamesTruncated).toBe(false)
   })
 
@@ -285,7 +286,7 @@ describe('WorkspaceAiContextService', () => {
     expect(context.estimatedInputTokens).toBeLessThanOrEqual(26_000)
   })
 
-  it('fails before sending instead of silently hiding template names above 300 templates', async () => {
+  it('accepts 301 short templates without a product-level count limit', async () => {
     templates = Array.from({ length: 301 }, (_, index) =>
       template(
         (index + 1).toString(16).padStart(64, '0'),
@@ -294,13 +295,17 @@ describe('WorkspaceAiContextService', () => {
       ),
     )
 
-    await expect(build()).rejects.toMatchObject({
-      code: 'AI_CONTEXT_TOO_LARGE',
-      message: expect.stringContaining('301'),
-    })
+    const context = await build()
+
+    expect(context.templateCount).toBe(301)
+    expect(context.sentTemplateNameCount).toBe(301)
+    expect(context.catalogTemplateRefs).toHaveLength(301)
+    expect(context.templateNamesTruncated).toBe(false)
+    expect(context.stableContext).toContain('超限模板-301')
+    expect(context.stableContext).toContain('超限/模板-301.cpp')
   })
 
-  it('keeps workspace file-plan context on its existing bounded policy', async () => {
+  it('uses the complete catalog for workspace file plans instead of representative names', async () => {
     templates = Array.from({ length: 301 }, (_, index) =>
       template(
         (index + 1).toString(16).padStart(64, '0'),
@@ -319,8 +324,13 @@ describe('WorkspaceAiContextService', () => {
     })
 
     expect(context.templateCount).toBe(301)
+    expect(context.sentTemplateNameCount).toBe(301)
+    expect(context.catalogTemplateRefs).toHaveLength(301)
     expect(context.relatedTemplateCount).toBeLessThanOrEqual(24)
-    expect(context.stableContext).not.toContain('workspaceCatalog')
+    expect(context.stableContext).toContain('workspaceCatalog')
+    expect(context.stableContext).toContain('文件计划模板-301')
+    expect(context.stableContext).toContain('文件计划/模板-301.cpp')
+    expect(context.templateNamesTruncated).toBe(false)
   })
 
   it('is deterministic and invalidates the version for metadata or relation changes', async () => {
