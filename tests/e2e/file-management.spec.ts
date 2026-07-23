@@ -391,9 +391,7 @@ test('applies a selected plan with backup, stable relations, and rollback', asyn
     path: resolve('output/playwright/workspace-file-ai-plan-review-dark-1440x900.png'),
   })
   await page.locator('html').evaluate(root => root.classList.remove('dark'))
-  await page
-    .getByRole('checkbox', { name: '选择操作 plain copy.py' })
-    .scrollIntoViewIfNeeded()
+  await page.getByRole('checkbox', { name: '选择操作 plain copy.py' }).scrollIntoViewIfNeeded()
   await page.screenshot({
     animations: 'disabled',
     path: resolve('output/playwright/workspace-file-ai-metadata-diff-light-1440x900.png'),

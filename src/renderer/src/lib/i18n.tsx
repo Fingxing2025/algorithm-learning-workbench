@@ -777,7 +777,7 @@ Object.assign(english, {
   源码读取失败: 'Failed to read source',
   状态: 'Status',
   '生成 AI 计划': 'Generate AI plan',
-  '允许发送模板用户笔记': 'Allow sending template notes',
+  允许发送模板用户笔记: 'Allow sending template notes',
   '生成失败不会创建计划或修改文件。若问题与模型、鉴权或格式有关，请前往 AI 设置检查任务路由和模型能力。':
     'A failed generation creates no plan and changes no files. Check task routing and capabilities in AI Settings.',
   生成草稿: 'Generate draft',
@@ -1185,9 +1185,6 @@ Object.assign(english, {
     'This legacy plan has no previous-value snapshot; only the saved new values are shown.',
   旧计划未记录旧值: 'Previous value not recorded in this legacy plan',
   解决问题: 'Solves',
-  适用约束: 'Constraints',
-  前置条件: 'Prerequisites',
-  常见错误: 'Common mistakes',
   高风险: 'High risk',
   '已展示 {shown} / {total}': 'Showing {shown} / {total}',
   '路径已展示 {shown} / {total}': 'Showing {shown} / {total} paths',
@@ -1205,8 +1202,7 @@ Object.assign(english, {
     'The provider, model, or connection settings changed. Preview again.',
   '工作区目录或元数据已变化，请重新预览。':
     'The workspace catalog or metadata changed. Preview again.',
-  '工作区模板集合已变化，请重新预览。':
-    'The workspace template set changed. Preview again.',
+  '工作区模板集合已变化，请重新预览。': 'The workspace template set changed. Preview again.',
   '工作区目录已变化，请重新预览。': 'The workspace catalog changed. Preview again.',
   '发送预览不存在、已过期或已消费，请重新预览。':
     'The request preview is missing, expired, or already consumed. Preview again.',

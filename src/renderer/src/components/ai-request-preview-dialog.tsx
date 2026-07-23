@@ -241,7 +241,8 @@ export function AiRequestPreviewDialog({
                   </div>
                 </dl>
                 <p className="mt-3 text-[11px] text-muted-foreground">
-                  {t('候选元数据省略')}：{t(preview.filePlan.candidateMetadataOmitted ? '是' : '否')}
+                  {t('候选元数据省略')}：
+                  {t(preview.filePlan.candidateMetadataOmitted ? '是' : '否')}
                   {' · '}
                   {t('候选源码省略')}：{t(preview.filePlan.candidateSourceOmitted ? '是' : '否')}
                 </p>
@@ -264,7 +265,9 @@ export function AiRequestPreviewDialog({
                   !preview.workspaceCatalog.templateNamesTruncated &&
                   preview.workspaceCatalog.sentTemplateNameCount ===
                     preview.workspaceCatalog.templateCount
-                    ? t('已按安全预算缩减可选上下文；完整目录、模板 ID、名称、相对路径和语言仍全部保留。')
+                    ? t(
+                        '已按安全预算缩减可选上下文；完整目录、模板 ID、名称、相对路径和语言仍全部保留。',
+                      )
                     : t('已按安全预算缩减部分可选上下文；请检查上方覆盖统计。')}
                 </p>
               )}

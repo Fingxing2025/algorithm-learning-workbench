@@ -136,7 +136,8 @@ function metadataForProvider(
 ): SentFilePlanCandidate['metadata'] {
   const fields = metadataFields(metadata)
   if (includeNotes) return fields
-  const { notes: _notes, ...withoutNotes } = fields
+  const withoutNotes: SentFilePlanCandidate['metadata'] = { ...fields }
+  delete withoutNotes.notes
   return withoutNotes
 }
 
@@ -388,7 +389,9 @@ export class TemplateFilePlanGenerationService {
       while (low < high) {
         const middle = Math.ceil((low + high) / 2)
         const attempt = sentCandidates.map((candidate, candidateIndex) =>
-          candidateIndex === index ? { ...candidate, sourceSnippet: source.slice(0, middle) } : candidate,
+          candidateIndex === index
+            ? { ...candidate, sourceSnippet: source.slice(0, middle) }
+            : candidate,
         )
         const attemptText = serializePayload(audit, context, attempt)
         if (
@@ -437,7 +440,9 @@ export class TemplateFilePlanGenerationService {
         candidateMetadataOmitted: sentCandidates.length < candidates.length,
         candidateSourceOmitted: sentCandidates.some(candidate => {
           const local = candidates.find(item => item.template.id === candidate.id)
-          return Boolean(local?.sourceSnippet && candidate.sourceSnippet.length < local.sourceSnippet.length)
+          return Boolean(
+            local?.sourceSnippet && candidate.sourceSnippet.length < local.sourceSnippet.length,
+          )
         }),
         candidateTemplateCount: candidates.length,
         detailedCandidateCount: sentCandidates.length,
@@ -505,7 +510,8 @@ export class TemplateFilePlanGenerationService {
           label: request.includeNotes ? '将发送用户笔记' : '不发送用户笔记',
         },
         {
-          detail: 'API Key、密钥引用、自定义鉴权头、绝对路径、数据库/备份路径、SHA-256、mtime 和文件大小不会发送',
+          detail:
+            'API Key、密钥引用、自定义鉴权头、绝对路径、数据库/备份路径、SHA-256、mtime 和文件大小不会发送',
           kind: 'excluded',
           label: '仅驻留 Main 的内容',
         },
@@ -614,12 +620,16 @@ export class TemplateFilePlanGenerationService {
     }
     for (const candidate of snapshot.candidates) {
       if (!candidate.precondition) continue
-      const resolved = await resolveAuthorizedFile(workspace.rootPath, candidate.template.relativePath)
+      const resolved = await resolveAuthorizedFile(
+        workspace.rootPath,
+        candidate.template.relativePath,
+      )
       const content = await readFile(resolved.absolutePath)
       const stats = await lstat(resolved.absolutePath)
       const metadata = this.metadataRepository.getMetadata(candidate.template.id)
       if (
-        createHash('sha256').update(content).digest('hex') !== candidate.precondition.sourceSha256 ||
+        createHash('sha256').update(content).digest('hex') !==
+          candidate.precondition.sourceSha256 ||
         content.length !== candidate.precondition.sourceSizeBytes ||
         stats.mtime.toISOString() !== candidate.precondition.sourceModifiedAt ||
         (metadata?.updatedAt ?? null) !== candidate.precondition.metadataUpdatedAt
@@ -650,7 +660,8 @@ export class TemplateFilePlanGenerationService {
       this.lastFilePlanDiagnostic = {
         auditIssueCount: snapshot.audit.issues.length,
         candidateTemplateCount: snapshot.candidates.length,
-        contextTruncated: snapshot.stats.candidateMetadataOmitted || snapshot.stats.candidateSourceOmitted,
+        contextTruncated:
+          snapshot.stats.candidateMetadataOmitted || snapshot.stats.candidateSourceOmitted,
         contextVersion: snapshot.context.version,
         inputHash: snapshot.inputHash,
         model: snapshot.target.model,

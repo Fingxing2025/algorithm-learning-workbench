@@ -266,7 +266,6 @@ export function FileManagementWorkspace({
 
   const generatePlan = () => {
     if (!filePlanRequestId || !filePlanPreview) return
-    const requestId = filePlanRequestId
     void run('generate', async () => {
       let plan: FileChangePlan
       try {

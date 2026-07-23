@@ -92,7 +92,9 @@ export class TemplateManagementRepository {
       this.database.orm
         .select({ id: fileChangePlans.id })
         .from(fileChangePlans)
-        .where(and(eq(fileChangePlans.workspaceId, workspaceId), eq(fileChangePlans.status, 'draft')))
+        .where(
+          and(eq(fileChangePlans.workspaceId, workspaceId), eq(fileChangePlans.status, 'draft')),
+        )
         .limit(1)
         .get(),
     )
