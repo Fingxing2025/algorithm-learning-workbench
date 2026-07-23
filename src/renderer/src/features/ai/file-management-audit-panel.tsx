@@ -1,9 +1,11 @@
 import { FolderSearch } from 'lucide-react'
+import { useState } from 'react'
 
 import type { BackgroundTaskStatus } from '@core/contracts/background-task'
 import type { WorkspaceAudit } from '@core/contracts/template-management'
 
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { backgroundTaskProgressText } from '@/lib/background-task'
 import { useI18n } from '@/lib/i18n'
 
@@ -44,6 +46,8 @@ export interface FileManagementAuditPanelProps {
 
 export function FileManagementAuditPanel({ audit, auditTask }: FileManagementAuditPanelProps) {
   const { locale, t } = useI18n()
+  const [expanded, setExpanded] = useState(false)
+  const visibleIssues = audit?.issues.slice(0, expanded ? audit.issues.length : 40) ?? []
 
   return (
     <section className="rounded-2xl border border-border bg-panel p-4 shadow-panel">
@@ -72,7 +76,7 @@ export function FileManagementAuditPanel({ audit, auditTask }: FileManagementAud
         </div>
       )}
       <div className="mt-3 max-h-72 space-y-2 overflow-y-auto">
-        {audit?.issues.slice(0, 40).map(issue => (
+        {visibleIssues.map(issue => (
           <article
             className="rounded-xl border border-border bg-background/60 p-2.5"
             key={issue.id}
@@ -86,6 +90,14 @@ export function FileManagementAuditPanel({ audit, auditTask }: FileManagementAud
             <p className="mt-1 text-[10px] leading-4 text-muted-foreground">
               {auditIssueDetail(issue, t)}
             </p>
+            {issue.pathsTruncated && (
+              <p className="mt-1 text-[10px] text-warning">
+                {t('路径已展示 {shown} / {total}', {
+                  shown: issue.paths.length,
+                  total: issue.pathCount ?? issue.paths.length,
+                })}
+              </p>
+            )}
           </article>
         ))}
         {audit && audit.issues.length === 0 && (
@@ -94,6 +106,26 @@ export function FileManagementAuditPanel({ audit, auditTask }: FileManagementAud
           </p>
         )}
       </div>
+      {audit && audit.issues.length > 0 && (
+        <div className="mt-3 flex items-center justify-between gap-2 text-[10px] text-muted-foreground">
+          <span>
+            {t('已展示 {shown} / {total}', {
+              shown: visibleIssues.length,
+              total: audit.issues.length,
+            })}
+          </span>
+          {audit.issues.length > 40 && (
+            <Button
+              onClick={() => setExpanded(current => !current)}
+              size="compact"
+              type="button"
+              variant="ghost"
+            >
+              {t(expanded ? '收起' : '展开全部')}
+            </Button>
+          )}
+        </div>
+      )}
     </section>
   )
 }

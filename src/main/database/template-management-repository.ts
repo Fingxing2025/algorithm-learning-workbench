@@ -87,11 +87,36 @@ function parseTags(value: string): string[] {
 export class TemplateManagementRepository {
   constructor(private readonly database: AppDatabase) {}
 
+  hasDraftPlan(workspaceId: string): boolean {
+    return Boolean(
+      this.database.orm
+        .select({ id: fileChangePlans.id })
+        .from(fileChangePlans)
+        .where(and(eq(fileChangePlans.workspaceId, workspaceId), eq(fileChangePlans.status, 'draft')))
+        .limit(1)
+        .get(),
+    )
+  }
+
   countTemplateRelations(templateId: string): number {
     return this.database.client
       .prepare('SELECT count(*) FROM template_problem_relations WHERE template_id = ?')
       .pluck()
       .get(templateId) as number
+  }
+
+  listStaleTemplateRelationPaths(workspaceId: string): string[] {
+    return (
+      this.database.client
+        .prepare(
+          `SELECT DISTINCT t.relative_path AS relativePath
+           FROM template_problem_relations r
+           INNER JOIN templates t ON t.id = r.template_id
+           WHERE t.workspace_id = ? AND t.available = 0
+           ORDER BY t.relative_path ASC`,
+        )
+        .all(workspaceId) as Array<{ relativePath: string }>
+    ).map(row => row.relativePath)
   }
 
   inspectFileExecutionsForDeletion(

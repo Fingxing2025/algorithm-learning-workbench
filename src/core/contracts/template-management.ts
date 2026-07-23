@@ -1,7 +1,12 @@
 import { z } from 'zod'
 
 import { workspaceSnapshotSchema } from './workspace'
-import { aiOutputLanguageSchema, aiRequestIdSchema, aiRequestPreviewSchema } from './ai-request'
+import {
+  aiOutputLanguageSchema,
+  aiRequestIdSchema,
+  aiRequestPreviewSchema,
+  workspaceCatalogPreviewSchema,
+} from './ai-request'
 
 const templateIdSchema = z.string().regex(/^[a-f0-9]{64}$/)
 const relativePathSchema = z
@@ -270,6 +275,8 @@ export const workspaceAuditIssueSchema = z
       'stale-relation',
     ]),
     paths: z.array(relativePathSchema).min(1).max(20),
+    pathCount: z.number().int().positive().optional(),
+    pathsTruncated: z.boolean().optional(),
     severity: z.enum(['info', 'warning']),
   })
   .strict()
@@ -323,6 +330,7 @@ export const fileChangeOperationSchema = z.discriminatedUnion('kind', [
       ...planOperationBase,
       kind: z.literal('update-metadata'),
       metadata: templateMetadataFieldsSchema,
+      previousMetadata: templateMetadataFieldsSchema.optional(),
     })
     .strict(),
 ])
@@ -334,9 +342,16 @@ export const filePlanDiagnosticSchema = z
     auditIssueCount: z.number().int().nonnegative(),
     candidateTemplateCount: z.number().int().nonnegative(),
     contextTruncated: z.boolean(),
+    inputHash: z
+      .string()
+      .regex(/^[a-f0-9]{64}$/)
+      .nullable()
+      .default(null),
     notesIncludedCount: z.number().int().nonnegative(),
+    previewId: z.string().uuid().nullable().default(null),
     requestId: z.string().uuid().nullable(),
     schemaVersion: z.literal(2),
+    sourceReadFailureCount: z.number().int().nonnegative().default(0),
   })
   .strict()
 
@@ -348,9 +363,12 @@ export const fileChangePlanSchema = z
       auditIssueCount: 0,
       candidateTemplateCount: 0,
       contextTruncated: false,
+      inputHash: null,
       notesIncludedCount: 0,
+      previewId: null,
       requestId: null,
       schemaVersion: 2,
+      sourceReadFailureCount: 0,
     }),
     id: z.string().uuid(),
     model: z.string().min(1).max(160),
@@ -422,9 +440,12 @@ export function parseStoredFileChangePlanPayload(stored: unknown): FileChangePla
         auditIssueCount: 0,
         candidateTemplateCount: 0,
         contextTruncated: false,
+        inputHash: null,
         notesIncludedCount: 0,
+        previewId: null,
         requestId: null,
         schemaVersion: 2,
+        sourceReadFailureCount: 0,
       },
       operations: legacyOperations.data,
       outputLanguage: 'zh-CN',
@@ -436,11 +457,41 @@ export function parseStoredFileChangePlanPayload(stored: unknown): FileChangePla
   return versionedPayload.success ? versionedPayload.data : null
 }
 
-export const filePlanGenerationRequestSchema = z
-  .object({ outputLanguage: aiOutputLanguageSchema, requestId: aiRequestIdSchema })
+export const previewFilePlanRequestSchema = z
+  .object({
+    includeNotes: z.boolean().default(false),
+    outputLanguage: aiOutputLanguageSchema,
+    requestId: aiRequestIdSchema,
+  })
   .strict()
+export type PreviewFilePlanRequest = z.infer<typeof previewFilePlanRequestSchema>
+export const filePlanGenerationRequestSchema = z.object({ previewId: z.string().uuid() }).strict()
 export type FilePlanGenerationRequest = z.infer<typeof filePlanGenerationRequestSchema>
-export const previewFilePlanResultSchema = aiRequestPreviewSchema
+export const filePlanInputPreviewSchema = z
+  .object({
+    auditIssueCount: z.number().int().nonnegative(),
+    candidateMetadataOmitted: z.boolean(),
+    candidateSourceOmitted: z.boolean(),
+    candidateTemplateCount: z.number().int().nonnegative(),
+    detailedCandidateCount: z.number().int().nonnegative(),
+    expiresAt: z.string().datetime(),
+    inputCharacters: z.number().int().nonnegative(),
+    inputHash: z.string().regex(/^[a-f0-9]{64}$/),
+    metadataCharacters: z.number().int().nonnegative(),
+    notesCharacters: z.number().int().nonnegative(),
+    notesIncludedCount: z.number().int().nonnegative(),
+    previewId: z.string().uuid(),
+    sourceCharacters: z.number().int().nonnegative(),
+    sourceReadFailureCount: z.number().int().nonnegative(),
+    sourceSnippetCount: z.number().int().nonnegative(),
+  })
+  .strict()
+export type FilePlanInputPreview = z.infer<typeof filePlanInputPreviewSchema>
+export const previewFilePlanResultSchema = aiRequestPreviewSchema.extend({
+  filePlan: filePlanInputPreviewSchema,
+  workspaceCatalog: workspaceCatalogPreviewSchema,
+})
+export type FilePlanRequestPreview = z.infer<typeof previewFilePlanResultSchema>
 export const cancelFilePlanGenerationRequestSchema = z
   .object({ requestId: aiRequestIdSchema })
   .strict()

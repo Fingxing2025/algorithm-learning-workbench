@@ -2,9 +2,9 @@ import { basename, extname } from 'node:path'
 
 import type {
   ClassifyTemplateRequest,
-  FilePlanGenerationRequest,
   TemplateMetadataFields,
 } from '@core/contracts/template-management'
+import type { AiOutputLanguage } from '@core/contracts/ai-request'
 
 import { PublicError } from '../errors/public-error'
 
@@ -149,7 +149,7 @@ export function validateClassificationLanguage(
 }
 
 export function validateFilePlanLanguage(
-  outputLanguage: FilePlanGenerationRequest['outputLanguage'],
+  outputLanguage: AiOutputLanguage,
   values: string[],
   paths: string[] = [],
 ): void {

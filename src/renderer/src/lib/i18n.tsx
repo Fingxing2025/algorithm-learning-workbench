@@ -777,6 +777,7 @@ Object.assign(english, {
   源码读取失败: 'Failed to read source',
   状态: 'Status',
   '生成 AI 计划': 'Generate AI plan',
+  '允许发送模板用户笔记': 'Allow sending template notes',
   '生成失败不会创建计划或修改文件。若问题与模型、鉴权或格式有关，请前往 AI 设置检查任务路由和模型能力。':
     'A failed generation creates no plan and changes no files. Check task routing and capabilities in AI Settings.',
   生成草稿: 'Generate draft',
@@ -1154,8 +1155,10 @@ Object.assign(english, {
     'Prompt caching is disabled for this provider. A standard request will be used.',
   '上下文超过安全上限，发送内容已截断；原始本地文件未被修改。':
     'The context exceeded the safety limit and was truncated. Original local files were not modified.',
-  '已按安全预算缩减可选上下文或当前输入；完整目录、模板 ID 和名称仍全部保留。':
-    'Optional context or the current input was reduced to fit the safety budget. The complete directory tree, template IDs, and names are still preserved.',
+  '已按安全预算缩减可选上下文；完整目录、模板 ID、名称、相对路径和语言仍全部保留。':
+    'Optional context was reduced to fit the safety budget. The complete directory tree, template IDs, names, relative paths, and languages are still preserved.',
+  '已按安全预算缩减部分可选上下文；请检查上方覆盖统计。':
+    'Some optional context was reduced to fit the safety budget. Check the coverage statistics above.',
   完整工作区目录覆盖: 'Complete workspace catalog coverage',
   模板名称: 'Template names',
   目录节点: 'Directory nodes',
@@ -1171,6 +1174,44 @@ Object.assign(english, {
   '存在不可接受的模板名称裁剪，禁止发送。':
     'Unacceptable template-name truncation detected. Sending is blocked.',
   '模板名称完整，无不可接受裁剪。': 'All template names are included without truncation.',
+  文件计划发送快照: 'File-plan request snapshot',
+  详细候选: 'Detailed candidates',
+  源码片段: 'Source snippets',
+  元数据字符: 'Metadata characters',
+  总输入字符: 'Total input characters',
+  候选元数据省略: 'Candidate metadata omitted',
+  候选源码省略: 'Candidate source omitted',
+  '旧版计划没有旧值快照；以下仅展示计划保存的新值。':
+    'This legacy plan has no previous-value snapshot; only the saved new values are shown.',
+  旧计划未记录旧值: 'Previous value not recorded in this legacy plan',
+  解决问题: 'Solves',
+  适用约束: 'Constraints',
+  前置条件: 'Prerequisites',
+  常见错误: 'Common mistakes',
+  高风险: 'High risk',
+  '已展示 {shown} / {total}': 'Showing {shown} / {total}',
+  '路径已展示 {shown} / {total}': 'Showing {shown} / {total} paths',
+  展开全部: 'Show all',
+  收起: 'Collapse',
+  '请先处理当前待确认计划，再生成新的 AI 文件计划。':
+    'Resolve the current pending plan before generating another AI file plan.',
+  '无法证明总体文件管理请求包含完整模板目录，已在网络发送前停止。':
+    'The complete template catalog could not be verified. The request was stopped before network access.',
+  '发送预览已过期，请重新预览后再确认。':
+    'The request preview expired. Preview again before confirming.',
+  '发送预览不属于当前工作区，请重新预览。':
+    'The request preview does not belong to the current workspace. Preview again.',
+  'Provider、模型或连接配置已变化，请重新预览。':
+    'The provider, model, or connection settings changed. Preview again.',
+  '工作区目录或元数据已变化，请重新预览。':
+    'The workspace catalog or metadata changed. Preview again.',
+  '工作区模板集合已变化，请重新预览。':
+    'The workspace template set changed. Preview again.',
+  '工作区目录已变化，请重新预览。': 'The workspace catalog changed. Preview again.',
+  '发送预览不存在、已过期或已消费，请重新预览。':
+    'The request preview is missing, expired, or already consumed. Preview again.',
+  '当前工作区已有 AI 文件计划正在生成。':
+    'An AI file plan is already being generated for this workspace.',
   完整工作区模板目录: 'Complete workspace template catalog',
   分级摘要与相关源码补充: 'Tiered summaries and related source details',
   不适用条件: 'Not applicable when',

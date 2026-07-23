@@ -1,7 +1,11 @@
 import { Download, FileClock, Play } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
-import type { FileChangeOperation, FileChangePlan } from '@core/contracts/template-management'
+import type {
+  FileChangeOperation,
+  FileChangePlan,
+  TemplateMetadataFields,
+} from '@core/contracts/template-management'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -32,6 +36,33 @@ function operationGroupLabel(operation: FileChangeOperation): string {
   const risk =
     operation.risk === 'high' ? '高风险' : operation.risk === 'medium' ? '中风险' : '低风险'
   return `${source} · ${operationLabel(operation)} · ${risk}`
+}
+
+const metadataFieldLabels: Array<[keyof TemplateMetadataFields, string]> = [
+  ['solves', '解决问题'],
+  ['constraints', '适用约束'],
+  ['prerequisites', '前置条件'],
+  ['commonMistakes', '常见错误'],
+  ['timeComplexity', '时间复杂度'],
+  ['spaceComplexity', '空间复杂度'],
+  ['tags', '标签'],
+  ['notes', '用户笔记'],
+]
+
+function metadataValue(value: TemplateMetadataFields[keyof TemplateMetadataFields]): string {
+  if (Array.isArray(value)) return value.join('、') || '无'
+  return value?.trim() || '无'
+}
+
+function metadataDiff(operation: Extract<FileChangeOperation, { kind: 'update-metadata' }>) {
+  return metadataFieldLabels.flatMap(([field, label]) => {
+    const next = metadataValue(operation.metadata[field])
+    if (!operation.previousMetadata) {
+      return [{ field, label, next, previous: '旧计划未记录旧值' }]
+    }
+    const previous = metadataValue(operation.previousMetadata[field])
+    return previous === next ? [] : [{ field, label, next, previous }]
+  })
 }
 
 export function FileManagementPlanReviewPanel({
@@ -172,9 +203,28 @@ export function FileManagementPlanReviewPanel({
                         </span>
                       )}
                       {operation.kind === 'update-metadata' && (
-                        <span className="mt-2 block rounded-lg bg-muted px-3 py-2 text-[11px]">
-                          {t('标签')}：{operation.metadata.tags.join('、') || t('无')} ·{' '}
-                          {t('时间复杂度')}：{operation.metadata.timeComplexity ?? t('未知')}
+                        <span className="mt-2 block space-y-2 rounded-lg bg-muted px-3 py-2 text-[11px]">
+                          {!operation.previousMetadata && (
+                            <span className="block text-warning">
+                              {t('旧版计划没有旧值快照；以下仅展示计划保存的新值。')}
+                            </span>
+                          )}
+                          {metadataDiff(operation).map(change => (
+                            <span className="block" key={change.field}>
+                              <span className="flex items-center gap-2 font-semibold">
+                                {t(change.label)}
+                                {change.field === 'notes' && (
+                                  <Badge tone="accent">{t('高风险')}</Badge>
+                                )}
+                              </span>
+                              <span className="mt-1 block break-words font-mono text-[10px] text-muted-foreground">
+                                − {change.previous}
+                              </span>
+                              <span className="block break-words font-mono text-[10px]">
+                                + {change.next}
+                              </span>
+                            </span>
+                          ))}
                         </span>
                       )}
                       <span className="mt-2 block text-[11px] leading-5 text-muted-foreground">

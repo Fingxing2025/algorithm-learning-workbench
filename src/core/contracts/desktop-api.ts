@@ -75,6 +75,8 @@ import type {
   FileChangePlan,
   FileChangePlanPage,
   FilePlanGenerationRequest,
+  FilePlanRequestPreview,
+  PreviewFilePlanRequest,
   WorkspaceAudit,
   PreviewTemplateClassificationRequest,
   PreviewDeleteFileExecutionsRequest,
@@ -220,7 +222,7 @@ export interface DesktopApi {
     previewClassification: (
       request: PreviewTemplateClassificationRequest,
     ) => Promise<AiRequestPreview>
-    previewFilePlan: (request: FilePlanGenerationRequest) => Promise<AiRequestPreview>
+    previewFilePlan: (request: PreviewFilePlanRequest) => Promise<FilePlanRequestPreview>
     previewDeleteFileExecutions: (
       request: PreviewDeleteFileExecutionsRequest,
     ) => Promise<FileHistoryDeletionPreview>

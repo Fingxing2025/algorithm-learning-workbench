@@ -41,6 +41,8 @@ import {
   type FileHistoryPageRequest,
   type FileHistoryDeletionPreview,
   type FilePlanGenerationRequest,
+  type FilePlanRequestPreview,
+  type PreviewFilePlanRequest,
   type TemplateRelocationPreview,
   type PreviewTemplateRelocationRequest,
   type PreviewDeleteFileExecutionsRequest,
@@ -390,7 +392,7 @@ export class TemplateManagementService {
     return this.auditService.auditWorkspace(options)
   }
 
-  async previewFilePlan(rawRequest: FilePlanGenerationRequest): Promise<AiRequestPreview> {
+  async previewFilePlan(rawRequest: PreviewFilePlanRequest): Promise<FilePlanRequestPreview> {
     return this.filePlanGenerationService.previewFilePlan(rawRequest)
   }
 

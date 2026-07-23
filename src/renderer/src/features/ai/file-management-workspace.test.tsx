@@ -21,6 +21,7 @@ const planDeletePreviewId = '33333333-3333-4333-8333-333333333334'
 const executionDeletePreviewId = '33333333-3333-4333-8333-333333333335'
 const moveOperationId = '55555555-5555-4555-8555-555555555555'
 const deleteOperationId = '66666666-6666-4666-8666-666666666666'
+const metadataOperationId = '66666666-6666-4666-8666-666666666667'
 const auditTaskId = '77777777-7777-4777-8777-777777777777'
 const createdAt = '2026-07-20T00:00:00.000Z'
 const templateId = 'a'.repeat(64)
@@ -57,9 +58,12 @@ const plan: FileChangePlan = {
     auditIssueCount: 0,
     candidateTemplateCount: 0,
     contextTruncated: false,
+    inputHash: null,
     notesIncludedCount: 0,
+    previewId: null,
     requestId: null,
     schemaVersion: 2,
+    sourceReadFailureCount: 0,
   },
   id: planId,
   model: 'fixture-model',
@@ -87,6 +91,41 @@ const operations: FileChangeOperation[] = [
     sourcePath: '旧分类/并查集.cpp',
     targetPath: '图论/数据结构/并查集.cpp',
     templateId,
+  },
+  {
+    alternatives: ['保留旧元数据'],
+    applicability: ['人工确认算法卡片字段'],
+    confidence: 0.8,
+    evidence: ['源码与元数据不一致'],
+    id: metadataOperationId,
+    kind: 'update-metadata',
+    metadata: {
+      commonMistakes: '新错误',
+      constraints: '新约束',
+      notes: '新笔记',
+      prerequisites: '新前置',
+      solves: '新用途',
+      spaceComplexity: 'O(n)',
+      tags: ['新标签'],
+      timeComplexity: 'O(n log n)',
+    },
+    precondition: null,
+    previousMetadata: {
+      commonMistakes: '旧错误',
+      constraints: '旧约束',
+      notes: '旧笔记',
+      prerequisites: '旧前置',
+      solves: '旧用途',
+      spaceComplexity: 'O(1)',
+      tags: ['旧标签'],
+      timeComplexity: 'O(n²)',
+    },
+    reason: '补全全部算法元数据',
+    risk: 'high',
+    selectedByDefault: false,
+    source: 'ai',
+    sourcePath: '图论/元数据.cpp',
+    templateId: 'b'.repeat(64),
   },
   {
     alternatives: [],
@@ -227,6 +266,61 @@ function installDesktopMock(
   archivedPlanItems: FileChangePlan[] = [],
   executionItems: FileChangeExecution[] = [execution],
 ) {
+  const previewFilePlan = vi.fn().mockImplementation(async request => ({
+    capabilities: {
+      promptCaching: true,
+      streaming: false,
+      structuredOutput: true,
+      vision: false,
+    },
+    cache: {
+      eligible: true,
+      key: 'fixture-cache-key',
+      workspaceContextVersion: 'fixture-context-version',
+    },
+    endpointHost: 'fixture.invalid',
+    estimatedInputTokens: 1234,
+    filePlan: {
+      auditIssueCount: 2,
+      candidateMetadataOmitted: false,
+      candidateSourceOmitted: true,
+      candidateTemplateCount: 3,
+      detailedCandidateCount: 3,
+      expiresAt: '2026-07-23T00:05:00.000Z',
+      inputCharacters: 4936,
+      inputHash: 'a'.repeat(64),
+      metadataCharacters: 420,
+      notesCharacters: request.includeNotes ? 18 : 0,
+      notesIncludedCount: request.includeNotes ? 2 : 0,
+      previewId: '40000000-0000-4000-8000-000000000099',
+      sourceCharacters: 800,
+      sourceReadFailureCount: 1,
+      sourceSnippetCount: 2,
+    },
+    items: [],
+    model: 'fixture-model',
+    outputLanguage: request.outputLanguage,
+    protocol: 'openai-chat-completions',
+    providerName: 'Fixture Provider',
+    task: 'workspace-management',
+    truncated: true,
+    workspaceCatalog: {
+      directoryCount: 4,
+      estimatedInputTokens: 800,
+      relatedSourceCharacters: 0,
+      relatedSourceTemplateCount: 0,
+      schemaVersion: 1,
+      sentTemplateNameCount: 3,
+      sourceSnippetsOmitted: true,
+      summarizedTemplateCount: 3,
+      summaryShortened: false,
+      supplementalMetadataOmitted: false,
+      templateCount: 3,
+      templateNamesTruncated: false,
+    },
+  }))
+  const generateFilePlan = vi.fn().mockResolvedValue(draftPlan)
+  const cancelFilePlanGeneration = vi.fn().mockResolvedValue(undefined)
   const applyFilePlan = vi.fn().mockResolvedValue({ execution, workspace })
   const cancelFilePlan = vi.fn().mockImplementation(async (cancelledPlanId: string) => ({
     ...(planItems.find(item => item.id === cancelledPlanId) ?? plan),
@@ -334,15 +428,18 @@ function installDesktopMock(
       },
       templateManagement: {
         applyFilePlan,
+        cancelFilePlanGeneration,
         cancelFilePlan,
         deleteFileExecutions,
         deleteFilePlans,
         exportFilePlanDiagnostic,
+        generateFilePlan,
         listFileExecutionsPage,
         listArchivedFilePlansPage,
         listFilePlansPage,
         previewDeleteFileExecutions,
         previewDeleteFilePlans,
+        previewFilePlan,
         redraftFilePlan,
         rollbackFileExecution,
         startAudit,
@@ -352,17 +449,20 @@ function installDesktopMock(
 
   return {
     applyFilePlan,
+    cancelFilePlanGeneration,
     cancelBackgroundTask,
     cancelFilePlan,
     deleteFileExecutions,
     deleteFilePlans,
     exportFilePlanDiagnostic,
+    generateFilePlan,
     getBackgroundTask,
     listFileExecutionsPage,
     listArchivedFilePlansPage,
     listFilePlansPage,
     previewDeleteFileExecutions,
     previewDeleteFilePlans,
+    previewFilePlan,
     redraftFilePlan,
     rollbackFileExecution,
     startAudit,
@@ -457,6 +557,43 @@ describe('FileManagementWorkspace history actions', () => {
 })
 
 describe('FileManagementWorkspace plan review', () => {
+  it('keeps user notes off by default and shows the locked snapshot statistics', async () => {
+    const desktop = renderWorkspace([])
+
+    const notesToggle = await screen.findByRole('checkbox', {
+      name: '允许发送模板用户笔记',
+    })
+    expect(notesToggle).not.toBeChecked()
+    fireEvent.click(screen.getByRole('button', { name: '生成 AI 计划' }))
+    await waitFor(() =>
+      expect(desktop.previewFilePlan).toHaveBeenCalledWith(
+        expect.objectContaining({ includeNotes: false, outputLanguage: 'zh-CN' }),
+      ),
+    )
+    expect(await screen.findByRole('region', { name: '完整工作区目录覆盖' })).toHaveTextContent(
+      '3 / 3',
+    )
+    expect(screen.getByRole('region', { name: '文件计划发送快照' })).toHaveTextContent(
+      '详细候选3 / 3',
+    )
+    expect(screen.getByRole('region', { name: '文件计划发送快照' })).toHaveTextContent(
+      '用户笔记0 · 0 字符',
+    )
+    expect(screen.getByText(/完整目录、模板 ID、名称、相对路径和语言仍全部保留/)).toBeVisible()
+
+    fireEvent.click(screen.getByRole('button', { name: '返回修改' }))
+    fireEvent.click(notesToggle)
+    fireEvent.click(screen.getByRole('button', { name: '生成 AI 计划' }))
+    await waitFor(() =>
+      expect(desktop.previewFilePlan).toHaveBeenLastCalledWith(
+        expect.objectContaining({ includeNotes: true, outputLanguage: 'zh-CN' }),
+      ),
+    )
+    expect(await screen.findByRole('region', { name: '文件计划发送快照' })).toHaveTextContent(
+      '用户笔记2 · 18 字符',
+    )
+  })
+
   it('groups operation diffs and keeps each checkbox state independent', async () => {
     renderWorkspace([draftPlan])
 
@@ -466,6 +603,20 @@ describe('FileManagementWorkspace plan review', () => {
       '− 旧分类/并查集.cpp+ 图论/数据结构/并查集.cpp',
     )
     expect(screen.getByText('− 副本/并查集-copy.cpp')).toBeInTheDocument()
+    for (const [oldValue, newValue] of [
+      ['旧用途', '新用途'],
+      ['旧约束', '新约束'],
+      ['旧前置', '新前置'],
+      ['旧错误', '新错误'],
+      ['O(n²)', 'O(n log n)'],
+      ['O(1)', 'O(n)'],
+      ['旧标签', '新标签'],
+      ['旧笔记', '新笔记'],
+    ]) {
+      expect(screen.getByText(`− ${oldValue}`)).toBeInTheDocument()
+      expect(screen.getByText(`+ ${newValue}`)).toBeInTheDocument()
+    }
+    expect(screen.getByText('用户笔记').parentElement).toHaveTextContent('高风险')
 
     const defaultOperation = screen.getByRole('checkbox', { name: '选择操作 旧分类/并查集.cpp' })
     const manualOperation = screen.getByRole('checkbox', {
@@ -572,7 +723,11 @@ describe('FileManagementWorkspace audit display', () => {
       '达到审计安全上限。 还有更多建议未展示。',
     )
     expect(screen.getByText('请缩小工作区范围后再次扫描。')).toBeInTheDocument()
+    expect(screen.getByText('已展示 40 / 41')).toBeInTheDocument()
     expect(screen.getByText('审计/issue-39.cpp')).toBeInTheDocument()
     expect(screen.queryByText('审计/issue-40.cpp')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '展开全部' }))
+    expect(screen.getByText('审计/issue-40.cpp')).toBeInTheDocument()
+    expect(screen.getByText('已展示 41 / 41')).toBeInTheDocument()
   })
 })

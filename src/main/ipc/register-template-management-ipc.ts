@@ -34,6 +34,7 @@ import {
   fileChangePlanRequestSchema,
   fileChangePlanSchema,
   filePlanGenerationRequestSchema,
+  previewFilePlanRequestSchema,
   previewFilePlanResultSchema,
   previewDeleteFileExecutionsRequestSchema,
   previewDeleteFilePlansRequestSchema,
@@ -122,7 +123,7 @@ export function registerTemplateManagementIpc(
   registerValidatedHandler({
     channel: IPC_CHANNELS.templateManagement.previewFilePlan,
     handler: request => service.previewFilePlan(request),
-    inputSchema: filePlanGenerationRequestSchema,
+    inputSchema: previewFilePlanRequestSchema,
     outputSchema: previewFilePlanResultSchema,
   })
   registerValidatedHandler({

@@ -45,6 +45,7 @@ function createService(rootPath: string, templates: TemplateIndexEntry[]) {
   }
   const metadataRepository = {
     listMetadataMap: () => new Map(),
+    listStaleTemplateRelationPaths: () => [],
   }
   return new TemplateManagementService(
     {} as never,

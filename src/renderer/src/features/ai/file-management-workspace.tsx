@@ -10,10 +10,10 @@ import {
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
-import type { AiRequestPreview } from '@core/contracts/ai-request'
 import type {
   FileChangeExecution,
   FileChangePlan,
+  FilePlanRequestPreview,
   FileHistoryDeletionPreview,
   WorkspaceAudit,
 } from '@core/contracts/template-management'
@@ -61,8 +61,9 @@ export function FileManagementWorkspace({
   const [executions, setExecutions] = useState<FileChangeExecution[]>([])
   const [executionCursor, setExecutionCursor] = useState<string | null>(null)
   const [executionTotalCount, setExecutionTotalCount] = useState(0)
-  const [filePlanPreview, setFilePlanPreview] = useState<AiRequestPreview | null>(null)
+  const [filePlanPreview, setFilePlanPreview] = useState<FilePlanRequestPreview | null>(null)
   const [filePlanRequestId, setFilePlanRequestId] = useState<string | null>(null)
+  const [includeNotes, setIncludeNotes] = useState(false)
   const [plans, setPlans] = useState<FileChangePlan[]>([])
   const [archivedPlans, setArchivedPlans] = useState<FileChangePlan[]>([])
   const [archivedPlanCursor, setArchivedPlanCursor] = useState<string | null>(null)
@@ -227,6 +228,7 @@ export function FileManagementWorkspace({
     return run('preview', async () => {
       const requestId = crypto.randomUUID()
       const preview = await window.desktop.templateManagement.previewFilePlan({
+        includeNotes,
         outputLanguage: locale,
         requestId,
       })
@@ -265,13 +267,11 @@ export function FileManagementWorkspace({
   const generatePlan = () => {
     if (!filePlanRequestId || !filePlanPreview) return
     const requestId = filePlanRequestId
-    const outputLanguage = filePlanPreview.outputLanguage
     void run('generate', async () => {
       let plan: FileChangePlan
       try {
         plan = await window.desktop.templateManagement.generateFilePlan({
-          outputLanguage,
-          requestId,
+          previewId: filePlanPreview.filePlan.previewId,
         })
       } catch (caught) {
         setFilePlanPreview(null)
@@ -437,6 +437,16 @@ export function FileManagementWorkspace({
           </p>
         </div>
         <div className="ml-auto flex flex-wrap justify-end gap-2">
+          <label className="flex items-center gap-2 rounded-lg border border-border bg-background/60 px-2.5 text-[11px] text-muted-foreground">
+            <input
+              checked={includeNotes}
+              className="size-3.5 accent-primary"
+              disabled={Boolean(busyAction) || Boolean(draftPlan)}
+              onChange={event => setIncludeNotes(event.target.checked)}
+              type="checkbox"
+            />
+            {t('允许发送模板用户笔记')}
+          </label>
           <Button onClick={onOpenSettings} size="compact" type="button" variant="ghost">
             <Settings2 className="size-3.5" />
             {t('AI 设置')}

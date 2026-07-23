@@ -2,6 +2,7 @@ import * as Dialog from '@radix-ui/react-dialog'
 import { Braces, Database, FileText, Image, KeyRound, LoaderCircle, X } from 'lucide-react'
 
 import type { AiRequestPreview } from '@core/contracts/ai-request'
+import type { FilePlanRequestPreview } from '@core/contracts/template-management'
 
 import { Button } from '@/components/ui/button'
 import { restoreFocusAfterDialog } from '@/lib/focus-management'
@@ -29,7 +30,7 @@ export function AiRequestPreviewDialog({
   onCancel: () => void
   onClose?: () => void
   onConfirm: () => void
-  preview: AiRequestPreview
+  preview: AiRequestPreview | FilePlanRequestPreview
   progressText?: string
   returnFocusTo?: HTMLElement | null
 }) {
@@ -192,6 +193,64 @@ export function AiRequestPreviewDialog({
               </section>
             )}
 
+            {'filePlan' in preview && (
+              <section
+                aria-label={t('文件计划发送快照')}
+                className="mt-4 rounded-xl border border-border bg-background/65 p-3"
+              >
+                <p className="text-xs font-semibold">{t('文件计划发送快照')}</p>
+                <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-[11px] sm:grid-cols-3">
+                  <div>
+                    <dt className="text-muted-foreground">{t('详细候选')}</dt>
+                    <dd className="mt-0.5 font-semibold">
+                      {preview.filePlan.detailedCandidateCount.toLocaleString()} /{' '}
+                      {preview.filePlan.candidateTemplateCount.toLocaleString()}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">{t('源码片段')}</dt>
+                    <dd className="mt-0.5 font-semibold">
+                      {preview.filePlan.sourceSnippetCount.toLocaleString()} ·{' '}
+                      {preview.filePlan.sourceCharacters.toLocaleString()} {t('字符')}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">{t('元数据字符')}</dt>
+                    <dd className="mt-0.5 font-semibold">
+                      {preview.filePlan.metadataCharacters.toLocaleString()}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">{t('用户笔记')}</dt>
+                    <dd className="mt-0.5 font-semibold">
+                      {preview.filePlan.notesIncludedCount.toLocaleString()} ·{' '}
+                      {preview.filePlan.notesCharacters.toLocaleString()} {t('字符')}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">{t('源码读取失败')}</dt>
+                    <dd className="mt-0.5 font-semibold">
+                      {preview.filePlan.sourceReadFailureCount.toLocaleString()}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">{t('总输入字符')}</dt>
+                    <dd className="mt-0.5 font-semibold">
+                      {preview.filePlan.inputCharacters.toLocaleString()}
+                    </dd>
+                  </div>
+                </dl>
+                <p className="mt-3 text-[11px] text-muted-foreground">
+                  {t('候选元数据省略')}：{t(preview.filePlan.candidateMetadataOmitted ? '是' : '否')}
+                  {' · '}
+                  {t('候选源码省略')}：{t(preview.filePlan.candidateSourceOmitted ? '是' : '否')}
+                </p>
+                <p className="mt-2 break-all font-mono text-[10px] text-muted-foreground">
+                  SHA-256 {preview.filePlan.inputHash}
+                </p>
+              </section>
+            )}
+
             <section className="mt-4 rounded-xl border border-primary/18 bg-primary/6 p-3 text-xs">
               <p className="font-semibold">{t('Prompt 缓存')}</p>
               <p className="mt-1 break-all font-mono text-[10px] text-muted-foreground">
@@ -201,7 +260,12 @@ export function AiRequestPreviewDialog({
               </p>
               {preview.truncated && (
                 <p className="mt-2 text-warning">
-                  {t('已按安全预算缩减可选上下文或当前输入；完整目录、模板 ID 和名称仍全部保留。')}
+                  {preview.workspaceCatalog &&
+                  !preview.workspaceCatalog.templateNamesTruncated &&
+                  preview.workspaceCatalog.sentTemplateNameCount ===
+                    preview.workspaceCatalog.templateCount
+                    ? t('已按安全预算缩减可选上下文；完整目录、模板 ID、名称、相对路径和语言仍全部保留。')
+                    : t('已按安全预算缩减部分可选上下文；请检查上方覆盖统计。')}
                 </p>
               )}
             </section>

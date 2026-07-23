@@ -41,6 +41,7 @@ export class TemplateWorkspaceAuditService {
     const metadata = this.metadataRepository.listMetadataMap(templates.map(template => template.id))
     const issues: WorkspaceAudit['issues'] = []
     let omittedIssueCount = 0
+    let pathTruncatedIssueCount = 0
     const addIssue = (issue: WorkspaceAudit['issues'][number]) => {
       if (issues.length < 500) issues.push(issue)
       else omittedIssueCount += 1
@@ -105,9 +106,12 @@ export class TemplateWorkspaceAuditService {
           detail: `这些模板源码规范化后完全相同；建议仅保留 ${ordered[0]}。`,
           id: randomUUID(),
           kind: 'duplicate-content',
+          pathCount: ordered.length,
           paths: ordered.slice(0, 20),
+          pathsTruncated: ordered.length > 20,
           severity: 'warning',
         })
+        if (ordered.length > 20) pathTruncatedIssueCount += 1
       }
     }
     options.onProgress?.({
@@ -228,7 +232,23 @@ export class TemplateWorkspaceAuditService {
         detail: `这些模板源码高度相似；建议仅保留 ${ordered[0]}，执行前请查看源码确认。`,
         id: randomUUID(),
         kind: 'similar-content',
+        pathCount: ordered.length,
         paths: ordered.slice(0, 20),
+        pathsTruncated: ordered.length > 20,
+        severity: 'warning',
+      })
+      if (ordered.length > 20) pathTruncatedIssueCount += 1
+    }
+    const staleRelationPaths = this.metadataRepository.listStaleTemplateRelationPaths(workspace.id)
+    for (let index = 0; index < staleRelationPaths.length; index += 20) {
+      const paths = staleRelationPaths.slice(index, index + 20)
+      addIssue({
+        detail: '题目关系仍指向当前不可用的模板；可撤销对应删除操作或手动解除关系。',
+        id: randomUUID(),
+        kind: 'stale-relation',
+        pathCount: paths.length,
+        paths,
+        pathsTruncated: false,
         severity: 'warning',
       })
     }
@@ -247,6 +267,9 @@ export class TemplateWorkspaceAuditService {
     const truncationReasons = [
       missingIndexCount > 0 ? '部分模板缺少可用的相似度索引；请重新扫描后再次审计。' : null,
       candidatePairsTruncated ? '高相似候选过多，已停止继续比较以保持应用可响应。' : null,
+      pathTruncatedIssueCount > 0
+        ? `${pathTruncatedIssueCount} 个重复或相似组的路径超过 20 条，已在组内明确标记截断。`
+        : null,
       omittedIssueCount > 0 ? '还有更多建议未在当前结果中展开。' : null,
     ].filter((value): value is string => Boolean(value))
     return {
