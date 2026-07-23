@@ -86,6 +86,26 @@ describe('TemplateManagementService feature contracts', () => {
     }
   })
 
+  it('marks duplicate groups with more than 20 paths as explicitly truncated', async () => {
+    const templates = Array.from({ length: 21 }, (_, index) =>
+      createTemplate(`workspace-${index}`, `group/item-${index + 1}.cpp`, 'same-hash'),
+    )
+    const service = createService('/tmp/template-management-service-test', templates)
+
+    const audit = await service.auditWorkspace()
+    const duplicateIssue = audit.issues.find(issue => issue.kind === 'duplicate-content')
+
+    expect(duplicateIssue).toMatchObject({
+      pathCount: 21,
+      pathsTruncated: true,
+    })
+    expect(duplicateIssue?.paths).toHaveLength(20)
+    expect(audit.truncated).toBe(true)
+    expect(audit.truncatedReason).toContain(
+      '1 个重复或相似组的路径超过 20 条，已在组内明确标记截断。',
+    )
+  })
+
   it('stops audit work before publishing results when cancelled', async () => {
     const rootPath = await mkdtemp(join(tmpdir(), 'template-management-service-'))
     try {

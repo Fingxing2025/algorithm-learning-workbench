@@ -610,14 +610,7 @@ export class TemplateFilePlanGenerationService {
       ) {
         throw new PublicError('FILE_UNAVAILABLE', '工作区目录已变化，请重新预览。')
       }
-      const resolved = await resolveAuthorizedFile(workspace.rootPath, expected.path)
-      const stats = await lstat(resolved.absolutePath)
-      if (
-        stats.size !== expected.sizeBytes ||
-        stats.mtime.toISOString() !== expected.modifiedAt
-      ) {
-        throw new PublicError('FILE_UNAVAILABLE', `文件已在预览后变化：${expected.path}`)
-      }
+      await resolveAuthorizedFile(workspace.rootPath, expected.path)
     }
     for (const candidate of snapshot.candidates) {
       if (!candidate.precondition) continue
@@ -771,12 +764,27 @@ export class TemplateFilePlanGenerationService {
           !similarDeletePaths.has(candidate.template.relativePath)
         )
           continue
+        const similarGroup =
+          suggestion.kind === 'delete'
+            ? snapshot.audit.issues.find(
+                issue =>
+                  issue.kind === 'similar-content' &&
+                  issue.paths.includes(candidate.template.relativePath),
+              )
+            : null
         let operation: unknown
         const base = {
           alternatives: suggestion.alternatives,
           applicability: suggestion.applicability,
           confidence: suggestion.confidence,
-          evidence: suggestion.evidence,
+          evidence: similarGroup
+            ? [
+                snapshot.request.outputLanguage === 'en'
+                  ? `Local similar-group keeper: ${similarGroup.paths[0] ?? ''}`
+                  : `本地相似组建议保留：${similarGroup.paths[0] ?? ''}`,
+                ...suggestion.evidence,
+              ].slice(0, 12)
+            : suggestion.evidence,
           id: randomUUID(),
           precondition: {
             ...candidate.precondition,

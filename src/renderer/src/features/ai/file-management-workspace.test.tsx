@@ -594,6 +594,27 @@ describe('FileManagementWorkspace plan review', () => {
     )
   })
 
+  it('does not claim complete catalog preservation without catalog evidence', async () => {
+    const desktop = renderWorkspace([])
+    const previewWithoutCatalog = await desktop.previewFilePlan({
+      includeNotes: false,
+      outputLanguage: 'zh-CN',
+    })
+    desktop.previewFilePlan.mockReset().mockResolvedValueOnce({
+      ...previewWithoutCatalog,
+      workspaceCatalog: undefined,
+    })
+
+    fireEvent.click(await screen.findByRole('button', { name: '生成 AI 计划' }))
+
+    expect(
+      await screen.findByText('已按安全预算缩减部分可选上下文；请检查上方覆盖统计。'),
+    ).toBeVisible()
+    expect(
+      screen.queryByText(/完整目录、模板 ID、名称、相对路径和语言仍全部保留/),
+    ).not.toBeInTheDocument()
+  })
+
   it('groups operation diffs and keeps each checkbox state independent', async () => {
     renderWorkspace([draftPlan])
 

@@ -103,7 +103,7 @@ test.beforeAll(async () => {
         .flatMap(issue => issue.paths.slice(1))
       const duplicates = input.templates.filter(template => duplicatePaths.includes(template.path))
       const named = input.templates.find(template => template.path === 'Old Name.cpp')
-      const metadataTarget = input.templates.find(template => template.path === 'plain.py')
+      const metadataTarget = input.templates.find(template => template.path === 'plain copy.py')
       response.setHeader('content-type', 'application/json')
       response.end(
         JSON.stringify({
@@ -187,7 +187,15 @@ test.beforeAll(async () => {
   await writeFile(join(workspaceRoot, 'copy.cpp'), 'duplicate source\n', 'utf8')
   await writeFile(join(workspaceRoot, 'keep.cpp'), 'duplicate source\n', 'utf8')
   await writeFile(join(workspaceRoot, 'Old Name.cpp'), 'void oldName() {}\n', 'utf8')
-  await writeFile(join(workspaceRoot, 'plain.py'), 'def dfs():\n    pass\n', 'utf8')
+  await writeFile(join(workspaceRoot, 'plain copy.py'), 'def dfs():\n    pass\n', 'utf8')
+  await mkdir(join(workspaceRoot, 'bulk'))
+  for (let index = 0; index < 20; index += 1) {
+    await writeFile(
+      join(workspaceRoot, 'bulk', `fixture-${String(index + 1).padStart(2, '0')}.cpp`),
+      `void bulk_${index + 1}() {\n${'  // optional source context\n'.repeat(360)}}\n`,
+      'utf8',
+    )
+  }
   const similarSource = [
     'long long score(const vector<int>& data) {',
     '  long long value = 0;',
@@ -226,11 +234,16 @@ test('creates a problem relation before the AI file move', async () => {
   await page.getByRole('button', { name: '保存关联' }).click()
   await expect(page.getByText('1 个已确认关联')).toBeVisible()
   await page.getByRole('button', { name: '模板库', exact: true }).click()
-  await page.getByText('plain.py', { exact: true }).click()
+  await page.getByText('plain copy.py', { exact: true }).click()
   await page.getByRole('button', { name: /^(编辑|补充元数据)$/ }).click()
   await page.getByLabel('模板用户笔记').fill('DFS 在任何情况下都只需要 O(1) 额外空间。')
   await page.getByRole('button', { name: '保存元数据' }).click()
   await expect(page.getByText('DFS 在任何情况下都只需要 O(1) 额外空间。')).toBeVisible()
+  await page.getByText('Old Name.cpp', { exact: true }).click()
+  await page.getByRole('button', { name: /^(编辑|补充元数据)$/ }).click()
+  await page.getByLabel('模板用户笔记').fill('移动候选的本地用户笔记。')
+  await page.getByRole('button', { name: '保存元数据' }).click()
+  await expect(page.getByText('移动候选的本地用户笔记。')).toBeVisible()
 })
 
 test('cancels a generated plan without changing files', async () => {
@@ -250,6 +263,37 @@ test('cancels a generated plan without changing files', async () => {
   await generatePlanButton.focus()
   await page.keyboard.press('Enter')
   await expect(page.getByRole('heading', { name: '确认发送给 AI' })).toBeVisible()
+  await expect(page.getByRole('region', { name: '完整工作区目录覆盖' })).toContainText('26 / 26')
+  await page.getByRole('region', { name: '文件计划发送快照' }).scrollIntoViewIfNeeded()
+  await expect(page.getByText(/完整目录、模板 ID、名称、相对路径和语言仍全部保留/)).toBeVisible()
+  await page.screenshot({
+    animations: 'disabled',
+    path: resolve('output/playwright/workspace-file-ai-preview-notes-off-light-1440x900.png'),
+  })
+  await electronApp.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0]?.setSize(1024, 640),
+  )
+  await page.screenshot({
+    animations: 'disabled',
+    path: resolve('output/playwright/workspace-file-ai-preview-notes-off-light-1024x640.png'),
+  })
+  await electronApp.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0]?.setSize(1440, 900),
+  )
+  await page.getByRole('button', { name: '返回修改' }).click()
+  await page.getByRole('checkbox', { name: '允许发送模板用户笔记' }).check()
+  await generatePlanButton.click()
+  await page.getByRole('region', { name: '文件计划发送快照' }).scrollIntoViewIfNeeded()
+  await expect(page.getByRole('region', { name: '文件计划发送快照' })).toContainText(
+    /用户笔记[1-9]/,
+  )
+  await page.screenshot({
+    animations: 'disabled',
+    path: resolve('output/playwright/workspace-file-ai-preview-notes-on-light-1440x900.png'),
+  })
+  await page.getByRole('button', { name: '返回修改' }).click()
+  await page.getByRole('checkbox', { name: '允许发送模板用户笔记' }).uncheck()
+  await generatePlanButton.click()
   holdNextFilePlanResponse = true
   await page.getByRole('button', { name: '确认发送并生成' }).click()
   await expect.poll(() => heldFilePlanResponseStarted).toBe(true)
@@ -273,7 +317,7 @@ test('cancels a generated plan without changing files', async () => {
   await expect(page.getByRole('status').filter({ hasText: '尚未修改文件' })).toBeVisible()
   await expect(page.getByText('移动 / 重命名', { exact: true })).toBeVisible()
   await expect(page.getByText('删除重复文件').first()).toBeVisible()
-  await expect(page.getByText('需手动选择')).toHaveCount(2)
+  await expect(page.getByText('需手动选择')).toHaveCount(3)
   await page.getByRole('button', { name: '取消计划' }).click()
   await expect(page.getByRole('status').filter({ hasText: '工作区文件未发生变化' })).toBeVisible()
   expect(await pathExists(join(workspaceRoot, 'Old Name.cpp'))).toBe(true)
@@ -318,16 +362,25 @@ test('applies a selected plan with backup, stable relations, and rollback', asyn
   await expect(page.getByRole('heading', { name: '确认发送给 AI' })).toBeVisible()
   await page.getByRole('button', { name: '确认发送并生成' }).click()
   await expect(page.getByText('移动 / 重命名', { exact: true })).toBeVisible()
+  await expect(page.getByRole('checkbox', { name: '选择操作 keep.cpp' })).not.toBeChecked()
+  await expect(page.getByRole('checkbox', { name: '选择操作 near_b.cpp' })).not.toBeChecked()
   await page.screenshot({
     animations: 'disabled',
-    path: resolve('output/playwright/stage5-file-plan-light.png'),
+    path: resolve('output/playwright/workspace-file-ai-plan-review-light-1440x900.png'),
   })
   await electronApp.evaluate(({ BrowserWindow }) =>
     BrowserWindow.getAllWindows()[0]?.setSize(1280, 720),
   )
   await page.screenshot({
     animations: 'disabled',
-    path: resolve('output/playwright/stage5-file-plan-light-1280x720.png'),
+    path: resolve('output/playwright/workspace-file-ai-plan-review-light-1280x720.png'),
+  })
+  await electronApp.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0]?.setSize(1024, 640),
+  )
+  await page.screenshot({
+    animations: 'disabled',
+    path: resolve('output/playwright/workspace-file-ai-plan-review-light-1024x640.png'),
   })
   await electronApp.evaluate(({ BrowserWindow }) =>
     BrowserWindow.getAllWindows()[0]?.setSize(1440, 900),
@@ -335,10 +388,22 @@ test('applies a selected plan with backup, stable relations, and rollback', asyn
   await page.locator('html').evaluate(root => root.classList.add('dark'))
   await page.screenshot({
     animations: 'disabled',
-    path: resolve('output/playwright/stage5-file-plan-dark.png'),
+    path: resolve('output/playwright/workspace-file-ai-plan-review-dark-1440x900.png'),
   })
   await page.locator('html').evaluate(root => root.classList.remove('dark'))
+  await page
+    .getByRole('checkbox', { name: '选择操作 plain copy.py' })
+    .scrollIntoViewIfNeeded()
+  await page.screenshot({
+    animations: 'disabled',
+    path: resolve('output/playwright/workspace-file-ai-metadata-diff-light-1440x900.png'),
+  })
+  await page.getByRole('checkbox', { name: '选择操作 keep.cpp' }).check()
   await page.getByRole('button', { name: '预览并执行' }).click()
+  await page.screenshot({
+    animations: 'disabled',
+    path: resolve('output/playwright/workspace-file-ai-second-confirmation-light-1440x900.png'),
+  })
   await page.getByRole('button', { name: '确认执行' }).click()
   await expect(page.getByRole('status').filter({ hasText: '保留撤销备份' })).toBeVisible()
   await expect(page.getByRole('button', { name: '一键删除执行记录' })).toBeEnabled()
