@@ -142,6 +142,18 @@ async function setNextSelection(path: string) {
   }, path)
 }
 
+async function expectCurrentWorkspace(workspaceId: string) {
+  await expect
+    .poll(
+      () => page.evaluate(() => window.desktop.workspace.getCurrent()).then(value => value?.id),
+      {
+        message: `等待工作区 ${workspaceId} 切换完成`,
+        timeout: 30_000,
+      },
+    )
+    .toBe(workspaceId)
+}
+
 async function collectArchiveSources(root: string): Promise<PortableArchiveSource[]> {
   const sources: PortableArchiveSource[] = []
   const walk = async (directory: string) => {
@@ -187,6 +199,13 @@ test.beforeAll(async () => {
   await launchApplication()
   await setNextSelection(blankWorkspacePath)
   await page.getByRole('button', { name: '选择目录' }).click()
+  await expect
+    .poll(() => page.evaluate(() => window.desktop.workspace.getCurrent()), {
+      message: '等待空白工作区初始化完成',
+      timeout: 30_000,
+    })
+    .not.toBeNull()
+  await expect(page.getByText('工作区还是空的')).toBeVisible({ timeout: 30_000 })
 })
 
 test.afterAll(async () => {
@@ -520,6 +539,7 @@ test('deep-copies any valid workspace backup into the current workspace without 
   await page.getByRole('button', { name: '模板库', exact: true }).click()
   await setNextSelection(blankWorkspacePath)
   await page.getByRole('button', { name: '切换工作区' }).click()
+  await expectCurrentWorkspace(workspaceA.id)
   const currentA = await page.evaluate(() => window.desktop.workspace.getCurrent())
   expect(currentA?.id).toBe(workspaceA.id)
   const diagnosticsAAfter = await page.evaluate(() => window.desktop.dataManagement.diagnose())
@@ -538,6 +558,7 @@ test('deep-copies any valid workspace backup into the current workspace without 
   await page.getByRole('button', { name: '模板库', exact: true }).click()
   await setNextSelection(workspaceBPath)
   await page.getByRole('button', { name: '切换工作区' }).click()
+  await expectCurrentWorkspace(workspaceB.id)
   const currentBAfterSwitch = await page.evaluate(() => window.desktop.workspace.getCurrent())
   expect(currentBAfterSwitch?.id).toBe(workspaceB.id)
   await expect(page.evaluate(() => window.desktop.problems.list())).resolves.toEqual([
@@ -740,6 +761,7 @@ test('finishes cleanup after a restore interruption following SQLite commit', as
   const backupPath = join(temporaryRoot, 'committed-restore-current.awb-backup')
   await setNextSavePath(backupPath)
   await page.getByRole('button', { name: '导出当前工作区备份' }).click()
+  await expect(page.getByRole('status').filter({ hasText: '备份已导出并通过校验' })).toBeVisible()
   await page.evaluate(() =>
     window.desktop.problems.create({
       aiSummary: '',

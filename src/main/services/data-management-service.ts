@@ -681,10 +681,11 @@ export class DataManagementService {
       `preflight-${new Date().toISOString().replace(/[:.]/g, '-')}-${randomUUID()}${BACKUP_EXTENSION}`,
     )
     const operationId = randomUUID()
-    const stagingPath = join(backupRoot, `.${basename(finalPath)}.${operationId}.staging.tmp`)
-    const archivePath = join(backupRoot, `.${basename(finalPath)}.${operationId}.archive.tmp`)
+    const stagingPath = await mkdtemp(join(tmpdir(), 'awb-preflight-')).catch(() => {
+      throw new PublicError('UNKNOWN', '恢复前自动备份失败，恢复已取消。')
+    })
+    const archivePath = join(backupRoot, `.${operationId}.archive.tmp`)
     try {
-      await mkdir(stagingPath, { recursive: false })
       await this.writeBackupPackage(stagingPath, { includeTemplateSources: true }, workspace)
       await createPortableBackupArchive(
         archivePath,
