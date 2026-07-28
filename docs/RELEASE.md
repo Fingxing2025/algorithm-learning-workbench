@@ -170,27 +170,30 @@ GitHub Actions 使用固定 commit SHA 的 checkout、setup-node 与 upload-arti
 ## 候选、源码与正式发布状态
 
 - 最终源码 HEAD：以当前交接文档所在最终提交为准；候选生成后如再提交证据文档，最终 HEAD 会晚于候选来源提交，两者必须分开记录。
-- `0.1.3` RC1 来源：当前发布分支 `codex/release-0.1.3-rc.1`；精确候选提交以新 `build-metadata.json` 为准。
+- `0.1.3` RC1 候选来源：干净提交 `797700e5f0abd5cc5dd544bc9f70f9d3256ce3bd`；当前发布分支为 `codex/release-0.1.3-rc.1`。
 - `0.1.3` RC1 源码门禁：`npm run check` 通过 49 个 Vitest 文件/375 项和 8 项发布脚本测试；`tests/e2e/data-management.spec.ts` 5/5，完整真实 Electron E2E 57 项通过、2 项 packaged 条件跳过。
-- 最后已验证打包版本暂为历史 `0.1.2` macOS arm64 preview；`0.1.3` RC1 只有完成本轮构建、验证和 packaged smoke 后才可替换该结论。
+- 最后已验证打包版本：`0.1.3` macOS arm64 RC1 Preview；全新/已有 V2 userData packaged smoke 2/2 通过。
 - 正式签名版本：不存在。本机 `security find-identity -v -p codesigning` 为 `0 valid identities found`，不得把 ad-hoc App 描述为 Developer ID signed/notarized。
 - Windows 实机状态：上一份 `0.1.2` 未签名包已有用户探索性实测且所测流程无已知问题；没有脚本生成的逐项验收 JSON。`0.1.3` 原生候选、Authenticode 和正式安装/升级/卸载证据仍未完成。
 
-计划中的 RC1 候选证据目录：`release/candidates/0.1.3-mac-arm64-preview/`。在该目录由本轮流程实际生成前，不复用下方 `0.1.2` 历史摘要。
+本次 RC1 候选证据目录：`release/candidates/0.1.3-mac-arm64-preview/`。
 
 | 制品                                 |      字节数 | SHA-256                                                            |
 | ------------------------------------ | ----------: | ------------------------------------------------------------------ |
-| `算法学习工作台-0.1.2-mac-arm64.dmg` | 138,104,754 | `798c94f809bb42a87eb2bff12c861f507c3b6c8fc44c5e1cf0b357a3ac742662` |
-| `算法学习工作台-0.1.2-mac-arm64.zip` | 137,580,378 | `e918b578d465b5eda1c146e14dff2d30721a4f1c7a941baddd1c4a922f73943b` |
+| `算法学习工作台-0.1.3-mac-arm64.dmg` | 137,537,321 | `4edb8074898670cf38831ecf0bfc55b11e416986e8f7b6e5ead7e1614b492be6` |
+| `算法学习工作台-0.1.3-mac-arm64.zip` | 137,007,161 | `5597a8f3f59d71692ccd3ee29e9de308c0a15a5f5284bb9ebddfabe5ad71680b` |
 
 - App 主程序与 `better_sqlite3.node`：Mach-O 64-bit arm64；Electron module ABI `148`。
-- Info.plist：appId `com.algorithmworkbench.desktop`，版本/build `0.1.2`，最低 macOS `12.0`；源 PNG 与打包 `icon.icns` 均 1024×1024 alpha，四角透明，alpha bbox `(48,48)-(976,976)`。
-- DMG `hdiutil verify`、ZIP 完整性和 `SHA256SUMS.txt` 复核通过；CycloneDX SBOM 为 1.5、93 个组件。
-- 隐私扫描：ASAR 10,739 条目、App 文件 316 个；禁用条目、禁用外部文件、个人绝对路径和疑似密钥均 0 命中。
-- packaged smoke：全新 userData 与已有 V2 userData 重启各 1 项通过。
+- Info.plist：appId `com.algorithmworkbench.desktop`，版本/build `0.1.3`，最低 macOS `12.0`；源 PNG 与打包 `icon.icns` 均为 1024×1024 alpha。
+- DMG `hdiutil verify`、ZIP 完整性和复制回项目后的 `SHA256SUMS.txt` 复核通过；CycloneDX SBOM 为 1.5、99 个组件，运行时 `npm audit --omit=dev --audit-level=moderate` 为 0 漏洞。
+- 隐私扫描：ASAR 10,795 条目；禁用条目、禁用外部文件、个人绝对路径和疑似密钥均 0 命中。`app.asar` SHA-256 为 `7e71d89825f2104977cce8292fc642df102374ac09c16af11030fa99e56d18db`。
+- packaged smoke：候选源目录和复制回项目后的 App 都完成全新 userData 与已有 V2 userData 重启 2/2。
 - 签名：unsigned/ad-hoc，无 Authority/TeamIdentifier，未 staple，Gatekeeper 不接受；仅适合测试分发，不是正式签名版本。
+- 构建环境说明：顶层 `npm run release:mac:preview` 在 electron-builder 联网获取 Electron 校验清单时因 GitHub 端点长期停在 `SYN_SENT` 被人工终止；随后使用本机缓存的官方 `electron-v43.1.0-darwin-arm64.zip` 继续标准 builder/SBOM/验证流程。该 ZIP 的 SHA-256 `2ee24f768c41bc2ed9bd580d7797b185dffb550dafca59c2cd08b51965bcda3a` 与 `electron` 包内 `checksums.json` 完全一致。候选源码预检仍为 `sourceTree=clean`，但不能把顶层单命令描述为端到端成功。
 
 ## 历史本机候选记录
+
+Session F unsigned beta 来自干净提交 `39421c0329c463657cb43c4e552949e48bee93c9`：DMG SHA-256 为 `798c94f809bb42a87eb2bff12c861f507c3b6c8fc44c5e1cf0b357a3ac742662`，ZIP SHA-256 为 `e918b578d465b5eda1c146e14dff2d30721a4f1c7a941baddd1c4a922f73943b`。它已经被上方 `0.1.3` RC1 替代，只保留为历史记录。
 
 Session C 最终候选来自干净提交 `5817eab7ab0274b6dcc8830334e300dfe1cbe2ae`，完整证据位于 `release/candidates/0.1.2-mac-arm64-preview/`：
 

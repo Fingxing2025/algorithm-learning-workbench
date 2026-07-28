@@ -31,7 +31,7 @@
 - `npm run check` 通过 TypeScript、ESLint 0 warnings、Prettier、49 个 Vitest 文件/375 项和 8 项发布脚本测试；备份恢复定向 Electron E2E 5/5、完整 Electron E2E 57 项通过，2 项 packaged 因尚未提供新候选路径按条件跳过。
 - 用户已在真实 Windows 上测试上一份 `0.1.2` 未签名安装包并反馈所测流程未发现问题；首次 AI 鉴权失败在重新保存 Windows 本机 API Key 后恢复。
 - 该反馈没有配套 `windows-acceptance-evidence.json`，不能据此逐项宣称安装升级、快捷方式、卸载和数据保留脚本全部通过；Windows Authenticode 仍未完成。
-- `0.1.3` RC1 的源码门禁、macOS Preview 和新 Windows 原生候选证据以本轮结果为准。
+- `0.1.3` RC1 macOS arm64 Preview 已从干净提交 `797700e` 生成并通过架构、版本、DMG、ZIP、SHA-256、SBOM、隐私与 packaged smoke 2/2 验证；新 Windows 原生候选仍待生成。
 
 ## [0.1.2] - 2026-07-18
 

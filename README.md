@@ -6,7 +6,7 @@
 
 V2 `0.1.3` RC1 已进入候选验证：从全新应用数据目录开始，用户可以创建可直接复制的自包含工作区，在当前工作区内管理模板、题目和多对多关系，配置五类 AI 协议及 DeepSeek/阿里云百炼快捷预设，并通过可预览、可撤销的计划整理整个模板库。
 
-`0.1.3` RC1 源码门禁已通过：49 个 Vitest 文件/375 项、8 项发布脚本测试和 57 项常规 Electron E2E 全部通过；2 项 packaged 测试将在生成新候选后单独执行。核心产品流程、当前工作区深拷贝备份恢复、五协议 AI 稳定性和大型工作区性能已闭环，公开发布仍被 macOS 签名/公证与 Windows Authenticode 阻塞。完整进度和风险见 [项目状态与交接](docs/PROJECT_STATUS_AND_HANDOFF.md)。
+`0.1.3` RC1 源码门禁已通过：49 个 Vitest 文件/375 项、8 项发布脚本测试和 57 项常规 Electron E2E 全部通过。macOS arm64 Preview 已从干净提交生成，架构、版本、DMG/ZIP、SHA-256、SBOM、隐私检查和 packaged smoke 2/2 通过。核心产品流程、当前工作区深拷贝备份恢复、五协议 AI 稳定性和大型工作区性能已闭环，公开发布仍被 macOS 签名/公证与 Windows Authenticode 阻塞。完整进度和风险见 [项目状态与交接](docs/PROJECT_STATUS_AND_HANDOFF.md)。
 
 macOS arm64 与 Windows x64 已建立可重复候选流程：精确选择当前版本产物，生成 SHA-256、CycloneDX SBOM、构建元数据、隐私报告和发布说明草稿。当前没有 Developer ID/notarization 凭据，macOS 只能作为开发预览；上一份 Windows `0.1.2` 未签名安装包已由用户实机测试且所测流程未发现问题，但没有机器生成的完整验收 JSON，且 Authenticode 尚未完成。详见 [发布说明](docs/RELEASE.md) 和 [用户指南](docs/USER_GUIDE.md)。
 

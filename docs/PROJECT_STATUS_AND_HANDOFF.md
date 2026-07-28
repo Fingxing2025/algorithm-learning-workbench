@@ -34,6 +34,7 @@
 - 当前发布分支：`codex/release-0.1.3-rc.1`；源码基线提交 `252d366`，Windows 长路径/测试稳定性修复提交 `fba51ee`
 - 产品阶段：核心功能、AI 完整目录、自包含工作区、当前工作区原地深拷贝恢复、跨平台可移植备份 v2 与中文源码读取的代码闭环已完成，正在执行 `0.1.3` RC1 发布门禁。上一份 `0.1.2` Windows 未签名安装包已由用户实机测试且所测流程未发现问题；首次 AI 鉴权失败通过在 Windows 本机重新保存 API Key 解决。该反馈没有机器生成的完整验收 JSON，`0.1.3` Windows 原生候选与 Authenticode 仍未完成
 - `0.1.3` RC1 源码门禁：`npm run check` 通过 TypeScript、ESLint 0 warnings、Prettier、49 个 Vitest 文件/375 项和 8 项发布脚本测试；备份恢复定向真实 Electron E2E 5/5，完整 Electron E2E 57 项通过、2 项 packaged 条件跳过
+- `0.1.3` macOS arm64 RC1 Preview 已从干净提交 `797700e5f0abd5cc5dd544bc9f70f9d3256ce3bd` 生成：DMG 137,537,321 bytes / SHA-256 `4edb8074898670cf38831ecf0bfc55b11e416986e8f7b6e5ead7e1614b492be6`，ZIP 137,007,161 bytes / SHA-256 `5597a8f3f59d71692ccd3ee29e9de308c0a15a5f5284bb9ebddfabe5ad71680b`；架构、Info.plist、DMG、ZIP、99 组件 SBOM、隐私和 packaged smoke 2/2 通过。该包为 ad-hoc Preview，无 TeamIdentifier、未公证
 
 ## 0. 新阶段入口
 
