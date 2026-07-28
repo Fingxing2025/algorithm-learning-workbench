@@ -4,11 +4,11 @@
 
 ## 当前状态
 
-V2 `0.1.2` 开发快照的阶段 0–6 与首轮质量迭代已完成：从全新应用数据目录开始，用户可以建立模板工作区、题目卡片和多对多关联，配置五类 AI 协议及 DeepSeek/阿里云百炼快捷预设，确认题目 AI 草稿，并通过可预览、可撤销的计划整理整个模板库。
+V2 `0.1.3` RC1 已进入候选验证：从全新应用数据目录开始，用户可以创建可直接复制的自包含工作区，在当前工作区内管理模板、题目和多对多关系，配置五类 AI 协议及 DeepSeek/阿里云百炼快捷预设，并通过可预览、可撤销的计划整理整个模板库。
 
-当前质量基线为 30 个 Vitest 文件中的 209 项测试、3 项发布脚本测试和 54 项常规 Electron E2E 通过；2 项 packaged 测试在未设置目录包路径时按条件跳过。核心产品流程、数据备份恢复、五协议 AI 稳定性和大型工作区性能已闭环，公开发布仍被 macOS 签名/公证与真实 Windows 安装验收阻塞。完整进度和风险见 [项目状态与交接](docs/PROJECT_STATUS_AND_HANDOFF.md)。
+`0.1.3` RC1 源码门禁已通过：49 个 Vitest 文件/375 项、8 项发布脚本测试和 57 项常规 Electron E2E 全部通过；2 项 packaged 测试将在生成新候选后单独执行。核心产品流程、当前工作区深拷贝备份恢复、五协议 AI 稳定性和大型工作区性能已闭环，公开发布仍被 macOS 签名/公证与 Windows Authenticode 阻塞。完整进度和风险见 [项目状态与交接](docs/PROJECT_STATUS_AND_HANDOFF.md)。
 
-macOS arm64 与 Windows x64 已建立可重复候选流程：精确选择当前版本产物，生成 SHA-256、CycloneDX SBOM、构建元数据、隐私报告和发布说明草稿。当前没有 Developer ID/notarization 凭据，macOS 只能作为开发预览；Windows NSIS 尚未完成真实主机安装验收。详见 [发布说明](docs/RELEASE.md) 和 [用户指南](docs/USER_GUIDE.md)。
+macOS arm64 与 Windows x64 已建立可重复候选流程：精确选择当前版本产物，生成 SHA-256、CycloneDX SBOM、构建元数据、隐私报告和发布说明草稿。当前没有 Developer ID/notarization 凭据，macOS 只能作为开发预览；上一份 Windows `0.1.2` 未签名安装包已由用户实机测试且所测流程未发现问题，但没有机器生成的完整验收 JSON，且 Authenticode 尚未完成。详见 [发布说明](docs/RELEASE.md) 和 [用户指南](docs/USER_GUIDE.md)。
 
 ## 已确定技术方向
 
@@ -48,4 +48,4 @@ npm run release:mac:preview
 npm run release:mac:signed
 ```
 
-Windows 候选必须在原生 Windows 主机或 runner 生成；CI 构建不等于实机安装验收。工程、数据、AI、文件计划和发布边界记录在 `docs/decisions/` 中的 ADR-0001 至 ADR-0018。威胁模型见 [安全威胁模型](docs/智能算法学习助手-v2-threat-model.md)，审查结论见 [安全最佳实践审查](docs/SECURITY_REVIEW.md)。
+Windows 候选必须在原生 Windows 主机或 runner 生成；CI 构建不等于实机安装验收。工程、数据、AI、文件计划和发布边界记录在 `docs/decisions/` 中的 ADR-0001 至 ADR-0031。威胁模型见 [安全威胁模型](docs/智能算法学习助手-v2-threat-model.md)，审查结论见 [安全最佳实践审查](docs/SECURITY_REVIEW.md)。

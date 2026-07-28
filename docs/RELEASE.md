@@ -2,7 +2,8 @@
 
 ## 版本事实与发布边界
 
-- 当前源码版本：`0.1.2`。
+- 当前源码版本：`0.1.3`；当前候选标签为 RC1 Preview，尚不是正式签名发布。
+- RC1 是候选阶段标签，不写入原生版本号后缀；macOS bundle 与 Windows PE/NSIS 使用跨平台兼容的数字版本 `0.1.3`，候选迭代由分支、提交、构建元数据和 SHA-256 区分。
 - 唯一机器可读版本事实源：`package.json`；`package-lock.json` 必须保持相同名称和版本。
 - 产品名：`算法学习工作台`。
 - App ID：`com.algorithmworkbench.desktop`。
@@ -50,10 +51,10 @@ npm run release:mac:preview
 当前版本的精确输出为：
 
 ```text
-release/算法学习工作台-0.1.2-mac-arm64.dmg
-release/算法学习工作台-0.1.2-mac-arm64.zip
+release/算法学习工作台-0.1.3-mac-arm64.dmg
+release/算法学习工作台-0.1.3-mac-arm64.zip
 release/mac-arm64/算法学习工作台.app
-release/candidates/0.1.2-mac-arm64-preview/
+release/candidates/0.1.3-mac-arm64-preview/
   SHA256SUMS.txt
   RELEASE_NOTES.md
   artifact-verification.json
@@ -66,7 +67,7 @@ release/candidates/0.1.2-mac-arm64-preview/
 本地复核摘要时从 `release/` 作为工作目录运行，以便校验文件中的精确制品名正确解析：
 
 ```bash
-(cd release && shasum -a 256 -c candidates/0.1.2-mac-arm64-preview/SHA256SUMS.txt)
+(cd release && shasum -a 256 -c candidates/0.1.3-mac-arm64-preview/SHA256SUMS.txt)
 ```
 
 ## 打包入口 smoke
@@ -133,9 +134,9 @@ CI 对 `win-unpacked/算法学习工作台.exe` 运行全新/已有 V2 userData 
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/release/windows-acceptance.ps1 `
-  -InstallerPath "release/算法学习工作台-0.1.2-win-x64.exe" `
+  -InstallerPath "release/算法学习工作台-0.1.3-win-x64.exe" `
   -Mode Preview `
-  -ExpectedVersion "0.1.2" `
+  -ExpectedVersion "0.1.3" `
   -ExpectedSha256 "<SHA256SUMS.txt 中的值>" `
   -ExistingV2UserDataPath "<测试副本路径>" `
   -EvidencePath "windows-acceptance-evidence.json"
@@ -143,7 +144,7 @@ powershell -ExecutionPolicy Bypass -File scripts/release/windows-acceptance.ps1 
 
 脚本会检查安装器摘要/签名、静默安装、App 版本与签名、全新和已有 V2 userData 启动、桌面/开始菜单快捷方式、静默卸载和 userData 保留。执行后仍必须人工确认 UI、已有模板/题目/关系/图片/Provider 状态和安装权限。测试已有数据时只能使用备份副本，不要直接拿唯一生产 userData 做验收。
 
-当前没有真实 Windows 主机证据，状态必须保持“未验证”。
+上一份 `0.1.2` 未签名安装包已经由用户在真实 Windows 上测试，用户反馈所测流程没有发现问题；AI 首次鉴权失败在 Windows 本机重新保存 API Key 后恢复，符合密钥不跨操作系统复制的设计。由于没有配套的 `windows-acceptance-evidence.json`，该反馈只能作为真实主机探索性验收，不能替代脚本对安装升级、快捷方式、卸载和 userData 保留的逐项证据。`0.1.3` RC1 仍需重新生成原生 Windows 候选，Authenticode 也仍未完成。
 
 ## 产物隐私与供应链检查
 
@@ -168,13 +169,14 @@ GitHub Actions 使用固定 commit SHA 的 checkout、setup-node 与 upload-arti
 
 ## 候选、源码与正式发布状态
 
-- 最终源码 HEAD：以当前交接文档所在最终提交为准；本次候选生成后又提交证据文档，因此最终 HEAD 晚于候选来源提交。
-- 本次 unsigned beta 候选来源提交：`39421c0329c463657cb43c4e552949e48bee93c9`，实际哈希由 `build-metadata.json` 记录。
-- 最后已验证打包版本：`0.1.2` macOS arm64 preview；本次候选已通过完整架构、隐私、元数据和 packaged smoke 验证。
+- 最终源码 HEAD：以当前交接文档所在最终提交为准；候选生成后如再提交证据文档，最终 HEAD 会晚于候选来源提交，两者必须分开记录。
+- `0.1.3` RC1 来源：当前发布分支 `codex/release-0.1.3-rc.1`；精确候选提交以新 `build-metadata.json` 为准。
+- `0.1.3` RC1 源码门禁：`npm run check` 通过 49 个 Vitest 文件/375 项和 8 项发布脚本测试；`tests/e2e/data-management.spec.ts` 5/5，完整真实 Electron E2E 57 项通过、2 项 packaged 条件跳过。
+- 最后已验证打包版本暂为历史 `0.1.2` macOS arm64 preview；`0.1.3` RC1 只有完成本轮构建、验证和 packaged smoke 后才可替换该结论。
 - 正式签名版本：不存在。本机 `security find-identity -v -p codesigning` 为 `0 valid identities found`，不得把 ad-hoc App 描述为 Developer ID signed/notarized。
-- Windows 实机状态：未完成；没有 Authenticode、NSIS 安装/升级/卸载或真实 Windows userData 验收证据。
+- Windows 实机状态：上一份 `0.1.2` 未签名包已有用户探索性实测且所测流程无已知问题；没有脚本生成的逐项验收 JSON。`0.1.3` 原生候选、Authenticode 和正式安装/升级/卸载证据仍未完成。
 
-本次候选证据目录：`release/candidates/0.1.2-mac-arm64-preview/`。
+计划中的 RC1 候选证据目录：`release/candidates/0.1.3-mac-arm64-preview/`。在该目录由本轮流程实际生成前，不复用下方 `0.1.2` 历史摘要。
 
 | 制品                                 |      字节数 | SHA-256                                                            |
 | ------------------------------------ | ----------: | ------------------------------------------------------------------ |

@@ -30,14 +30,16 @@
 - Session F 第十切片代码结束提交：`436ff70 refactor: split interrupted recovery panel`
 - Session F 收尾提交：`39421c0 docs: close session f development`
 - unsigned beta 候选来源提交：`39421c0329c463657cb43c4e552949e48bee93c9`（与收尾提交相同）
-- 源码版本：`0.1.2` 开发快照
-- 产品阶段：0.1.2 核心功能、AI 完整目录、自包含工作区、当前工作区原地深拷贝恢复、跨平台可移植备份 v2 与中文源码读取的代码闭环已完成；当前工作树从 `e1f9ef1` 继续开发且未提交、未推送。已重新生成当前源码的 macOS arm64 测试 `.app`，并从隔离快照 `26dd07d` 生成原生 Windows x64 未签名 NSIS Preview；两者都不是正式签名发布候选，真实 Windows 双向往返尚未完成
+- 源码版本：`0.1.3` RC1 Preview
+- 当前发布分支：`codex/release-0.1.3-rc.1`；源码基线提交 `252d366`，Windows 长路径/测试稳定性修复提交 `fba51ee`
+- 产品阶段：核心功能、AI 完整目录、自包含工作区、当前工作区原地深拷贝恢复、跨平台可移植备份 v2 与中文源码读取的代码闭环已完成，正在执行 `0.1.3` RC1 发布门禁。上一份 `0.1.2` Windows 未签名安装包已由用户实机测试且所测流程未发现问题；首次 AI 鉴权失败通过在 Windows 本机重新保存 API Key 解决。该反馈没有机器生成的完整验收 JSON，`0.1.3` Windows 原生候选与 Authenticode 仍未完成
+- `0.1.3` RC1 源码门禁：`npm run check` 通过 TypeScript、ESLint 0 warnings、Prettier、49 个 Vitest 文件/375 项和 8 项发布脚本测试；备份恢复定向真实 Electron E2E 5/5，完整 Electron E2E 57 项通过、2 项 packaged 条件跳过
 
 ## 0. 新阶段入口
 
 本阶段基于 0.1.2 功能冻结基线完成发布可信度收尾。后续不再横向增加 AI 页面、临时补丁或维护性拆分；只有真实 Bug、用户反馈或发布门禁触发时才重新开启工程任务。
 
-当前状态：**Session A：数据可靠性与恢复、Session B：AI 稳定性与兼容矩阵、九项 Bugfix Session、Session C：可审计发布候选工程、Session D：UX/可访问性、Session E：大型工作区性能与 Session F 代码健康收尾均已完成。Session F 的十个行为保持切片仍然冻结；2026-07-23 的重新开发由明确的 AI 完整目录产品需求触发，先覆盖新建模板与题目分析，再独立升级总体文件 AI 管理，没有开启第十一拆分切片。Windows 发布 Session 的提交保持不变；本次仅从当前工作树更新被 Git 忽略的 macOS arm64 测试 `.app`，没有生成正式候选、没有正式签名/公证，也没有推送。**
+当前状态：**功能开发已经冻结，当前只推进 `0.1.3` RC1 的版本、完整门禁和候选证据。业务基线与 Windows 长路径修复已分别提交；本轮不修改 AI Provider、数据库 schema、系统权限或视觉系统，不推送远程仓库。macOS 只能生成 unsigned/ad-hoc Preview；新 Windows 候选必须由原生 Windows runner 生成。**
 
 ### 当前工作区数据边界（2026-07-24）
 

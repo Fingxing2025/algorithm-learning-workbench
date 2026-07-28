@@ -4,9 +4,34 @@
 
 ## [Unreleased]
 
-- Session F 十个行为保持切片完成并正式冻结：应用壳、模板管理服务、AI Provider、题目分析关联、题目详情、文件管理历史/计划审查/只读审计和数据管理备份/恢复/异常中断恢复均已按语义边界归位。
-- 保持现有产品模块、视觉系统、IPC、SQLite schema、迁移、Provider 协议和安全边界不变；本次收尾不新增功能、不重构业务代码。
-- 由干净源码提交 `39421c0329c463657cb43c4e552949e48bee93c9` 生成 macOS arm64 unsigned/ad-hoc beta 候选；候选摘要、SBOM、架构、隐私和 packaged smoke 证据位于 `release/candidates/0.1.2-mac-arm64-preview/`。该产物只用于测试分发，不是正式签名版本。
+暂无。
+
+## [0.1.3] - 2026-07-28（RC1 Preview）
+
+### Added
+
+- 工作区统一为可直接复制的自包含文件夹：`workspace.awb.json`、`templates/`、题目图片和工作区 SQLite/撤销数据都位于同一根目录；普通模板文件夹可在确认后安全升级为该格式。
+- 已有模板支持单份或批量 AI 补全空白元数据；无效文件执行记录可在 AI 管理中预览、复检并安全删除。
+- 批量 AI 任务显示真实阶段和进度；总体文件 AI 使用输出感知分批，并把单批最大输出提高到 4,096 Token。
+
+### Changed
+
+- 模板、题目、关系、总体文件 AI、数据状态和备份恢复全部以当前工作区为唯一业务边界。
+- `.awb-backup v2` 固定深拷贝当前工作区的完整源码和业务数据；正确备份可原地恢复到任意当前工作区，目标文件夹名称、路径和 UUID 保持不变，来源身份只用于溯源。
+- 中文源码统一支持 UTF-8、UTF-16LE/BE BOM 与 GB18030/GBK/CP936；跨平台备份保持源码原始字节、UTF-8/EFS 文件名和 NFC 路径。
+- 恢复预备份暂存改到系统临时目录并使用紧凑 ZIP 文件名，降低 Windows 长路径失败风险。
+
+### Compatibility
+
+- 本版本只接受当前自包含工作区和完整单工作区 `.awb-backup v2`，不兼容旧 marker、旧目录备份、缺少源码的备份或多工作区包。
+- AI Provider 和密钥仍为应用级设置，不进入工作区或备份；跨操作系统后需要在目标系统重新保存 API Key。
+
+### Validation status
+
+- `npm run check` 通过 TypeScript、ESLint 0 warnings、Prettier、49 个 Vitest 文件/375 项和 8 项发布脚本测试；备份恢复定向 Electron E2E 5/5、完整 Electron E2E 57 项通过，2 项 packaged 因尚未提供新候选路径按条件跳过。
+- 用户已在真实 Windows 上测试上一份 `0.1.2` 未签名安装包并反馈所测流程未发现问题；首次 AI 鉴权失败在重新保存 Windows 本机 API Key 后恢复。
+- 该反馈没有配套 `windows-acceptance-evidence.json`，不能据此逐项宣称安装升级、快捷方式、卸载和数据保留脚本全部通过；Windows Authenticode 仍未完成。
+- `0.1.3` RC1 的源码门禁、macOS Preview 和新 Windows 原生候选证据以本轮结果为准。
 
 ## [0.1.2] - 2026-07-18
 
