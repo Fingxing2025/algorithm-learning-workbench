@@ -405,14 +405,20 @@ describe('Session E deterministic performance benchmark', () => {
         return matches[0] ? getExpansionIdsForTemplate(root, matches[0]) : []
       })
       const problemList = await repeat(() =>
-        problemRepository.listProblemsPage({ cursor: null, limit: 100, query: '' }),
+        problemRepository.listProblemsPage(workspace.id, {
+          cursor: null,
+          limit: 100,
+          query: '',
+        }),
       )
-      const problemId = problemRepository.listProblemsPage({
+      const problemId = problemRepository.listProblemsPage(workspace.id, {
         cursor: null,
         limit: 100,
         query: '',
       }).items[Math.min(50, fixture.problemCount - 1)]!.id
-      const problemDetail = await repeat(() => problemRepository.getProblem(problemId))
+      const problemDetail = await repeat(() =>
+        problemRepository.getProblem(workspace.id, problemId),
+      )
       const sourceAudit = await repeat(() => auditService.auditWorkspace())
       const aiCandidateRetrieval = await repeat(() =>
         contextService.build({

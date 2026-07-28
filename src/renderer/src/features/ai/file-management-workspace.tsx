@@ -15,6 +15,8 @@ import type {
   FileChangePlan,
   FilePlanRequestPreview,
   FileHistoryDeletionPreview,
+  InvalidFileExecutionDeletionPreview,
+  InvalidFileExecutionItem,
   WorkspaceAudit,
 } from '@core/contracts/template-management'
 import type { WorkspaceSnapshot } from '@core/contracts/workspace'
@@ -23,13 +25,15 @@ import type { BackgroundTaskStatus } from '@core/contracts/background-task'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { AiRequestPreviewDialog } from '@/components/ai-request-preview-dialog'
+import { TaskProgressIndicator } from '@/components/task-progress-indicator'
 import { activeElementOrNull } from '@/lib/focus-management'
 import { useI18n } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
-import { waitForBackgroundTask } from '@/lib/background-task'
+import { runTrackedOperation, waitForBackgroundTask } from '@/lib/background-task'
 
 import { FileManagementAuditPanel } from './file-management-audit-panel'
 import { FileManagementHistoryPanel } from './file-management-history-panel'
+import { FileManagementInvalidExecutionsPanel } from './file-management-invalid-executions-panel'
 import {
   FileManagementPlanReviewPanel,
   type FileManagementPlanReviewSelectionPreset,
@@ -52,6 +56,7 @@ export function FileManagementWorkspace({
   const [audit, setAudit] = useState<WorkspaceAudit | null>(null)
   const [auditTask, setAuditTask] = useState<BackgroundTaskStatus | null>(null)
   const [busyAction, setBusyAction] = useState<string | null>(null)
+  const [operationTask, setOperationTask] = useState<BackgroundTaskStatus | null>(null)
   const [confirmDeletePlanPreview, setConfirmDeletePlanPreview] =
     useState<FileHistoryDeletionPreview | null>(null)
   const [confirmDeleteExecutionPreview, setConfirmDeleteExecutionPreview] =
@@ -61,13 +66,19 @@ export function FileManagementWorkspace({
   const [executions, setExecutions] = useState<FileChangeExecution[]>([])
   const [executionCursor, setExecutionCursor] = useState<string | null>(null)
   const [executionTotalCount, setExecutionTotalCount] = useState(0)
+  const [invalidExecutions, setInvalidExecutions] = useState<InvalidFileExecutionItem[]>([])
+  const [invalidExecutionCursor, setInvalidExecutionCursor] = useState<string | null>(null)
+  const [invalidExecutionTotalCount, setInvalidExecutionTotalCount] = useState(0)
+  const [invalidExecutionPreview, setInvalidExecutionPreview] =
+    useState<InvalidFileExecutionDeletionPreview | null>(null)
+  const [invalidExecutionSelection, setInvalidExecutionSelection] = useState<Set<string>>(
+    () => new Set(),
+  )
+  const [isLoadingInvalidExecutions, setIsLoadingInvalidExecutions] = useState(true)
   const [filePlanPreview, setFilePlanPreview] = useState<FilePlanRequestPreview | null>(null)
   const [filePlanRequestId, setFilePlanRequestId] = useState<string | null>(null)
   const [includeNotes, setIncludeNotes] = useState(false)
   const [plans, setPlans] = useState<FileChangePlan[]>([])
-  const [archivedPlans, setArchivedPlans] = useState<FileChangePlan[]>([])
-  const [archivedPlanCursor, setArchivedPlanCursor] = useState<string | null>(null)
-  const [archivedPlanTotalCount, setArchivedPlanTotalCount] = useState(0)
   const [planReviewSelectionPreset, setPlanReviewSelectionPreset] =
     useState<FileManagementPlanReviewSelectionPreset | null>(null)
   const [planCursor, setPlanCursor] = useState<string | null>(null)
@@ -76,28 +87,61 @@ export function FileManagementWorkspace({
   const [selectedHistoryPlanId, setSelectedHistoryPlanId] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const confirmDeleteExecutionButtonRef = useRef<HTMLButtonElement>(null)
+  const confirmDeleteInvalidExecutionButtonRef = useRef<HTMLButtonElement>(null)
   const executionDeleteReturnFocusRef = useRef<HTMLButtonElement | null>(null)
+  const invalidExecutionDeleteReturnFocusRef = useRef<HTMLButtonElement | null>(null)
   const executionSectionRef = useRef<HTMLDivElement>(null)
   const previewReturnFocusRef = useRef<HTMLElement | null>(null)
   const draftPlan = useMemo(() => plans.find(plan => plan.status === 'draft') ?? null, [plans])
-  const deletableExecutions = executions
+  const deletableExecutions = executions.filter(execution => !execution.rollbackIssue)
   const historyPlans = useMemo(() => plans.filter(plan => plan.status !== 'draft'), [plans])
 
   const refreshHistory = async () => {
-    const [planPage, executionPage, archivedPlanPage] = await Promise.all([
-      window.desktop.templateManagement.listFilePlansPage({ cursor: null, limit: 50 }),
-      window.desktop.templateManagement.listFileExecutionsPage({ cursor: null, limit: 50 }),
-      window.desktop.templateManagement.listArchivedFilePlansPage({ cursor: null, limit: 50 }),
-    ])
-    setPlans(planPage.items)
-    setPlanCursor(planPage.nextCursor)
-    setPlanTotalCount(planPage.totalCount)
-    setExecutions(executionPage.items)
-    setExecutionCursor(executionPage.nextCursor)
-    setExecutionTotalCount(executionPage.totalCount)
-    setArchivedPlans(archivedPlanPage.items)
-    setArchivedPlanCursor(archivedPlanPage.nextCursor)
-    setArchivedPlanTotalCount(archivedPlanPage.totalCount)
+    setIsLoadingInvalidExecutions(true)
+    try {
+      const [planPage, executionPage, invalidExecutionPage] = await Promise.all([
+        window.desktop.templateManagement.listFilePlansPage({ cursor: null, limit: 50 }),
+        window.desktop.templateManagement.listFileExecutionsPage({ cursor: null, limit: 50 }),
+        window.desktop.templateManagement.listInvalidFileExecutionsPage({
+          cursor: null,
+          limit: 50,
+        }),
+      ])
+      setPlans(planPage.items)
+      setPlanCursor(planPage.nextCursor)
+      setPlanTotalCount(planPage.totalCount)
+      setExecutions(executionPage.items)
+      setExecutionCursor(executionPage.nextCursor)
+      setExecutionTotalCount(executionPage.totalCount)
+      setInvalidExecutions(invalidExecutionPage.items)
+      setInvalidExecutionCursor(invalidExecutionPage.nextCursor)
+      setInvalidExecutionTotalCount(invalidExecutionPage.totalCount)
+      setInvalidExecutionSelection(new Set())
+      setInvalidExecutionPreview(null)
+    } finally {
+      setIsLoadingInvalidExecutions(false)
+    }
+  }
+
+  const loadMoreInvalidExecutions = async () => {
+    if (!invalidExecutionCursor || isLoadingInvalidExecutions) return
+    setIsLoadingInvalidExecutions(true)
+    try {
+      const page = await window.desktop.templateManagement.listInvalidFileExecutionsPage({
+        cursor: invalidExecutionCursor,
+        limit: 50,
+      })
+      setInvalidExecutions(current => {
+        const known = new Set(current.map(execution => execution.id))
+        return [...current, ...page.items.filter(execution => !known.has(execution.id))]
+      })
+      setInvalidExecutionCursor(page.nextCursor)
+      setInvalidExecutionTotalCount(page.totalCount)
+    } catch (caught) {
+      setError(t(errorMessage(caught)))
+    } finally {
+      setIsLoadingInvalidExecutions(false)
+    }
   }
 
   const loadMorePlans = async () => {
@@ -135,27 +179,6 @@ export function FileManagementWorkspace({
       })
       setExecutionCursor(page.nextCursor)
       setExecutionTotalCount(page.totalCount)
-    } catch (caught) {
-      setError(t(errorMessage(caught)))
-    } finally {
-      setIsLoadingMoreHistory(false)
-    }
-  }
-
-  const loadMoreArchivedPlans = async () => {
-    if (!archivedPlanCursor || isLoadingMoreHistory) return
-    setIsLoadingMoreHistory(true)
-    try {
-      const page = await window.desktop.templateManagement.listArchivedFilePlansPage({
-        cursor: archivedPlanCursor,
-        limit: 50,
-      })
-      setArchivedPlans(current => {
-        const known = new Set(current.map(plan => plan.id))
-        return [...current, ...page.items.filter(plan => !known.has(plan.id))]
-      })
-      setArchivedPlanCursor(page.nextCursor)
-      setArchivedPlanTotalCount(page.totalCount)
     } catch (caught) {
       setError(t(errorMessage(caught)))
     } finally {
@@ -241,6 +264,10 @@ export function FileManagementWorkspace({
     if (confirmDeleteExecutionPreview) confirmDeleteExecutionButtonRef.current?.focus()
   }, [confirmDeleteExecutionPreview])
 
+  useEffect(() => {
+    if (invalidExecutionPreview) confirmDeleteInvalidExecutionButtonRef.current?.focus()
+  }, [invalidExecutionPreview])
+
   const restoreExecutionDeleteFocus = () => {
     window.requestAnimationFrame(() => {
       const trigger = executionDeleteReturnFocusRef.current
@@ -264,14 +291,71 @@ export function FileManagementWorkspace({
     restoreExecutionDeleteFocus()
   }
 
+  const restoreInvalidExecutionDeleteFocus = () => {
+    window.requestAnimationFrame(() => {
+      const trigger = invalidExecutionDeleteReturnFocusRef.current
+      if (trigger?.isConnected && !trigger.disabled) trigger.focus()
+    })
+  }
+
+  const previewInvalidExecutionCleanup = (trigger: HTMLButtonElement) => {
+    invalidExecutionDeleteReturnFocusRef.current = trigger
+    void run('preview-delete-invalid-executions', async () => {
+      const preview = await window.desktop.templateManagement.previewDeleteInvalidFileExecutions({
+        executionIds: [...invalidExecutionSelection],
+      })
+      setInvalidExecutionPreview(preview)
+    })
+  }
+
+  const closeInvalidExecutionPreview = () => {
+    setInvalidExecutionPreview(null)
+    restoreInvalidExecutionDeleteFocus()
+  }
+
+  const deleteInvalidExecutions = (preview: InvalidFileExecutionDeletionPreview) =>
+    run('delete-invalid-executions', async () => {
+      setInvalidExecutionPreview(null)
+      const requestId = crypto.randomUUID()
+      setOperationTask(null)
+      try {
+        const result = await runTrackedOperation(
+          requestId,
+          () =>
+            window.desktop.templateManagement.deleteInvalidFileExecutions({
+              confirmed: true,
+              previewId: preview.previewId,
+              requestId,
+            }),
+          setOperationTask,
+        )
+        await refreshHistory()
+        setSuccess(
+          t('已清理 {count} 条失效执行记录；当前工作区文件未修改。', {
+            count: result.deletedExecutionCount,
+          }),
+        )
+      } finally {
+        restoreInvalidExecutionDeleteFocus()
+      }
+    })
+
   const generatePlan = () => {
     if (!filePlanRequestId || !filePlanPreview) return
     void run('generate', async () => {
+      const requestId = filePlanRequestId
+      setOperationTask(null)
       let plan: FileChangePlan
       try {
-        plan = await window.desktop.templateManagement.generateFilePlan({
-          previewId: filePlanPreview.filePlan.previewId,
-        })
+        plan = await runTrackedOperation(
+          requestId,
+          () =>
+            window.desktop.templateManagement.generateFilePlan({
+              previewId: filePlanPreview.filePlan.previewId,
+              requestId,
+            }),
+          setOperationTask,
+        )
       } catch (caught) {
         setFilePlanPreview(null)
         setFilePlanRequestId(null)
@@ -318,10 +402,18 @@ export function FileManagementWorkspace({
   const applyPlan = async (planId: string, operationIds: string[]): Promise<boolean> => {
     let applied = false
     await run('apply', async () => {
-      const result = await window.desktop.templateManagement.applyFilePlan({
-        operationIds,
-        planId,
-      })
+      const requestId = crypto.randomUUID()
+      setOperationTask(null)
+      const result = await runTrackedOperation(
+        requestId,
+        () =>
+          window.desktop.templateManagement.applyFilePlan({
+            operationIds,
+            planId,
+            requestId,
+          }),
+        setOperationTask,
+      )
       onWorkspaceChanged(result.workspace)
       await refreshHistory()
       setPlanReviewSelectionPreset(null)
@@ -337,7 +429,13 @@ export function FileManagementWorkspace({
 
   const rollback = (executionId: string) =>
     run('rollback', async () => {
-      const result = await window.desktop.templateManagement.rollbackFileExecution(executionId)
+      const requestId = crypto.randomUUID()
+      setOperationTask(null)
+      const result = await runTrackedOperation(
+        requestId,
+        () => window.desktop.templateManagement.rollbackFileExecution(executionId, requestId),
+        setOperationTask,
+      )
       onWorkspaceChanged(result.workspace)
       await refreshHistory()
       setConfirmRollbackId(null)
@@ -369,10 +467,18 @@ export function FileManagementWorkspace({
 
   const deletePlans = (preview: FileHistoryDeletionPreview) =>
     run('delete-plans', async () => {
-      const result = await window.desktop.templateManagement.deleteFilePlans({
-        confirmed: true,
-        previewId: preview.previewId,
-      })
+      const requestId = crypto.randomUUID()
+      setOperationTask(null)
+      const result = await runTrackedOperation(
+        requestId,
+        () =>
+          window.desktop.templateManagement.deleteFilePlans({
+            confirmed: true,
+            previewId: preview.previewId,
+            requestId,
+          }),
+        setOperationTask,
+      )
       await refreshHistory()
       setConfirmDeletePlanPreview(null)
       setSuccess(
@@ -389,10 +495,18 @@ export function FileManagementWorkspace({
 
   const deleteExecutions = (preview: FileHistoryDeletionPreview) =>
     run('delete-executions', async () => {
-      const result = await window.desktop.templateManagement.deleteFileExecutions({
-        confirmed: true,
-        previewId: preview.previewId,
-      })
+      const requestId = crypto.randomUUID()
+      setOperationTask(null)
+      const result = await runTrackedOperation(
+        requestId,
+        () =>
+          window.desktop.templateManagement.deleteFileExecutions({
+            confirmed: true,
+            previewId: preview.previewId,
+            requestId,
+          }),
+        setOperationTask,
+      )
       await refreshHistory()
       setConfirmDeleteExecutionPreview(null)
       setSuccess(
@@ -494,7 +608,7 @@ export function FileManagementWorkspace({
           className="app-grid-texture pointer-events-none absolute inset-x-0 top-0 h-64 opacity-40"
         />
         <div className="relative mx-auto max-w-[1180px]">
-          {busyAction === 'generate' && (
+          {busyAction === 'generate' && !operationTask && (
             <div
               aria-atomic="true"
               aria-live="polite"
@@ -508,6 +622,18 @@ export function FileManagementWorkspace({
               <Button onClick={cancelGeneration} size="compact" type="button" variant="outline">
                 {t('取消生成')}
               </Button>
+            </div>
+          )}
+          {busyAction && operationTask && (
+            <div className="mb-4 space-y-2">
+              <TaskProgressIndicator status={operationTask} title="批量任务" />
+              {busyAction === 'generate' && (
+                <div className="flex justify-end">
+                  <Button onClick={cancelGeneration} size="compact" type="button" variant="outline">
+                    {t('取消生成')}
+                  </Button>
+                </div>
+              )}
             </div>
           )}
           {(error || success) && (
@@ -562,6 +688,30 @@ export function FileManagementWorkspace({
             </div>
           )}
 
+          <FileManagementInvalidExecutionsPanel
+            busyAction={busyAction}
+            confirmButtonRef={confirmDeleteInvalidExecutionButtonRef}
+            cursor={invalidExecutionCursor}
+            isLoading={isLoadingInvalidExecutions}
+            items={invalidExecutions}
+            onCancelPreview={closeInvalidExecutionPreview}
+            onConfirm={deleteInvalidExecutions}
+            onLoadMore={loadMoreInvalidExecutions}
+            onPreview={previewInvalidExecutionCleanup}
+            onToggle={(executionId, checked) => {
+              setInvalidExecutionPreview(null)
+              setInvalidExecutionSelection(current => {
+                const next = new Set(current)
+                if (checked) next.add(executionId)
+                else next.delete(executionId)
+                return next
+              })
+            }}
+            preview={invalidExecutionPreview}
+            selectedIds={invalidExecutionSelection}
+            totalCount={invalidExecutionTotalCount}
+          />
+
           <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
             <FileManagementPlanReviewPanel
               busyAction={busyAction}
@@ -577,9 +727,6 @@ export function FileManagementWorkspace({
               <FileManagementAuditPanel audit={audit} auditTask={auditTask} />
 
               <FileManagementHistoryPanel
-                archivedPlanCursor={archivedPlanCursor}
-                archivedPlanTotalCount={archivedPlanTotalCount}
-                archivedPlans={archivedPlans}
                 busyAction={busyAction}
                 confirmDeletePlanPreview={confirmDeletePlanPreview}
                 confirmDeleteExecutionButtonRef={confirmDeleteExecutionButtonRef}
@@ -600,7 +747,6 @@ export function FileManagementWorkspace({
                 onConfirmDeleteExecutions={deleteExecutions}
                 onConfirmRollback={rollback}
                 onLoadMoreExecutions={loadMoreExecutions}
-                onLoadMoreArchivedPlans={loadMoreArchivedPlans}
                 onLoadMorePlans={loadMorePlans}
                 onOpenExecutionDeleteConfirmation={openExecutionDeleteConfirmation}
                 onRedraft={redraft}
@@ -630,6 +776,7 @@ export function FileManagementWorkspace({
           onConfirm={generatePlan}
           preview={filePlanPreview}
           returnFocusTo={previewReturnFocusRef.current}
+          taskStatus={operationTask}
         />
       )}
     </main>

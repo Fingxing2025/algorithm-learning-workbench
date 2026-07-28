@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 
-import { and, desc, eq, inArray, isNotNull, isNull, lt, or, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 
 import {
   templateMetadataFieldsSchema,
@@ -34,8 +34,23 @@ export interface FileExecutionDeletionRecord {
   status: 'applied' | 'rolled-back'
 }
 
+export interface FileExecutionIntegrityRecord {
+  backupDirectory: string
+  createdAt: string
+  id: string
+  operationsJson: string
+  planId: string
+  status: 'applied'
+  workspaceId: string
+  workspaceName: string
+}
+
+export interface InvalidFileExecutionDatabaseDeletionResult {
+  deletedAt: string
+  deletedExecutionCount: number
+}
+
 export interface FilePlanDeletionRecord {
-  archivedAt: string | null
   executions: FileExecutionDeletionRecord[]
   id: string
   status: 'applied' | 'cancelled'
@@ -151,6 +166,86 @@ export class TemplateManagementRepository {
       .sort((left, right) => left.id.localeCompare(right.id))
   }
 
+  listAppliedFileExecutionIntegrityRecords(workspaceId: string): FileExecutionIntegrityRecord[] {
+    return (
+      this.database.client
+        .prepare(
+          `SELECT e.id, e.plan_id AS planId, e.operations_json AS operationsJson,
+                  e.backup_directory AS backupDirectory, e.status, e.created_at AS createdAt,
+                  p.workspace_id AS workspaceId, w.name AS workspaceName
+           FROM file_change_executions e
+           INNER JOIN file_change_plans p ON p.id = e.plan_id
+           INNER JOIN workspaces w ON w.id = p.workspace_id
+           WHERE e.status = 'applied' AND p.workspace_id = ?
+           ORDER BY e.created_at DESC, e.id DESC`,
+        )
+        .all(workspaceId) as FileExecutionIntegrityRecord[]
+    ).map(record => ({ ...record, status: 'applied' }))
+  }
+
+  inspectAppliedFileExecutionIntegrityRecords(
+    workspaceId: string,
+    executionIds: string[],
+  ): FileExecutionIntegrityRecord[] | null {
+    if (executionIds.length === 0 || new Set(executionIds).size !== executionIds.length) return null
+    const placeholders = executionIds.map(() => '?').join(', ')
+    const records = this.database.client
+      .prepare(
+        `SELECT e.id, e.plan_id AS planId, e.operations_json AS operationsJson,
+                e.backup_directory AS backupDirectory, e.status, e.created_at AS createdAt,
+                p.workspace_id AS workspaceId, w.name AS workspaceName
+         FROM file_change_executions e
+         INNER JOIN file_change_plans p ON p.id = e.plan_id
+         INNER JOIN workspaces w ON w.id = p.workspace_id
+         WHERE p.workspace_id = ? AND e.id IN (${placeholders})`,
+      )
+      .all(workspaceId, ...executionIds) as Array<
+      Omit<FileExecutionIntegrityRecord, 'status'> & { status: string }
+    >
+    if (
+      records.length !== executionIds.length ||
+      records.some(record => record.status !== 'applied')
+    ) {
+      return null
+    }
+    return records
+      .map(record => ({ ...record, status: 'applied' as const }))
+      .sort((left, right) => left.id.localeCompare(right.id))
+  }
+
+  deleteInvalidFileExecutions(
+    workspaceId: string,
+    expected: FileExecutionIntegrityRecord[],
+  ): InvalidFileExecutionDatabaseDeletionResult | null {
+    if (
+      expected.length === 0 ||
+      new Set(expected.map(record => record.id)).size !== expected.length
+    ) {
+      return null
+    }
+    const transaction = this.database.client.transaction(() => {
+      const current = this.inspectAppliedFileExecutionIntegrityRecords(
+        workspaceId,
+        expected.map(record => record.id),
+      )
+      const normalizedExpected = [...expected].sort((left, right) =>
+        left.id.localeCompare(right.id),
+      )
+      if (!current || JSON.stringify(current) !== JSON.stringify(normalizedExpected)) return null
+      const remove = this.database.client.prepare('DELETE FROM file_change_executions WHERE id = ?')
+      for (const record of normalizedExpected) {
+        if (remove.run(record.id).changes !== 1) {
+          throw new Error('Invalid file execution delete state changed')
+        }
+      }
+      return {
+        deletedAt: new Date().toISOString(),
+        deletedExecutionCount: normalizedExpected.length,
+      }
+    })
+    return transaction()
+  }
+
   inspectFilePlansForDeletion(
     workspaceId: string,
     planIds: string[],
@@ -159,12 +254,11 @@ export class TemplateManagementRepository {
     const placeholders = planIds.map(() => '?').join(', ')
     const plans = this.database.client
       .prepare(
-        `SELECT id, status, archived_at AS archivedAt
+        `SELECT id, status
          FROM file_change_plans
          WHERE workspace_id = ? AND id IN (${placeholders})`,
       )
       .all(workspaceId, ...planIds) as Array<{
-      archivedAt: string | null
       id: string
       status: string
     }>
@@ -353,9 +447,13 @@ export class TemplateManagementRepository {
     const payload = fileChangePlanPayloadSchema.parse({
       contextVersion: options?.contextVersion ?? null,
       diagnostic: options?.diagnostic ?? {
+        adaptiveSplitCount: 0,
         auditIssueCount: 0,
         candidateTemplateCount: 0,
         contextTruncated: false,
+        effectiveBatchCount: 0,
+        initialBatchCount: 0,
+        languageFallbackBatchCount: 0,
         notesIncludedCount: 0,
         requestId: null,
         schemaVersion: 2,
@@ -437,22 +535,10 @@ export class TemplateManagementRepository {
   }
 
   listPlansPage(workspaceId: string, request: FileHistoryPageRequest): FileChangePlanPage {
-    return this.listPlansPageByArchiveState(workspaceId, request, false)
-  }
-
-  listArchivedPlansPage(workspaceId: string, request: FileHistoryPageRequest): FileChangePlanPage {
-    return this.listPlansPageByArchiveState(workspaceId, request, true)
-  }
-
-  private listPlansPageByArchiveState(
-    workspaceId: string,
-    request: FileHistoryPageRequest,
-    archived: boolean,
-  ): FileChangePlanPage {
     const cursor = decodeFileHistoryCursor(request.cursor)
     const filters = [
       eq(fileChangePlans.workspaceId, workspaceId),
-      archived ? isNotNull(fileChangePlans.archivedAt) : isNull(fileChangePlans.archivedAt),
+      isNull(fileChangePlans.archivedAt),
     ]
     if (cursor) {
       filters.push(
@@ -480,10 +566,7 @@ export class TemplateManagementRepository {
         .select({ count: sql<number>`count(*)` })
         .from(fileChangePlans)
         .where(
-          and(
-            eq(fileChangePlans.workspaceId, workspaceId),
-            archived ? isNotNull(fileChangePlans.archivedAt) : isNull(fileChangePlans.archivedAt),
-          ),
+          and(eq(fileChangePlans.workspaceId, workspaceId), isNull(fileChangePlans.archivedAt)),
         )
         .get()?.count ?? 0,
     )
@@ -494,7 +577,7 @@ export class TemplateManagementRepository {
         .where(
           and(
             eq(fileChangePlans.workspaceId, workspaceId),
-            archived ? isNotNull(fileChangePlans.archivedAt) : isNull(fileChangePlans.archivedAt),
+            isNull(fileChangePlans.archivedAt),
             eq(fileChangePlans.status, 'draft'),
           ),
         )
@@ -503,20 +586,12 @@ export class TemplateManagementRepository {
     return {
       draftCount,
       items,
-      nextAction: hasMore
-        ? archived
-          ? '继续加载下一批旧归档记录。'
-          : '继续加载下一批计划记录。'
-        : null,
+      nextAction: hasMore ? '继续加载下一批计划记录。' : null,
       nextCursor: hasMore && pageRows.length > 0 ? encodeFileHistoryCursor(pageRows.at(-1)!) : null,
       processedCount: items.length,
       totalCount,
       truncated: hasMore,
-      truncatedReason: hasMore
-        ? archived
-          ? '旧归档记录按创建时间分批加载。'
-          : '计划记录按创建时间分批加载。'
-        : null,
+      truncatedReason: hasMore ? '计划记录按创建时间分批加载。' : null,
     }
   }
 
@@ -801,7 +876,7 @@ export class TemplateManagementRepository {
       .prepare('INSERT INTO app_state (key, value) VALUES (?, ?)')
       .run(
         `${HISTORY_DELETION_COMMIT_MARKER_PREFIX}${operationId}`,
-        JSON.stringify({ committedAt, formatVersion: 'v1', operationId }),
+        JSON.stringify({ committedAt, formatVersion: 'v2', operationId }),
       )
   }
 }

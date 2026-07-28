@@ -1,6 +1,8 @@
 import { z } from 'zod'
 
-export const backupFormatVersionSchema = z.literal('v1')
+const progressRequestIdSchema = z.string().uuid().optional()
+
+export const backupFormatVersionSchema = z.literal('v2')
 
 export const dataManagementCountsSchema = z
   .object({
@@ -86,7 +88,7 @@ export const backupFileEntrySchema = z
   .strict()
 export type BackupFileEntry = z.infer<typeof backupFileEntrySchema>
 
-export const backupManifestSchema = z
+const backupManifestCommonSchema = z
   .object({
     appVersion: z.string().min(1).max(80),
     completed: z.boolean(),
@@ -94,8 +96,7 @@ export const backupManifestSchema = z
     createdAt: z.string().datetime(),
     diagnostics: dataDiagnosticsSchema,
     files: z.array(backupFileEntrySchema).min(1).max(20_000),
-    formatVersion: backupFormatVersionSchema,
-    includeTemplateSources: z.boolean(),
+    includeTemplateSources: z.literal(true),
     packageId: z.string().uuid(),
     privacy: z
       .object({
@@ -112,14 +113,57 @@ export const backupManifestSchema = z
       .strict(),
   })
   .strict()
+
+export const portableBackupWorkspaceSchema = z
+  .object({
+    id: z.string().uuid(),
+    name: z.string().min(1).max(255),
+    templateFileCount: z.number().int().nonnegative(),
+  })
+  .strict()
+export type PortableBackupWorkspace = z.infer<typeof portableBackupWorkspaceSchema>
+
+export const backupManifestV2Schema = backupManifestCommonSchema
+  .extend({
+    archive: z
+      .object({
+        container: z.literal('zip'),
+        entryNameEncoding: z.literal('utf-8'),
+        pathNormalization: z.literal('NFC'),
+        separator: z.literal('/'),
+      })
+      .strict(),
+    createdOn: z.enum(['darwin', 'linux', 'win32']),
+    formatVersion: z.literal('v2'),
+    portability: z
+      .object({
+        caseInsensitivePathSafe: z.literal(true),
+        sourceBytesPreserved: z.literal(true),
+        windowsPathSafe: z.literal(true),
+      })
+      .strict(),
+    workspaces: z.array(portableBackupWorkspaceSchema).length(1),
+  })
+  .strict()
+export type BackupManifestV2 = z.infer<typeof backupManifestV2Schema>
+
+export const backupManifestSchema = backupManifestV2Schema
 export type BackupManifest = z.infer<typeof backupManifestSchema>
 
 export const exportBackupRequestSchema = z
   .object({
-    includeTemplateSources: z.boolean(),
+    includeTemplateSources: z.literal(true),
+    requestId: progressRequestIdSchema,
   })
   .strict()
 export type ExportBackupRequest = z.infer<typeof exportBackupRequestSchema>
+
+export const backupSelectionRequestSchema = z
+  .object({
+    requestId: progressRequestIdSchema,
+  })
+  .strict()
+export type BackupSelectionRequest = z.infer<typeof backupSelectionRequestSchema>
 
 export const backupVerificationSchema = z
   .object({
@@ -145,8 +189,10 @@ export const restorePreviewSchema = z
   .object({
     canRestore: z.boolean(),
     conflicts: z.array(z.string().min(1).max(200)).max(100),
-    currentCounts: dataManagementCountsSchema,
     manifest: backupManifestSchema.nullable(),
+    sourceWorkspace: portableBackupWorkspaceSchema.nullable(),
+    targetCounts: dataManagementCountsSchema,
+    targetWorkspace: portableBackupWorkspaceSchema,
     verification: backupVerificationSchema,
   })
   .strict()
@@ -155,8 +201,10 @@ export type RestorePreview = z.infer<typeof restorePreviewSchema>
 export const restoreBackupRequestSchema = z
   .object({
     confirmRestore: z.literal(true),
+    expectedSourceWorkspaceId: z.string().uuid(),
+    expectedTargetWorkspaceId: z.string().uuid(),
     packagePath: z.string().min(1).max(4096),
-    templateSourceStrategy: z.literal('skip'),
+    requestId: progressRequestIdSchema,
   })
   .strict()
 export type RestoreBackupRequest = z.infer<typeof restoreBackupRequestSchema>
@@ -166,7 +214,7 @@ export const restoreBackupResultSchema = z
     preflightBackupPath: z.string().min(1).max(4096),
     providerSecretsNeedReentry: z.boolean(),
     restoredCounts: dataManagementCountsSchema,
-    skippedTemplateSources: z.boolean(),
+    restoredTemplateSourceFiles: z.number().int().nonnegative(),
   })
   .strict()
 export type RestoreBackupResult = z.infer<typeof restoreBackupResultSchema>
@@ -319,7 +367,7 @@ export const cleanupPreviewSchema = z
 export type CleanupPreview = z.infer<typeof cleanupPreviewSchema>
 
 export const quarantineCleanupRequestSchema = cleanupPreviewRequestSchema
-  .extend({ confirmQuarantine: z.literal(true) })
+  .extend({ confirmQuarantine: z.literal(true), requestId: progressRequestIdSchema })
   .strict()
 export type QuarantineCleanupRequest = z.infer<typeof quarantineCleanupRequestSchema>
 
@@ -336,6 +384,7 @@ export const undoCleanupRequestSchema = z
   .object({
     confirmUndo: z.literal(true),
     operationId: z.string().uuid(),
+    requestId: progressRequestIdSchema,
     retentionPolicy: backupRetentionPolicySchema,
   })
   .strict()
@@ -355,7 +404,7 @@ export const cleanupQuarantineManifestSchema = z
   .object({
     completed: z.literal(true),
     createdAt: z.string().datetime(),
-    formatVersion: z.literal('v1'),
+    formatVersion: z.literal('v2'),
     items: z
       .array(
         z
@@ -381,31 +430,58 @@ const controlledBackupNameSchema = z
   .max(255)
   .regex(/^[^/\\]+\.awb-backup$/)
 
+const restoreDirectorySwapSchema = z
+  .object({
+    directoryName: z.enum(['batch-import-backups', 'file-plan-backups', 'problem-images']),
+    hadOriginal: z.boolean(),
+    hadRestoredCopy: z.boolean(),
+    originalFingerprint: z
+      .string()
+      .regex(/^[a-f0-9]{64}$/)
+      .nullable(),
+    restoredFingerprint: z
+      .string()
+      .regex(/^[a-f0-9]{64}$/)
+      .nullable(),
+  })
+  .strict()
+
+const restoreTemplateFileSchema = z
+  .object({
+    relativePath: z
+      .string()
+      .min(1)
+      .max(4096)
+      .refine(
+        value =>
+          !value.startsWith('/') &&
+          !value.includes('\\') &&
+          !value.includes('\0') &&
+          value.split('/').every(segment => segment !== '' && segment !== '.' && segment !== '..'),
+        'invalid template restore path',
+      ),
+    sha256: z.string().regex(/^[a-f0-9]{64}$/),
+  })
+  .strict()
+
+const restoreOperationJournalBase = {
+  createdAt: z.string().datetime(),
+  restoreId: z.string().uuid(),
+  rollbackBackupName: controlledBackupNameSchema,
+  swaps: z.array(restoreDirectorySwapSchema).max(3),
+}
+
 export const restoreOperationJournalSchema = z
   .object({
-    createdAt: z.string().datetime(),
-    formatVersion: z.literal('v1'),
-    restoreId: z.string().uuid(),
-    rollbackBackupName: controlledBackupNameSchema,
-    swaps: z
-      .array(
-        z
-          .object({
-            directoryName: z.enum(['batch-import-backups', 'file-plan-backups', 'problem-images']),
-            hadOriginal: z.boolean(),
-            hadRestoredCopy: z.boolean(),
-            originalFingerprint: z
-              .string()
-              .regex(/^[a-f0-9]{64}$/)
-              .nullable(),
-            restoredFingerprint: z
-              .string()
-              .regex(/^[a-f0-9]{64}$/)
-              .nullable(),
-          })
-          .strict(),
-      )
-      .max(3),
+    ...restoreOperationJournalBase,
+    formatVersion: z.literal('v2'),
+    templateSwap: z
+      .object({
+        originalFiles: z.array(restoreTemplateFileSchema).max(100_000),
+        restoredFiles: z.array(restoreTemplateFileSchema).max(100_000),
+      })
+      .strict()
+      .nullable(),
   })
   .strict()
 export type RestoreOperationJournal = z.infer<typeof restoreOperationJournalSchema>
@@ -413,7 +489,7 @@ export type RestoreOperationJournal = z.infer<typeof restoreOperationJournalSche
 export const cleanupOperationJournalSchema = z
   .object({
     createdAt: z.string().datetime(),
-    formatVersion: z.literal('v1'),
+    formatVersion: z.literal('v2'),
     items: cleanupQuarantineManifestSchema.shape.items,
     operationId: z.string().uuid(),
   })
@@ -423,7 +499,7 @@ export type CleanupOperationJournal = z.infer<typeof cleanupOperationJournalSche
 export const restoreCommitMarkerSchema = z
   .object({
     committedAt: z.string().datetime(),
-    formatVersion: z.literal('v1'),
+    formatVersion: z.literal('v2'),
     restoreId: z.string().uuid(),
     rollbackBackupName: controlledBackupNameSchema,
   })
@@ -433,7 +509,7 @@ export type RestoreCommitMarker = z.infer<typeof restoreCommitMarkerSchema>
 export const historyDeletionCommitMarkerSchema = z
   .object({
     committedAt: z.string().datetime(),
-    formatVersion: z.literal('v1'),
+    formatVersion: z.literal('v2'),
     operationId: z.string().uuid(),
   })
   .strict()
@@ -463,6 +539,7 @@ export type InterruptedRecoveryPreview = z.infer<typeof interruptedRecoveryPrevi
 export const recoverInterruptedOperationRequestSchema = interruptedRecoveryPreviewRequestSchema
   .extend({
     confirmRecovery: z.literal(true),
+    requestId: progressRequestIdSchema,
     retentionPolicy: backupRetentionPolicySchema,
   })
   .strict()
@@ -501,6 +578,7 @@ export type QuarantineReleasePreview = z.infer<typeof quarantineReleasePreviewSc
 export const releaseQuarantineRequestSchema = quarantineReleasePreviewRequestSchema
   .extend({
     confirmMoveToTrash: z.literal(true),
+    requestId: progressRequestIdSchema,
     retentionPolicy: backupRetentionPolicySchema,
   })
   .strict()

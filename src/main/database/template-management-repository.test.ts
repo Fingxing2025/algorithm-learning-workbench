@@ -17,13 +17,14 @@ const operationId = '40000000-0000-4000-8000-000000000029'
 
 interface StoredExecution {
   backupDirectory: string
+  createdAt: string
   id: string
+  operationsJson: string
   planId: string
   status: 'applied' | 'rolled-back'
 }
 
 interface StoredPlan {
-  archivedAt: string | null
   id: string
   status: 'applied' | 'cancelled' | 'draft'
   workspaceId: string
@@ -37,6 +38,33 @@ class TransactionalHistoryDatabase {
 
   readonly client = {
     prepare: (sql: string) => {
+      if (sql.includes('INNER JOIN workspaces')) {
+        return {
+          all: (...executionIds: string[]) =>
+            this.executions
+              .filter(execution =>
+                sql.includes("WHERE e.status = 'applied'")
+                  ? execution.status === 'applied'
+                  : executionIds.includes(execution.id),
+              )
+              .flatMap(execution => {
+                const plan = this.plans.find(item => item.id === execution.planId)
+                return plan
+                  ? [
+                      {
+                        ...execution,
+                        workspaceId: plan.workspaceId,
+                        workspaceName: plan.workspaceId === workspaceId ? '主工作区' : '其他工作区',
+                      },
+                    ]
+                  : []
+              })
+              .sort(
+                (left, right) =>
+                  right.createdAt.localeCompare(left.createdAt) || right.id.localeCompare(left.id),
+              ),
+        }
+      }
       if (sql.includes('INNER JOIN file_change_plans') && sql.includes('backup_directory')) {
         return {
           all: (targetWorkspaceId: string, ...executionIds: string[]) =>
@@ -50,12 +78,12 @@ class TransactionalHistoryDatabase {
               .map(execution => ({ ...execution })),
         }
       }
-      if (sql.includes('SELECT id, status, archived_at AS archivedAt')) {
+      if (sql.includes('SELECT id, status')) {
         return {
           all: (targetWorkspaceId: string, ...planIds: string[]) =>
             this.plans
               .filter(plan => plan.workspaceId === targetWorkspaceId && planIds.includes(plan.id))
-              .map(({ archivedAt, id, status }) => ({ archivedAt, id, status })),
+              .map(({ id, status }) => ({ id, status })),
         }
       }
       if (sql.includes('WHERE e.plan_id IN')) {
@@ -124,15 +152,13 @@ class TransactionalHistoryDatabase {
 function createRepository() {
   const database = new TransactionalHistoryDatabase()
   database.plans = [
-    { archivedAt: null, id: firstPlanId, status: 'applied', workspaceId },
+    { id: firstPlanId, status: 'applied', workspaceId },
     {
-      archivedAt: '2026-07-18T10:00:00.000Z',
       id: secondPlanId,
       status: 'cancelled',
       workspaceId,
     },
     {
-      archivedAt: null,
       id: '40000000-0000-4000-8000-000000000099',
       status: 'applied',
       workspaceId: otherWorkspaceId,
@@ -141,19 +167,25 @@ function createRepository() {
   database.executions = [
     {
       backupDirectory: `file-plan-backups/${firstExecutionId}`,
+      createdAt: '2026-07-24T10:00:00.000Z',
       id: firstExecutionId,
+      operationsJson: '[]',
       planId: firstPlanId,
       status: 'applied',
     },
     {
       backupDirectory: `file-plan-backups/${secondExecutionId}`,
+      createdAt: '2026-07-24T09:00:00.000Z',
       id: secondExecutionId,
+      operationsJson: '[]',
       planId: firstPlanId,
       status: 'rolled-back',
     },
     {
       backupDirectory: `file-plan-backups/${otherExecutionId}`,
+      createdAt: '2026-07-24T08:00:00.000Z',
       id: otherExecutionId,
+      operationsJson: '[]',
       planId: '40000000-0000-4000-8000-000000000099',
       status: 'rolled-back',
     },
@@ -237,7 +269,9 @@ describe('TemplateManagementRepository permanent history deletion', () => {
     const expected = repository.inspectFilePlansForDeletion(workspaceId, [firstPlanId])!
     database.executions.push({
       backupDirectory: `file-plan-backups/${operationId}`,
+      createdAt: '2026-07-24T07:00:00.000Z',
       id: operationId,
+      operationsJson: '[]',
       planId: firstPlanId,
       status: 'applied',
     })
@@ -251,5 +285,45 @@ describe('TemplateManagementRepository permanent history deletion', () => {
       firstExecutionId,
     ])![0]! satisfies FileExecutionDeletionRecord
     expect(record.backupDirectory).toBe(`file-plan-backups/${firstExecutionId}`)
+  })
+
+  it('deletes exact applied integrity snapshots only inside the requested workspace', () => {
+    const { database, repository } = createRepository()
+    database.executions[2]!.status = 'applied'
+    const expected = repository.inspectAppliedFileExecutionIntegrityRecords(workspaceId, [
+      firstExecutionId,
+    ])!
+
+    const result = repository.deleteInvalidFileExecutions(workspaceId, expected)
+
+    expect(result?.deletedExecutionCount).toBe(1)
+    expect(database.executions.map(record => record.id)).toEqual([
+      secondExecutionId,
+      otherExecutionId,
+    ])
+    expect(database.plans).toHaveLength(3)
+    expect(database.appState).toEqual([])
+  })
+
+  it('rolls back invalid cleanup when any preview fact or delete changes', () => {
+    const { database, repository } = createRepository()
+    const expected = repository.inspectAppliedFileExecutionIntegrityRecords(workspaceId, [
+      firstExecutionId,
+    ])!
+    database.executions[0]!.backupDirectory = `file-plan-backups/${operationId}`
+    expect(repository.deleteInvalidFileExecutions(workspaceId, expected)).toBeNull()
+    expect(database.executions).toHaveLength(3)
+
+    database.executions[0]!.backupDirectory = `file-plan-backups/${firstExecutionId}`
+    database.executions[1]!.status = 'applied'
+    const batch = repository.inspectAppliedFileExecutionIntegrityRecords(workspaceId, [
+      firstExecutionId,
+      secondExecutionId,
+    ])!
+    database.failDeleteId = secondExecutionId
+    expect(() => repository.deleteInvalidFileExecutions(workspaceId, batch)).toThrow(
+      'injected deletion failure',
+    )
+    expect(database.executions).toHaveLength(3)
   })
 })

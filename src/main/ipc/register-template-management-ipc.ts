@@ -1,6 +1,8 @@
 import { z } from 'zod'
 
 import {
+  applyExistingTemplateMetadataCompletionRequestSchema,
+  applyExistingTemplateMetadataCompletionResultSchema,
   batchImportTemplateRequestSchema,
   batchImportTemplateResultSchema,
   batchTemplateImportSourceListSchema,
@@ -21,12 +23,19 @@ import {
   cancelFilePlanGenerationRequestSchema,
   deleteFileExecutionsRequestSchema,
   deleteFileExecutionsResultSchema,
+  deleteInvalidFileExecutionsRequestSchema,
+  deleteInvalidFileExecutionsResultSchema,
   deleteFilePlansRequestSchema,
   deleteFilePlansResultSchema,
   exportFilePlanDiagnosticRequestSchema,
+  existingTemplateMetadataCompletionDraftSchema,
+  existingTemplateMetadataCompletionPreviewSchema,
   fileChangeExecutionListSchema,
   fileChangeExecutionPageSchema,
   fileHistoryPageRequestSchema,
+  invalidFileExecutionDeletionPreviewSchema,
+  invalidFileExecutionPageRequestSchema,
+  invalidFileExecutionPageSchema,
   fileChangeMutationResultSchema,
   fileChangePlanListSchema,
   fileChangePlanPageSchema,
@@ -34,9 +43,12 @@ import {
   fileChangePlanRequestSchema,
   fileChangePlanSchema,
   filePlanGenerationRequestSchema,
+  generateExistingTemplateMetadataCompletionRequestSchema,
   previewFilePlanRequestSchema,
   previewFilePlanResultSchema,
+  previewExistingTemplateMetadataCompletionRequestSchema,
   previewDeleteFileExecutionsRequestSchema,
+  previewDeleteInvalidFileExecutionsRequestSchema,
   previewDeleteFilePlansRequestSchema,
   previewBatchTemplateClassificationRequestSchema,
   previewBatchTemplateClassificationResultSchema,
@@ -48,6 +60,7 @@ import {
 import { IPC_CHANNELS } from '@core/ipc/channels'
 import { cancelAiRequestSchema } from '@core/contracts/ai-request'
 import {
+  type BackgroundTaskProgress,
   backgroundTaskStatusSchema,
   startBackgroundTaskRequestSchema,
 } from '@core/contracts/background-task'
@@ -61,6 +74,42 @@ export function registerTemplateManagementIpc(
   backgroundTasks: BackgroundTaskRegistry,
   getParentWindow: () => Electron.BrowserWindow | undefined,
 ): void {
+  const runTracked = <Result>(
+    requestId: string | undefined,
+    scope: string,
+    run: (context: {
+      signal: AbortSignal
+      updateProgress: (progress: BackgroundTaskProgress) => void
+    }) => Promise<Result>,
+  ): Promise<Result> => {
+    if (!requestId) {
+      const controller = new AbortController()
+      return run({ signal: controller.signal, updateProgress: () => undefined })
+    }
+    return backgroundTasks.track({ id: requestId, run, scope })
+  }
+
+  registerValidatedHandler({
+    channel: IPC_CHANNELS.templateManagement.previewExistingMetadataCompletion,
+    handler: request => service.previewExistingMetadataCompletion(request),
+    inputSchema: previewExistingTemplateMetadataCompletionRequestSchema,
+    outputSchema: existingTemplateMetadataCompletionPreviewSchema,
+  })
+  registerValidatedHandler({
+    channel: IPC_CHANNELS.templateManagement.generateExistingMetadataCompletion,
+    handler: request =>
+      runTracked(request.requestId, service.getActiveWorkspaceId(), ({ updateProgress }) =>
+        service.generateExistingMetadataCompletion(request, updateProgress),
+      ),
+    inputSchema: generateExistingTemplateMetadataCompletionRequestSchema,
+    outputSchema: existingTemplateMetadataCompletionDraftSchema,
+  })
+  registerValidatedHandler({
+    channel: IPC_CHANNELS.templateManagement.applyExistingMetadataCompletion,
+    handler: request => service.applyExistingMetadataCompletion(request),
+    inputSchema: applyExistingTemplateMetadataCompletionRequestSchema,
+    outputSchema: applyExistingTemplateMetadataCompletionResultSchema,
+  })
   registerValidatedHandler({
     channel: IPC_CHANNELS.templateManagement.previewTemplateRelocation,
     handler: request => service.previewTemplateRelocation(request),
@@ -128,7 +177,10 @@ export function registerTemplateManagementIpc(
   })
   registerValidatedHandler({
     channel: IPC_CHANNELS.templateManagement.generateFilePlan,
-    handler: request => service.generateFilePlan(request),
+    handler: request =>
+      runTracked(request.requestId, service.getActiveWorkspaceId(), ({ updateProgress }) =>
+        service.generateFilePlan(request, updateProgress),
+      ),
     inputSchema: filePlanGenerationRequestSchema,
     outputSchema: fileChangePlanSchema,
   })
@@ -169,12 +221,6 @@ export function registerTemplateManagementIpc(
     outputSchema: fileChangePlanPageSchema,
   })
   registerValidatedHandler({
-    channel: IPC_CHANNELS.templateManagement.listArchivedFilePlansPage,
-    handler: request => service.listArchivedFilePlansPage(request),
-    inputSchema: fileHistoryPageRequestSchema,
-    outputSchema: fileChangePlanPageSchema,
-  })
-  registerValidatedHandler({
     channel: IPC_CHANNELS.templateManagement.cancelFilePlan,
     handler: request => service.cancelFilePlan(request.planId),
     inputSchema: fileChangePlanRequestSchema,
@@ -182,7 +228,10 @@ export function registerTemplateManagementIpc(
   })
   registerValidatedHandler({
     channel: IPC_CHANNELS.templateManagement.applyFilePlan,
-    handler: request => service.applyFilePlan(request),
+    handler: request =>
+      runTracked(request.requestId, service.getActiveWorkspaceId(), ({ updateProgress }) =>
+        service.applyFilePlan(request, updateProgress),
+      ),
     inputSchema: applyFileChangePlanRequestSchema,
     outputSchema: fileChangeMutationResultSchema,
   })
@@ -199,6 +248,12 @@ export function registerTemplateManagementIpc(
     outputSchema: fileChangeExecutionPageSchema,
   })
   registerValidatedHandler({
+    channel: IPC_CHANNELS.templateManagement.listInvalidFileExecutionsPage,
+    handler: request => service.listInvalidFileExecutionsPage(request),
+    inputSchema: invalidFileExecutionPageRequestSchema,
+    outputSchema: invalidFileExecutionPageSchema,
+  })
+  registerValidatedHandler({
     channel: IPC_CHANNELS.templateManagement.previewDeleteFileExecutions,
     handler: request => service.previewDeleteFileExecutions(request),
     inputSchema: previewDeleteFileExecutionsRequestSchema,
@@ -206,9 +261,39 @@ export function registerTemplateManagementIpc(
   })
   registerValidatedHandler({
     channel: IPC_CHANNELS.templateManagement.deleteFileExecutions,
-    handler: request => service.deleteFileExecutions(request),
+    handler: request =>
+      runTracked(request.requestId, service.getActiveWorkspaceId(), async ({ updateProgress }) => {
+        updateProgress({
+          currentItem: null,
+          phase: 'cleaning',
+          processedCount: 0,
+          totalCount: null,
+        })
+        return service.deleteFileExecutions(request)
+      }),
     inputSchema: deleteFileExecutionsRequestSchema,
     outputSchema: deleteFileExecutionsResultSchema,
+  })
+  registerValidatedHandler({
+    channel: IPC_CHANNELS.templateManagement.previewDeleteInvalidFileExecutions,
+    handler: request => service.previewDeleteInvalidFileExecutions(request),
+    inputSchema: previewDeleteInvalidFileExecutionsRequestSchema,
+    outputSchema: invalidFileExecutionDeletionPreviewSchema,
+  })
+  registerValidatedHandler({
+    channel: IPC_CHANNELS.templateManagement.deleteInvalidFileExecutions,
+    handler: request =>
+      runTracked(request.requestId, service.getActiveWorkspaceId(), async ({ updateProgress }) => {
+        updateProgress({
+          currentItem: null,
+          phase: 'cleaning',
+          processedCount: 0,
+          totalCount: null,
+        })
+        return service.deleteInvalidFileExecutions(request)
+      }),
+    inputSchema: deleteInvalidFileExecutionsRequestSchema,
+    outputSchema: deleteInvalidFileExecutionsResultSchema,
   })
   registerValidatedHandler({
     channel: IPC_CHANNELS.templateManagement.previewDeleteFilePlans,
@@ -218,13 +303,25 @@ export function registerTemplateManagementIpc(
   })
   registerValidatedHandler({
     channel: IPC_CHANNELS.templateManagement.deleteFilePlans,
-    handler: request => service.deleteFilePlans(request),
+    handler: request =>
+      runTracked(request.requestId, service.getActiveWorkspaceId(), async ({ updateProgress }) => {
+        updateProgress({
+          currentItem: null,
+          phase: 'cleaning',
+          processedCount: 0,
+          totalCount: null,
+        })
+        return service.deleteFilePlans(request)
+      }),
     inputSchema: deleteFilePlansRequestSchema,
     outputSchema: deleteFilePlansResultSchema,
   })
   registerValidatedHandler({
     channel: IPC_CHANNELS.templateManagement.rollbackFileExecution,
-    handler: request => service.rollbackFileExecution(request.executionId),
+    handler: request =>
+      runTracked(request.requestId, service.getActiveWorkspaceId(), ({ updateProgress }) =>
+        service.rollbackFileExecution(request.executionId, updateProgress),
+      ),
     inputSchema: rollbackFileChangeExecutionRequestSchema,
     outputSchema: fileChangeMutationResultSchema,
   })
@@ -254,7 +351,10 @@ export function registerTemplateManagementIpc(
   })
   registerValidatedHandler({
     channel: IPC_CHANNELS.templateManagement.importTemplatesBatch,
-    handler: request => service.importTemplatesBatch(request),
+    handler: request =>
+      runTracked(request.requestId, service.getActiveWorkspaceId(), ({ updateProgress }) =>
+        service.importTemplatesBatch(request, updateProgress),
+      ),
     inputSchema: batchImportTemplateRequestSchema,
     outputSchema: batchImportTemplateResultSchema,
   })

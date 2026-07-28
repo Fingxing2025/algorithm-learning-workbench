@@ -19,9 +19,11 @@ import type {
   TemplateMetadataFields,
 } from '@core/contracts/template-management'
 import type { AiRequestPreview } from '@core/contracts/ai-request'
+import type { TemplateSourceEncoding } from '@core/contracts/workspace'
 
 import { AiRequestPreviewDialog } from '@/components/ai-request-preview-dialog'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { activeElementOrNull, restoreFocusAfterDialog } from '@/lib/focus-management'
 import { useI18n } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
@@ -38,6 +40,7 @@ import {
   type TemplateMergeKey,
   type TemplateMetadataConflict,
 } from './template-metadata-merge'
+import { formatTemplateSourceEncoding } from './template-source-encoding'
 
 interface CreateTemplateDialogProps {
   error: string | null
@@ -211,6 +214,8 @@ export function CreateTemplateDialog({
   const [fileName, setFileName] = useState('')
   const [localBusy, setLocalBusy] = useState(false)
   const [localError, setLocalError] = useState<string | null>(null)
+  const [importedSourceEncoding, setImportedSourceEncoding] =
+    useState<TemplateSourceEncoding | null>(null)
   const [metadata, setMetadata] = useState<TemplateMetadataFields>(emptyTemplateMetadata)
   const [metadataLanguage, setMetadataLanguage] = useState<TemplateMetadataLanguage>(locale)
   const [requestPreview, setRequestPreview] = useState<AiRequestPreview | null>(null)
@@ -232,6 +237,7 @@ export function CreateTemplateDialog({
       setContent('')
       setFileName('')
       setLocalError(null)
+      setImportedSourceEncoding(null)
       setMetadata(emptyTemplateMetadata)
       setMetadataLanguage(locale)
       setPendingClassification(null)
@@ -277,6 +283,7 @@ export function CreateTemplateDialog({
       if (source) {
         setContent(source.content)
         setFileName(source.fileName)
+        setImportedSourceEncoding(source.sourceEncoding)
         setClassification(null)
         setClassificationBaseline(null)
       }
@@ -511,11 +518,18 @@ export function CreateTemplateDialog({
                   <label className="mt-4 text-xs font-semibold" htmlFor="template-source">
                     {t('模板源码')}
                   </label>
+                  {importedSourceEncoding && (
+                    <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground">
+                      <Badge>{formatTemplateSourceEncoding(importedSourceEncoding)}</Badge>
+                      <span>{t('已按源编码读取；工作区新副本统一保存为 UTF-8。')}</span>
+                    </div>
+                  )}
                   <textarea
                     className="mt-2 min-h-40 flex-1 resize-none rounded-xl border border-border bg-code px-4 py-3 font-mono text-xs leading-5 text-code-foreground outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring"
                     id="template-source"
                     onChange={event => {
                       setContent(event.target.value)
+                      setImportedSourceEncoding(null)
                       setClassification(null)
                     }}
                     placeholder={t('粘贴或输入模板源码…')}

@@ -16,6 +16,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import iconv from 'iconv-lite'
 
 import { PublicError } from '../errors/public-error'
 import {
@@ -125,6 +126,26 @@ describe('scanTemplateWorkspace', () => {
     expect(after.contentHash).not.toBe(before.contentHash)
     expect(after.changeKind).toBe('modified')
     expect(second.stats).toMatchObject({ hashedCount: 1, modifiedCount: 1, reusedCount: 1 })
+  })
+
+  it('indexes UTF-8 and Windows GBK copies as the same normalized Chinese source', async () => {
+    const utf8Path = join(workspaceRoot, 'utf8.cpp')
+    const gbkPath = join(workspaceRoot, 'gbk.cpp')
+    const source = '// 算法模板\nint shortest_path() { return 1; }\n'
+    await writeFile(utf8Path, source, 'utf8')
+    await writeFile(gbkPath, iconv.encode(source, 'gbk'))
+
+    const result = await scanTemplateWorkspace(
+      workspaceRoot,
+      '40000000-0000-4000-8000-000000000001',
+      { forceFull: true },
+    )
+    const utf8 = result.templates.find(template => template.relativePath === 'utf8.cpp')!
+    const gbk = result.templates.find(template => template.relativePath === 'gbk.cpp')!
+
+    expect(gbk.normalizedContentHash).toBe(utf8.normalizedContentHash)
+    expect(gbk.similaritySignatureJson).toBe(utf8.similaritySignatureJson)
+    expect(gbk.contentHash).not.toBe(utf8.contentHash)
   })
 
   it('preserves stable ids for unique moves and reports deletions', async () => {

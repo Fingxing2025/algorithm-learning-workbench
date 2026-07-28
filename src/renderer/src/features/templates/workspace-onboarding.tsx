@@ -38,7 +38,7 @@ export function WorkspaceOnboarding({ error, isBusy, onChoose }: WorkspaceOnboar
               </h1>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
                 {t(
-                  '工作区是你自己的普通文件夹。模板源码始终保留在文件系统中，应用只建立本地索引。',
+                  '工作区是你自己的自包含文件夹；模板统一位于 templates，题目和元数据也随文件夹保存。',
                 )}
               </p>
             </div>
@@ -85,7 +85,7 @@ export function WorkspaceOnboarding({ error, isBusy, onChoose }: WorkspaceOnboar
             </div>
             <h2 className="mt-5 text-base font-semibold">{t('选择已有模板目录')}</h2>
             <p className="mt-2 text-sm leading-6 text-muted-foreground">
-              {t('选择一个已有模板目录，先只读扫描，不会自动改名或移动文件。')}
+              {t('先只读扫描；确认升级后，完整内容按原结构迁入 templates，失败会自动回滚。')}
             </p>
             <Button
               className="mt-auto"

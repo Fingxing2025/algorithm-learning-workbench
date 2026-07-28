@@ -1,6 +1,7 @@
-import { mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
+import { createHash } from 'node:crypto'
+import { mkdir, mkdtemp, readFile, readdir, realpath, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join, resolve } from 'node:path'
+import { join, relative, resolve, sep } from 'node:path'
 
 import {
   _electron as electron,
@@ -11,6 +12,13 @@ import {
 } from '@playwright/test'
 
 import type { DesktopApi } from '@core/contracts/desktop-api'
+import type { BackupManifestV2 } from '@core/contracts/data-management'
+import iconv from 'iconv-lite'
+import {
+  createPortableBackupArchive,
+  extractPortableBackupArchive,
+  type PortableArchiveSource,
+} from '../../src/main/services/portable-backup-archive'
 
 declare const window: { desktop: DesktopApi }
 
@@ -18,6 +26,8 @@ let electronApp: ElectronApplication
 let page: Page
 let temporaryRoot: string
 let userDataDirectory: string
+let blankWorkspacePath: string
+let workspaceBPath: string
 
 test.describe.configure({ mode: 'serial' })
 
@@ -33,67 +43,81 @@ async function launchApplication(extraEnv: Record<string, string> = {}) {
   )
 }
 
-async function seedV2Data(workspacePath: string, imagePath: string) {
+async function seedV2Data(
+  workspacePath: string,
+  imagePath: string,
+  options: { createProvider?: boolean; label?: string } = {},
+) {
+  const label = options.label ?? 'Restore E2E'
   await setNextSelection(workspacePath)
   const snapshot = await page.evaluate(() => window.desktop.workspace.choose({ intent: 'open' }))
   const template = snapshot?.templates[0]
   if (!template) throw new Error('seed workspace did not produce a template')
-  const problem = await page.evaluate(async templateId => {
-    const createdProblem = await window.desktop.problems.create({
-      aiSummary: 'restore e2e summary',
-      analysis: {
-        algorithmSignals: ['graph'],
-        constraints: [],
-        edgeCases: [],
-        examples: [],
-        inputDescription: '',
-        outputDescription: '',
-      },
-      difficulty: 'easy',
-      notes: 'restore e2e note',
-      platform: 'local',
-      problemCode: 'RESTORE-E2E',
-      statement: 'restore e2e statement',
-      status: 'attempted',
-      tags: ['restore'],
-      title: 'Restore E2E Problem',
-      url: null,
-    })
-    await window.desktop.problems.upsertRelation({
-      note: 'restore relation',
-      problemId: createdProblem.id,
-      relationType: 'used',
-      templateId,
-    })
-    return createdProblem
-  }, template.id)
+  const problem = await page.evaluate(
+    async ({ label, templateId }) => {
+      const createdProblem = await window.desktop.problems.create({
+        aiSummary: `${label} summary`,
+        analysis: {
+          algorithmSignals: ['graph'],
+          constraints: [],
+          edgeCases: [],
+          examples: [],
+          inputDescription: '',
+          outputDescription: '',
+        },
+        difficulty: 'easy',
+        notes: `${label} note`,
+        platform: 'local',
+        problemCode: label.toUpperCase().replaceAll(' ', '-'),
+        statement: `${label} statement`,
+        status: 'attempted',
+        tags: ['restore'],
+        title: `${label} Problem`,
+        url: null,
+      })
+      await window.desktop.problems.upsertRelation({
+        note: 'restore relation',
+        problemId: createdProblem.id,
+        relationType: 'used',
+        templateId,
+      })
+      return createdProblem
+    },
+    { label, templateId: template.id },
+  )
   await setNextSelection(imagePath)
-  await page.evaluate(problemId => window.desktop.problems.addImages(problemId), problem.id)
-  const provider = await page.evaluate(() =>
-    window.desktop.aiProviders.create({
-      apiKey: 'restore-e2e-secret-key',
-      baseUrl: 'https://example.invalid/v1',
-      capabilities: {
-        promptCaching: false,
-        streaming: false,
-        structuredOutput: true,
-        vision: true,
-      },
-      customHeaders: {},
-      model: 'restore-e2e-model',
-      name: 'Restore E2E Provider',
-      protocol: 'openai-chat-completions',
-      timeoutMs: 30000,
-    }),
+  const problemWithImage = await page.evaluate(
+    problemId => window.desktop.problems.addImages(problemId),
+    problem.id,
   )
-  await page.evaluate(
-    providerId =>
-      window.desktop.aiProviders.upsertRoute({
-        providerId,
-        task: 'problem-image-analysis',
+  if (options.createProvider !== false) {
+    const provider = await page.evaluate(() =>
+      window.desktop.aiProviders.create({
+        apiKey: 'restore-e2e-secret-key',
+        baseUrl: 'https://example.invalid/v1',
+        capabilities: {
+          promptCaching: false,
+          streaming: false,
+          structuredOutput: true,
+          vision: true,
+        },
+        customHeaders: {},
+        model: 'restore-e2e-model',
+        name: 'Restore E2E Provider',
+        protocol: 'openai-chat-completions',
+        timeoutMs: 30000,
       }),
-    provider.id,
-  )
+    )
+    await page.evaluate(
+      providerId =>
+        window.desktop.aiProviders.upsertRoute({
+          providerId,
+          task: 'problem-image-analysis',
+        }),
+      provider.id,
+    )
+  }
+  return { problem: problemWithImage ?? problem, snapshot }
 }
 
 async function setNextSavePath(path: string) {
@@ -111,14 +135,58 @@ async function setNextSelection(path: string) {
       canceled: false,
       filePaths: [selectedPath],
     })) as typeof dialog.showOpenDialog
+    dialog.showMessageBox = (async () => ({
+      checkboxChecked: false,
+      response: 1,
+    })) as typeof dialog.showMessageBox
   }, path)
+}
+
+async function collectArchiveSources(root: string): Promise<PortableArchiveSource[]> {
+  const sources: PortableArchiveSource[] = []
+  const walk = async (directory: string) => {
+    const entries = await readdir(directory, { withFileTypes: true })
+    for (const entry of entries) {
+      const absolutePath = join(directory, entry.name)
+      if (entry.isDirectory()) await walk(absolutePath)
+      if (entry.isFile()) {
+        sources.push({
+          absolutePath,
+          archivePath: relative(root, absolutePath).split(sep).join('/'),
+        })
+      }
+    }
+  }
+  await walk(root)
+  return sources
+}
+
+async function rewritePortableManifest(root: string, update: (manifest: BackupManifestV2) => void) {
+  const manifestPath = join(root, 'manifest.json')
+  const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as BackupManifestV2
+  update(manifest)
+  const manifestText = `${JSON.stringify(manifest, null, 2)}\n`
+  await writeFile(manifestPath, manifestText, 'utf8')
+  const manifestHash = createHash('sha256').update(manifestText).digest('hex')
+  await writeFile(
+    join(root, 'checksums.sha256'),
+    [
+      `${manifestHash}  manifest.json\n`,
+      ...manifest.files.map(file => `${file.sha256}  ${file.path}\n`),
+    ].join(''),
+    'utf8',
+  )
 }
 
 test.beforeAll(async () => {
   temporaryRoot = await mkdtemp(join(tmpdir(), 'algorithm-workbench-data-e2e-'))
   userDataDirectory = join(temporaryRoot, 'user-data')
+  blankWorkspacePath = join(temporaryRoot, 'blank-workspace')
   await mkdir(userDataDirectory)
+  await mkdir(blankWorkspacePath)
   await launchApplication()
+  await setNextSelection(blankWorkspacePath)
+  await page.getByRole('button', { name: '选择目录' }).click()
 })
 
 test.afterAll(async () => {
@@ -127,9 +195,9 @@ test.afterAll(async () => {
 })
 
 test('exports and verifies a blank user data backup, then rejects tampering', async () => {
-  await page.getByRole('button', { name: '数据管理' }).click()
-  await expect(page.getByRole('heading', { name: '数据管理' })).toBeVisible()
-  await expect(page.getByText('未发现异常')).toBeVisible()
+  await page.getByRole('button', { name: '备份与恢复' }).click()
+  await expect(page.getByRole('heading', { name: '备份与恢复' })).toBeVisible()
+  await expect(page.locator('p').filter({ hasText: /^数据状态正常$/u })).toBeVisible()
   await page.screenshot({
     fullPage: true,
     path: resolve('output/playwright/data-management-light-1440x900.png'),
@@ -140,6 +208,13 @@ test('exports and verifies a blank user data backup, then rejects tampering', as
   await page.screenshot({
     fullPage: true,
     path: resolve('output/playwright/data-management-light-1280x720.png'),
+  })
+  await electronApp.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0]?.setSize(1024, 640),
+  )
+  await page.screenshot({
+    fullPage: true,
+    path: resolve('output/playwright/data-management-light-1024x640.png'),
   })
   await electronApp.evaluate(({ BrowserWindow }) =>
     BrowserWindow.getAllWindows()[0]?.setSize(1440, 900),
@@ -158,6 +233,13 @@ test('exports and verifies a blank user data backup, then rejects tampering', as
     path: resolve('output/playwright/data-management-dark-1280x720.png'),
   })
   await electronApp.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0]?.setSize(1024, 640),
+  )
+  await page.screenshot({
+    fullPage: true,
+    path: resolve('output/playwright/data-management-dark-1024x640.png'),
+  })
+  await electronApp.evaluate(({ BrowserWindow }) =>
     BrowserWindow.getAllWindows()[0]?.setSize(1440, 900),
   )
   await page.waitForTimeout(250)
@@ -165,39 +247,337 @@ test('exports and verifies a blank user data backup, then rejects tampering', as
 
   const backupPath = join(temporaryRoot, 'blank-export.awb-backup')
   await setNextSavePath(backupPath)
-  await page.getByRole('button', { name: '导出备份' }).click()
-  await expect(page.getByRole('status')).toContainText('备份已导出并通过校验')
-  await expect(page.getByText('备份包校验通过')).toBeVisible()
+  await page.getByRole('button', { name: '导出当前工作区备份' }).click()
+  await expect(page.getByRole('status').filter({ hasText: '备份已导出并通过校验' })).toBeVisible()
+  await expect(page.getByText('当前工作区备份已导出并通过校验')).toBeVisible()
 
-  const manifest = JSON.parse(await readFile(join(backupPath, 'manifest.json'), 'utf8')) as {
+  const extractedBackupPath = join(temporaryRoot, 'blank-export-extracted')
+  await extractPortableBackupArchive(backupPath, extractedBackupPath)
+  const manifest = JSON.parse(
+    await readFile(join(extractedBackupPath, 'manifest.json'), 'utf8'),
+  ) as {
     counts: { problems: number; templates: number }
-    privacy: { providerSecrets: string }
+    formatVersion: string
+    privacy: { excluded: string[]; providerSecrets: string }
   }
+  expect(manifest.formatVersion).toBe('v2')
   expect(manifest.counts.problems).toBe(0)
   expect(manifest.counts.templates).toBe(0)
   expect(manifest.privacy.providerSecrets).toBe('omitted')
+  expect(manifest.privacy.excluded).not.toContain('template-sources')
   await expect(
-    stat(join(backupPath, 'data', 'sqlite', 'algorithm-workbench.sqlite')),
+    stat(join(extractedBackupPath, 'data', 'sqlite', 'algorithm-workbench.sqlite')),
   ).resolves.toBeTruthy()
-  await expect(stat(join(backupPath, 'secrets'))).rejects.toThrow()
+  await expect(stat(join(extractedBackupPath, 'secrets'))).rejects.toThrow()
 
-  await writeFile(join(backupPath, 'COMPLETED'), 'tampered\n', 'utf8')
-  await setNextSelection(backupPath)
-  await page.getByRole('button', { name: '验证备份包' }).click()
-  await expect(page.getByText('备份包校验失败')).toBeVisible()
+  await expect(page.getByLabel('包含模板源码')).toHaveCount(0)
+  await expect(page.getByText('完整深拷贝')).toBeVisible()
+
+  await writeFile(join(extractedBackupPath, 'unexpected.txt'), 'not declared by manifest\n')
+  const extraFileBackupPath = join(temporaryRoot, 'blank-export-extra-file.awb-backup')
+  await createPortableBackupArchive(
+    extraFileBackupPath,
+    await collectArchiveSources(extractedBackupPath),
+  )
+  await setNextSelection(extraFileBackupPath)
+  await page.getByRole('button', { name: '选择备份并恢复' }).click()
+  await expect(page.getByText('这个备份暂时无法恢复')).toBeVisible()
+  await expect(page.getByText('备份包包含 manifest 清单外文件。')).toBeVisible()
+  await rm(join(extractedBackupPath, 'unexpected.txt'))
+
+  await writeFile(join(extractedBackupPath, 'COMPLETED'), 'tampered\n', 'utf8')
+  const tamperedBackupPath = join(temporaryRoot, 'blank-export-tampered.awb-backup')
+  await createPortableBackupArchive(
+    tamperedBackupPath,
+    await collectArchiveSources(extractedBackupPath),
+  )
+  await setNextSelection(tamperedBackupPath)
+  await page.getByRole('button', { name: '选择备份并恢复' }).click()
+  await expect(page.getByText('这个备份暂时无法恢复')).toBeVisible()
   await expect(page.getByText(/文件哈希不匹配/)).toBeVisible()
 })
 
-test('restores a verified backup with a preflight backup and skips external template sources', async () => {
-  const blankBackupPath = join(temporaryRoot, 'blank-restore.awb-backup')
-  await setNextSavePath(blankBackupPath)
-  await page.getByRole('button', { name: '导出备份' }).click()
-  await expect(page.getByRole('status')).toContainText('备份已导出并通过校验')
+test('deep-copies any valid workspace backup into the current workspace without changing its source', async () => {
+  const imageBytes = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+    'base64',
+  )
+  const workspaceAImage = join(temporaryRoot, 'workspace-a.png')
+  const workspaceASourceBytes = iconv.encode(
+    '// 通用深拷贝中文模板\nvoid workspace_a() {}\n',
+    'gbk',
+  )
+  await writeFile(workspaceAImage, imageBytes)
+  await writeFile(join(blankWorkspacePath, 'templates', 'a-template.cpp'), workspaceASourceBytes)
+  const seededA = await seedV2Data(blankWorkspacePath, workspaceAImage, {
+    label: 'Workspace A',
+  })
+  if (!seededA.snapshot || !seededA.problem.images[0]) throw new Error('workspace A seed failed')
+  const relocationPreview = await page.evaluate(
+    templateId =>
+      window.desktop.templateManagement.previewTemplateRelocation({
+        targetRelativePath: 'algorithms/a-template.cpp',
+        templateId,
+      }),
+    seededA.snapshot.templates[0]!.id,
+  )
+  const relocationResult = await page.evaluate(
+    previewId =>
+      window.desktop.templateManagement.applyTemplateRelocation({ confirmed: true, previewId }),
+    relocationPreview.previewId,
+  )
+  const workspaceA = relocationResult.workspace
+  const workspaceAImagePath = join(
+    blankWorkspacePath,
+    'problem-assets',
+    'images',
+    seededA.problem.id,
+    `${seededA.problem.images[0].id}.png`,
+  )
+  const workspaceAImageBefore = await readFile(workspaceAImagePath)
+  const workspaceADiagnostics = await page.evaluate(() => window.desktop.dataManagement.diagnose())
+  const workspaceAPlansBefore = await page.evaluate(() =>
+    window.desktop.templateManagement.listFilePlans(),
+  )
+  const workspaceAExecutionsBefore = await page.evaluate(() =>
+    window.desktop.templateManagement.listFileExecutions(),
+  )
+  expect(workspaceAPlansBefore).toHaveLength(1)
+  expect(workspaceAExecutionsBefore).toHaveLength(1)
+  const providersBefore = await page.evaluate(() => window.desktop.aiProviders.list())
+  expect(providersBefore).toHaveLength(1)
+  expect(providersBefore[0]?.hasSecret).toBe(true)
 
-  const workspacePath = join(temporaryRoot, 'restore-workspace')
-  const imagePath = join(temporaryRoot, 'restore-image.png')
+  await page.getByRole('button', { name: '备份与恢复' }).click()
+  const workspaceABackupPath = join(temporaryRoot, 'workspace-a-portable.awb-backup')
+  await setNextSavePath(workspaceABackupPath)
+  await page.getByRole('button', { name: '导出当前工作区备份' }).click()
+  await expect(page.getByRole('status').filter({ hasText: '备份已导出并通过校验' })).toBeVisible()
+  const extractedPath = join(temporaryRoot, 'workspace-a-extracted')
+  await extractPortableBackupArchive(workspaceABackupPath, extractedPath)
+  const manifest = JSON.parse(
+    await readFile(join(extractedPath, 'manifest.json'), 'utf8'),
+  ) as BackupManifestV2
+  expect(manifest.includeTemplateSources).toBe(true)
+  expect(manifest.workspaces).toEqual([
+    expect.objectContaining({ id: workspaceA.id, name: workspaceA.name }),
+  ])
+  expect(manifest.counts).toMatchObject({
+    aiProviderProfiles: 0,
+    aiTaskRoutes: 0,
+    fileChangeExecutions: 1,
+    fileChangePlans: 1,
+    problemImages: 1,
+    problems: 1,
+    templateProblemRelations: 1,
+    templates: 1,
+    workspaces: 1,
+  })
+  const manifestPaths = manifest.files.map(file => file.path)
+  expect(manifestPaths.some(path => path.includes(seededA.problem.id))).toBe(true)
+  expect(
+    manifestPaths.includes(`data/template-sources/${workspaceA.id}/algorithms/a-template.cpp`),
+  ).toBe(true)
+  const snapshotBytes = await readFile(
+    join(extractedPath, 'data', 'sqlite', 'algorithm-workbench.sqlite'),
+  )
+  expect(snapshotBytes.includes(Buffer.from('Workspace A Problem'))).toBe(true)
+  expect(snapshotBytes.includes(Buffer.from('Restore E2E Provider'))).toBe(false)
+
+  workspaceBPath = join(temporaryRoot, 'workspace-b')
+  const workspaceBImage = join(temporaryRoot, 'workspace-b.png')
+  await mkdir(workspaceBPath)
+  await writeFile(join(workspaceBPath, 'b-template.cpp'), 'void workspace_b() {}\n', 'utf8')
+  await writeFile(workspaceBImage, imageBytes)
+  const seededB = await seedV2Data(workspaceBPath, workspaceBImage, {
+    createProvider: false,
+    label: 'Workspace B',
+  })
+  if (!seededB.snapshot || !seededB.problem.images[0]) throw new Error('workspace B seed failed')
+  const workspaceB = seededB.snapshot
+  const workspaceBImagePath = join(
+    workspaceBPath,
+    'problem-assets',
+    'images',
+    seededB.problem.id,
+    `${seededB.problem.images[0].id}.png`,
+  )
+  await page.getByRole('button', { name: '备份与恢复' }).click()
+  const multiWorkspaceExtractedPath = join(temporaryRoot, 'workspace-a-multi-manifest')
+  await extractPortableBackupArchive(workspaceABackupPath, multiWorkspaceExtractedPath)
+  await rewritePortableManifest(multiWorkspaceExtractedPath, portableManifest => {
+    portableManifest.workspaces.push({
+      id: '40000000-0000-4000-8000-000000000077',
+      name: '旧备份中的其他工作区',
+      templateFileCount: 0,
+    })
+  })
+  const multiWorkspaceBackupPath = join(temporaryRoot, 'workspace-a-multi.awb-backup')
+  await createPortableBackupArchive(
+    multiWorkspaceBackupPath,
+    await collectArchiveSources(multiWorkspaceExtractedPath),
+  )
+  await setNextSelection(multiWorkspaceBackupPath)
+  await page.getByRole('button', { name: '选择备份并恢复' }).click()
+  await expect(page.getByText('这个备份暂时无法恢复')).toBeVisible()
+  await expect(page.getByText(/备份 manifest 不是当前单工作区完整源码格式/u)).toBeVisible()
+
+  await setNextSelection(workspaceABackupPath)
+  await page.getByRole('button', { name: '选择备份并恢复' }).click()
+  await expect(page.getByText('备份检查通过，可以恢复')).toBeVisible()
+  await expect(page.getByTestId('restore-source-workspace')).toHaveText(workspaceA.name)
+  await expect(page.getByTestId('restore-target-workspace')).toHaveText(workspaceB.name)
+  await expect(page.getByLabel('我了解恢复会替换当前工作区，并确认继续。')).toBeFocused()
+  await page.getByText('备份检查通过，可以恢复').scrollIntoViewIfNeeded()
+  await page.screenshot({
+    fullPage: true,
+    path: resolve('output/playwright/data-management-restore-light-1440x900.png'),
+  })
+  await electronApp.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0]?.setSize(1280, 720),
+  )
+  await page.locator('html').evaluate(root => root.classList.add('dark'))
+  await page.waitForTimeout(250)
+  await page.screenshot({
+    fullPage: true,
+    path: resolve('output/playwright/data-management-restore-dark-1280x720.png'),
+  })
+  await electronApp.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0]?.setSize(1440, 900),
+  )
+  await page.locator('html').evaluate(root => root.classList.remove('dark'))
+
+  await page.getByLabel('我了解恢复会替换当前工作区，并确认继续。').check()
+  await page.getByRole('button', { name: '确认恢复' }).click()
+  await expect(
+    page
+      .getByRole('status')
+      .filter({ hasText: '当前工作区恢复完成；其他工作区和 Provider 配置未修改' }),
+  ).toBeVisible()
+
+  const restoredWorkspaceB = await page.evaluate(() => window.desktop.workspace.getCurrent())
+  expect(restoredWorkspaceB?.id).toBe(workspaceB.id)
+  expect(restoredWorkspaceB?.name).toBe(workspaceB.name)
+  expect(restoredWorkspaceB?.rootPath).toBe(await realpath(workspaceBPath))
+  const restoredDiagnosticsB = await page.evaluate(() => window.desktop.dataManagement.diagnose())
+  expect(restoredDiagnosticsB.counts).toMatchObject(manifest.counts)
+  const restoredProblemsB = await page.evaluate(() => window.desktop.problems.list())
+  expect(restoredProblemsB).toEqual([
+    expect.objectContaining({
+      id: expect.not.stringMatching(seededA.problem.id),
+      title: 'Workspace A Problem',
+    }),
+  ])
+  const restoredPlansB = await page.evaluate(() =>
+    window.desktop.templateManagement.listFilePlans(),
+  )
+  const restoredExecutionsB = await page.evaluate(() =>
+    window.desktop.templateManagement.listFileExecutions(),
+  )
+  expect(restoredPlansB).toHaveLength(1)
+  expect(restoredExecutionsB).toHaveLength(1)
+  expect(restoredPlansB[0]!.id).not.toBe(workspaceAPlansBefore[0]!.id)
+  expect(restoredExecutionsB[0]!.id).not.toBe(workspaceAExecutionsBefore[0]!.id)
+  expect(restoredExecutionsB[0]!.planId).toBe(restoredPlansB[0]!.id)
+  expect(restoredPlansB[0]!.operations[0]!.templateId).toBe(restoredWorkspaceB!.templates[0]!.id)
+  expect(restoredPlansB[0]!.operations[0]!.templateId).not.toBe(
+    workspaceAPlansBefore[0]!.operations[0]!.templateId,
+  )
+  await expect(
+    stat(join(blankWorkspacePath, '.awb', 'file-plan-backups', workspaceAExecutionsBefore[0]!.id)),
+  ).resolves.toBeTruthy()
+  await expect(
+    stat(join(workspaceBPath, '.awb', 'file-plan-backups', restoredExecutionsB[0]!.id)),
+  ).resolves.toBeTruthy()
+  await expect(stat(workspaceBImagePath)).rejects.toThrow()
+  const restoredProblemB = restoredProblemsB[0]!
+  const restoredImageB = restoredProblemB.images[0]!
+  const restoredImageDataB = await page.evaluate(
+    imageId => window.desktop.problems.readImage(imageId),
+    restoredImageB.id,
+  )
+  expect(Buffer.from(restoredImageDataB.dataUrl.split(',')[1]!, 'base64')).toEqual(
+    workspaceAImageBefore,
+  )
+  await expect(
+    readFile(join(workspaceBPath, 'templates', 'b-template.cpp'), 'utf8'),
+  ).rejects.toThrow()
+  expect(await readFile(join(workspaceBPath, 'templates', 'algorithms', 'a-template.cpp'))).toEqual(
+    workspaceASourceBytes,
+  )
+  const providersAfter = await page.evaluate(() => window.desktop.aiProviders.list())
+  expect(providersAfter).toEqual(providersBefore)
+
+  await writeFile(
+    join(workspaceBPath, 'templates', 'algorithms', 'a-template.cpp'),
+    'void changed_only_in_workspace_b() {}\n',
+    'utf8',
+  )
+  expect(
+    await readFile(join(blankWorkspacePath, 'templates', 'algorithms', 'a-template.cpp')),
+  ).toEqual(workspaceASourceBytes)
+
+  await page.getByRole('button', { name: '模板库', exact: true }).click()
+  await setNextSelection(blankWorkspacePath)
+  await page.getByRole('button', { name: '切换工作区' }).click()
+  const currentA = await page.evaluate(() => window.desktop.workspace.getCurrent())
+  expect(currentA?.id).toBe(workspaceA.id)
+  const diagnosticsAAfter = await page.evaluate(() => window.desktop.dataManagement.diagnose())
+  expect(diagnosticsAAfter.counts).toEqual(workspaceADiagnostics.counts)
+  expect(await readFile(workspaceAImagePath)).toEqual(workspaceAImageBefore)
+  expect(
+    await readFile(join(blankWorkspacePath, 'templates', 'algorithms', 'a-template.cpp')),
+  ).toEqual(workspaceASourceBytes)
+  await expect(page.evaluate(() => window.desktop.problems.list())).resolves.toEqual([
+    expect.objectContaining({ id: seededA.problem.id }),
+  ])
+  await expect(
+    page.evaluate(() => window.desktop.templateManagement.listFileExecutions()),
+  ).resolves.toEqual(workspaceAExecutionsBefore)
+
+  await page.getByRole('button', { name: '模板库', exact: true }).click()
+  await setNextSelection(workspaceBPath)
+  await page.getByRole('button', { name: '切换工作区' }).click()
+  const currentBAfterSwitch = await page.evaluate(() => window.desktop.workspace.getCurrent())
+  expect(currentBAfterSwitch?.id).toBe(workspaceB.id)
+  await expect(page.evaluate(() => window.desktop.problems.list())).resolves.toEqual([
+    expect.objectContaining({ title: 'Workspace A Problem' }),
+  ])
+  expect(
+    await readFile(join(workspaceBPath, 'templates', 'algorithms', 'a-template.cpp'), 'utf8'),
+  ).toContain('changed_only_in_workspace_b')
+  await electronApp.close()
+  await launchApplication()
+  const currentBAfterRestart = await page.evaluate(() => window.desktop.workspace.getCurrent())
+  expect(currentBAfterRestart).toMatchObject({
+    id: workspaceB.id,
+    rootPath: await realpath(workspaceBPath),
+  })
+  await expect(page.evaluate(() => window.desktop.problems.list())).resolves.toEqual([
+    expect.objectContaining({ title: 'Workspace A Problem' }),
+  ])
+  expect(
+    await readFile(join(workspaceBPath, 'templates', 'algorithms', 'a-template.cpp'), 'utf8'),
+  ).toContain('changed_only_in_workspace_b')
+  const preflightRoot = join(workspaceBPath, '.awb', 'restore-preflight-backups')
+  const preflightNames = await readdir(preflightRoot)
+  expect(preflightNames.length).toBeGreaterThanOrEqual(1)
+  await page.getByRole('button', { name: '备份与恢复' }).click()
+  await setNextSelection(join(preflightRoot, preflightNames[0]!))
+  await page.getByRole('button', { name: '选择备份并恢复' }).click()
+  await expect(page.getByText('备份检查通过，可以恢复')).toBeVisible()
+})
+
+test('rolls back current data when restore fails after file swap', async () => {
+  await electronApp.close()
+  userDataDirectory = join(temporaryRoot, 'rollback-user-data')
+  await mkdir(userDataDirectory)
+  await launchApplication({ E2E_RESTORE_FAIL_STAGE: 'after-file-swap' })
+
+  const workspacePath = join(temporaryRoot, 'rollback-workspace')
+  const imagePath = join(temporaryRoot, 'rollback-image.png')
   await mkdir(workspacePath)
-  await writeFile(join(workspacePath, 'restore-template.cpp'), 'void before_restore() {}\n')
+  await writeFile(join(workspacePath, 'rollback-template.cpp'), 'void rollback_fixture() {}\n')
   await writeFile(
     imagePath,
     Buffer.from(
@@ -205,39 +585,12 @@ test('restores a verified backup with a preflight backup and skips external temp
       'base64',
     ),
   )
-  await seedV2Data(workspacePath, imagePath)
-
-  await page.getByRole('button', { name: '数据管理' }).click()
-  const populatedBackupPath = join(temporaryRoot, 'populated-restore.awb-backup')
-  await setNextSavePath(populatedBackupPath)
-  await page.getByRole('button', { name: '导出备份' }).click()
-  await expect(page.getByRole('status')).toContainText('备份已导出并通过校验')
-  const populatedManifest = JSON.parse(
-    await readFile(join(populatedBackupPath, 'manifest.json'), 'utf8'),
-  ) as {
-    counts: {
-      aiProviderProfiles: number
-      aiTaskRoutes: number
-      problemImages: number
-      problems: number
-      templateProblemRelations: number
-      templates: number
-      workspaces: number
-    }
-  }
-  const populatedSnapshotPath = join(
-    populatedBackupPath,
-    'data',
-    'sqlite',
-    'algorithm-workbench.sqlite',
-  )
-  expect(
-    (await readFile(populatedSnapshotPath)).includes(Buffer.from('restore-e2e-secret-key')),
-  ).toBe(false)
-  expect(
-    (await readFile(populatedSnapshotPath)).includes(Buffer.from('data_restore_commit:')),
-  ).toBe(false)
-
+  await seedV2Data(workspacePath, imagePath, { label: 'Rollback' })
+  await page.getByRole('button', { name: '备份与恢复' }).click()
+  const backupPath = join(temporaryRoot, 'rollback-current-workspace.awb-backup')
+  await setNextSavePath(backupPath)
+  await page.getByRole('button', { name: '导出当前工作区备份' }).click()
+  await expect(page.getByRole('status').filter({ hasText: '备份已导出并通过校验' })).toBeVisible()
   await page.evaluate(() =>
     window.desktop.problems.create({
       aiSummary: '',
@@ -253,192 +606,20 @@ test('restores a verified backup with a preflight backup and skips external temp
       notes: '',
       platform: null,
       problemCode: null,
-      statement: 'restore e2e extra statement',
+      statement: 'must survive failed restore',
       status: 'unattempted',
       tags: [],
-      title: 'Extra problem after backup',
+      title: 'Rollback extra problem',
       url: null,
     }),
   )
-  await writeFile(join(workspacePath, 'restore-template.cpp'), 'void mutated_after_backup() {}\n')
-
-  await setNextSelection(populatedBackupPath)
-  await page.getByRole('button', { name: '恢复预览' }).click()
-  await expect(page.getByText('恢复预览可继续')).toBeVisible()
-  await expect(
-    page.getByLabel('我已确认恢复预览，并允许应用恢复 userData 中的数据副本。'),
-  ).toBeFocused()
-  await page.getByText('恢复预览可继续').scrollIntoViewIfNeeded()
-  await page.screenshot({
-    fullPage: true,
-    path: resolve('output/playwright/data-management-restore-light-1440x900.png'),
-  })
-  await electronApp.evaluate(({ BrowserWindow }) =>
-    BrowserWindow.getAllWindows()[0]?.setSize(1280, 720),
-  )
-  await page.screenshot({
-    fullPage: true,
-    path: resolve('output/playwright/data-management-restore-light-1280x720.png'),
-  })
-  await electronApp.evaluate(({ BrowserWindow }) =>
-    BrowserWindow.getAllWindows()[0]?.setSize(1440, 900),
-  )
-  await page.locator('html').evaluate(root => root.classList.add('dark'))
-  await page.screenshot({
-    fullPage: true,
-    path: resolve('output/playwright/data-management-restore-dark-1440x900.png'),
-  })
-  await electronApp.evaluate(({ BrowserWindow }) =>
-    BrowserWindow.getAllWindows()[0]?.setSize(1280, 720),
-  )
-  await page.screenshot({
-    fullPage: true,
-    path: resolve('output/playwright/data-management-restore-dark-1280x720.png'),
-  })
-  await electronApp.evaluate(({ BrowserWindow }) =>
-    BrowserWindow.getAllWindows()[0]?.setSize(1440, 900),
-  )
-  await page.locator('html').evaluate(root => root.classList.remove('dark'))
-
-  await page.getByLabel('我已确认恢复预览，并允许应用恢复 userData 中的数据副本。').check()
-  await page.getByRole('button', { name: '确认恢复' }).click()
-  await expect(page.getByRole('status')).toContainText('Provider 密钥未恢复')
-
-  const restoredDiagnostics = await page.evaluate(() => window.desktop.dataManagement.diagnose())
-  expect(restoredDiagnostics.counts.workspaces).toBe(populatedManifest.counts.workspaces)
-  expect(restoredDiagnostics.counts.templates).toBe(populatedManifest.counts.templates)
-  expect(restoredDiagnostics.counts.problems).toBe(populatedManifest.counts.problems)
-  expect(restoredDiagnostics.counts.problemImages).toBe(populatedManifest.counts.problemImages)
-  expect(restoredDiagnostics.counts.templateProblemRelations).toBe(
-    populatedManifest.counts.templateProblemRelations,
-  )
-  expect(restoredDiagnostics.counts.aiProviderProfiles).toBe(
-    populatedManifest.counts.aiProviderProfiles,
-  )
-  expect(restoredDiagnostics.counts.aiTaskRoutes).toBe(populatedManifest.counts.aiTaskRoutes)
-  const providers = await page.evaluate(() => window.desktop.aiProviders.list())
-  expect(providers).toHaveLength(1)
-  expect(providers[0]?.hasSecret).toBe(false)
-  expect(await readFile(join(workspacePath, 'restore-template.cpp'), 'utf8')).toBe(
-    'void mutated_after_backup() {}\n',
-  )
-  expect(await readdir(join(userDataDirectory, 'restore-preflight-backups'))).toHaveLength(1)
-
-  await setNextSelection(blankBackupPath)
-  await page.getByRole('button', { name: '恢复预览' }).click()
-  await expect(page.getByText('恢复预览可继续')).toBeVisible()
-  await page.getByLabel('我已确认恢复预览，并允许应用恢复 userData 中的数据副本。').check()
-  await page.getByRole('button', { name: '确认恢复' }).click()
-  await expect(page.getByRole('status')).toContainText('恢复完成')
-  const blankDiagnostics = await page.evaluate(() => window.desktop.dataManagement.diagnose())
-  expect(blankDiagnostics.counts.problems).toBe(0)
-  expect(blankDiagnostics.counts.templates).toBe(0)
-  expect(blankDiagnostics.counts.aiProviderProfiles).toBe(0)
-})
-
-test('previews, quarantines, and undoes user-selected lifecycle items', async () => {
-  const batchBackup = join(userDataDirectory, 'batch-import-backups', 'lifecycle-review')
-  const imageTrash = join(userDataDirectory, 'problem-images', '.trash', 'lifecycle-residual')
-  await mkdir(batchBackup, { recursive: true })
-  await mkdir(imageTrash, { recursive: true })
-  await writeFile(join(batchBackup, 'backup.bin'), 'lifecycle backup fixture')
-  await writeFile(join(imageTrash, 'residual.bin'), 'lifecycle trash fixture')
-
-  await page.getByRole('button', { name: '数据管理' }).click()
-  await page.getByRole('button', { name: '重新诊断' }).click()
-  await expect(page.getByRole('heading', { name: '备份生命周期' })).toBeVisible()
-  await expect(page.getByText('批量导入备份，需要你判断')).toBeVisible()
-  await expect(page.getByText('无当前记录的题目图片残留')).toBeVisible()
-  await page.getByRole('heading', { name: '备份生命周期' }).scrollIntoViewIfNeeded()
-
-  await electronApp.evaluate(({ BrowserWindow }) =>
-    BrowserWindow.getAllWindows()[0]?.setSize(1440, 900),
-  )
-  await page.screenshot({
-    fullPage: true,
-    path: resolve('output/playwright/data-management-lifecycle-light-1440x900.png'),
-  })
-  await electronApp.evaluate(({ BrowserWindow }) =>
-    BrowserWindow.getAllWindows()[0]?.setSize(1280, 720),
-  )
-  await page.screenshot({
-    fullPage: true,
-    path: resolve('output/playwright/data-management-lifecycle-light-1280x720.png'),
-  })
-  await page.locator('html').evaluate(root => root.classList.add('dark'))
-  await page.screenshot({
-    fullPage: true,
-    path: resolve('output/playwright/data-management-lifecycle-dark-1280x720.png'),
-  })
-  await electronApp.evaluate(({ BrowserWindow }) =>
-    BrowserWindow.getAllWindows()[0]?.setSize(1440, 900),
-  )
-  await page.screenshot({
-    fullPage: true,
-    path: resolve('output/playwright/data-management-lifecycle-dark-1440x900.png'),
-  })
-  await page.locator('html').evaluate(root => root.classList.remove('dark'))
-
-  await page.getByRole('button', { name: '选择全部可隔离项' }).click()
-  await page.getByRole('button', { name: '预览隔离操作' }).click()
-  await expect(page.getByText('隔离预览可继续')).toBeVisible()
-  await expect(page.getByText(/将移动 2 项/)).toBeVisible()
-  await page.getByLabel('我已核对清单，并允许应用把所选项目移入隔离区。').check()
-  await page.getByRole('button', { name: '确认移入隔离区' }).click()
-  await expect(page.getByRole('status')).toContainText('没有永久删除文件')
-  await expect(stat(batchBackup)).rejects.toThrow()
-  await expect(stat(imageTrash)).rejects.toThrow()
-  const quarantineOperations = await readdir(join(userDataDirectory, 'data-management-quarantine'))
-  expect(quarantineOperations).toHaveLength(1)
-
-  await page.getByRole('button', { name: '撤销隔离' }).click()
-  await expect(page.getByRole('status')).toContainText('已从隔离区恢复 2 项')
-  await expect(stat(batchBackup)).resolves.toBeTruthy()
-  await expect(stat(imageTrash)).resolves.toBeTruthy()
-
-  await page.getByRole('button', { name: '选择全部可隔离项' }).click()
-  await page.getByRole('button', { name: '预览隔离操作' }).click()
-  await page.getByLabel('我已核对清单，并允许应用把所选项目移入隔离区。').check()
-  await page.getByRole('button', { name: '确认移入隔离区' }).click()
-  await page.getByRole('button', { name: '移入系统废纸篓' }).click()
-  await expect(page.getByText('废纸篓移交预览可继续')).toBeVisible()
-  await page.getByLabel('我已核对隔离记录，并允许应用将其移交系统废纸篓。').check()
-  await page.getByRole('button', { name: '确认移入系统废纸篓' }).click()
-  await expect(page.getByRole('status')).toContainText('隔离记录已移交系统废纸篓')
-  expect(await readdir(join(userDataDirectory, 'data-management-quarantine'))).toHaveLength(0)
-})
-
-test('rolls back current data when restore fails after file swap', async () => {
-  await electronApp.close()
-  userDataDirectory = join(temporaryRoot, 'rollback-user-data')
-  await mkdir(userDataDirectory)
-  await launchApplication({ E2E_RESTORE_FAIL_STAGE: 'after-file-swap' })
-  await page.getByRole('button', { name: '数据管理' }).click()
-
-  const blankBackupPath = join(temporaryRoot, 'rollback-blank.awb-backup')
-  await setNextSavePath(blankBackupPath)
-  await page.getByRole('button', { name: '导出备份' }).click()
-  await expect(page.getByRole('status')).toContainText('备份已导出并通过校验')
-
-  const workspacePath = join(temporaryRoot, 'rollback-workspace')
-  const imagePath = join(temporaryRoot, 'rollback-image.png')
-  await mkdir(workspacePath)
-  await writeFile(join(workspacePath, 'rollback-template.cpp'), 'void rollback_fixture() {}\n')
-  await writeFile(
-    imagePath,
-    Buffer.from(
-      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
-      'base64',
-    ),
-  )
-  await seedV2Data(workspacePath, imagePath)
-  await page.getByRole('button', { name: '数据管理' }).click()
   const beforeRestore = await page.evaluate(() => window.desktop.dataManagement.diagnose())
+  const providersBefore = await page.evaluate(() => window.desktop.aiProviders.list())
 
-  await setNextSelection(blankBackupPath)
-  await page.getByRole('button', { name: '恢复预览' }).click()
-  await expect(page.getByText('恢复预览可继续')).toBeVisible()
-  await page.getByLabel('我已确认恢复预览，并允许应用恢复 userData 中的数据副本。').check()
+  await setNextSelection(backupPath)
+  await page.getByRole('button', { name: '选择备份并恢复' }).click()
+  await expect(page.getByText('备份检查通过，可以恢复')).toBeVisible()
+  await page.getByLabel('我了解恢复会替换当前工作区，并确认继续。').check()
   await page.getByRole('button', { name: '确认恢复' }).click()
   await expect(page.getByRole('alert')).toContainText('模拟恢复失败，已回滚到操作前状态')
 
@@ -446,104 +627,10 @@ test('rolls back current data when restore fails after file swap', async () => {
   expect(afterRestore.counts.problems).toBe(beforeRestore.counts.problems)
   expect(afterRestore.counts.templates).toBe(beforeRestore.counts.templates)
   expect(afterRestore.counts.problemImages).toBe(beforeRestore.counts.problemImages)
-  expect(afterRestore.counts.aiProviderProfiles).toBe(beforeRestore.counts.aiProviderProfiles)
-  expect(await readFile(join(workspacePath, 'rollback-template.cpp'), 'utf8')).toBe(
+  expect(await page.evaluate(() => window.desktop.aiProviders.list())).toEqual(providersBefore)
+  expect(await readFile(join(workspacePath, 'templates', 'rollback-template.cpp'), 'utf8')).toBe(
     'void rollback_fixture() {}\n',
   )
-})
-
-test('rolls back every lifecycle item when quarantine fails after the first move', async () => {
-  await electronApp.close()
-  userDataDirectory = join(temporaryRoot, 'cleanup-rollback-user-data')
-  const first = join(userDataDirectory, 'batch-import-backups', 'first')
-  const second = join(userDataDirectory, 'batch-import-backups', 'second')
-  await mkdir(first, { recursive: true })
-  await mkdir(second, { recursive: true })
-  await writeFile(join(first, 'backup.bin'), 'first cleanup fixture')
-  await writeFile(join(second, 'backup.bin'), 'second cleanup fixture')
-  await launchApplication({ E2E_CLEANUP_FAIL_AFTER_MOVES: '1' })
-  await page.getByRole('button', { name: '数据管理' }).click()
-  await expect(page.getByText('批量导入备份，需要你判断')).toHaveCount(2)
-
-  await page.getByRole('button', { name: '选择全部可隔离项' }).click()
-  await page.getByRole('button', { name: '预览隔离操作' }).click()
-  await page.getByLabel('我已核对清单，并允许应用把所选项目移入隔离区。').check()
-  await page.getByRole('button', { name: '确认移入隔离区' }).click()
-  await expect(page.getByRole('alert')).toContainText('模拟清理失败，已回滚到操作前状态')
-  await expect(stat(first)).resolves.toBeTruthy()
-  await expect(stat(second)).resolves.toBeTruthy()
-  const inventory = await page.evaluate(() =>
-    window.desktop.dataManagement.inspectBackupLifecycle({ retentionPolicy: 'forever' }),
-  )
-  expect(inventory.quarantineOperations).toHaveLength(0)
-  expect(inventory.interruptedOperationCount).toBe(0)
-})
-
-test('recovers an interrupted cleanup from the real Data Management entry', async () => {
-  await electronApp.close()
-  userDataDirectory = join(temporaryRoot, 'cleanup-interrupted-user-data')
-  const first = join(userDataDirectory, 'batch-import-backups', 'first')
-  const second = join(userDataDirectory, 'batch-import-backups', 'second')
-  await mkdir(first, { recursive: true })
-  await mkdir(second, { recursive: true })
-  await writeFile(join(first, 'backup.bin'), 'first interrupted cleanup fixture')
-  await writeFile(join(second, 'backup.bin'), 'second interrupted cleanup fixture')
-  await launchApplication({ E2E_CLEANUP_INTERRUPT_AFTER_MOVES: '1' })
-  await page.getByRole('button', { name: '数据管理' }).click()
-  await page.getByRole('button', { name: '选择全部可隔离项' }).click()
-  await page.getByRole('button', { name: '预览隔离操作' }).click()
-  await page.getByLabel('我已核对清单，并允许应用把所选项目移入隔离区。').check()
-  await page.getByRole('button', { name: '确认移入隔离区' }).click()
-  await expect(page.getByRole('alert')).toContainText('模拟清理异常中断')
-  await page.getByRole('button', { name: '重新诊断' }).click()
-  await expect(page.getByText('隔离日志有效，可安全退回')).toBeVisible()
-
-  const forgedPreview = await page.evaluate(() =>
-    window.desktop.dataManagement.previewInterruptedRecovery({ operationId: 'a'.repeat(64) }),
-  )
-  expect(forgedPreview).toMatchObject({ canExecute: false, errors: ['operation-not-found'] })
-
-  await page.getByRole('button', { name: '预览异常恢复' }).click()
-  await expect(page.getByText('异常恢复预览可继续')).toBeVisible()
-  await electronApp.evaluate(({ BrowserWindow }) =>
-    BrowserWindow.getAllWindows()[0]?.setSize(1440, 900),
-  )
-  await page.screenshot({
-    fullPage: true,
-    path: resolve('output/playwright/data-management-interrupted-recovery-light-1440x900.png'),
-  })
-  await electronApp.evaluate(({ BrowserWindow }) =>
-    BrowserWindow.getAllWindows()[0]?.setSize(1280, 720),
-  )
-  await page.screenshot({
-    fullPage: true,
-    path: resolve('output/playwright/data-management-interrupted-recovery-light-1280x720.png'),
-  })
-  await page.locator('html').evaluate(root => root.classList.add('dark'))
-  await page.waitForTimeout(400)
-  await page.screenshot({
-    fullPage: true,
-    path: resolve('output/playwright/data-management-interrupted-recovery-dark-1280x720.png'),
-  })
-  await electronApp.evaluate(({ BrowserWindow }) =>
-    BrowserWindow.getAllWindows()[0]?.setSize(1440, 900),
-  )
-  await page.waitForTimeout(250)
-  await page.screenshot({
-    fullPage: true,
-    path: resolve('output/playwright/data-management-interrupted-recovery-dark-1440x900.png'),
-  })
-  await page.locator('html').evaluate(root => root.classList.remove('dark'))
-
-  await page.getByLabel('我已核对异常恢复预览，并允许应用执行所示安全恢复操作。').check()
-  await page.getByRole('button', { name: '确认异常恢复' }).click()
-  await expect(page.getByRole('status')).toContainText('异常操作已按预览安全处理')
-  await expect(stat(first)).resolves.toBeTruthy()
-  await expect(stat(second)).resolves.toBeTruthy()
-  const inventory = await page.evaluate(() =>
-    window.desktop.dataManagement.inspectBackupLifecycle({ retentionPolicy: 'forever' }),
-  )
-  expect(inventory.interruptedOperationCount).toBe(0)
 })
 
 test('recovers old data after a restore interruption before SQLite commit', async () => {
@@ -551,12 +638,6 @@ test('recovers old data after a restore interruption before SQLite commit', asyn
   userDataDirectory = join(temporaryRoot, 'restore-interrupted-user-data')
   await mkdir(userDataDirectory)
   await launchApplication({ E2E_RESTORE_INTERRUPT_STAGE: 'after-file-swap' })
-  await page.getByRole('button', { name: '数据管理' }).click()
-
-  const blankBackupPath = join(temporaryRoot, 'interrupted-restore-blank.awb-backup')
-  await setNextSavePath(blankBackupPath)
-  await page.getByRole('button', { name: '导出备份' }).click()
-  await expect(page.getByRole('status')).toContainText('备份已导出并通过校验')
 
   const workspacePath = join(temporaryRoot, 'interrupted-restore-workspace')
   const imagePath = join(temporaryRoot, 'interrupted-restore-image.png')
@@ -569,28 +650,69 @@ test('recovers old data after a restore interruption before SQLite commit', asyn
       'base64',
     ),
   )
-  await seedV2Data(workspacePath, imagePath)
-  await page.getByRole('button', { name: '数据管理' }).click()
+  await seedV2Data(workspacePath, imagePath, { label: 'Interrupted restore' })
+  await page.getByRole('button', { name: '备份与恢复' }).click()
+  const backupPath = join(temporaryRoot, 'interrupted-restore-current.awb-backup')
+  await setNextSavePath(backupPath)
+  await page.getByRole('button', { name: '导出当前工作区备份' }).click()
+  await expect(page.getByRole('status').filter({ hasText: '备份已导出并通过校验' })).toBeVisible()
+  await page.evaluate(() =>
+    window.desktop.problems.create({
+      aiSummary: '',
+      analysis: {
+        algorithmSignals: [],
+        constraints: [],
+        edgeCases: [],
+        examples: [],
+        inputDescription: '',
+        outputDescription: '',
+      },
+      difficulty: null,
+      notes: '',
+      platform: null,
+      problemCode: null,
+      statement: 'must survive interrupted restore rollback',
+      status: 'unattempted',
+      tags: [],
+      title: 'Interrupted restore extra problem',
+      url: null,
+    }),
+  )
   const before = await page.evaluate(() => window.desktop.dataManagement.diagnose())
+  const providersBefore = await page.evaluate(() => window.desktop.aiProviders.list())
 
-  await setNextSelection(blankBackupPath)
-  await page.getByRole('button', { name: '恢复预览' }).click()
-  await page.getByLabel('我已确认恢复预览，并允许应用恢复 userData 中的数据副本。').check()
+  await setNextSelection(backupPath)
+  await page.getByRole('button', { name: '选择备份并恢复' }).click()
+  await page.getByLabel('我了解恢复会替换当前工作区，并确认继续。').check()
   await page.getByRole('button', { name: '确认恢复' }).click()
   await expect(page.getByRole('alert')).toContainText('模拟恢复异常中断')
-  await page.getByRole('button', { name: '重新诊断' }).click()
-  await expect(page.getByText('提交前中断，可安全恢复旧状态')).toBeVisible()
-  await page.getByRole('button', { name: '预览异常恢复' }).click()
-  await page.getByLabel('我已核对异常恢复预览，并允许应用执行所示安全恢复操作。').check()
-  await page.getByRole('button', { name: '确认异常恢复' }).click()
-  await expect(page.getByRole('status')).toContainText('异常操作已按预览安全处理')
+  const interruptedRoots = (await readdir(join(workspacePath, '.awb'))).filter(
+    entry => entry.startsWith('.restore-') && entry.endsWith('.tmp'),
+  )
+  expect(interruptedRoots).toEqual([expect.stringMatching(/^\.restore-.*\.tmp$/u)])
+  const interruptedInventory = await page.evaluate(() =>
+    window.desktop.dataManagement.inspectBackupLifecycle({ retentionPolicy: 'forever' }),
+  )
+  expect(interruptedInventory.interruptedOperations).toEqual([
+    expect.objectContaining({ canRecover: true, reason: 'restore-preflight-ready' }),
+  ])
+  await electronApp.close()
+  await launchApplication()
+  await page.getByRole('button', { name: '备份与恢复' }).click()
+  await expect(page.getByText('数据尚未替换，可以安全返回原状')).toBeVisible()
+  await page.getByRole('button', { name: '查看处理方式' }).click()
+  await page.getByLabel('我已查看处理方式，并确认让应用执行。').check()
+  await page.getByRole('button', { name: '确认执行安全处理' }).click()
+  await expect(
+    page.getByRole('status').filter({ hasText: '未完成的数据操作已按预览安全处理' }),
+  ).toBeVisible()
 
   const after = await page.evaluate(() => window.desktop.dataManagement.diagnose())
   expect(after.counts.problems).toBe(before.counts.problems)
   expect(after.counts.templates).toBe(before.counts.templates)
   expect(after.counts.problemImages).toBe(before.counts.problemImages)
-  expect(after.counts.aiProviderProfiles).toBe(before.counts.aiProviderProfiles)
-  expect(await readFile(join(workspacePath, 'template.cpp'), 'utf8')).toBe(
+  expect(await page.evaluate(() => window.desktop.aiProviders.list())).toEqual(providersBefore)
+  expect(await readFile(join(workspacePath, 'templates', 'template.cpp'), 'utf8')).toBe(
     'void interrupted_restore_fixture() {}\n',
   )
 })
@@ -600,11 +722,6 @@ test('finishes cleanup after a restore interruption following SQLite commit', as
   userDataDirectory = join(temporaryRoot, 'restore-committed-user-data')
   await mkdir(userDataDirectory)
   await launchApplication({ E2E_RESTORE_INTERRUPT_STAGE: 'after-database-commit' })
-  await page.getByRole('button', { name: '数据管理' }).click()
-
-  const blankBackupPath = join(temporaryRoot, 'committed-restore-blank.awb-backup')
-  await setNextSavePath(blankBackupPath)
-  await page.getByRole('button', { name: '导出备份' }).click()
   const workspacePath = join(temporaryRoot, 'committed-restore-workspace')
   const imagePath = join(temporaryRoot, 'committed-restore-image.png')
   await mkdir(workspacePath)
@@ -616,29 +733,60 @@ test('finishes cleanup after a restore interruption following SQLite commit', as
       'base64',
     ),
   )
-  await seedV2Data(workspacePath, imagePath)
-  await page.getByRole('button', { name: '数据管理' }).click()
-  await setNextSelection(blankBackupPath)
-  await page.getByRole('button', { name: '恢复预览' }).click()
-  await page.getByLabel('我已确认恢复预览，并允许应用恢复 userData 中的数据副本。').check()
+  await seedV2Data(workspacePath, imagePath, { label: 'Committed restore' })
+  await page.getByRole('button', { name: '备份与恢复' }).click()
+  const backupCounts = await page.evaluate(() => window.desktop.dataManagement.diagnose())
+  const providersBefore = await page.evaluate(() => window.desktop.aiProviders.list())
+  const backupPath = join(temporaryRoot, 'committed-restore-current.awb-backup')
+  await setNextSavePath(backupPath)
+  await page.getByRole('button', { name: '导出当前工作区备份' }).click()
+  await page.evaluate(() =>
+    window.desktop.problems.create({
+      aiSummary: '',
+      analysis: {
+        algorithmSignals: [],
+        constraints: [],
+        edgeCases: [],
+        examples: [],
+        inputDescription: '',
+        outputDescription: '',
+      },
+      difficulty: null,
+      notes: '',
+      platform: null,
+      problemCode: null,
+      statement: 'removed by committed restore',
+      status: 'unattempted',
+      tags: [],
+      title: 'Committed restore extra problem',
+      url: null,
+    }),
+  )
+  await setNextSelection(backupPath)
+  await page.getByRole('button', { name: '选择备份并恢复' }).click()
+  await page.getByLabel('我了解恢复会替换当前工作区，并确认继续。').check()
   await page.getByRole('button', { name: '确认恢复' }).click()
   await expect(page.getByRole('alert')).toContainText('模拟恢复已提交但收尾中断')
 
   const committedDiagnostics = await page.evaluate(() => window.desktop.dataManagement.diagnose())
-  expect(committedDiagnostics.counts.problems).toBe(0)
-  expect(committedDiagnostics.counts.templates).toBe(0)
-  await page.getByRole('button', { name: '重新诊断' }).click()
-  await expect(page.getByText('数据库已提交，可安全完成收尾')).toBeVisible()
-  await page.getByRole('button', { name: '预览异常恢复' }).click()
-  await expect(page.getByText(/完成已提交恢复的收尾/)).toBeVisible()
-  await page.getByLabel('我已核对异常恢复预览，并允许应用执行所示安全恢复操作。').check()
-  await page.getByRole('button', { name: '确认异常恢复' }).click()
-  await expect(page.getByRole('status')).toContainText('异常操作已按预览安全处理')
+  expect(committedDiagnostics.counts).toEqual(backupCounts.counts)
+  expect(await page.evaluate(() => window.desktop.aiProviders.list())).toEqual(providersBefore)
+  await electronApp.close()
+  await launchApplication()
+  await page.getByRole('button', { name: '备份与恢复' }).click()
+  await expect(page.getByText('主要数据已恢复，可以完成收尾')).toBeVisible()
+  await page.getByRole('button', { name: '查看处理方式' }).click()
+  await expect(page.getByText(/完成备份恢复后的安全收尾/)).toBeVisible()
+  await page.getByLabel('我已查看处理方式，并确认让应用执行。').check()
+  await page.getByRole('button', { name: '确认执行安全处理' }).click()
+  await expect(
+    page.getByRole('status').filter({ hasText: '未完成的数据操作已按预览安全处理' }),
+  ).toBeVisible()
   const inventory = await page.evaluate(() =>
     window.desktop.dataManagement.inspectBackupLifecycle({ retentionPolicy: 'forever' }),
   )
   expect(inventory.interruptedOperationCount).toBe(0)
-  expect(await readFile(join(workspacePath, 'template.cpp'), 'utf8')).toBe(
+  expect(await readFile(join(workspacePath, 'templates', 'template.cpp'), 'utf8')).toBe(
     'void committed_restore_fixture() {}\n',
   )
 })

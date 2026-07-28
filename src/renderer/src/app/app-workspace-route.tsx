@@ -153,12 +153,20 @@ export function AppWorkspaceRoute({
           <main className="grid h-full min-h-0 place-items-center">
             <div className="text-center">
               <LoaderCircle className="mx-auto size-6 animate-spin text-primary" />
-              <p className="mt-3 text-sm font-medium">{t('正在打开数据管理…')}</p>
+              <p className="mt-3 text-sm font-medium">{t('正在打开备份与恢复…')}</p>
             </div>
           </main>
         }
       >
-        <DataManagementWorkspace />
+        <DataManagementWorkspace
+          onNavigateToAiManagement={() => onNavigate('ai')}
+          onWorkspaceRestored={value => {
+            replaceWorkspace(value)
+            setSelectedProblemId(null)
+            setSelectedTemplateId(null)
+            void problemState.search('')
+          }}
+        />
       </Suspense>
     )
   }
@@ -226,7 +234,7 @@ export function AppWorkspaceRoute({
           onNotice(
             t(
               result.backupCleanupPending
-                ? '模板源码已保存；事务备份稍后可在数据管理中清理'
+                ? '模板源码已保存；事务备份暂未清理，应用会继续保留以避免数据丢失'
                 : '模板源码已安全保存，并保留原有元数据与题目关联',
             ),
           )

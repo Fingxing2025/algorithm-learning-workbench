@@ -51,6 +51,7 @@ import {
 import type { AppDatabase } from '../database/database'
 import { PublicError } from '../errors/public-error'
 import { isPathInsideRoot } from '../security/path-guard'
+import type { WorkspaceStorageManager } from './workspace-storage'
 
 const COMPLETED_PATH = 'COMPLETED'
 const CLEANUP_JOURNAL_PATH = 'cleanup-journal.json'
@@ -125,6 +126,7 @@ export class DataLifecycleService {
     private readonly releaseQuarantinePath: (path: string) => Promise<void> = async () => {
       throw new PublicError('UNKNOWN', '系统废纸篓当前不可用。')
     },
+    private readonly workspaceStorage?: WorkspaceStorageManager,
   ) {}
 
   async inspect(request: BackupLifecycleRequest): Promise<BackupLifecycleInventory> {
@@ -221,7 +223,7 @@ export class DataLifecycleService {
     }
 
     const operationId = randomUUID()
-    const quarantineRoot = join(this.userDataPath, QUARANTINE_DIRECTORY)
+    const quarantineRoot = join(this.getManagedDataRoot(), QUARANTINE_DIRECTORY)
     const stagingRoot = join(quarantineRoot, `.cleanup-${operationId}.tmp`)
     const moved: MovedItem[] = []
     await mkdir(quarantineRoot, { recursive: true })
@@ -250,7 +252,7 @@ export class DataLifecycleService {
         join(stagingRoot, CLEANUP_JOURNAL_PATH),
         cleanupOperationJournalSchema.parse({
           createdAt,
-          formatVersion: 'v1',
+          formatVersion: 'v2',
           items: items.map(item => ({
             bytes: item.bytes,
             candidateId: item.candidateId,
@@ -360,7 +362,7 @@ export class DataLifecycleService {
     }
 
     const operationId = randomUUID()
-    const quarantineRoot = join(this.userDataPath, QUARANTINE_DIRECTORY)
+    const quarantineRoot = join(this.getManagedDataRoot(), QUARANTINE_DIRECTORY)
     const stagingRoot = join(quarantineRoot, `.cleanup-${operationId}.tmp`)
     const finalRoot = join(quarantineRoot, operationId)
     const moved: MovedItem[] = []
@@ -386,7 +388,7 @@ export class DataLifecycleService {
         join(stagingRoot, CLEANUP_JOURNAL_PATH),
         cleanupOperationJournalSchema.parse({
           createdAt,
-          formatVersion: 'v1',
+          formatVersion: 'v2',
           items: journalItems,
           operationId,
         }),
@@ -421,7 +423,7 @@ export class DataLifecycleService {
       const manifest = cleanupQuarantineManifestSchema.parse({
         completed: true,
         createdAt,
-        formatVersion: 'v1',
+        formatVersion: 'v2',
         items: journalItems,
         operationId,
       })
@@ -613,7 +615,8 @@ export class DataLifecycleService {
 
   async writeRestoreJournal(root: string, journal: RestoreOperationJournal): Promise<void> {
     const resolvedRoot = resolve(root)
-    if (!isPathInsideRoot(this.userDataPath, resolvedRoot) || resolvedRoot === this.userDataPath) {
+    const managedDataRoot = this.getManagedDataRoot()
+    if (!isPathInsideRoot(managedDataRoot, resolvedRoot) || resolvedRoot === managedDataRoot) {
       throw new PublicError('PATH_NOT_AUTHORIZED', '恢复日志目录不在受控 userData 内。')
     }
     await this.writeJsonAtomic(
@@ -671,7 +674,7 @@ export class DataLifecycleService {
   private async collectPreflightCandidates(
     retentionPolicy: BackupRetentionPolicy,
   ): Promise<InternalCleanupCandidate[]> {
-    const root = join(this.userDataPath, 'restore-preflight-backups')
+    const root = join(this.getManagedDataRoot(), 'restore-preflight-backups')
     const paths = (await this.listDirectManagedPaths(root)).filter(path =>
       path.endsWith('.awb-backup'),
     )
@@ -729,12 +732,12 @@ export class DataLifecycleService {
     const statusByDirectory = new Map(
       records.map(record => [record.backupDirectory, record.status]),
     )
-    const root = join(this.userDataPath, 'file-plan-backups')
+    const root = join(this.getManagedDataRoot(), 'file-plan-backups')
     const paths = await this.listDirectManagedPaths(root)
     return Promise.all(
       paths.map(async absolutePath => {
         const inspection = await this.inspectTree(absolutePath)
-        const relativePath = toPortablePath(relative(this.userDataPath, absolutePath))
+        const relativePath = toPortablePath(relative(this.getManagedDataRoot(), absolutePath))
         const status = statusByDirectory.get(relativePath)
         let disposition: CleanupCandidate['disposition'] = 'review'
         let reason: CleanupCandidateReason = 'unrecorded-file-plan-backup'
@@ -765,9 +768,11 @@ export class DataLifecycleService {
     category: CleanupCandidateCategory,
     defaultReason: CleanupCandidateReason,
   ): Promise<InternalCleanupCandidate[]> {
-    const paths = await this.listDirectManagedPaths(
-      join(this.userDataPath, ...rootRelativePath.split('/')),
-    )
+    const candidateRoot =
+      rootRelativePath === 'problem-images/.trash'
+        ? join(this.getProblemImageRoot(), '.trash')
+        : join(this.getManagedDataRoot(), ...rootRelativePath.split('/'))
+    const paths = await this.listDirectManagedPaths(candidateRoot)
     return Promise.all(
       paths.map(async absolutePath => {
         const inspection = await this.inspectTree(absolutePath)
@@ -791,7 +796,16 @@ export class DataLifecycleService {
     inspection: TreeInspection,
     verificationOk: boolean | null,
   ): InternalCleanupCandidate {
-    const relativePath = toPortablePath(relative(this.userDataPath, absolutePath))
+    const relativePath =
+      category === 'problem-image-trash'
+        ? toPortablePath(
+            join(
+              'problem-images',
+              '.trash',
+              relative(join(this.getProblemImageRoot(), '.trash'), absolutePath),
+            ),
+          )
+        : toPortablePath(relative(this.getManagedDataRoot(), absolutePath))
     return {
       absolutePath,
       bytes: inspection.bytes,
@@ -861,7 +875,7 @@ export class DataLifecycleService {
   }
 
   private async listQuarantineRecords(): Promise<QuarantineRecord[]> {
-    const root = join(this.userDataPath, QUARANTINE_DIRECTORY)
+    const root = join(this.getManagedDataRoot(), QUARANTINE_DIRECTORY)
     const entries = await readdir(root, { withFileTypes: true }).catch(() => [])
     const records = await Promise.all(
       entries
@@ -877,7 +891,7 @@ export class DataLifecycleService {
   private async readQuarantineRecord(operationId: string): Promise<QuarantineRecord | null> {
     if (!/^[0-9a-f-]{36}$/i.test(operationId)) return null
     const root = this.resolveInside(
-      join(this.userDataPath, QUARANTINE_DIRECTORY),
+      join(this.getManagedDataRoot(), QUARANTINE_DIRECTORY),
       operationId,
       '隔离记录路径无效。',
     )
@@ -937,7 +951,7 @@ export class DataLifecycleService {
     const historyDeletionMarkers = this.listHistoryDeletionCommitMarkers()
     const seenRestoreIds = new Set<string>()
     const seenHistoryDeletionIds = new Set<string>()
-    const userDataEntries = await readdir(this.userDataPath, { withFileTypes: true }).catch(
+    const userDataEntries = await readdir(this.getManagedDataRoot(), { withFileTypes: true }).catch(
       () => [],
     )
     for (const entry of userDataEntries) {
@@ -948,7 +962,7 @@ export class DataLifecycleService {
       ) {
         continue
       }
-      const path = join(this.userDataPath, entry.name)
+      const path = join(this.getManagedDataRoot(), entry.name)
       const restoreMatch = entry.name.match(
         /^\.restore-([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\.tmp$/i,
       )
@@ -960,7 +974,7 @@ export class DataLifecycleService {
       }
     }
 
-    const preflightRoot = join(this.userDataPath, 'restore-preflight-backups')
+    const preflightRoot = join(this.getManagedDataRoot(), 'restore-preflight-backups')
     const preflightEntries = await readdir(preflightRoot, { withFileTypes: true }).catch(() => [])
     for (const entry of preflightEntries) {
       if (entry.name.endsWith('.tmp')) {
@@ -968,7 +982,7 @@ export class DataLifecycleService {
       }
     }
 
-    const quarantineRoot = join(this.userDataPath, QUARANTINE_DIRECTORY)
+    const quarantineRoot = join(this.getManagedDataRoot(), QUARANTINE_DIRECTORY)
     const quarantineEntries = await readdir(quarantineRoot, { withFileTypes: true }).catch(() => [])
     const validIds = new Set(validQuarantineRecords.map(record => record.operation.id))
     for (const entry of quarantineEntries) {
@@ -1225,7 +1239,7 @@ export class DataLifecycleService {
 
   private async verifyRollbackBackup(backupName: string): Promise<boolean> {
     const backupPath = this.resolveInside(
-      join(this.userDataPath, 'restore-preflight-backups'),
+      join(this.getManagedDataRoot(), 'restore-preflight-backups'),
       backupName,
       '恢复预备份路径无效。',
     )
@@ -1254,7 +1268,7 @@ export class DataLifecycleService {
     journal: RestoreOperationJournal,
   ): Promise<boolean> {
     for (const swap of journal.swaps) {
-      const target = join(this.userDataPath, swap.directoryName)
+      const target = this.getRestorableDirectoryPath(swap.directoryName)
       const original = join(root, 'original', swap.directoryName)
       const restored = join(root, 'restored', swap.directoryName)
       const targetExists = await this.pathExists(target)
@@ -1297,6 +1311,63 @@ export class DataLifecycleService {
             return false
           }
         } else if (targetExists || restoredExists || swap.restoredFingerprint) return false
+      }
+    }
+    return journal.templateSwap
+      ? this.canRollbackInterruptedTemplateSwap(root, journal.templateSwap)
+      : true
+  }
+
+  private async canRollbackInterruptedTemplateSwap(
+    root: string,
+    templateSwap: Extract<RestoreOperationJournal, { formatVersion: 'v2' }>['templateSwap'] & {},
+  ): Promise<boolean> {
+    const templateRoot = this.workspaceStorage?.current?.templateRoot
+    if (!templateRoot) return false
+    const oldRoot = join(root, 'template-sources-old')
+    const newRoot = join(root, 'template-sources-new')
+    const originalByPath = new Map(
+      templateSwap.originalFiles.map(file => [file.relativePath, file.sha256]),
+    )
+    const restoredByPath = new Map(
+      templateSwap.restoredFiles.map(file => [file.relativePath, file.sha256]),
+    )
+    if (
+      originalByPath.size !== templateSwap.originalFiles.length ||
+      restoredByPath.size !== templateSwap.restoredFiles.length
+    ) {
+      return false
+    }
+
+    for (const file of templateSwap.restoredFiles) {
+      const target = this.resolveInside(templateRoot, file.relativePath, '模板恢复路径无效。')
+      const staged = this.resolveInside(newRoot, file.relativePath, '模板暂存路径无效。')
+      if (await this.fileMatchesSha256(staged, file.sha256)) {
+        const originalHash = originalByPath.get(file.relativePath)
+        if (
+          (await this.pathExists(target)) &&
+          (!originalHash || !(await this.fileMatchesSha256(target, originalHash)))
+        ) {
+          return false
+        }
+      } else if (!(await this.fileMatchesSha256(target, file.sha256))) {
+        return false
+      }
+    }
+
+    for (const file of templateSwap.originalFiles) {
+      const target = this.resolveInside(templateRoot, file.relativePath, '模板恢复路径无效。')
+      const saved = this.resolveInside(oldRoot, file.relativePath, '模板备份路径无效。')
+      if (await this.fileMatchesSha256(saved, file.sha256)) {
+        const restoredHash = restoredByPath.get(file.relativePath)
+        if (
+          (await this.pathExists(target)) &&
+          (!restoredHash || !(await this.fileMatchesSha256(target, restoredHash)))
+        ) {
+          return false
+        }
+      } else if (!(await this.fileMatchesSha256(target, file.sha256))) {
+        return false
       }
     }
     return true
@@ -1398,10 +1469,19 @@ export class DataLifecycleService {
       restoredOriginal: boolean
       target: string
     }> = []
+    const templateMoves: MovedItem[] = []
     const displacedRoot = join(record.root, 'recovery-displaced')
     try {
+      if (record.restoreJournal.templateSwap) {
+        templateMoves.push(
+          ...(await this.rollbackInterruptedTemplateSwap(
+            record.root,
+            record.restoreJournal.templateSwap,
+          )),
+        )
+      }
       for (const swap of [...record.restoreJournal.swaps].reverse()) {
-        const target = join(this.userDataPath, swap.directoryName)
+        const target = this.getRestorableDirectoryPath(swap.directoryName)
         const original = join(record.root, 'original', swap.directoryName)
         const originalExists = await this.pathExists(original)
         let displaced: string | null = null
@@ -1438,13 +1518,58 @@ export class DataLifecycleService {
           rollbackOk = false
         }
       }
-      if (!rollbackOk) {
+      const templateRollbackOk = await this.rollbackMoves(templateMoves)
+      if (!rollbackOk || !templateRollbackOk) {
         throw new PublicError('UNKNOWN', '异常恢复失败且回滚未完成，请停止操作并保留现场。')
       }
       if (error instanceof PublicError) throw error
       throw new PublicError('UNKNOWN', '异常恢复失败，已保持中断前状态。')
     }
     await rm(record.root, { force: true, recursive: true })
+  }
+
+  private async rollbackInterruptedTemplateSwap(
+    root: string,
+    templateSwap: Extract<RestoreOperationJournal, { formatVersion: 'v2' }>['templateSwap'] & {},
+  ): Promise<MovedItem[]> {
+    const templateRoot = this.workspaceStorage?.current?.templateRoot
+    if (!templateRoot) {
+      throw new PublicError('INVALID_REQUEST', '当前工作区模板目录不可用。')
+    }
+    const newRoot = join(root, 'template-sources-new')
+    const oldRoot = join(root, 'template-sources-old')
+    const displacedRoot = join(root, 'recovery-template-displaced')
+    const moved: MovedItem[] = []
+    try {
+      for (const file of templateSwap.restoredFiles) {
+        const staged = this.resolveInside(newRoot, file.relativePath, '模板暂存路径无效。')
+        if (await this.fileMatchesSha256(staged, file.sha256)) continue
+        const target = this.resolveInside(templateRoot, file.relativePath, '模板恢复路径无效。')
+        const displaced = this.resolveInside(
+          displacedRoot,
+          file.relativePath,
+          '模板恢复暂存路径无效。',
+        )
+        await mkdir(dirname(displaced), { recursive: true })
+        await rename(target, displaced)
+        moved.push({ source: target, target: displaced })
+      }
+      for (const file of templateSwap.originalFiles) {
+        const saved = this.resolveInside(oldRoot, file.relativePath, '模板备份路径无效。')
+        if (!(await this.fileMatchesSha256(saved, file.sha256))) continue
+        const target = this.resolveInside(templateRoot, file.relativePath, '模板恢复路径无效。')
+        await mkdir(dirname(target), { recursive: true })
+        await rename(saved, target)
+        moved.push({ source: saved, target })
+      }
+      return moved
+    } catch (error) {
+      if (!(await this.rollbackMoves(moved))) {
+        throw new PublicError('UNKNOWN', '模板中断恢复失败且回滚未完成，请保留现场。')
+      }
+      if (error instanceof PublicError) throw error
+      throw new PublicError('UNKNOWN', '模板中断恢复失败，已保持原状态。')
+    }
   }
 
   private async completeCommittedRestore(record: InterruptedOperationRecord): Promise<void> {
@@ -1551,6 +1676,13 @@ export class DataLifecycleService {
     )
   }
 
+  private async fileMatchesSha256(path: string, sha256: string): Promise<boolean> {
+    const stats = await lstat(path).catch(() => null)
+    return Boolean(
+      stats?.isFile() && !stats.isSymbolicLink() && (await this.sha256File(path)) === sha256,
+    )
+  }
+
   private async writeJsonAtomic(path: string, value: unknown): Promise<void> {
     const temporaryPath = `${path}.${randomUUID()}.tmp`
     try {
@@ -1630,7 +1762,32 @@ export class DataLifecycleService {
       'problem-images/.trash/',
     ].some(prefix => portable.startsWith(prefix) && portable.length > prefix.length)
     if (!allowed) throw new PublicError('PATH_NOT_AUTHORIZED', '隔离记录不在允许的数据目录内。')
-    return this.resolveInside(this.userDataPath, portable, '隔离记录路径无效。')
+    if (portable.startsWith('problem-images/.trash/')) {
+      return this.resolveInside(
+        this.getProblemImageRoot(),
+        portable.slice('problem-images/'.length),
+        '隔离记录路径无效。',
+      )
+    }
+    return this.resolveInside(this.getManagedDataRoot(), portable, '隔离记录路径无效。')
+  }
+
+  private getManagedDataRoot(): string {
+    return this.workspaceStorage?.current?.dataRoot ?? this.userDataPath
+  }
+
+  private getProblemImageRoot(): string {
+    return (
+      this.workspaceStorage?.current?.problemImagesRoot ?? join(this.userDataPath, 'problem-images')
+    )
+  }
+
+  private getRestorableDirectoryPath(
+    directoryName: 'batch-import-backups' | 'file-plan-backups' | 'problem-images',
+  ): string {
+    return directoryName === 'problem-images'
+      ? this.getProblemImageRoot()
+      : join(this.getManagedDataRoot(), directoryName)
   }
 
   private resolveInside(root: string, relativePath: string, message: string): string {

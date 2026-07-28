@@ -53,11 +53,14 @@
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.45.2",
     "highlight.js": "^11.11.1",
+    "iconv-lite": "0.7.3",
     "lucide-react": "^1.24.0",
     "motion": "^12.42.2",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "tailwind-merge": "^3.6.0",
+    "yauzl": "^3.4.0",
+    "yazl": "^3.3.1",
     "zod": "^4.4.3"
   },
   "devDependencies": {
@@ -72,6 +75,8 @@
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
+    "@types/yauzl": "^3.4.0",
+    "@types/yazl": "^3.3.1",
     "@vitejs/plugin-react": "^5.2.0",
     "electron": "^43.1.0",
     "electron-builder": "^26.15.3",

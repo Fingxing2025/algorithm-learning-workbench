@@ -25,6 +25,7 @@ const CONVENTIONAL_ALGORITHM_NAMES = new Set([
   'dijkstra',
   'dinic',
   'dlx',
+  'dp',
   'dsu',
   'exkmp',
   'fft',
@@ -54,31 +55,111 @@ const CONVENTIONAL_ALGORITHM_NAMES = new Set([
   'z',
 ])
 
-function isConventionalAlgorithmName(value: string): boolean {
-  const tokens = value
+const CONVENTIONAL_TECHNICAL_NAMES = new Set([
+  'backtracking',
+  'binary indexed tree',
+  'binary search',
+  'bitmask',
+  'bitmask dp',
+  'c',
+  'cpp',
+  'csharp',
+  'difference array',
+  'digit dp',
+  'disjoint set',
+  'divide and conquer',
+  'dynamic programming',
+  'fenwick tree',
+  'graph',
+  'greedy',
+  'hash',
+  'heap',
+  'interval dp',
+  'java',
+  'javascript',
+  'knapsack',
+  'kotlin',
+  'lambda',
+  'memoization',
+  'mod',
+  'prefix sum',
+  'python',
+  'recursion',
+  'rust',
+  'segment tree',
+  'sliding window',
+  'sparse table',
+  'state compression',
+  'stl',
+  'string',
+  'swift',
+  'tree dp',
+  'two pointers',
+  'typescript',
+  'union find',
+])
+
+const CONVENTIONAL_TECHNICAL_TOKENS = new Set([
+  ...CONVENTIONAL_ALGORITHM_NAMES,
+  ...[...CONVENTIONAL_TECHNICAL_NAMES].flatMap(value => value.split(' ')),
+])
+
+function normalizeTechnicalName(value: string): string {
+  return value
     .normalize('NFKC')
     .toLocaleLowerCase('en-US')
+    .replace(/\bc\+\+/g, 'cpp ')
+    .replace(/\bc#/g, 'csharp ')
     .replace(/\ba\s*\*/g, 'astar')
     .replace(/\bburrows[\s-]*wheeler(?:[\s-]*transform)?\b/g, 'bwt')
     .replace(/\blf[\s-]*mapping\b/g, 'bwt')
-    .split(/[^a-z0-9]+/)
-    .filter(Boolean)
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ')
+}
+
+function isConventionalAlgorithmName(value: string): boolean {
+  const tokens = normalizeTechnicalName(value).split(' ').filter(Boolean)
   return (
     tokens.some(token => CONVENTIONAL_ALGORITHM_NAMES.has(token)) &&
     tokens.every(token => /^\d+$/u.test(token) || CONVENTIONAL_ALGORITHM_NAMES.has(token))
   )
 }
 
+function isConventionalTechnicalName(value: string): boolean {
+  const normalized = normalizeTechnicalName(value)
+  const tokens = normalized.split(' ').filter(Boolean)
+  return (
+    CONVENTIONAL_TECHNICAL_NAMES.has(normalized) ||
+    isConventionalAlgorithmName(normalized) ||
+    (tokens.some(token => CONVENTIONAL_TECHNICAL_TOKENS.has(token)) &&
+      tokens.every(token => /^\d+$/u.test(token) || CONVENTIONAL_TECHNICAL_TOKENS.has(token)))
+  )
+}
+
+function isConventionalFormula(value: string): boolean {
+  if (!/[0-9<>=+*/^%()[\]{}]/u.test(value)) return false
+  const latinWords =
+    value
+      .normalize('NFKC')
+      .toLocaleLowerCase('en-US')
+      .match(/[a-z]+/g) ?? []
+  return latinWords.every(word => word.length === 1 || ['log', 'max', 'min', 'mod'].includes(word))
+}
+
 function usesChineseOrConventionalAlgorithmName(value: string): boolean {
   if (!CJK_PATTERN.test(value)) return isConventionalAlgorithmName(value)
-  const latinTokens = value
-    .normalize('NFKC')
-    .toLocaleLowerCase('en-US')
-    .replace(/\ba\s*\*/g, 'astar')
-    .replace(/\bburrows[\s-]*wheeler(?:[\s-]*transform)?\b/g, 'bwt')
-    .replace(/\blf[\s-]*mapping\b/g, 'bwt')
-    .match(/[a-z][a-z0-9]*/g)
+  const latinTokens = normalizeTechnicalName(value).match(/[a-z][a-z0-9]*/g)
   return !latinTokens || latinTokens.every(token => CONVENTIONAL_ALGORITHM_NAMES.has(token))
+}
+
+function usesChineseOrConventionalTechnicalName(value: string): boolean {
+  if (!CJK_PATTERN.test(value)) return isConventionalTechnicalName(value)
+  const latinTokens = normalizeTechnicalName(value).match(/[a-z][a-z0-9]*/g)
+  return (
+    !latinTokens ||
+    latinTokens.every(token => /^\d+$/u.test(token) || CONVENTIONAL_TECHNICAL_TOKENS.has(token))
+  )
 }
 
 export function validateClassificationLanguage(
@@ -150,17 +231,21 @@ export function validateClassificationLanguage(
 
 export function validateFilePlanLanguage(
   outputLanguage: AiOutputLanguage,
-  values: string[],
+  narratives: string[],
   paths: string[] = [],
+  tags: string[] = [],
 ): void {
-  const naturalLanguage = values.filter(value => value.trim())
+  const naturalLanguage = narratives.filter(value => value.trim())
+  const metadataTags = tags.filter(value => value.trim())
   const pathSegments = paths.flatMap(path => {
     const segments = path.split('/')
     const fileName = segments.pop() ?? ''
     return [...segments, basename(fileName, extname(fileName))].filter(Boolean)
   })
   if (outputLanguage === 'en') {
-    if ([...naturalLanguage, ...pathSegments].some(value => CJK_PATTERN.test(value))) {
+    if (
+      [...naturalLanguage, ...metadataTags, ...pathSegments].some(value => CJK_PATTERN.test(value))
+    ) {
       throw new PublicError(
         'AI_INVALID_RESPONSE',
         'AI 返回的英文文件计划中仍包含中文或其他东亚文字，请重试或更换模型。',
@@ -170,9 +255,13 @@ export function validateFilePlanLanguage(
   }
   if (
     naturalLanguage.some(
-      value => !CJK_PATTERN.test(value) && !isConventionalAlgorithmName(value),
+      value =>
+        !CJK_PATTERN.test(value) &&
+        !isConventionalTechnicalName(value) &&
+        !isConventionalFormula(value),
     ) ||
-    pathSegments.some(segment => !usesChineseOrConventionalAlgorithmName(segment))
+    metadataTags.some(value => !usesChineseOrConventionalTechnicalName(value)) ||
+    pathSegments.some(segment => !usesChineseOrConventionalTechnicalName(segment))
   ) {
     throw new PublicError(
       'AI_INVALID_RESPONSE',

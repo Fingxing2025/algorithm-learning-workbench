@@ -130,8 +130,10 @@ function AppContent() {
   const handleChooseWorkspace = async (request: ChooseWorkspaceRequest) => {
     const value = await chooseWorkspace(request)
     if (value) {
-      setCurrentView('templates')
+      setSelectedProblemId(null)
       setSelectedTemplateId(null)
+      await problemState.search('')
+      setCurrentView('templates')
       setNotice(t('已连接工作区“{name}”', { name: value.name }))
     }
   }

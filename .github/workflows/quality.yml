@@ -64,6 +64,8 @@ jobs:
       - run: npm ci
       - run: npm run rebuild:native
       - run: npm run ${{ matrix.command }}
+      - name: Portable backup export and restore round trip
+        run: node ./node_modules/@playwright/test/cli.js test tests/e2e/data-management.spec.ts
       - name: Packaged smoke with clean and existing V2 userData
         run: node ./node_modules/@playwright/test/cli.js test tests/e2e/packaged.spec.ts
         env:

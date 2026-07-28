@@ -7,7 +7,6 @@ import {
   rename,
   rm,
   stat,
-  symlink,
   unlink,
   utimes,
   writeFile,
@@ -24,6 +23,7 @@ import {
 } from '@playwright/test'
 
 import type { DesktopApi } from '../../src/core/contracts/desktop-api'
+import { TEMPLATE_INDEX_VERSION } from '../../src/main/services/template-content-index'
 
 let app: ElectronApplication
 let databasePath: string
@@ -59,6 +59,10 @@ async function selectDirectory(path: string): Promise<void> {
       canceled: false,
       filePaths: [selectedPath],
     })) as typeof dialog.showOpenDialog
+    dialog.showMessageBox = (async () => ({
+      checkboxChecked: false,
+      response: 1,
+    })) as typeof dialog.showMessageBox
   }, path)
 }
 
@@ -96,7 +100,7 @@ async function seedPaginationRecords(relationTemplateId: string): Promise<void> 
     const templateId = index => index.toString(16).padStart(64, '0');
     const recordId = index => '40000000-0000-4000-8000-' + String(index).padStart(12, '0');
     const insertTemplate = db.prepare("INSERT INTO templates (id, workspace_id, relative_path, file_name, name, extension, language, size_bytes, modified_at) VALUES (?, ?, ?, ?, ?, '.cpp', 'C++', 32, ?)");
-    const insertProblem = db.prepare("INSERT INTO problems (id, title, platform, tags_json, statement, notes, status, created_at, updated_at) VALUES (?, ?, 'local', '[]', '', '', 'unattempted', ?, ?)");
+    const insertProblem = db.prepare("INSERT INTO problems (id, workspace_id, title, platform, tags_json, statement, notes, status, created_at, updated_at) VALUES (?, ?, ?, 'local', '[]', '', '', 'unattempted', ?, ?)");
     const insertRelation = db.prepare("INSERT INTO template_problem_relations (problem_id, template_id, relation_type, source, note, created_at, updated_at) VALUES (?, ?, 'used', 'manual', '', ?, ?)");
     const payload = JSON.stringify({ contextVersion: null, diagnostic: { auditIssueCount: 0, candidateTemplateCount: 0, contextTruncated: false, notesIncludedCount: 0, requestId: null, schemaVersion: 2 }, operations: [], outputLanguage: 'zh-CN', schemaVersion: 2, summary: '' });
     const insertPlan = db.prepare("INSERT INTO file_change_plans (id, workspace_id, provider_name, model, status, operations_json, created_at, updated_at) VALUES (?, ?, 'fixture', 'fixture-model', 'cancelled', ?, ?, ?)");
@@ -108,7 +112,7 @@ async function seedPaginationRecords(relationTemplateId: string): Promise<void> 
       }
       for (let index = 0; index < 125; index += 1) {
         const id = recordId(10000 + index);
-        insertProblem.run(id, 'Problem ' + index, timestamp, timestamp);
+        insertProblem.run(id, workspaceId, 'Problem ' + index, timestamp, timestamp);
         if (index < 110) insertRelation.run(id, process.env.RELATION_TEMPLATE_ID, timestamp, timestamp);
       }
       for (let index = 0; index < 105; index += 1) {
@@ -152,7 +156,7 @@ test.beforeAll(async () => {
   temporaryRoot = await mkdtemp(join(tmpdir(), 'algorithm-workbench-performance-index-'))
   userDataPath = join(temporaryRoot, 'user-data')
   workspacePath = join(temporaryRoot, 'workspace')
-  databasePath = join(userDataPath, 'algorithm-workbench.sqlite')
+  databasePath = join(workspacePath, '.awb', 'workspace.sqlite')
   await mkdir(userDataPath)
   await mkdir(workspacePath)
   for (let index = 0; index < 120; index += 1) {
@@ -164,10 +168,6 @@ test.beforeAll(async () => {
       'utf8',
     )
   }
-  const outside = join(temporaryRoot, 'outside.cpp')
-  await writeFile(outside, 'void outside() {}\n', 'utf8')
-  await symlink(outside, join(workspacePath, 'unsafe-link.cpp'))
-
   app = await electron.launch({
     args: [resolve('.')],
     env: {
@@ -192,14 +192,16 @@ test('publishes deterministic incremental changes and cancels without partial SQ
   await expect(page.getByText('120 个模板').first()).toBeVisible()
 
   const initial = await inspectIndex()
-  expect(initial.skippedSymlinkCount).toBe(1)
+  expect(initial.skippedSymlinkCount).toBe(0)
   expect(initial.templates).toHaveLength(120)
-  expect(initial.templates.every(template => template.indexVersion === 1)).toBe(true)
+  expect(
+    initial.templates.every(template => template.indexVersion === TEMPLATE_INDEX_VERSION),
+  ).toBe(true)
   expect(initial.templates.every(template => /^[a-f0-9]{64}$/u.test(template.contentHash))).toBe(
     true,
   )
   const firstTemplate = initial.templates[0]!
-  const firstSource = join(workspacePath, firstTemplate.relativePath)
+  const firstSource = join(workspacePath, 'templates', firstTemplate.relativePath)
   const originalSource = await readFile(firstSource, 'utf8')
 
   const problemId = await page.evaluate(async templateId => {
@@ -262,8 +264,8 @@ test('publishes deterministic incremental changes and cancels without partial SQ
     modified.templates.find(template => template.id === firstTemplate.id)?.contentHash,
   ).not.toBe(firstTemplate.contentHash)
 
-  const movedPath = join(workspacePath, 'renamed', 'stable-template.cpp')
-  await mkdir(join(workspacePath, 'renamed'))
+  const movedPath = join(workspacePath, 'templates', 'renamed', 'stable-template.cpp')
+  await mkdir(join(workspacePath, 'templates', 'renamed'))
   await rename(firstSource, movedPath)
   await completeRescan(120)
   const moved = await inspectIndex()

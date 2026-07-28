@@ -13,6 +13,7 @@ import {
   normalizeSourceForComparison,
   TEMPLATE_INDEX_VERSION,
 } from './template-content-index'
+import { decodeTemplateSourceBuffer } from './template-source-codec'
 
 const MAX_DEPTH = 24
 const MAX_ISSUES = 50
@@ -81,6 +82,7 @@ export interface TemplateScanStats {
 }
 
 export interface TemplateScanProgress {
+  currentItem?: string | null
   phase: 'discovering' | 'indexing'
   processedCount: number
   totalCount: number | null
@@ -203,10 +205,13 @@ async function indexContent(
   }
   const content = await readFile(absolutePath, { signal })
   const contentHash = createHash('sha256').update(content).digest('hex')
-  if (content.includes(0)) {
+  let decoded: string
+  try {
+    decoded = decodeTemplateSourceBuffer(content).content
+  } catch {
     return { contentHash, normalizedContentHash: null, similaritySignatureJson: null }
   }
-  const normalized = normalizeSourceForComparison(content.toString('utf8'))
+  const normalized = normalizeSourceForComparison(decoded)
   if (!normalized) {
     return { contentHash, normalizedContentHash: null, similaritySignatureJson: null }
   }
@@ -321,6 +326,7 @@ export async function scanTemplateWorkspace(
           relativePath,
         })
         options.onProgress?.({
+          currentItem: relativePath.slice(0, 500),
           phase: 'discovering',
           processedCount: discovered.length,
           totalCount: null,
@@ -427,6 +433,7 @@ export async function scanTemplateWorkspace(
         sizeBytes: Number(before.size),
       })
       options.onProgress?.({
+        currentItem: item.relativePath.slice(0, 500),
         phase: 'indexing',
         processedCount: index + 1,
         totalCount: discovered.length,

@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import iconv from 'iconv-lite'
 
 import type { TemplateMetadata } from '@core/contracts/template-management'
 import type { TemplateSummary } from '@core/contracts/workspace'
@@ -195,6 +196,18 @@ describe('WorkspaceAiContextService', () => {
     )
   })
 
+  it('sends decoded Windows GBK source snippets without replacement characters', async () => {
+    await writeFile(
+      join(rootPath, '图论', '最短路', 'dijkstra.cpp'),
+      iconv.encode('// 中文最短路模板\nvoid dijkstra() {}\n', 'gbk'),
+    )
+
+    const context = await build()
+
+    expect(context.relatedContext).toContain('中文最短路模板')
+    expect(context.relatedContext).not.toContain('�')
+  })
+
   it('keeps every indexed available template eligible when an optional source snippet is unreadable', async () => {
     await unlink(join(rootPath, '数据结构', '并查集', 'dsu.cpp'))
     const context = await createService().build({
@@ -331,6 +344,44 @@ describe('WorkspaceAiContextService', () => {
     expect(context.stableContext).toContain('文件计划模板-301')
     expect(context.stableContext).toContain('文件计划/模板-301.cpp')
     expect(context.templateNamesTruncated).toBe(false)
+  })
+
+  it('honors a task-specific context budget while retaining the complete minimal catalog', async () => {
+    templates = Array.from({ length: 301 }, (_, index) =>
+      template(
+        (index + 1).toString(16).padStart(64, '0'),
+        `预算文件计划/模板-${String(index + 1).padStart(3, '0')}.cpp`,
+        `预算文件计划模板-${String(index + 1).padStart(3, '0')}`,
+      ),
+    )
+
+    const context = await createService().build({
+      maxEstimatedInputTokens: 20_000,
+      model: 'fixture-model',
+      outputLanguage: 'zh-CN',
+      promptSchemaVersion: 'workspace-plan-v4-batched',
+      providerId: 'fixture-provider',
+      query: '检查文件计划',
+      task: 'workspace-management',
+    })
+
+    expect(context.estimatedInputTokens).toBeLessThanOrEqual(20_000)
+    expect(context.sentTemplateNameCount).toBe(301)
+    expect(context.stableContext).toContain('预算文件计划模板-301')
+  })
+
+  it('rejects a task budget that cannot contain the complete minimal catalog', async () => {
+    await expect(
+      createService().build({
+        maxEstimatedInputTokens: 100,
+        model: 'fixture-model',
+        outputLanguage: 'zh-CN',
+        promptSchemaVersion: 'workspace-plan-v4-batched',
+        providerId: 'fixture-provider',
+        query: '检查文件计划',
+        task: 'workspace-management',
+      }),
+    ).rejects.toMatchObject({ code: 'AI_CONTEXT_TOO_LARGE' })
   })
 
   it('is deterministic and invalidates the version for metadata or relation changes', async () => {

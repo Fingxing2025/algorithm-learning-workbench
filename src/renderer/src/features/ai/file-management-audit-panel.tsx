@@ -25,8 +25,7 @@ function auditIssueDetail(
   t: (source: string, variables?: Record<string, number | string>) => string,
 ): string {
   if (issue.kind === 'missing-metadata') return t('算法卡片尚未补充结构化元数据。')
-  if (issue.kind === 'invalid-name')
-    return t('文件名可能包含副本标记或不一致空格，建议人工确认命名。')
+  if (issue.kind === 'invalid-name') return t(issue.detail)
   if (issue.kind === 'empty-file') return t('模板文件为空。')
   if (issue.kind === 'duplicate-content')
     return t('这些模板源码规范化后完全相同；建议仅保留 {path}。', {

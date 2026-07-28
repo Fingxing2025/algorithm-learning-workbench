@@ -38,10 +38,13 @@ import { CodeViewer, SourceCodeEditor } from './code-viewer'
 import { TemplateMetadataCard } from './template-metadata-card'
 import { TemplateProblemRelationDialog } from './template-problem-relation-dialog'
 import { TemplateRelocationDialog } from './template-relocation-dialog'
+import { formatTemplateSourceEncoding } from './template-source-encoding'
 
 interface AlgorithmCardProps {
+  metadataRefreshKey: number
   onAction: (request: TemplateActionRequest) => void
   onClearProblemError: () => void
+  onCompleteMetadata: () => void
   onDelete: (templateId: string) => Promise<boolean>
   onOpenProblem: (problemId: string) => void
   onLoadMoreRelatedProblems: () => void
@@ -79,8 +82,10 @@ function formatBytes(bytes: number): string {
 }
 
 export function AlgorithmCard({
+  metadataRefreshKey,
   onAction,
   onClearProblemError,
+  onCompleteMetadata,
   onDelete,
   onOpenProblem,
   onLoadMoreRelatedProblems,
@@ -344,6 +349,9 @@ export function AlgorithmCard({
             </p>
           </div>
           <div className="flex items-center gap-2">
+            {sourceState.status === 'ready' && (
+              <Badge>{formatTemplateSourceEncoding(sourceState.value.encoding)}</Badge>
+            )}
             {sourceIsDirty && <Badge tone="warning">{t('未保存')}</Badge>}
             {isEditingSource ? (
               <>
@@ -524,7 +532,12 @@ export function AlgorithmCard({
           </section>
         )}
 
-        <TemplateMetadataCard key={template.id} templateId={template.id} />
+        <TemplateMetadataCard
+          key={template.id}
+          onCompleteWithAi={onCompleteMetadata}
+          refreshKey={metadataRefreshKey}
+          templateId={template.id}
+        />
 
         <section className="mt-4 rounded-2xl border border-border bg-panel p-4 shadow-panel">
           <div className="flex items-center gap-2">

@@ -68,6 +68,10 @@ test('scrolls large template and problem lists and switches the code theme', asy
         canceled: false,
         filePaths: [selectedPath],
       })) as typeof dialog.showOpenDialog
+      dialog.showMessageBox = (async () => ({
+        checkboxChecked: false,
+        response: 1,
+      })) as typeof dialog.showMessageBox
     }, workspaceRoot)
     await page.getByRole('button', { name: '选择目录' }).click()
 

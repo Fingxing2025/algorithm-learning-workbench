@@ -104,9 +104,17 @@ function encodeProblemCursor(record: Pick<ProblemRecord, 'id' | 'updatedAt'>): s
 export class ProblemRepository {
   constructor(private readonly database: AppDatabase) {}
 
-  addImages(problemId: string, imageRows: NewProblemImage[]): void {
+  addImages(workspaceId: string, problemId: string, imageRows: NewProblemImage[]): void {
     const createdAt = new Date().toISOString()
     this.database.orm.transaction(transaction => {
+      const owned = transaction
+        .select({ id: problems.id })
+        .from(problems)
+        .where(and(eq(problems.id, problemId), eq(problems.workspaceId, workspaceId)))
+        .get()
+      if (!owned) {
+        throw new PublicError('PROBLEM_NOT_FOUND', '题目卡片不存在或已经被移除。')
+      }
       transaction
         .insert(problemImages)
         .values(imageRows.map(image => ({ ...image, createdAt, problemId })))
@@ -114,20 +122,21 @@ export class ProblemRepository {
       transaction
         .update(problems)
         .set({ updatedAt: createdAt })
-        .where(eq(problems.id, problemId))
+        .where(and(eq(problems.id, problemId), eq(problems.workspaceId, workspaceId)))
         .run()
     })
   }
 
-  countImages(problemId: string): number {
+  countImages(workspaceId: string, problemId: string): number {
     return this.database.orm
       .select({ id: problemImages.id })
       .from(problemImages)
-      .where(eq(problemImages.problemId, problemId))
+      .innerJoin(problems, eq(problemImages.problemId, problems.id))
+      .where(and(eq(problemImages.problemId, problemId), eq(problems.workspaceId, workspaceId)))
       .all().length
   }
 
-  createProblem(fields: CreateProblemRequest): Problem {
+  createProblem(workspaceId: string, fields: CreateProblemRequest): Problem {
     const id = randomUUID()
     const timestamp = new Date().toISOString()
     this.database.orm
@@ -137,23 +146,36 @@ export class ProblemRepository {
         createdAt: timestamp,
         id,
         updatedAt: timestamp,
+        workspaceId,
       })
       .run()
-    return this.requireProblem(id)
+    return this.requireProblem(workspaceId, id)
   }
 
-  deleteProblem(problemId: string): boolean {
+  deleteProblem(workspaceId: string, problemId: string): boolean {
     return this.database.orm.transaction(transaction => {
+      const owned = transaction
+        .select({ id: problems.id })
+        .from(problems)
+        .where(and(eq(problems.id, problemId), eq(problems.workspaceId, workspaceId)))
+        .get()
+      if (!owned) return false
       transaction
         .delete(templateProblemRelations)
         .where(eq(templateProblemRelations.problemId, problemId))
         .run()
       transaction.delete(problemImages).where(eq(problemImages.problemId, problemId)).run()
-      return transaction.delete(problems).where(eq(problems.id, problemId)).run().changes > 0
+      return (
+        transaction
+          .delete(problems)
+          .where(and(eq(problems.id, problemId), eq(problems.workspaceId, workspaceId)))
+          .run().changes > 0
+      )
     })
   }
 
   createAnalyzedProblem(
+    workspaceId: string,
     id: string,
     fields: CreateProblemRequest,
     imageRows: NewProblemImage[],
@@ -161,9 +183,32 @@ export class ProblemRepository {
   ): Problem {
     const timestamp = new Date().toISOString()
     this.database.orm.transaction(transaction => {
+      if (relations.length > 0) {
+        const requestedTemplateIds = [...new Set(relations.map(relation => relation.templateId))]
+        const availableTemplateIds = transaction
+          .select({ id: templates.id })
+          .from(templates)
+          .where(
+            and(
+              inArray(templates.id, requestedTemplateIds),
+              eq(templates.workspaceId, workspaceId),
+              eq(templates.available, true),
+            ),
+          )
+          .all()
+        if (availableTemplateIds.length !== requestedTemplateIds.length) {
+          throw new PublicError('TEMPLATE_NOT_FOUND', '候选模板已不可用，请重新分析或取消该关联。')
+        }
+      }
       transaction
         .insert(problems)
-        .values({ ...toProblemValues(fields), createdAt: timestamp, id, updatedAt: timestamp })
+        .values({
+          ...toProblemValues(fields),
+          createdAt: timestamp,
+          id,
+          updatedAt: timestamp,
+          workspaceId,
+        })
         .run()
       if (imageRows.length > 0) {
         transaction
@@ -188,38 +233,58 @@ export class ProblemRepository {
           .run()
       }
     })
-    return this.requireProblem(id)
+    return this.requireProblem(workspaceId, id)
   }
 
-  getImage(imageId: string, problemId?: string): ProblemImageRecord | undefined {
+  getImage(
+    workspaceId: string,
+    imageId: string,
+    problemId?: string,
+  ): ProblemImageRecord | undefined {
     const condition = problemId
       ? and(eq(problemImages.id, imageId), eq(problemImages.problemId, problemId))
       : eq(problemImages.id, imageId)
-    return this.database.orm.select().from(problemImages).where(condition).get()
+    return this.database.orm
+      .select({ image: problemImages })
+      .from(problemImages)
+      .innerJoin(problems, eq(problemImages.problemId, problems.id))
+      .where(and(condition, eq(problems.workspaceId, workspaceId)))
+      .get()?.image
   }
 
-  getProblem(problemId: string): Problem | undefined {
-    const row = this.database.orm.select().from(problems).where(eq(problems.id, problemId)).get()
-    return row ? this.hydrateProblems([row])[0] : undefined
+  getProblem(workspaceId: string, problemId: string): Problem | undefined {
+    const row = this.database.orm
+      .select()
+      .from(problems)
+      .where(and(eq(problems.id, problemId), eq(problems.workspaceId, workspaceId)))
+      .get()
+    return row ? this.hydrateProblems(workspaceId, [row])[0] : undefined
   }
 
-  isTemplateAvailable(templateId: string): boolean {
+  isTemplateAvailable(workspaceId: string, templateId: string): boolean {
     return Boolean(
       this.database.orm
         .select({ id: templates.id })
         .from(templates)
-        .where(and(eq(templates.id, templateId), eq(templates.available, true)))
+        .where(
+          and(
+            eq(templates.id, templateId),
+            eq(templates.workspaceId, workspaceId),
+            eq(templates.available, true),
+          ),
+        )
         .get(),
     )
   }
 
-  listProblems(): Problem[] {
+  listProblems(workspaceId: string): Problem[] {
     const problemRows = this.database.orm
       .select()
       .from(problems)
+      .where(eq(problems.workspaceId, workspaceId))
       .orderBy(desc(problems.updatedAt))
       .all()
-    return this.hydrateProblems(problemRows)
+    return this.hydrateProblems(workspaceId, problemRows)
   }
 
   listTemplateUsage(workspaceId: string): Map<string, TemplateProblemUsage> {
@@ -232,7 +297,7 @@ export class ProblemRepository {
       .from(templateProblemRelations)
       .innerJoin(problems, eq(templateProblemRelations.problemId, problems.id))
       .innerJoin(templates, eq(templateProblemRelations.templateId, templates.id))
-      .where(eq(templates.workspaceId, workspaceId))
+      .where(and(eq(templates.workspaceId, workspaceId), eq(problems.workspaceId, workspaceId)))
       .groupBy(templateProblemRelations.templateId, problems.platform)
       .all()
     const usage = new Map<string, { platforms: Set<string>; problemCount: number }>()
@@ -253,9 +318,16 @@ export class ProblemRepository {
     )
   }
 
-  listProblemsByTemplate(request: TemplateProblemPageRequest): TemplateProblemPage {
+  listProblemsByTemplate(
+    workspaceId: string,
+    request: TemplateProblemPageRequest,
+  ): TemplateProblemPage {
     const cursor = decodeProblemCursor(request.cursor)
-    const conditions = [eq(templateProblemRelations.templateId, request.templateId)]
+    const conditions = [
+      eq(templateProblemRelations.templateId, request.templateId),
+      eq(templates.workspaceId, workspaceId),
+      eq(problems.workspaceId, workspaceId),
+    ]
     if (cursor) {
       conditions.push(
         or(
@@ -273,6 +345,7 @@ export class ProblemRepository {
       })
       .from(templateProblemRelations)
       .innerJoin(problems, eq(templateProblemRelations.problemId, problems.id))
+      .innerJoin(templates, eq(templateProblemRelations.templateId, templates.id))
       .where(and(...conditions))
       .orderBy(desc(problems.updatedAt), desc(problems.id))
       .limit(request.limit + 1)
@@ -283,7 +356,15 @@ export class ProblemRepository {
       this.database.orm
         .select({ count: sql<number>`count(*)` })
         .from(templateProblemRelations)
-        .where(eq(templateProblemRelations.templateId, request.templateId))
+        .innerJoin(problems, eq(templateProblemRelations.problemId, problems.id))
+        .innerJoin(templates, eq(templateProblemRelations.templateId, templates.id))
+        .where(
+          and(
+            eq(templateProblemRelations.templateId, request.templateId),
+            eq(templates.workspaceId, workspaceId),
+            eq(problems.workspaceId, workspaceId),
+          ),
+        )
         .get()?.count ?? 0,
     )
     return {
@@ -302,9 +383,9 @@ export class ProblemRepository {
     }
   }
 
-  listProblemsPage(request: ProblemPageRequest): ProblemPage {
+  listProblemsPage(workspaceId: string, request: ProblemPageRequest): ProblemPage {
     const cursor = decodeProblemCursor(request.cursor)
-    const conditions = []
+    const conditions = [eq(problems.workspaceId, workspaceId)]
     if (cursor) {
       conditions.push(
         or(
@@ -325,7 +406,7 @@ export class ProblemRepository {
         )!,
       )
     }
-    const condition = conditions.length > 0 ? and(...conditions) : undefined
+    const condition = and(...conditions)
     const rows = this.database.orm
       .select()
       .from(problems)
@@ -340,15 +421,18 @@ export class ProblemRepository {
         .select({ count: sql<number>`count(*)` })
         .from(problems)
         .where(
-          request.query
-            ? or(
-                like(problems.title, `%${request.query}%`),
-                like(problems.platform, `%${request.query}%`),
-                like(problems.problemCode, `%${request.query}%`),
-                like(problems.difficulty, `%${request.query}%`),
-                like(problems.tagsJson, `%${request.query}%`),
-              )
-            : undefined,
+          and(
+            eq(problems.workspaceId, workspaceId),
+            request.query
+              ? or(
+                  like(problems.title, `%${request.query}%`),
+                  like(problems.platform, `%${request.query}%`),
+                  like(problems.problemCode, `%${request.query}%`),
+                  like(problems.difficulty, `%${request.query}%`),
+                  like(problems.tagsJson, `%${request.query}%`),
+                )
+              : undefined,
+          ),
         )
         .get()?.count ?? 0,
     )
@@ -356,16 +440,19 @@ export class ProblemRepository {
       this.database.orm
         .select({ count: sql<number>`count(*)` })
         .from(problems)
+        .where(eq(problems.workspaceId, workspaceId))
         .get()?.count ?? 0,
     )
     const totalRelationCount = Number(
       this.database.orm
         .select({ count: sql<number>`count(*)` })
         .from(templateProblemRelations)
+        .innerJoin(problems, eq(templateProblemRelations.problemId, problems.id))
+        .where(eq(problems.workspaceId, workspaceId))
         .get()?.count ?? 0,
     )
     return {
-      items: this.hydrateProblems(pageRows),
+      items: this.hydrateProblems(workspaceId, pageRows),
       matchedCount,
       nextAction: hasMore ? '继续加载下一批题目。' : null,
       nextCursor: hasMore && pageRows.length > 0 ? encodeProblemCursor(pageRows.at(-1)!) : null,
@@ -377,7 +464,7 @@ export class ProblemRepository {
     }
   }
 
-  private hydrateProblems(problemRows: ProblemRecord[]): Problem[] {
+  private hydrateProblems(workspaceId: string, problemRows: ProblemRecord[]): Problem[] {
     if (problemRows.length === 0) return []
     const imageRows: Array<typeof problemImages.$inferSelect> = []
     const relationRows: Array<{
@@ -419,7 +506,12 @@ export class ProblemRepository {
           })
           .from(templateProblemRelations)
           .innerJoin(templates, eq(templateProblemRelations.templateId, templates.id))
-          .where(inArray(templateProblemRelations.problemId, ids))
+          .where(
+            and(
+              inArray(templateProblemRelations.problemId, ids),
+              eq(templates.workspaceId, workspaceId),
+            ),
+          )
           .all(),
       )
     }
@@ -497,34 +589,55 @@ export class ProblemRepository {
     })
   }
 
-  problemExists(problemId: string): boolean {
+  problemExists(workspaceId: string, problemId: string): boolean {
     return Boolean(
       this.database.orm
         .select({ id: problems.id })
         .from(problems)
-        .where(eq(problems.id, problemId))
+        .where(and(eq(problems.id, problemId), eq(problems.workspaceId, workspaceId)))
         .get(),
     )
   }
 
-  removeImage(imageId: string, problemId: string): boolean {
+  removeImage(workspaceId: string, imageId: string, problemId: string): boolean {
     const updatedAt = new Date().toISOString()
     const result = this.database.orm.transaction(transaction => {
+      const owned = transaction
+        .select({ id: problems.id })
+        .from(problems)
+        .where(and(eq(problems.id, problemId), eq(problems.workspaceId, workspaceId)))
+        .get()
+      if (!owned) return { changes: 0 }
       const deletion = transaction
         .delete(problemImages)
         .where(and(eq(problemImages.id, imageId), eq(problemImages.problemId, problemId)))
         .run()
       if (deletion.changes > 0) {
-        transaction.update(problems).set({ updatedAt }).where(eq(problems.id, problemId)).run()
+        transaction
+          .update(problems)
+          .set({ updatedAt })
+          .where(and(eq(problems.id, problemId), eq(problems.workspaceId, workspaceId)))
+          .run()
       }
       return deletion
     })
     return result.changes > 0
   }
 
-  removeRelation(problemId: string, templateId: string): boolean {
+  removeRelation(workspaceId: string, problemId: string, templateId: string): boolean {
     const timestamp = new Date().toISOString()
     const result = this.database.orm.transaction(transaction => {
+      const ownedProblem = transaction
+        .select({ id: problems.id })
+        .from(problems)
+        .where(and(eq(problems.id, problemId), eq(problems.workspaceId, workspaceId)))
+        .get()
+      const ownedTemplate = transaction
+        .select({ id: templates.id })
+        .from(templates)
+        .where(and(eq(templates.id, templateId), eq(templates.workspaceId, workspaceId)))
+        .get()
+      if (!ownedProblem || !ownedTemplate) return { changes: 0 }
       const deletion = transaction
         .delete(templateProblemRelations)
         .where(
@@ -538,7 +651,7 @@ export class ProblemRepository {
         transaction
           .update(problems)
           .set({ updatedAt: timestamp })
-          .where(eq(problems.id, problemId))
+          .where(and(eq(problems.id, problemId), eq(problems.workspaceId, workspaceId)))
           .run()
       }
       return deletion
@@ -546,25 +659,31 @@ export class ProblemRepository {
     return result.changes > 0
   }
 
-  requireProblem(problemId: string): Problem {
-    const problem = this.getProblem(problemId)
+  requireProblem(workspaceId: string, problemId: string): Problem {
+    const problem = this.getProblem(workspaceId, problemId)
     if (!problem) {
       throw new Error('Problem was not persisted')
     }
     return problem
   }
 
-  updateProblem(request: UpdateProblemRequest): Problem | undefined {
+  updateProblem(workspaceId: string, request: UpdateProblemRequest): Problem | undefined {
     const updatedAt = new Date().toISOString()
     const result = this.database.orm
       .update(problems)
       .set({ ...toProblemValues(request), updatedAt })
-      .where(eq(problems.id, request.id))
+      .where(and(eq(problems.id, request.id), eq(problems.workspaceId, workspaceId)))
       .run()
-    return result.changes > 0 ? this.getProblem(request.id) : undefined
+    return result.changes > 0 ? this.getProblem(workspaceId, request.id) : undefined
   }
 
-  upsertRelation(request: UpsertProblemRelationRequest): Problem {
+  upsertRelation(workspaceId: string, request: UpsertProblemRelationRequest): Problem {
+    if (
+      !this.problemExists(workspaceId, request.problemId) ||
+      !this.isTemplateAvailable(workspaceId, request.templateId)
+    ) {
+      throw new PublicError('INVALID_REQUEST', '题目与模板必须属于当前工作区。')
+    }
     const timestamp = new Date().toISOString()
     this.database.orm.transaction(transaction => {
       transaction
@@ -591,9 +710,9 @@ export class ProblemRepository {
       transaction
         .update(problems)
         .set({ updatedAt: timestamp })
-        .where(eq(problems.id, request.problemId))
+        .where(and(eq(problems.id, request.problemId), eq(problems.workspaceId, workspaceId)))
         .run()
     })
-    return this.requireProblem(request.problemId)
+    return this.requireProblem(workspaceId, request.problemId)
   }
 }

@@ -9,26 +9,17 @@ import type {
   BackupExportResult,
   BackupLifecycleInventory,
   BackupLifecycleRequest,
+  BackupSelectionRequest,
   BackupVerification,
-  CleanupPreview,
-  CleanupPreviewRequest,
   DataDiagnostics,
   ExportBackupRequest,
   InterruptedRecoveryPreview,
   InterruptedRecoveryPreviewRequest,
-  QuarantineCleanupRequest,
-  QuarantineCleanupResult,
-  QuarantineReleasePreview,
-  QuarantineReleasePreviewRequest,
   RecoverInterruptedOperationRequest,
   RecoverInterruptedOperationResult,
-  ReleaseQuarantineRequest,
-  ReleaseQuarantineResult,
   RestoreBackupRequest,
   RestoreBackupResult,
   RestorePreview,
-  UndoCleanupRequest,
-  UndoCleanupResult,
 } from './data-management'
 import type {
   AiConnectionResult,
@@ -47,11 +38,15 @@ import type {
   PreviewProblemAnalysisRequest,
 } from './problem-analysis'
 import type {
+  ApplyExistingTemplateMetadataCompletionRequest,
+  ApplyExistingTemplateMetadataCompletionResult,
   ApplyTemplateRelocationRequest,
   DeleteFilePlansRequest,
   DeleteFilePlansResult,
   DeleteFileExecutionsRequest,
   DeleteFileExecutionsResult,
+  DeleteInvalidFileExecutionsRequest,
+  DeleteInvalidFileExecutionsResult,
   BatchImportTemplateRequest,
   BatchImportTemplateResult,
   BatchTemplateImportSource,
@@ -71,15 +66,23 @@ import type {
   FileChangeExecutionPage,
   FileHistoryPageRequest,
   FileHistoryDeletionPreview,
+  InvalidFileExecutionDeletionPreview,
+  InvalidFileExecutionPage,
+  InvalidFileExecutionPageRequest,
   FileChangeMutationResult,
   FileChangePlan,
   FileChangePlanPage,
   FilePlanGenerationRequest,
   FilePlanRequestPreview,
+  ExistingTemplateMetadataCompletionDraft,
+  ExistingTemplateMetadataCompletionPreview,
+  GenerateExistingTemplateMetadataCompletionRequest,
   PreviewFilePlanRequest,
+  PreviewExistingTemplateMetadataCompletionRequest,
   WorkspaceAudit,
   PreviewTemplateClassificationRequest,
   PreviewDeleteFileExecutionsRequest,
+  PreviewDeleteInvalidFileExecutionsRequest,
   PreviewDeleteFilePlansRequest,
 } from './template-management'
 import type {
@@ -141,22 +144,15 @@ export interface DesktopApi {
     diagnose: () => Promise<DataDiagnostics>
     exportBackup: (request: ExportBackupRequest) => Promise<BackupExportResult | null>
     inspectBackupLifecycle: (request: BackupLifecycleRequest) => Promise<BackupLifecycleInventory>
-    previewCleanup: (request: CleanupPreviewRequest) => Promise<CleanupPreview>
     previewInterruptedRecovery: (
       request: InterruptedRecoveryPreviewRequest,
     ) => Promise<InterruptedRecoveryPreview>
-    previewQuarantineRelease: (
-      request: QuarantineReleasePreviewRequest,
-    ) => Promise<QuarantineReleasePreview>
-    previewRestore: () => Promise<RestorePreview | null>
-    quarantineCleanup: (request: QuarantineCleanupRequest) => Promise<QuarantineCleanupResult>
+    previewRestore: (request: BackupSelectionRequest) => Promise<RestorePreview | null>
     recoverInterruptedOperation: (
       request: RecoverInterruptedOperationRequest,
     ) => Promise<RecoverInterruptedOperationResult>
-    releaseQuarantine: (request: ReleaseQuarantineRequest) => Promise<ReleaseQuarantineResult>
     restoreBackup: (request: RestoreBackupRequest) => Promise<RestoreBackupResult>
-    undoCleanup: (request: UndoCleanupRequest) => Promise<UndoCleanupResult>
-    verifyBackup: () => Promise<BackupVerification | null>
+    verifyBackup: (request: BackupSelectionRequest) => Promise<BackupVerification | null>
   }
   problems: {
     addImages: (problemId: string) => Promise<Problem | null>
@@ -186,12 +182,16 @@ export interface DesktopApi {
     readSource: (templateId: string) => Promise<TemplateSource>
   }
   templateManagement: {
+    applyExistingMetadataCompletion: (
+      request: ApplyExistingTemplateMetadataCompletionRequest,
+    ) => Promise<ApplyExistingTemplateMetadataCompletionResult>
     applyTemplateRelocation: (
       request: ApplyTemplateRelocationRequest,
     ) => Promise<FileChangeMutationResult>
     applyFilePlan: (request: {
       operationIds: string[]
       planId: string
+      requestId?: string
     }) => Promise<FileChangeMutationResult>
     auditWorkspace: () => Promise<WorkspaceAudit>
     startAudit: (request: StartBackgroundTaskRequest) => Promise<BackgroundTaskStatus>
@@ -206,6 +206,9 @@ export interface DesktopApi {
     deleteFileExecutions: (
       request: DeleteFileExecutionsRequest,
     ) => Promise<DeleteFileExecutionsResult>
+    deleteInvalidFileExecutions: (
+      request: DeleteInvalidFileExecutionsRequest,
+    ) => Promise<DeleteInvalidFileExecutionsResult>
     deleteFilePlans: (request: DeleteFilePlansRequest) => Promise<DeleteFilePlansResult>
     exportFilePlanDiagnostic: (planId: string | null) => Promise<boolean>
     getMetadata: (templateId: string) => Promise<TemplateMetadata | null>
@@ -222,10 +225,16 @@ export interface DesktopApi {
     previewClassification: (
       request: PreviewTemplateClassificationRequest,
     ) => Promise<AiRequestPreview>
+    previewExistingMetadataCompletion: (
+      request: PreviewExistingTemplateMetadataCompletionRequest,
+    ) => Promise<ExistingTemplateMetadataCompletionPreview>
     previewFilePlan: (request: PreviewFilePlanRequest) => Promise<FilePlanRequestPreview>
     previewDeleteFileExecutions: (
       request: PreviewDeleteFileExecutionsRequest,
     ) => Promise<FileHistoryDeletionPreview>
+    previewDeleteInvalidFileExecutions: (
+      request: PreviewDeleteInvalidFileExecutionsRequest,
+    ) => Promise<InvalidFileExecutionDeletionPreview>
     previewDeleteFilePlans: (
       request: PreviewDeleteFilePlansRequest,
     ) => Promise<FileHistoryDeletionPreview>
@@ -233,13 +242,21 @@ export interface DesktopApi {
       request: PreviewTemplateRelocationRequest,
     ) => Promise<TemplateRelocationPreview>
     generateFilePlan: (request: FilePlanGenerationRequest) => Promise<FileChangePlan>
+    generateExistingMetadataCompletion: (
+      request: GenerateExistingTemplateMetadataCompletionRequest,
+    ) => Promise<ExistingTemplateMetadataCompletionDraft>
     listFileExecutions: () => Promise<FileChangeExecution[]>
     listFileExecutionsPage: (request: FileHistoryPageRequest) => Promise<FileChangeExecutionPage>
+    listInvalidFileExecutionsPage: (
+      request: InvalidFileExecutionPageRequest,
+    ) => Promise<InvalidFileExecutionPage>
     listFilePlans: () => Promise<FileChangePlan[]>
     listFilePlansPage: (request: FileHistoryPageRequest) => Promise<FileChangePlanPage>
-    listArchivedFilePlansPage: (request: FileHistoryPageRequest) => Promise<FileChangePlanPage>
     redraftFilePlan: (planId: string) => Promise<FileChangePlan>
-    rollbackFileExecution: (executionId: string) => Promise<FileChangeMutationResult>
+    rollbackFileExecution: (
+      executionId: string,
+      requestId?: string,
+    ) => Promise<FileChangeMutationResult>
     updateMetadata: (request: UpdateTemplateMetadataRequest) => Promise<TemplateMetadata>
   }
   workspace: {

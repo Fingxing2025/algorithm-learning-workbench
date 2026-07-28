@@ -1,6 +1,10 @@
 import { z } from 'zod'
 
-import { workspaceSnapshotSchema } from './workspace'
+import {
+  templateSourceEncodingSchema,
+  templateSummarySchema,
+  workspaceSnapshotSchema,
+} from './workspace'
 import {
   aiOutputLanguageSchema,
   aiRequestIdSchema,
@@ -42,7 +46,11 @@ export const updateTemplateMetadataRequestSchema = templateMetadataFieldsSchema
 export type UpdateTemplateMetadataRequest = z.infer<typeof updateTemplateMetadataRequestSchema>
 
 export const templateImportSourceSchema = z
-  .object({ content: z.string().max(2 * 1024 * 1024), fileName: z.string().min(1).max(255) })
+  .object({
+    content: z.string().max(2 * 1024 * 1024),
+    fileName: z.string().min(1).max(255),
+    sourceEncoding: templateSourceEncodingSchema,
+  })
   .strict()
 export type TemplateImportSource = z.infer<typeof templateImportSourceSchema>
 
@@ -206,6 +214,129 @@ export const templateClassificationSchema = z
   .strict()
 export type TemplateClassification = z.infer<typeof templateClassificationSchema>
 
+export const completableTemplateMetadataFieldSchema = z.enum([
+  'commonMistakes',
+  'constraints',
+  'prerequisites',
+  'solves',
+  'spaceComplexity',
+  'tags',
+  'timeComplexity',
+])
+export type CompletableTemplateMetadataField = z.infer<
+  typeof completableTemplateMetadataFieldSchema
+>
+
+const uniqueTemplateIdsSchema = z
+  .array(templateIdSchema)
+  .min(1)
+  .max(20)
+  .refine(ids => new Set(ids).size === ids.length, '模板 ID 不能重复。')
+
+export const previewExistingTemplateMetadataCompletionRequestSchema = z
+  .object({
+    outputLanguage: templateMetadataLanguageSchema,
+    templateIds: uniqueTemplateIdsSchema,
+  })
+  .strict()
+export type PreviewExistingTemplateMetadataCompletionRequest = z.infer<
+  typeof previewExistingTemplateMetadataCompletionRequestSchema
+>
+export const existingTemplateMetadataCompletionPreviewSchema = aiRequestPreviewSchema
+  .extend({
+    expiresAt: z.string().datetime(),
+    previewId: z.string().uuid(),
+    templateCount: z.number().int().min(1).max(20),
+  })
+  .strict()
+export type ExistingTemplateMetadataCompletionPreview = z.infer<
+  typeof existingTemplateMetadataCompletionPreviewSchema
+>
+
+export const generateExistingTemplateMetadataCompletionRequestSchema = z
+  .object({ previewId: z.string().uuid(), requestId: aiRequestIdSchema })
+  .strict()
+export type GenerateExistingTemplateMetadataCompletionRequest = z.infer<
+  typeof generateExistingTemplateMetadataCompletionRequestSchema
+>
+
+export const modelExistingTemplateMetadataCompletionSchema = z
+  .object({
+    commonMistakes: z.string().max(10_000),
+    constraints: z.string().max(10_000),
+    prerequisites: z.string().max(10_000),
+    solves: z.string().max(10_000),
+    spaceComplexity: z.string().trim().max(120).nullable(),
+    tags: z.array(z.string().trim().min(1).max(40)).max(20),
+    timeComplexity: z.string().trim().max(120).nullable(),
+  })
+  .strict()
+
+export const existingTemplateMetadataCompletionItemSchema = z
+  .object({
+    changedFields: z.array(completableTemplateMetadataFieldSchema).max(7),
+    previousMetadata: templateMetadataFieldsSchema,
+    proposedMetadata: templateMetadataFieldsSchema,
+    template: templateSummarySchema,
+  })
+  .strict()
+export type ExistingTemplateMetadataCompletionItem = z.infer<
+  typeof existingTemplateMetadataCompletionItemSchema
+>
+export const existingTemplateMetadataCompletionDraftSchema = z
+  .object({
+    draftId: z.string().uuid(),
+    expiresAt: z.string().datetime(),
+    items: z.array(existingTemplateMetadataCompletionItemSchema).min(1).max(20),
+    model: z.string().min(1).max(160),
+    outputLanguage: templateMetadataLanguageSchema,
+    providerName: z.string().min(1).max(80),
+  })
+  .strict()
+export type ExistingTemplateMetadataCompletionDraft = z.infer<
+  typeof existingTemplateMetadataCompletionDraftSchema
+>
+
+export const applyExistingTemplateMetadataCompletionRequestSchema = z
+  .object({
+    confirmed: z.literal(true),
+    draftId: z.string().uuid(),
+    selections: z
+      .array(
+        z
+          .object({
+            fields: z
+              .array(completableTemplateMetadataFieldSchema)
+              .min(1)
+              .max(7)
+              .refine(fields => new Set(fields).size === fields.length, '补全字段不能重复。'),
+            templateId: templateIdSchema,
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(20)
+      .refine(
+        selections =>
+          new Set(selections.map(selection => selection.templateId)).size === selections.length,
+        '补全模板不能重复。',
+      ),
+  })
+  .strict()
+export type ApplyExistingTemplateMetadataCompletionRequest = z.infer<
+  typeof applyExistingTemplateMetadataCompletionRequestSchema
+>
+export const applyExistingTemplateMetadataCompletionResultSchema = z
+  .object({
+    metadata: z.array(templateMetadataSchema).min(1).max(20),
+    updatedFieldCount: z.number().int().positive(),
+    updatedTemplateCount: z.number().int().positive(),
+  })
+  .strict()
+export type ApplyExistingTemplateMetadataCompletionResult = z.infer<
+  typeof applyExistingTemplateMetadataCompletionResultSchema
+>
+
 export const importTemplateRequestSchema = z
   .object({
     content: z.string().max(2 * 1024 * 1024),
@@ -240,6 +371,7 @@ export const batchImportTemplateRequestSchema = z
       )
       .min(1)
       .max(100),
+    requestId: aiRequestIdSchema.optional(),
   })
   .strict()
 export type BatchImportTemplateRequest = z.infer<typeof batchImportTemplateRequestSchema>
@@ -330,7 +462,7 @@ export const fileChangeOperationSchema = z.discriminatedUnion('kind', [
       ...planOperationBase,
       kind: z.literal('update-metadata'),
       metadata: templateMetadataFieldsSchema,
-      previousMetadata: templateMetadataFieldsSchema.optional(),
+      previousMetadata: templateMetadataFieldsSchema,
     })
     .strict(),
 ])
@@ -339,14 +471,18 @@ export type FileChangeOperationInput = z.input<typeof fileChangeOperationSchema>
 
 export const filePlanDiagnosticSchema = z
   .object({
+    adaptiveSplitCount: z.number().int().nonnegative().default(0),
     auditIssueCount: z.number().int().nonnegative(),
     candidateTemplateCount: z.number().int().nonnegative(),
     contextTruncated: z.boolean(),
+    effectiveBatchCount: z.number().int().nonnegative().default(0),
     inputHash: z
       .string()
       .regex(/^[a-f0-9]{64}$/)
       .nullable()
       .default(null),
+    initialBatchCount: z.number().int().nonnegative().default(0),
+    languageFallbackBatchCount: z.number().int().nonnegative().default(0),
     notesIncludedCount: z.number().int().nonnegative(),
     previewId: z.string().uuid().nullable().default(null),
     requestId: z.string().uuid().nullable(),
@@ -360,10 +496,14 @@ export const fileChangePlanSchema = z
     contextVersion: z.string().max(64).nullable().default(null),
     createdAt: z.string().datetime(),
     diagnostic: filePlanDiagnosticSchema.default({
+      adaptiveSplitCount: 0,
       auditIssueCount: 0,
       candidateTemplateCount: 0,
       contextTruncated: false,
+      effectiveBatchCount: 0,
       inputHash: null,
+      initialBatchCount: 0,
+      languageFallbackBatchCount: 0,
       notesIncludedCount: 0,
       previewId: null,
       requestId: null,
@@ -432,27 +572,6 @@ export const fileChangePlanPayloadSchema = z
 export type FileChangePlanPayload = z.infer<typeof fileChangePlanPayloadSchema>
 
 export function parseStoredFileChangePlanPayload(stored: unknown): FileChangePlanPayload | null {
-  const legacyOperations = fileChangeOperationSchema.array().max(100).safeParse(stored)
-  if (legacyOperations.success) {
-    return fileChangePlanPayloadSchema.parse({
-      contextVersion: null,
-      diagnostic: {
-        auditIssueCount: 0,
-        candidateTemplateCount: 0,
-        contextTruncated: false,
-        inputHash: null,
-        notesIncludedCount: 0,
-        previewId: null,
-        requestId: null,
-        schemaVersion: 2,
-        sourceReadFailureCount: 0,
-      },
-      operations: legacyOperations.data,
-      outputLanguage: 'zh-CN',
-      schemaVersion: 2,
-      summary: '',
-    })
-  }
   const versionedPayload = fileChangePlanPayloadSchema.safeParse(stored)
   return versionedPayload.success ? versionedPayload.data : null
 }
@@ -465,11 +584,14 @@ export const previewFilePlanRequestSchema = z
   })
   .strict()
 export type PreviewFilePlanRequest = z.infer<typeof previewFilePlanRequestSchema>
-export const filePlanGenerationRequestSchema = z.object({ previewId: z.string().uuid() }).strict()
+export const filePlanGenerationRequestSchema = z
+  .object({ previewId: z.string().uuid(), requestId: aiRequestIdSchema.optional() })
+  .strict()
 export type FilePlanGenerationRequest = z.infer<typeof filePlanGenerationRequestSchema>
 export const filePlanInputPreviewSchema = z
   .object({
     auditIssueCount: z.number().int().nonnegative(),
+    batchCount: z.number().int().positive(),
     candidateMetadataOmitted: z.boolean(),
     candidateSourceOmitted: z.boolean(),
     candidateTemplateCount: z.number().int().nonnegative(),
@@ -477,6 +599,9 @@ export const filePlanInputPreviewSchema = z
     expiresAt: z.string().datetime(),
     inputCharacters: z.number().int().nonnegative(),
     inputHash: z.string().regex(/^[a-f0-9]{64}$/),
+    largestBatchInputCharacters: z.number().int().nonnegative(),
+    maxCandidatesPerBatch: z.number().int().positive(),
+    maxOutputTokensPerBatch: z.number().int().positive(),
     metadataCharacters: z.number().int().nonnegative(),
     notesCharacters: z.number().int().nonnegative(),
     notesIncludedCount: z.number().int().nonnegative(),
@@ -484,6 +609,7 @@ export const filePlanInputPreviewSchema = z
     sourceCharacters: z.number().int().nonnegative(),
     sourceReadFailureCount: z.number().int().nonnegative(),
     sourceSnippetCount: z.number().int().nonnegative(),
+    totalBatchInputCharacters: z.number().int().nonnegative(),
   })
   .strict()
 export type FilePlanInputPreview = z.infer<typeof filePlanInputPreviewSchema>
@@ -512,7 +638,11 @@ export const previewDeleteFilePlansRequestSchema = z
 export type PreviewDeleteFilePlansRequest = z.infer<typeof previewDeleteFilePlansRequestSchema>
 
 export const deleteFilePlansRequestSchema = z
-  .object({ confirmed: z.literal(true), previewId: z.string().uuid() })
+  .object({
+    confirmed: z.literal(true),
+    previewId: z.string().uuid(),
+    requestId: aiRequestIdSchema.optional(),
+  })
   .strict()
 export type DeleteFilePlansRequest = z.infer<typeof deleteFilePlansRequestSchema>
 
@@ -540,7 +670,10 @@ export const applyTemplateRelocationRequestSchema = z
   .strict()
 export type ApplyTemplateRelocationRequest = z.infer<typeof applyTemplateRelocationRequestSchema>
 export const applyFileChangePlanRequestSchema = fileChangePlanRequestSchema
-  .extend({ operationIds: z.array(z.string().uuid()).min(1).max(100) })
+  .extend({
+    operationIds: z.array(z.string().uuid()).min(1).max(100),
+    requestId: aiRequestIdSchema.optional(),
+  })
   .strict()
 export const fileChangeExecutionSchema = z
   .object({
@@ -549,6 +682,7 @@ export const fileChangeExecutionSchema = z
     id: z.string().uuid(),
     operationCount: z.number().int().positive(),
     planId: z.string().uuid(),
+    rollbackIssue: z.enum(['backup-invalid', 'backup-missing']).nullable().optional(),
     rolledBackAt: z.string().datetime().nullable(),
     status: z.enum(['applied', 'rolled-back']),
   })
@@ -560,7 +694,7 @@ export const fileChangeExecutionPageSchema = fileHistoryPageInfoSchema
   .strict()
 export type FileChangeExecutionPage = z.infer<typeof fileChangeExecutionPageSchema>
 export const rollbackFileChangeExecutionRequestSchema = z
-  .object({ executionId: z.string().uuid() })
+  .object({ executionId: z.string().uuid(), requestId: aiRequestIdSchema.optional() })
   .strict()
 export const previewDeleteFileExecutionsRequestSchema = z
   .object({ executionIds: uniqueFileHistoryIdsSchema })
@@ -569,7 +703,11 @@ export type PreviewDeleteFileExecutionsRequest = z.infer<
   typeof previewDeleteFileExecutionsRequestSchema
 >
 export const deleteFileExecutionsRequestSchema = z
-  .object({ confirmed: z.literal(true), previewId: z.string().uuid() })
+  .object({
+    confirmed: z.literal(true),
+    previewId: z.string().uuid(),
+    requestId: aiRequestIdSchema.optional(),
+  })
   .strict()
 export type DeleteFileExecutionsRequest = z.infer<typeof deleteFileExecutionsRequestSchema>
 
@@ -577,7 +715,6 @@ export const fileHistoryDeletionPreviewSchema = z
   .object({
     appliedExecutionCount: z.number().int().nonnegative(),
     appliedPlanCount: z.number().int().nonnegative(),
-    archivedPlanCount: z.number().int().nonnegative(),
     backupDirectoryCount: z.number().int().nonnegative(),
     cancelledPlanCount: z.number().int().nonnegative(),
     executionCount: z.number().int().nonnegative(),
@@ -610,6 +747,97 @@ export const deleteFileExecutionsResultSchema = fileHistoryDeletionResultSchema
 export const deleteFilePlansResultSchema = fileHistoryDeletionResultSchema
 export type DeleteFileExecutionsResult = FileHistoryDeletionResult
 export type DeleteFilePlansResult = FileHistoryDeletionResult
+
+export const invalidFileExecutionReasonSchema = z.enum([
+  'backup-missing',
+  'backup-reference-invalid',
+  'backup-path-symbolic-link',
+  'backup-path-not-directory',
+  'backup-path-unreadable',
+])
+export type InvalidFileExecutionReason = z.infer<typeof invalidFileExecutionReasonSchema>
+
+export const invalidFileExecutionItemSchema = z
+  .object({
+    createdAt: z.string().datetime(),
+    deletable: z.boolean(),
+    id: z.string().uuid(),
+    operationCount: z.number().int().nonnegative().nullable(),
+    reason: invalidFileExecutionReasonSchema,
+    workspaceId: z.string().uuid(),
+    workspaceName: z.string().min(1).max(255),
+  })
+  .strict()
+export type InvalidFileExecutionItem = z.infer<typeof invalidFileExecutionItemSchema>
+
+export const invalidFileExecutionPageRequestSchema = fileHistoryPageRequestSchema
+export type InvalidFileExecutionPageRequest = z.infer<typeof invalidFileExecutionPageRequestSchema>
+export const invalidFileExecutionPageSchema = fileHistoryPageInfoSchema
+  .extend({ items: z.array(invalidFileExecutionItemSchema).max(100) })
+  .strict()
+export type InvalidFileExecutionPage = z.infer<typeof invalidFileExecutionPageSchema>
+
+export const previewDeleteInvalidFileExecutionsRequestSchema = z
+  .object({ executionIds: uniqueFileHistoryIdsSchema })
+  .strict()
+export type PreviewDeleteInvalidFileExecutionsRequest = z.infer<
+  typeof previewDeleteInvalidFileExecutionsRequestSchema
+>
+export const invalidFileExecutionDeletionPreviewSchema = z
+  .object({
+    executionCount: z.number().int().positive(),
+    expiresAt: z.string().datetime(),
+    items: z
+      .array(invalidFileExecutionItemSchema)
+      .min(1)
+      .max(100)
+      .refine(
+        items => items.every(item => item.deletable && item.reason === 'backup-missing'),
+        '删除预览只能包含仍缺少受管备份的可清理记录。',
+      ),
+    previewId: z.string().uuid(),
+    recordIds: z.array(z.string().uuid()).min(1).max(100),
+    workspaceCount: z.number().int().positive(),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    const itemIds = value.items.map(item => item.id)
+    if (
+      value.executionCount !== value.items.length ||
+      value.recordIds.length !== value.items.length ||
+      new Set(value.recordIds).size !== value.recordIds.length ||
+      itemIds.some((id, index) => id !== value.recordIds[index]) ||
+      value.workspaceCount !== new Set(value.items.map(item => item.workspaceId)).size
+    ) {
+      context.addIssue({ code: 'custom', message: '失效执行记录预览摘要不一致。' })
+    }
+  })
+export type InvalidFileExecutionDeletionPreview = z.infer<
+  typeof invalidFileExecutionDeletionPreviewSchema
+>
+export const deleteInvalidFileExecutionsRequestSchema = z
+  .object({
+    confirmed: z.literal(true),
+    previewId: z.string().uuid(),
+    requestId: aiRequestIdSchema.optional(),
+  })
+  .strict()
+export type DeleteInvalidFileExecutionsRequest = z.infer<
+  typeof deleteInvalidFileExecutionsRequestSchema
+>
+export const deleteInvalidFileExecutionsResultSchema = z
+  .object({
+    deletedAt: z.string().datetime(),
+    deletedExecutionCount: z.number().int().positive(),
+    recordIds: z.array(z.string().uuid()).min(1).max(100),
+  })
+  .strict()
+  .refine(value => value.deletedExecutionCount === value.recordIds.length, {
+    message: '失效执行记录删除结果数量不一致。',
+  })
+export type DeleteInvalidFileExecutionsResult = z.infer<
+  typeof deleteInvalidFileExecutionsResultSchema
+>
 export const fileChangeMutationResultSchema = z
   .object({ execution: fileChangeExecutionSchema.nullable(), workspace: workspaceSnapshotSchema })
   .strict()

@@ -171,32 +171,46 @@ export async function runStructuredAiTask<Output>(args: {
   const firstValidationError = validationError(data)
   if (firstValidationError) {
     throwIfCancelled(args.request.signal)
-    completion = await complete(
-      {
-        ...args.request,
-        jsonSchema,
-        system: [
-          args.request.system,
-          schemaInstruction,
-          '上一次输出通过了 JSON 结构校验，但违反了业务语言约束。请基于原始输入重新输出完整 JSON。',
-          `需要修正的问题：${firstValidationError.message}`,
-          args.semanticRetryInstruction,
-          '只修正违反约束的字段，不改变用户已确认内容、源码事实或文件扩展名。不要输出 Markdown、解释或思考过程。',
-        ]
-          .filter(Boolean)
-          .join('\n'),
-      },
-      'semantic-retry',
-    )
-    parsed = parse(completion.text)
-    data = parsed.data
-    if (!data) {
-      throw new PublicError(
-        'AI_INVALID_RESPONSE',
-        args.invalidMessage,
-        undefined,
-        'schema-validation',
+    const schemaValidFallback = data
+    try {
+      completion = await complete(
+        {
+          ...args.request,
+          jsonSchema,
+          system: [
+            args.request.system,
+            schemaInstruction,
+            '上一次输出通过了 JSON 结构校验，但违反了业务语言约束。请基于原始输入重新输出完整 JSON。',
+            `需要修正的问题：${firstValidationError.message}`,
+            args.semanticRetryInstruction,
+            '只修正违反约束的字段，不改变用户已确认内容、源码事实或文件扩展名。不要输出 Markdown、解释或思考过程。',
+          ]
+            .filter(Boolean)
+            .join('\n'),
+        },
+        'semantic-retry',
       )
+      parsed = parse(completion.text)
+      data = parsed.data
+      if (!data) {
+        if (!args.allowSemanticFallback) {
+          throw new PublicError(
+            'AI_INVALID_RESPONSE',
+            args.invalidMessage,
+            undefined,
+            'schema-validation',
+          )
+        }
+        data = schemaValidFallback
+      }
+    } catch (error) {
+      if (
+        !args.allowSemanticFallback ||
+        (error instanceof PublicError && error.code === 'AI_CANCELLED')
+      ) {
+        throw error
+      }
+      data = schemaValidFallback
     }
     const secondValidationError = validationError(data)
     if (secondValidationError && !args.allowSemanticFallback) {

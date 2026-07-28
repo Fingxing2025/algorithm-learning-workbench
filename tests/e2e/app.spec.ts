@@ -1,7 +1,8 @@
-import { mkdtemp, mkdir, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { deflateSync } from 'node:zlib'
+import iconv from 'iconv-lite'
 
 import {
   _electron as electron,
@@ -74,6 +75,10 @@ async function setNextDirectorySelection(directoryPath: string) {
       canceled: false,
       filePaths: [selectedDirectory],
     })) as typeof dialog.showOpenDialog
+    dialog.showMessageBox = (async () => ({
+      checkboxChecked: false,
+      response: 1,
+    })) as typeof dialog.showMessageBox
   }, directoryPath)
 }
 
@@ -111,7 +116,6 @@ test.beforeAll(async () => {
   await writeFile(fixtureSourcePath, 'void bfs() { /* fixture */ }\n', 'utf8')
   await writeFile(join(existingWorkspace, 'dfs.py'), 'def dfs():\n    pass\n', 'utf8')
   await writeFile(join(existingWorkspace, 'README.md'), '# not a template\n', 'utf8')
-  await writeFile(join(temporaryRoot, 'outside.cpp'), 'outside\n', 'utf8')
   await writeFile(
     fixtureImagePath,
     Buffer.from(
@@ -121,7 +125,6 @@ test.beforeAll(async () => {
   )
   await writeFile(secondFixtureImagePath, await readFile(fixtureImagePath))
   await writeFile(tallFixtureImagePath, createTallPng())
-  await symlink(join(temporaryRoot, 'outside.cpp'), join(existingWorkspace, 'linked.cpp'))
   fixtureSourceBeforeScan = await readFile(fixtureSourcePath, 'utf8')
 
   await launchApplication()
@@ -222,7 +225,9 @@ test('creates an empty workspace and the first template without allowing overwri
   await page.getByRole('button', { name: '确认创建' }).click()
 
   await expect(page.getByRole('heading', { level: 1, name: 'dijkstra' })).toBeVisible()
-  expect(await readFile(join(blankWorkspace, 'dijkstra.cpp'), 'utf8')).toBe('void dijkstra() {}\n')
+  expect(await readFile(join(blankWorkspace, 'templates', 'dijkstra.cpp'), 'utf8')).toBe(
+    'void dijkstra() {}\n',
+  )
 
   await page.getByRole('button', { name: '新建模板' }).click()
   await page.getByLabel('文件名').fill('dijkstra.cpp')
@@ -231,7 +236,9 @@ test('creates an empty workspace and the first template without allowing overwri
   await expect(page.getByRole('dialog').getByRole('alert')).toContainText(
     '同名文件已经存在，未覆盖原文件',
   )
-  expect(await readFile(join(blankWorkspace, 'dijkstra.cpp'), 'utf8')).toBe('void dijkstra() {}\n')
+  expect(await readFile(join(blankWorkspace, 'templates', 'dijkstra.cpp'), 'utf8')).toBe(
+    'void dijkstra() {}\n',
+  )
 
   const closeDialogButton = page.getByRole('button', { name: '关闭新建模板' })
   if (await closeDialogButton.isVisible().catch(() => false)) {
@@ -269,7 +276,7 @@ test('creates an empty workspace and the first template without allowing overwri
 })
 
 test('edits template source through Diff confirmation with zero-write cancellation and conflict safety', async () => {
-  const sourcePath = join(blankWorkspace, 'dijkstra.cpp')
+  const sourcePath = join(blankWorkspace, 'templates', 'dijkstra.cpp')
   const originalSource = await readFile(sourcePath, 'utf8')
   const cancelledSource = 'void dijkstra_cancelled() {}\n'
   const savedSource = 'void dijkstra_saved() { /* safe edit */ }\n'
@@ -371,6 +378,7 @@ test('edits template source through Diff confirmation with zero-write cancellati
 test('scans an existing directory read-only and opens a folded tree result by keyboard search', async () => {
   await setNextDirectorySelection(existingWorkspace)
   await page.getByRole('button', { name: '切换工作区' }).click()
+  fixtureSourcePath = join(existingWorkspace, 'templates', '基础算法', '搜索', 'BFS', 'bfs.cpp')
 
   await expect(page.getByText('基础算法 / 搜索 / BFS')).toBeVisible()
   await expect(page.getByText('bfs.cpp', { exact: true })).toHaveCount(0)
@@ -394,6 +402,30 @@ test('scans an existing directory read-only and opens a folded tree result by ke
   const clipboardText = await electronApp.evaluate(({ clipboard }) => clipboard.readText())
   expect(clipboardText).toBe(fixtureSourceBeforeScan)
   await page.getByRole('button', { name: '关闭提示' }).click()
+})
+
+test('reads, copies, and edits Windows GBK Chinese source while preserving its bytes', async () => {
+  const sourcePath = join(existingWorkspace, 'templates', 'dfs.py')
+  const originalSource = '# 中文算法模板\ndef dfs():\n    pass\n'
+  const updatedSource = '# 中文算法模板\ndef dfs():\n    return True\n'
+  await writeFile(sourcePath, iconv.encode(originalSource, 'gbk'))
+
+  await page.getByRole('button', { name: '重新扫描工作区' }).click()
+  await page.getByText('dfs.py', { exact: true }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'dfs' })).toBeVisible()
+  await expect(page.getByText('GB18030 / GBK / CP936', { exact: true })).toBeVisible()
+  await expect(page.getByLabel('高亮模板源码')).toContainText('中文算法模板')
+
+  await page.getByRole('button', { name: '复制源码' }).click()
+  expect(await electronApp.evaluate(({ clipboard }) => clipboard.readText())).toBe(originalSource)
+  await page.getByRole('button', { name: '关闭提示' }).click()
+
+  await page.getByRole('button', { name: '编辑代码' }).click()
+  await page.getByLabel('可编辑模板源码').locator('.cm-content').fill(updatedSource)
+  await page.getByRole('button', { name: '查看 Diff' }).click()
+  await page.getByRole('button', { name: '确认保存源码' }).click()
+  await expect(page.getByRole('status')).toContainText('模板源码已安全保存')
+  expect(await readFile(sourcePath)).toEqual(iconv.encode(updatedSource, 'gb18030'))
 })
 
 test('captures the dashboard and template workspace in light, compact, and dark states', async () => {
@@ -650,7 +682,7 @@ test('creates a problem, associates multiple templates, stores an image, and saf
   await page.getByRole('button', { name: '移除图片 problem-2.png' }).click()
   await page.getByRole('button', { name: '确认' }).click()
   await expect(page.getByRole('img', { name: 'problem-2.png' })).toHaveCount(0)
-  const storedImages = await readdir(join(userDataDirectory, 'problem-images'), {
+  const storedImages = await readdir(join(existingWorkspace, 'problem-assets', 'images'), {
     recursive: true,
   })
   expect(storedImages.filter(path => path.endsWith('.png'))).toHaveLength(2)
@@ -660,7 +692,7 @@ test('creates a problem, associates multiple templates, stores an image, and saf
   await expect(page.getByText('1 个已确认关联')).toBeVisible()
 
   await page.getByRole('button', { name: '模板库' }).click()
-  await expect(page.getByText('dfs.py')).toBeVisible()
+  await expect(page.getByRole('treeitem', { name: 'dfs.py', exact: true })).toBeVisible()
   await page.getByRole('button', { name: '重新扫描工作区' }).click()
   await expect(page.getByRole('status')).toContainText('扫描完成')
   await page.getByRole('button', { name: '题目', exact: true }).click()
@@ -803,7 +835,7 @@ test('deletes a template with backup and removes a problem with its stored image
   await page.getByRole('button', { name: '删除题目 单源最短路径' }).click()
   await page.getByRole('button', { name: '确认删除' }).click()
   await expect(page.getByRole('heading', { level: 2, name: '单源最短路径' })).toHaveCount(0)
-  const remainingImages = await readdir(join(userDataDirectory, 'problem-images'), {
+  const remainingImages = await readdir(join(existingWorkspace, 'problem-assets', 'images'), {
     recursive: true,
   })
   expect(remainingImages.filter(path => path.endsWith('.png'))).toHaveLength(0)

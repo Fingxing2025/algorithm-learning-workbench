@@ -114,7 +114,13 @@ test('preserves an existing V2 workspace across packaged app relaunch', async ()
     await app.close()
 
     await access(join(userDataDirectory, 'algorithm-workbench.sqlite'))
-    expect(await readFile(join(workspaceDirectory, 'release-smoke.cpp'), 'utf8')).toBe(
+    await access(join(workspaceDirectory, 'workspace.awb.json'))
+    await access(join(workspaceDirectory, '.awb', 'workspace.sqlite'))
+    await access(join(workspaceDirectory, '.awb', 'file-plan-backups'))
+    await access(join(workspaceDirectory, '.awb', 'restore-preflight-backups'))
+    await access(join(workspaceDirectory, '.awb', 'recovery'))
+    await access(join(workspaceDirectory, 'problem-assets', 'images'))
+    expect(await readFile(join(workspaceDirectory, 'templates', 'release-smoke.cpp'), 'utf8')).toBe(
       'void release_smoke() {}\n',
     )
 

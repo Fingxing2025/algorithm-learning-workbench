@@ -1,15 +1,65 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  applyExistingTemplateMetadataCompletionRequestSchema,
   batchImportTemplateRequestSchema,
   deleteFileExecutionsRequestSchema,
   deleteFileExecutionsResultSchema,
+  deleteInvalidFileExecutionsRequestSchema,
+  invalidFileExecutionDeletionPreviewSchema,
+  invalidFileExecutionPageRequestSchema,
+  invalidFileExecutionPageSchema,
   previewDeleteFileExecutionsRequestSchema,
+  previewDeleteInvalidFileExecutionsRequestSchema,
   fileChangePlanPayloadSchema,
   inspectBatchTemplateImportResultSchema,
   parseStoredFileChangePlanPayload,
+  previewExistingTemplateMetadataCompletionRequestSchema,
   previewTemplateClassificationRequestSchema,
 } from './template-management'
+
+describe('existing template metadata completion contracts', () => {
+  const firstTemplateId = 'a'.repeat(64)
+  const secondTemplateId = 'b'.repeat(64)
+
+  it('accepts distinct current-workspace selections and rejects duplicates or oversized batches', () => {
+    expect(
+      previewExistingTemplateMetadataCompletionRequestSchema.parse({
+        outputLanguage: 'zh-CN',
+        templateIds: [firstTemplateId, secondTemplateId],
+      }).templateIds,
+    ).toEqual([firstTemplateId, secondTemplateId])
+    expect(() =>
+      previewExistingTemplateMetadataCompletionRequestSchema.parse({
+        outputLanguage: 'zh-CN',
+        templateIds: [firstTemplateId, firstTemplateId],
+      }),
+    ).toThrow()
+    expect(() =>
+      previewExistingTemplateMetadataCompletionRequestSchema.parse({
+        outputLanguage: 'zh-CN',
+        templateIds: Array.from({ length: 21 }, (_, index) => index.toString(16).padStart(64, '0')),
+      }),
+    ).toThrow()
+  })
+
+  it('requires explicit confirmation and distinct fields for each selected template', () => {
+    expect(
+      applyExistingTemplateMetadataCompletionRequestSchema.parse({
+        confirmed: true,
+        draftId: '40000000-0000-4000-8000-000000000020',
+        selections: [{ fields: ['solves', 'tags'], templateId: firstTemplateId }],
+      }).selections[0]?.fields,
+    ).toEqual(['solves', 'tags'])
+    expect(() =>
+      applyExistingTemplateMetadataCompletionRequestSchema.parse({
+        confirmed: true,
+        draftId: '40000000-0000-4000-8000-000000000020',
+        selections: [{ fields: ['solves', 'solves'], templateId: firstTemplateId }],
+      }),
+    ).toThrow()
+  })
+})
 
 describe('template AI draft contracts', () => {
   const request = {
@@ -100,6 +150,102 @@ describe('file execution deletion contracts', () => {
   })
 })
 
+describe('invalid file execution cleanup contracts', () => {
+  const firstExecutionId = '41000000-0000-4000-8000-000000000017'
+  const secondExecutionId = '41000000-0000-4000-8000-000000000018'
+  const workspaceId = '41000000-0000-4000-8000-000000000019'
+
+  it('keeps global pagination and display data path-free', () => {
+    expect(invalidFileExecutionPageRequestSchema.parse({ cursor: null, limit: 20 })).toEqual({
+      cursor: null,
+      limit: 20,
+    })
+    const page = invalidFileExecutionPageSchema.parse({
+      items: [
+        {
+          createdAt: '2026-07-24T10:00:00.000Z',
+          deletable: true,
+          id: firstExecutionId,
+          operationCount: null,
+          reason: 'backup-missing',
+          workspaceId,
+          workspaceName: '算法模板',
+        },
+      ],
+      nextAction: null,
+      nextCursor: null,
+      processedCount: 1,
+      totalCount: 1,
+      truncated: false,
+      truncatedReason: null,
+    })
+
+    expect(page.items[0]).not.toHaveProperty('backupDirectory')
+    expect(() => invalidFileExecutionPageRequestSchema.parse({ cursor: null, limit: 19 })).toThrow()
+  })
+
+  it('requires distinct selected IDs, a Main preview, and literal confirmation', () => {
+    expect(
+      previewDeleteInvalidFileExecutionsRequestSchema.parse({
+        executionIds: [firstExecutionId, secondExecutionId],
+      }),
+    ).toEqual({ executionIds: [firstExecutionId, secondExecutionId] })
+    expect(() =>
+      previewDeleteInvalidFileExecutionsRequestSchema.parse({
+        executionIds: [firstExecutionId, firstExecutionId],
+      }),
+    ).toThrow()
+    expect(() =>
+      previewDeleteInvalidFileExecutionsRequestSchema.parse({ executionIds: [] }),
+    ).toThrow()
+    expect(
+      deleteInvalidFileExecutionsRequestSchema.parse({
+        confirmed: true,
+        previewId: firstExecutionId,
+      }),
+    ).toEqual({ confirmed: true, previewId: firstExecutionId })
+    expect(() =>
+      deleteInvalidFileExecutionsRequestSchema.parse({
+        confirmed: false,
+        previewId: firstExecutionId,
+      }),
+    ).toThrow()
+  })
+
+  it('only allows deletable missing-backup items in a cleanup preview', () => {
+    expect(
+      invalidFileExecutionDeletionPreviewSchema.parse({
+        executionCount: 1,
+        expiresAt: '2026-07-24T10:10:00.000Z',
+        items: [
+          {
+            createdAt: '2026-07-24T10:00:00.000Z',
+            deletable: true,
+            id: firstExecutionId,
+            operationCount: 2,
+            reason: 'backup-missing',
+            workspaceId,
+            workspaceName: '算法模板',
+          },
+        ],
+        previewId: secondExecutionId,
+        recordIds: [firstExecutionId],
+        workspaceCount: 1,
+      }).executionCount,
+    ).toBe(1)
+    expect(() =>
+      invalidFileExecutionDeletionPreviewSchema.parse({
+        executionCount: 1,
+        expiresAt: '2026-07-24T10:10:00.000Z',
+        items: [],
+        previewId: secondExecutionId,
+        recordIds: [firstExecutionId],
+        workspaceCount: 1,
+      }),
+    ).toThrow()
+  })
+})
+
 describe('batch template import contracts', () => {
   const sourceId = '40000000-0000-4000-8000-000000000016'
 
@@ -146,7 +292,7 @@ describe('batch template import contracts', () => {
   })
 })
 
-describe('stored file-plan payload compatibility', () => {
+describe('stored file-plan current payload', () => {
   const operationId = '40000000-0000-4000-8000-000000000014'
   const requestId = '40000000-0000-4000-8000-000000000015'
 
@@ -154,9 +300,13 @@ describe('stored file-plan payload compatibility', () => {
     const payload = fileChangePlanPayloadSchema.parse({
       contextVersion: 'context-v2',
       diagnostic: {
+        adaptiveSplitCount: 1,
         auditIssueCount: 1,
         candidateTemplateCount: 2,
         contextTruncated: false,
+        effectiveBatchCount: 3,
+        initialBatchCount: 2,
+        languageFallbackBatchCount: 1,
         notesIncludedCount: 1,
         requestId,
         schemaVersion: 2,
@@ -179,6 +329,12 @@ describe('stored file-plan payload compatibility', () => {
 
     expect(parseStoredFileChangePlanPayload(payload)).toMatchObject({
       contextVersion: 'context-v2',
+      diagnostic: {
+        adaptiveSplitCount: 1,
+        effectiveBatchCount: 3,
+        initialBatchCount: 2,
+        languageFallbackBatchCount: 1,
+      },
       outputLanguage: 'zh-CN',
       schemaVersion: 2,
       summary: '本地审计发现一份完全重复文件。',
@@ -186,29 +342,17 @@ describe('stored file-plan payload compatibility', () => {
     })
   })
 
-  it('upgrades legacy operation arrays with safe defaults', () => {
-    const payload = parseStoredFileChangePlanPayload([
-      {
-        id: operationId,
-        kind: 'delete',
-        reason: '旧计划操作。',
-        sourcePath: '旧文件.cpp',
-        templateId: 'b'.repeat(64),
-      },
-    ])
-
-    expect(payload).toMatchObject({
-      contextVersion: null,
-      outputLanguage: 'zh-CN',
-      schemaVersion: 2,
-      summary: '',
-      operations: [
+  it('rejects unversioned operation arrays', () => {
+    expect(
+      parseStoredFileChangePlanPayload([
         {
-          precondition: null,
-          selectedByDefault: false,
-          source: 'ai',
+          id: operationId,
+          kind: 'delete',
+          reason: '旧计划操作。',
+          sourcePath: '旧文件.cpp',
+          templateId: 'b'.repeat(64),
         },
-      ],
-    })
+      ]),
+    ).toBeNull()
   })
 })

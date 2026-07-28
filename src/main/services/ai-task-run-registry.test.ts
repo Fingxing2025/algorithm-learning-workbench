@@ -25,14 +25,22 @@ describe('AiTaskRunRegistry', () => {
     expect(planRun.signal.aborted).toBe(false)
   })
 
-  it('cancels every active run on application shutdown', () => {
+  it('cancels every active run and waits until their handlers finish', async () => {
     const registry = new AiTaskRunRegistry()
     const runs = [
       registry.start('problem-image-analysis', requestId),
       registry.start('template-metadata', '20000000-0000-4000-8000-000000000002'),
       registry.start('workspace-management', '30000000-0000-4000-8000-000000000003'),
     ]
-    registry.cancelAll()
+    let settled = false
+    const cancellation = registry.cancelAll().then(() => {
+      settled = true
+    })
     expect(runs.every(run => run.signal.aborted)).toBe(true)
+    await Promise.resolve()
+    expect(settled).toBe(false)
+    runs.forEach(run => run.finish())
+    await cancellation
+    expect(settled).toBe(true)
   })
 })

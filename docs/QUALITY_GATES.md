@@ -83,6 +83,119 @@
 - 安装包和默认应用数据不包含开发者的个人路径、模板、题目、Provider 或密钥。
 - V2 schema migration 有升级测试和必要的回滚/备份策略，不依赖删除数据库重新生成。
 
+## 跨平台备份门禁
+
+- 正常“备份与恢复”页只展示当前工作区的数据状态、工作区备份和恢复备份；不得恢复保留策略、容量仪表、治理候选、新建隔离入口、SQLite/WAL 或内部 issue code。
+- 备份选择必须自动校验；恢复前必须显示“来源工作区 → 当前目标工作区”、6 类“目标当前/备份”数量、深拷贝只替换当前工作区的警告与显式确认，不得要求选择父目录。
+- 无当前 v2 恢复中断记录时不渲染中断面板；有记录时必须重新验证并显式确认。旧隔离数据不暴露 Renderer、Preload 或 IPC 兼容入口。
+- 组件测试锁定正常页最小功能集、精确导出/恢复请求和当前 v2 中断流程；不再为旧隔离治理造测试入口。
+- 截图至少覆盖 1440×900、1280×720、1024×640 亮暗正常态，以及恢复对比和当前 v2 中断恢复状态；需人工检查滚动、对比表、聚焦可见性和亮暗层级。
+- 外部导出必须生成真正的单文件 `.awb-backup v2` ZIP；v1 目录包、缺少源码的 v2 包和多工作区包只读拒绝。
+- ZIP entry 必须使用 UTF-8/EFS、`/` 和 NFC；拒绝 Zip Slip、符号链接、清单外文件、重复路径、Windows 保留名/非法字符、NFC/大小写碰撞和异常展开规模。
+- 模板源码按原始字节保存，macOS/Windows 往返 SHA-256 一致；不自动添加 BOM、转换 GBK/CP936、改换行或静默重命名。
+- 导出必须强制包含当前工作区的一条 workspace 记录、完整模板源码与相对路径、模板元数据、题目/图片/关联、计划/执行及精确文件清单；其他工作区、Provider/路由和无归属批量备份不得进入包，过滤后的 SQLite 必须压实以清除空闲页残留。
+- 恢复目标必须始终是执行时的当前工作区；来源工作区即使仍已登记也不得阻止恢复。当前
+  目标保留自己的 ID/名称/路径，来源与其他工作区及 Provider 配置保持不变。模板、题目、
+  图片、计划、执行主键，以及计划/执行 JSON、题目图片目录和执行备份目录必须一致重映射，
+  源码按相对路径原地替换当前工作区的受管模板树。
+- v2 manifest 必须只有一个工作区且与 SQLite 一致；旧多工作区包允许完成完整性验证，但必须拒绝恢复并给出可操作提示。
+- macOS 与 Windows 原生 CI runner 均配置运行 `tests/e2e/data-management.spec.ts`，覆盖 v2
+  导出、篡改拒绝、预备份、当前工作区原地恢复、工作区重映射和失败回滚。CI 证据不能
+  替代真实 Windows 物理机的双向传输验收。
+- 实机闭环顺序固定为：macOS 导出 -> Windows 校验/恢复/重启读取 -> Windows 再导出 -> macOS 校验/恢复/重启读取；每一段记录 package ID、文件数、SQLite 检查和源码 SHA-256，不记录题面、源码正文、密钥或不必要的绝对路径。
+- 中文源码读取必须覆盖 UTF-8、UTF-8 BOM、UTF-16LE/BE BOM 与 GB18030/GBK/CP936；无效字节、NUL 和二进制控制字符失败关闭。查看、复制、扫描索引、相似度审计和 AI 片段不得出现解码替换字符。
+- 已有 GB18030/GBK/CP936 与 BOM 文件编辑后保持原编码；外部导入源文件字节不变，新工作区副本统一 UTF-8。便携备份继续用 SHA-256 证明源码未因文本支持而转码。
+- 本轮本地门禁：`npm run check` 为 43 个 Vitest 文件/322 项与 8 项发布脚本测试；单次完整 Electron E2E 为 58 项通过、2 项 packaged 条件跳过；另对当前 macOS arm64 测试 `.app` 运行 packaged smoke 2/2。恢复位置界面已人工复核亮色 1440×900 与深色 1280×720。
+
+### 备份与恢复精简实测（2026-07-24）
+
+- `npm run check`：43 个 Vitest 文件/322 项、8 项发布脚本测试，TypeScript、ESLint 0 warnings 与 Prettier 全部通过。
+- 定向 Renderer：3 个文件/14 项通过，其中数据页 6 项锁定正常页最小功能集、自动校验/完整对比、精确恢复参数、条件中断与存量隔离兼容。
+- 相关真实 Electron E2E：`data-management.spec.ts` + `data-management-count.spec.ts` 9/9，`accessibility-layout.spec.ts` + `file-management.spec.ts` 11/11；正常页 1024×640 与存量隔离截图定向重跑 2/2。首次沙箱内 Electron 因 GUI/本地端口 `EPERM` 失败，授权环境重跑后通过，不计为应用失败。
+- 重新生成正常页 1440×900、1280×720、1024×640 亮暗截图，以及恢复对比、中断处理和历史隔离兼容的亮暗截图。代表性尺寸已人工复核并确认无横向溢出、主操作可达、对比表/警告层级清晰。
+- 本切片没有新增数据库字段、migration、IPC/Preload、备份格式、回滚协议、权限或依赖。全新 userData 正常页为空白数据健康态；已有 V2 中断/隔离记录仍有兼容处理入口。
+
+### 当前工作区数据边界门禁（2026-07-24）
+
+- 契约必须拒绝空选择、重复/非 UUID、`confirmed: false`、分页越界和不一致预览；Renderer 不得取得备份路径、绝对路径或数据库条件。
+- 共享检测必须在当前工作区内覆盖 canonical missing、有效目录、`rolled-back`、格式异常、符号链接、非目录、不可读状态与损坏 `operations_json`。只有 canonical missing 为可清理，其余异常失败关闭。
+- 预览为 Main 内存 10 分钟 TTL 且一次性消费。确认前重新验证全部数据库事实与文件状态；任一备份重现或记录变化都整批拒绝。Repository 在单事务内再次比对并删除，父计划保留。
+- Renderer 必须覆盖切换工作区后清空旧题目/搜索快照、默认不选、预览/确认焦点、取消回焦、成功/失败 live region、普通历史撤销阻断和数据状态只导航不删除。
+- 真实 Electron 必须证明：工作区 A 的失效记录在活动工作区 B 不可见，切回 A 后才可处理；现存有效备份不进入列表；预览后备份重建会拒绝确认；成功后 A 健康问题消失，A/B 源码 SHA-256、父计划和有效备份不变。
+- 真实 Electron 还必须覆盖 A/B 题目、图片、关联、首页、Cmd/Ctrl+K 搜索和诊断计数隔离；从 A 导出后在 B 打开时恢复，必须保持 B 的 ID/名称、深拷贝 A 的相对路径与全部数据、重映射冲突 ID，并证明随后修改 B 不影响 A，Provider 与其他工作区不变。
+- 本轮最终源码门禁：`npm run check` 通过 TypeScript、ESLint 0 warnings、Prettier、44 个 Vitest 文件/338 项和 8 项发布脚本测试；最终单次完整真实 Electron E2E 为 60 项通过、2 项 packaged 条件跳过，随后当前 macOS arm64 测试 `.app` 的 packaged smoke 2/2 通过。首次沙箱内 Electron 与 electron-builder 用户缓存访问因 `EPERM` 失败，授权环境重跑后通过，不计为应用失败。
+- 截图已覆盖失效列表 1440×900 亮色、1280×720 深色、1024×640、选择确认和成功态，以及当前工作区备份亮暗正常态和恢复对比；代表性原图已人工检查，主操作、内部滚动、长工作区名、焦点可见，无横向溢出。
+- 测试 App 位于 `release/mac-arm64/算法学习工作台.app`：主程序和 `better-sqlite3` 均为 arm64，版本 0.1.2，签名为 ad-hoc、无 TeamIdentifier、未公证；Windows 原生 CI 本轮与真实 Windows 实机仍未执行。
+
+### 通用深拷贝恢复门禁（2026-07-26）
+
+- 新 v2 导出请求的 `includeTemplateSources` 只能为 `true`；manifest/源码计数、ZIP 清单、SHA-256、SQLite、单工作区作用域和完整源码任一不一致都失败关闭。普通页面不得再次出现省略源码开关。
+- 预览必须明确显示来源与当前目标；确认请求绑定预览时的来源/目标工作区 ID。Main 必须重新解析当前工作区和备份快照，来源身份不得决定目标，来源仍登记或全局主键碰撞不得阻止安全重映射。
+- A→B 恢复必须保留 B 的工作区 ID/名称/文件夹路径；模板、题目、图片、计划、执行 ID
+  以及所有外键、JSON 和目录引用一致重映射。B 原有受管模板、题目图片和执行备份随替换
+  移除并进入恢复前预备份，未受管文件冲突时失败关闭；A 与其他工作区不修改。
+- 真实 Electron 必须验证恢复后的模板相对路径、GBK 原始字节、模板元数据、题目字段、图片内容、关系、计划/执行数量与引用等价；修改 B 的恢复文件后 A 哈希不变，A 的撤销备份目录继续存在，B 的新执行备份可用。
+- `npm run check` 通过 TypeScript、ESLint 0 warnings、Prettier、48 个 Vitest 文件/371 项和 8 项发布脚本测试；数据管理 Electron E2E 8/8，工作区边界 E2E 1/1，packaged smoke 2/2 通过。恢复预览 1440×900 亮色和 1280×720 深色截图已人工检查，无横向溢出，来源/目标/数量层级清晰。
+- 全树 Electron 本轮结果为 57 项通过、2 项 packaged 条件跳过、1 项失败、3 项因串行文件提前失败未运行。失败项是既有总体文件 AI 测试仍期望“两次无效响应必然失败”，而当前自适应分批会继续生成可审查计划；该问题可在未进入备份页面时独立复现，未修改其并行工作树实现或测试。
+- 当前 `release/mac-arm64/算法学习工作台.app` 已于 2026-07-26 重建，应用和 `better-sqlite3` 均为 arm64、版本 0.1.2；它是 ad-hoc/linker-signed、无 TeamIdentifier、未公证的测试 App。没有数据库 migration、新依赖或新系统权限；恢复 IPC/Zod 契约已升级。旧的省略源码 v2 包只能校验/提示，不能作为通用深拷贝恢复；v1 内部预备份与高级兼容入口继续可用。Windows 安装包在此次源码变更后已过期，Windows 实机未覆盖。
+
+### 自包含工作区与原地恢复门禁（2026-07-27）
+
+- 新建工作区必须在同一文件夹形成标记、`templates/`、题目图片目录、独立 SQLite、撤销
+  备份、恢复前预备份、恢复状态和 cache；标记与数据库不得保存当前机器绝对模板路径。
+- 已有 V2 数据升级必须先复制再校验，失败不得删除全局旧行、移动源码或发布半个工作区。
+  升级后业务查询必须来自 `.awb/workspace.sqlite`。
+- 切换工作区必须先取消并等待活动 AI 与后台任务，再关闭旧工作区数据库；切换后模板、
+  题目、关系、计划、执行和数据状态不能串到另一个工作区。
+- A 包原地恢复到当前 B 后，B 的容器路径、名称和 UUID 不变；切到 A 再切回 B 以及重启
+  后，模板相对路径/源码哈希、元数据、题目、图片、关系、计划和执行必须保持。
+- 恢复前预备份必须包含被替换的模板源码；SQLite 提交前和提交后模拟中断都必须通过
+  journal 恢复到完整旧状态或完成完整新状态，不能留下数据库与文件树不一致。
+- 中文和跨平台结论仍分层报告：macOS 自动化证明 UTF-8/NFC 与 GBK 原始字节契约；只有
+  Windows 原生 runner 和真实 Windows 往返分别完成后，才能声称对应平台验证通过。
+- 最终源码门禁：`npm run check` 通过 TypeScript、ESLint 0 warnings、Prettier、49 个
+  Vitest 文件/375 项和 8 项发布脚本测试；完整真实 Electron E2E 为 57 项常规用例全部
+  通过、2 项 packaged 因未设置路径按条件跳过。定向证据包括备份恢复 5/5、数据诊断计数 1/1、总体文件管理
+  5/5、模板入库 8/8、模板移动 2/2、工作区数据边界 1/1 和首页本地化 1/1。
+  Provider 4/4 和题目 AI 7/7 同时通过；模板元数据 AI 串行流程重复两轮 16/16
+  通过。
+- 备份与恢复正常页已人工检查 1440×900、1280×720、1024×640 的亮色/深色状态；恢复
+  对比页明确展示来源、当前目标、数量对比、原地替换警告和确认区。未发现横向溢出，紧凑
+  窗口的主操作可达。
+- 当前 `release/mac-arm64/算法学习工作台.app` 的全新/已有 V2 userData packaged smoke
+  2/2 通过；主程序与 `better_sqlite3.node` 均为 arm64，版本 0.1.2，`app.asar` SHA-256
+  为 `3d5f546c25e23d96a9be6c58a693a7c444f9eeceeb4a59b6f3ed007f4a1ee32a`。该 App 仅
+  ad-hoc/linker-signed、无 TeamIdentifier、未公证。
+- 当前源码的隔离快照 `26dd07dcf486663c5c917608a26cefdea3a53df1` 已在原生
+  Windows x64 runner 生成未签名 NSIS Preview；应用主程序和 `better_sqlite3.node`
+  均验证为 x64，全新/已有 V2 userData packaged smoke 2/2、运行时依赖审计 0 漏洞与
+  ASAR 隐私扫描通过。安装器位于
+  `release/downloaded/Windows测试包-0.1.2-self-contained-26dd07d/`，115,905,616
+  bytes，SHA-256 为
+  `1ea82f1e32a1fc9b8b583edc54fe68acce0d2e01cf8e8dfff09905e0409d9190`。真实
+  Windows 的 SmartScreen、权限、快捷方式、卸载和 Mac→Windows→Mac 人工恢复仍不计为
+  通过；完整 npm 审计另有 17 条仅位于打包开发工具链的上游告警，未执行破坏性强制降级。
+
+### AI 文件计划输出长度门禁（2026-07-24）
+
+- 总体文件 AI 使用 24,000 Token 单批输入预算、16,000 Token 目录上下文预算和 4,096 Token 单批输出上限；预览哈希和正式生成必须使用同一组 Main 常量，不得由 Renderer 传入任意预算。
+- 31 个相互独立的小候选即使输入总量能装入一批，也必须拆为 8 批；除共享路径形成的不可拆分审计组外，每批候选不超过 4 个、审计问题不超过 6 个。每批稳定前缀仍包含完整目录树及全部模板 ID、名称、相对路径和语言。
+- Provider 只有在可识别的 Token/上下文上限拒绝时才能从 4,096 降到 2,048；鉴权、模型不存在、普通参数错误、响应超时和无正文不得误降档。
+- 连接超时、响应超时和流中断必须报告第 `x/y` 批、该批输入估算、候选数、输出上限和已完成批数，并保留原 `retryAfterMs`/阶段；导出的安全诊断不得包含路径、源码、笔记或密钥。
+- 任一批失败或取消不得继续发送后续批次，不得创建部分计划；当前批次之外的操作、跨批目标冲突、必需改名缺失和总操作数超限都必须整份拒绝。
+- 调整分批与输出预算不扩大执行权限：1 MiB 响应读取上限、结构化输出校验、单计划 100 项、逐字段长度、Diff、逐项选择、二次确认、备份与回滚保持不变。
+- 定向 Vitest 2 个文件/26 项通过；`npm run check` 为 44 个 Vitest 文件/338 项与 8 项发布脚本测试；总体文件 AI 真实 Electron E2E 5/5、重新生成的 macOS arm64 测试 App packaged smoke 2/2 通过。首次定向 E2E 暴露工作区扫描完成前切页的测试时序，加入确定性扫描完成等待后完整复跑通过。
+- 本切片没有数据库 schema、migration、IPC/Zod、Provider 协议类型、密钥、权限、备份格式、执行/回滚协议、依赖或视觉变化；Windows 实机与正式签名/公证仍未验证。
+
+### AI 文件计划输出感知分批实测（2026-07-25）
+
+- 定向合同/Main/Renderer 为 3 个文件/50 项通过；其中 31 个独立小候选固定拆为 8 批，每批详细候选不超过 4、输出请求为 4,096 Token，每批缓存稳定前缀均包含全部模板 ID。共享路径的 5 候选审计组保持同批。
+- 超时测试覆盖第二批 `AI_RESPONSE_TIMEOUT`：错误保留 `retryAfterMs` 与 `response-read` 阶段，安全诊断记录已完成批数、失败批次、输入 Token 和候选数；计划创建调用为 0。取消、越批操作、跨批目标冲突和 101 项合并上限继续整份拒绝。
+- `npm run check` 通过 TypeScript、ESLint 0 warnings、Prettier、48 个 Vitest 文件/363 项和 8 项发布脚本测试；完整真实 Electron E2E 为 61 项通过、2 项 packaged 条件跳过，补充深色预览截图后文件管理定向 E2E 5/5 再次通过。
+- 重新生成 `release/mac-arm64/算法学习工作台.app` 并以包内 arm64 可执行文件完成全新/已有 V2 userData packaged smoke 2/2。`app.asar` SHA-256 为 `7315188ef01f47a9777844c903c1bd4d8281e02a112456d5bc5ef8fc9b72647c`。
+- 发送预览已人工复核 1440×900 亮/暗和 1024×640 亮色：批数、单批候选上限、4,096 Token 输出上限可见，内部滚动与固定底部操作可达，无横向溢出。
+- 本轮没有数据库 schema、migration、依赖、系统权限、Provider 协议类型、备份或回滚格式变化。全新安装、空白工作区和已有 V2 数据原位兼容；测试 App 仍是 0.1.2 macOS arm64 未正式签名/公证版本，Windows 实机未覆盖。
+
 ## 发布门禁
 
 - macOS/Windows 产物由平台 runner 构建，原生 SQLite 与当前 Electron ABI 匹配。
@@ -256,9 +369,18 @@ Session F 已正式结束，不再执行第十一切片或继续维护性拆分�
 - 总体文件请求统一按最终序列化 payload 预算；先缩短摘要、省略附加元数据和可选源码，再省略非审计详细候选。审计必需候选或最小完整目录仍超 96,000 输入 Token 安全预算时，在网络前返回 `AI_CONTEXT_TOO_LARGE`，不发送残缺目录。
 - `previewFilePlan` 创建 Main 内存中 5 分钟 TTL、一次性消费的 `previewId` 快照；`generateFilePlan` 只消费该快照。发送前复检工作区、Provider/模型、catalog、候选 SHA-256/mtime/size 与 metadata 版本；预览过期、重复消费、跨工作区或外部修改均拒绝发送。
 - 用户笔记默认不发送；显式开启后才进入候选元数据、字符/Token 预算和预览统计。SHA-256、mtime、大小、绝对路径、数据库/备份路径、API Key、密钥引用和自定义鉴权头只留在 Main，不进入 Provider payload。
-- 计划审查显示 `solves`、`constraints`、`prerequisites`、`commonMistakes`、`timeComplexity`、`spaceComplexity`、`tags`、`notes` 的旧值到新值；notes 标记高风险，旧计划没有 `previousMetadata` 时兼容展示。所有删除默认不选，高度相似删除显示本地保留项证据。
+- 计划审查显示 `solves`、`constraints`、`prerequisites`、`commonMistakes`、`timeComplexity`、`spaceComplexity`、`tags`、`notes` 的旧值到新值；notes 标记高风险，当前 `update-metadata` 计划必须包含 `previousMetadata`。所有删除默认不选，高度相似删除显示本地保留项证据。
 - 定向 Vitest 最终为 4 个文件/33 项通过；`npm run check` 通过 TypeScript、ESLint 0 warnings、Prettier、40 个 Vitest 文件/270 项和 8 项发布脚本测试。受影响的文件管理、题目分析、模板入库 Electron 规格合计 18/18 通过。
 - 最终单次 `npm run test:e2e` 为 57 项常规真实 Electron E2E 通过，2 项 packaged 因未设置 `PACKAGED_APP_PATH` 条件跳过。首次沙箱运行的 Electron `EPERM` 属环境限制；完整套件曾检出一处重复英文翻译覆盖，修复并定向通过后再次全量运行无失败。
 - 文件计划新增 9 张截图：notes 开/关预览、1440×900 亮/暗、1280×720、1024×640、完整元数据 Diff 与二次确认。已人工复核完整目录统计、预算退化提示、删除默认态、滚动、焦点和固定操作区；原有模板/题目完整目录 8 张截图继续有效。
-- 兼容性：没有 SQLite schema、migration、依赖、权限、执行备份或回滚格式变化；文件计划 IPC/Zod 改为 `previewId` 生成协议，`operations_json` 继续兼容旧数组和缺少旧值快照的计划。全新 userData、空白工作区、已有 V2 userData、旧 schema migration、备份/回滚/撤销均由最终 E2E 覆盖。
+- 当前格式：文件计划只读取 `schemaVersion: 2` payload，`update-metadata` 必须有旧值快照；旧裸数组、旧软归档列表和旧隔离 IPC 不再兼容。当前 AI Provider、生成、预览、执行和回滚协议保持不变。
 - 本 Session 没有修改 release 脚本/依赖，没有重跑性能基准，没有打包、没有推送。`.codex/config.toml` 与 `问题反馈.txt` 始终保持在暂存/提交之外。
+
+## 已有模板 AI 元数据补全门禁（2026-07-24）
+
+- 单份与批量入口必须先展示 AI 发送预览；用户确认生成前不得发起 Provider 请求，确认保存前不得写入 SQLite 或模板文件。
+- 只允许建议 `commonMistakes`、`constraints`、`prerequisites`、`solves`、`spaceComplexity`、`tags`、`timeComplexity`；非空字段和 `notes` 必须由 Main 强制保留，`notes` 不得进入 Provider payload。
+- 一批最多 20 份；没有空字段的模板不得调用 Provider。用户可逐模板、逐字段取消建议，零选择时保存按钮禁用。
+- 预览/草稿必须绑定当前工作区、Provider/模型、完整目录版本、源码 SHA-256 和元数据版本；过期、重复消费、工作区切换或版本变化失败关闭。
+- 批量确认必须只调用一次事务式 `upsertMetadataBatch`；任一源码或元数据变化时零写入。取消活动请求后迟到响应不得生成可保存草稿。
+- 定向 Vitest 3 个文件/21 项通过；`npm run check` 通过 46 个 Vitest 文件/349 项与 8 项发布脚本测试；真实 Electron `template-intake.spec.ts` 8/8 通过。新增草稿截图已按 1440×900 亮/暗、1280×720、1024×640 人工检查，内容、对比度、滚动和固定操作区正常。

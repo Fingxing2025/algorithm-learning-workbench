@@ -109,9 +109,20 @@ export const createTemplateRequestSchema = z
   })
   .strict()
 
+export const templateSourceEncodingSchema = z.enum([
+  'utf-8',
+  'utf-8-bom',
+  'utf-16le-bom',
+  'utf-16be-bom',
+  'gb18030',
+  'gbk',
+])
+export type TemplateSourceEncoding = z.infer<typeof templateSourceEncodingSchema>
+
 export const templateSourceSchema = z
   .object({
     content: z.string(),
+    encoding: templateSourceEncodingSchema,
     id: templateIdSchema,
     language: z.string().min(1).max(32),
     relativePath: z.string().min(1).max(4096),

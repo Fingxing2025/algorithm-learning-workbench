@@ -5,7 +5,7 @@ import type {
   UpdateTemplateMetadataRequest,
 } from '@core/contracts/template-management'
 
-export function useTemplateMetadata(templateId: string | null) {
+export function useTemplateMetadata(templateId: string | null, refreshKey = 0) {
   const [error, setError] = useState<string | null>(null)
   const [isBusy, setIsBusy] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -29,7 +29,7 @@ export function useTemplateMetadata(templateId: string | null) {
     return () => {
       active = false
     }
-  }, [templateId])
+  }, [refreshKey, templateId])
 
   const update = useCallback(async (request: UpdateTemplateMetadataRequest) => {
     setIsBusy(true)

@@ -11,6 +11,10 @@ import {
   type Page,
 } from '@playwright/test'
 
+import type { DesktopApi } from '@core/contracts/desktop-api'
+
+declare const window: { desktop: DesktopApi }
+
 let electronApp: ElectronApplication
 let mockBaseUrl: string
 let mockServer: Server
@@ -53,6 +57,10 @@ async function setNextSelection(path: string | string[]) {
       canceled: false,
       filePaths: Array.isArray(selectedPath) ? selectedPath : [selectedPath],
     })) as typeof dialog.showOpenDialog
+    dialog.showMessageBox = (async () => ({
+      checkboxChecked: false,
+      response: 1,
+    })) as typeof dialog.showMessageBox
   }, path)
 }
 
@@ -89,6 +97,8 @@ test.beforeAll(async () => {
         ) as { content?: unknown } | undefined
       const userContent =
         typeof lastUserMessage?.content === 'string' ? lastUserMessage.content : ''
+      const existingMetadataCompletion =
+        userContent.includes('"existingMetadata"') && userContent.includes('"missingFields"')
       const legacyBwtClassification = userContent.includes('bwt_legacy_shape')
       const batchFileName = userContent.includes('batch_one')
         ? '批量一.cpp'
@@ -138,81 +148,96 @@ test.beforeAll(async () => {
                 content: [
                   {
                     text: JSON.stringify(
-                      legacyBwtClassification
+                      existingMetadataCompletion
                         ? {
-                            result: {
-                              category_path: '字符串算法 > BWT > 逆变换',
-                              common_mistakes: '注意哨兵字符与下标范围。',
-                              confidence: '91%',
-                              constraints: '输入包含唯一哨兵字符。',
-                              prerequisites: '掌握后缀排序与 LF-mapping。',
-                              solves: '从 BWT 末列恢复原字符串。',
-                              space_complexity: 'O(n)',
-                              tags: '字符串，BWT，逆变换',
-                              time_complexity: 'O(n log n)',
-                            },
+                            commonMistakes: 'AI 建议检查边界条件。',
+                            constraints: 'AI 建议的适用约束。',
+                            prerequisites: 'AI 建议的前置知识。',
+                            solves: 'AI 补全的用途。',
+                            spaceComplexity: 'O(n + m)',
+                            tags: ['AI补全', '回归测试'],
+                            timeComplexity: 'O((n + m) log n)',
                           }
-                        : {
-                            categoryPath: batchFileName
-                              ? ['批量导入', '测试算法']
-                              : english
-                                ? ['Graph Theory', 'Shortest Path', 'Dijkstra', 'Heap Optimized']
-                                : ['图论', '最短路', 'Dijkstra', '堆优化'],
-                            commonMistakes: batchFileName
-                              ? '注意测试边界条件。'
-                              : english
-                                ? 'Forgetting to discard stale priority queue entries.'
-                                : '优先队列弹出后忘记判断过期距离。',
-                            classificationReason: batchFileName
-                              ? '该源码属于批量导入测试算法。'
-                              : english
-                                ? 'The implementation belongs with the graph shortest-path taxonomy.'
-                                : '该实现属于图论最短路分类。',
-                            confidence: 0.96,
-                            constraints: batchFileName
-                              ? '用于本地测试。'
-                              : english
-                                ? 'Edge weights must be non-negative.'
-                                : '边权非负。',
-                            fileName: batchFileName ?? 'dijkstra.cpp',
-                            alternatives: [],
-                            placement: {
-                              existingParentPath: '',
-                              mode: 'create-category-chain',
-                              newDirectories: batchFileName
+                        : legacyBwtClassification
+                          ? {
+                              result: {
+                                category_path: '字符串算法 > BWT > 逆变换',
+                                common_mistakes: '注意哨兵字符与下标范围。',
+                                confidence: '91%',
+                                constraints: '输入包含唯一哨兵字符。',
+                                prerequisites: '掌握后缀排序与 LF-mapping。',
+                                solves: '从 BWT 末列恢复原字符串。',
+                                space_complexity: 'O(n)',
+                                tags: '字符串，BWT，逆变换',
+                                time_complexity: 'O(n log n)',
+                              },
+                            }
+                          : {
+                              categoryPath: batchFileName
                                 ? ['批量导入', '测试算法']
                                 : english
                                   ? ['Graph Theory', 'Shortest Path', 'Dijkstra', 'Heap Optimized']
                                   : ['图论', '最短路', 'Dijkstra', '堆优化'],
-                              reason: batchFileName
-                                ? '为批量导入创建明确分类。'
+                              commonMistakes: batchFileName
+                                ? '注意测试边界条件。'
                                 : english
-                                  ? 'The workspace is empty, so create a specific category chain.'
-                                  : '工作区当前为空，需要新建明确的分类链。',
-                              targetDirectory: batchFileName
-                                ? '批量导入/测试算法'
+                                  ? 'Forgetting to discard stale priority queue entries.'
+                                  : '优先队列弹出后忘记判断过期距离。',
+                              classificationReason: batchFileName
+                                ? '该源码属于批量导入测试算法。'
                                 : english
-                                  ? 'Graph Theory/Shortest Path/Dijkstra/Heap Optimized'
-                                  : '图论/最短路/Dijkstra/堆优化',
+                                  ? 'The implementation belongs with the graph shortest-path taxonomy.'
+                                  : '该实现属于图论最短路分类。',
+                              confidence: 0.96,
+                              constraints: batchFileName
+                                ? '用于本地测试。'
+                                : english
+                                  ? 'Edge weights must be non-negative.'
+                                  : '边权非负。',
+                              fileName: batchFileName ?? 'dijkstra.cpp',
+                              alternatives: [],
+                              placement: {
+                                existingParentPath: '',
+                                mode: 'create-category-chain',
+                                newDirectories: batchFileName
+                                  ? ['批量导入', '测试算法']
+                                  : english
+                                    ? [
+                                        'Graph Theory',
+                                        'Shortest Path',
+                                        'Dijkstra',
+                                        'Heap Optimized',
+                                      ]
+                                    : ['图论', '最短路', 'Dijkstra', '堆优化'],
+                                reason: batchFileName
+                                  ? '为批量导入创建明确分类。'
+                                  : english
+                                    ? 'The workspace is empty, so create a specific category chain.'
+                                    : '工作区当前为空，需要新建明确的分类链。',
+                                targetDirectory: batchFileName
+                                  ? '批量导入/测试算法'
+                                  : english
+                                    ? 'Graph Theory/Shortest Path/Dijkstra/Heap Optimized'
+                                    : '图论/最短路/Dijkstra/堆优化',
+                              },
+                              prerequisites: batchFileName
+                                ? '掌握基础 C++。'
+                                : english
+                                  ? 'Adjacency lists and priority queues.'
+                                  : '邻接表、优先队列。',
+                              solves: batchFileName
+                                ? '验证批量模板导入。'
+                                : english
+                                  ? 'Single-source shortest paths with non-negative weights.'
+                                  : '单源非负权最短路径。',
+                              spaceComplexity: 'O(n + m)',
+                              tags: batchFileName
+                                ? ['批量导入', '测试']
+                                : english
+                                  ? ['Graph Theory', 'Shortest Path', 'Dijkstra']
+                                  : ['图论', '最短路', 'Dijkstra'],
+                              timeComplexity: 'O((n + m) log n)',
                             },
-                            prerequisites: batchFileName
-                              ? '掌握基础 C++。'
-                              : english
-                                ? 'Adjacency lists and priority queues.'
-                                : '邻接表、优先队列。',
-                            solves: batchFileName
-                              ? '验证批量模板导入。'
-                              : english
-                                ? 'Single-source shortest paths with non-negative weights.'
-                                : '单源非负权最短路径。',
-                            spaceComplexity: 'O(n + m)',
-                            tags: batchFileName
-                              ? ['批量导入', '测试']
-                              : english
-                                ? ['Graph Theory', 'Shortest Path', 'Dijkstra']
-                                : ['图论', '最短路', 'Dijkstra'],
-                            timeComplexity: 'O((n + m) log n)',
-                          },
                     ),
                     type: 'text',
                   },
@@ -257,7 +282,9 @@ test.afterAll(async () => {
 test('merges pasted-source AI metadata without overwriting user fields', async () => {
   await setNextSelection(workspaceRoot)
   await page.getByRole('button', { name: '创建工作区' }).click()
+  await expect(page.getByRole('heading', { level: 1, name: '模板库' })).toBeVisible()
   await page.getByRole('button', { name: 'AI 设置' }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'AI 设置' })).toBeVisible()
   await page.getByLabel('Provider 显示名称').fill('模板分类测试')
   await page.getByLabel('Base URL').fill(mockBaseUrl)
   await page.getByLabel('模型名称').fill('fixture-metadata')
@@ -328,7 +355,7 @@ test('merges pasted-source AI metadata without overwriting user fields', async (
   await page.getByRole('button', { name: '立即补全' }).click()
   await page.getByRole('button', { name: '确认发送并生成' }).click()
   await expect(page.getByRole('alert')).toContainText('连续两次未返回可用的模板分类')
-  expect(await readdir(workspaceRoot)).toHaveLength(0)
+  expect(await readdir(join(workspaceRoot, 'templates'))).toHaveLength(0)
   await page.getByRole('button', { name: '立即补全' }).click()
   await expect(page.getByRole('heading', { name: '确认发送给 AI' })).toBeVisible()
   await page.getByRole('button', { name: '确认发送并生成' }).click()
@@ -383,6 +410,7 @@ test('merges pasted-source AI metadata without overwriting user fields', async (
     await readFile(
       join(
         workspaceRoot,
+        'templates',
         'Graph Theory',
         'Shortest Path',
         'Dijkstra',
@@ -522,8 +550,12 @@ test('selects batch sources by default, imports without AI, and resolves every c
   await expect(page.getByRole('button', { name: '确认导入 1 份' })).toBeEnabled()
   await page.getByRole('button', { name: '确认导入 1 份' }).click()
   await expect(page.getByText('已批量导入 1 份 C++ 模板')).toBeVisible()
-  expect(await readFile(join(workspaceRoot, 'manual-one.cpp'), 'utf8')).toBe(originalFirst)
-  await expect(readFile(join(workspaceRoot, 'manual-two.cpp'), 'utf8')).rejects.toThrow()
+  expect(await readFile(join(workspaceRoot, 'templates', 'manual-one.cpp'), 'utf8')).toBe(
+    originalFirst,
+  )
+  await expect(
+    readFile(join(workspaceRoot, 'templates', 'manual-two.cpp'), 'utf8'),
+  ).rejects.toThrow()
 
   await openBatchImportDialog()
   await setNextSelection([firstSource, secondSource])
@@ -534,8 +566,12 @@ test('selects batch sources by default, imports without AI, and resolves every c
   await page.getByRole('button', { name: '不加入' }).click()
   await page.getByRole('button', { name: '确认导入 1 份' }).click()
   await expect(page.getByRole('heading', { name: '批量导入 C++ 模板' })).toHaveCount(0)
-  expect(await readFile(join(workspaceRoot, 'manual-one.cpp'), 'utf8')).toBe(originalFirst)
-  expect(await readFile(join(workspaceRoot, 'manual-two.cpp'), 'utf8')).toBe(originalSecond)
+  expect(await readFile(join(workspaceRoot, 'templates', 'manual-one.cpp'), 'utf8')).toBe(
+    originalFirst,
+  )
+  expect(await readFile(join(workspaceRoot, 'templates', 'manual-two.cpp'), 'utf8')).toBe(
+    originalSecond,
+  )
 
   const overwrittenFirst = 'void manual_one_v2() {}\n'
   await writeFile(firstSource, overwrittenFirst, 'utf8')
@@ -557,8 +593,10 @@ test('selects batch sources by default, imports without AI, and resolves every c
   await page.getByRole('button', { name: '覆盖已有文件' }).click()
   await page.getByRole('button', { name: '确认导入 1 份' }).click()
   await expect(page.getByRole('heading', { name: '批量导入 C++ 模板' })).toHaveCount(0)
-  expect(await readFile(join(workspaceRoot, 'manual-one.cpp'), 'utf8')).toBe(overwrittenFirst)
-  const backupEntries = await readdir(join(userDataDirectory, 'batch-import-backups'), {
+  expect(await readFile(join(workspaceRoot, 'templates', 'manual-one.cpp'), 'utf8')).toBe(
+    overwrittenFirst,
+  )
+  const backupEntries = await readdir(join(workspaceRoot, '.awb', 'batch-import-backups'), {
     recursive: true,
   })
   expect(backupEntries.some(entry => entry.endsWith('manifest.json'))).toBe(true)
@@ -572,7 +610,9 @@ test('selects batch sources by default, imports without AI, and resolves every c
   await page.getByLabel('工作区保存路径 manual-one.cpp').fill('manual-one-copy.cpp')
   await page.getByRole('button', { name: '确认导入 1 份' }).click()
   await expect(page.getByRole('heading', { name: '批量导入 C++ 模板' })).toHaveCount(0)
-  expect(await readFile(join(workspaceRoot, 'manual-one-copy.cpp'), 'utf8')).toBe(overwrittenFirst)
+  expect(await readFile(join(workspaceRoot, 'templates', 'manual-one-copy.cpp'), 'utf8')).toBe(
+    overwrittenFirst,
+  )
   expect(await readFile(firstSource, 'utf8')).toBe(overwrittenFirst)
 })
 
@@ -628,18 +668,185 @@ test('scans a C++ folder, generates all metadata, and atomically imports copies'
   await page.getByRole('button', { name: '确认导入 2 份' }).click()
   await expect(page.getByRole('alert')).toContainText('检测到 2 项路径冲突')
   await expect(
-    readFile(join(workspaceRoot, '批量导入', '测试算法', '批量一.cpp')),
+    readFile(join(workspaceRoot, 'templates', '批量导入', '测试算法', '批量一.cpp')),
   ).rejects.toThrow()
 
   await secondPath.fill('批量导入/测试算法/批量二.cpp')
   await page.getByRole('button', { name: '确认导入 2 份' }).click()
   await expect(page.getByText('已批量导入 2 份 C++ 模板')).toBeVisible()
-  expect(await readFile(join(workspaceRoot, '批量导入', '测试算法', '批量一.cpp'), 'utf8')).toBe(
-    originalOne,
-  )
-  expect(await readFile(join(workspaceRoot, '批量导入', '测试算法', '批量二.cpp'), 'utf8')).toBe(
-    originalTwo,
-  )
+  expect(
+    await readFile(join(workspaceRoot, 'templates', '批量导入', '测试算法', '批量一.cpp'), 'utf8'),
+  ).toBe(originalOne)
+  expect(
+    await readFile(join(workspaceRoot, 'templates', '批量导入', '测试算法', '批量二.cpp'), 'utf8'),
+  ).toBe(originalTwo)
   expect(await readFile(join(batchSourceRoot, 'one.cpp'), 'utf8')).toBe(originalOne)
   expect(await readFile(join(batchSourceRoot, 'nested', 'two.cpp'), 'utf8')).toBe(originalTwo)
+})
+
+test('completes existing template metadata individually and in one guarded batch', async () => {
+  await page.getByRole('button', { name: '模板库', exact: true }).click()
+  const templates = await page.evaluate(() =>
+    window.desktop.templates.listPage({ cursor: null, limit: 500, query: '' }),
+  )
+  const dijkstra = templates.items.find(item => item.fileName === 'dijkstra.cpp')
+  const batchTargets = templates.items.filter(item =>
+    ['manual-one.cpp', 'manual-two.cpp'].includes(item.fileName),
+  )
+  expect(dijkstra).toBeDefined()
+  expect(batchTargets).toHaveLength(2)
+
+  await page.evaluate(async templateId => {
+    const metadata = await window.desktop.templateManagement.getMetadata(templateId)
+    if (!metadata) throw new Error('fixture metadata missing')
+    await window.desktop.templateManagement.updateMetadata({
+      commonMistakes: metadata.commonMistakes,
+      constraints: metadata.constraints,
+      notes: '这是不会发送给 AI 的现有用户笔记。',
+      prerequisites: metadata.prerequisites,
+      solves: '',
+      spaceComplexity: metadata.spaceComplexity,
+      tags: [],
+      templateId,
+      timeComplexity: metadata.timeComplexity,
+    })
+  }, dijkstra!.id)
+  await page.getByPlaceholder('筛选当前工作区').fill('dijkstra.cpp')
+  await page.getByText('dijkstra.cpp').click()
+  await expect(page.getByText('这是不会发送给 AI 的现有用户笔记。')).toBeVisible()
+
+  heldTemplateResponseClosed = false
+  heldTemplateResponseStarted = false
+  holdNextTemplateResponse = true
+  const beforeCancel = await page.evaluate(
+    templateId => window.desktop.templateManagement.getMetadata(templateId),
+    dijkstra!.id,
+  )
+  await page.getByRole('button', { name: 'AI 补全空白字段' }).click()
+  await page.getByRole('button', { name: '预览并补全' }).click()
+  await expect(page.getByRole('heading', { name: '确认发送给 AI' })).toBeVisible()
+  await expect(
+    page.getByText('用户笔记、绝对路径、API Key、题目正文和非当前工作区数据不会发送'),
+  ).toBeVisible()
+  await page.getByRole('button', { name: '确认发送并生成' }).click()
+  await expect.poll(() => heldTemplateResponseStarted).toBe(true)
+  await page.getByRole('button', { name: '取消生成' }).click()
+  await expect.poll(() => heldTemplateResponseClosed).toBe(true)
+  await expect(page.getByText(/AI 请求已取消/)).toBeVisible()
+  const afterCancel = await page.evaluate(
+    templateId => window.desktop.templateManagement.getMetadata(templateId),
+    dijkstra!.id,
+  )
+  expect(afterCancel).toEqual(beforeCancel)
+
+  await page.getByRole('button', { name: '预览并补全' }).click()
+  await page.getByRole('button', { name: '确认发送并生成' }).click()
+  await expect(page.getByText('AI 补全的用途。')).toBeVisible()
+  await page.screenshot({
+    animations: 'disabled',
+    path: resolve('output/playwright/existing-metadata-completion-light-1440x900.png'),
+  })
+  await page.locator('html').evaluate(root => root.classList.add('dark'))
+  await page.screenshot({
+    animations: 'disabled',
+    path: resolve('output/playwright/existing-metadata-completion-dark-1440x900.png'),
+  })
+  await page.locator('html').evaluate(root => root.classList.remove('dark'))
+  await electronApp.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0]?.setSize(1280, 720),
+  )
+  await page.screenshot({
+    animations: 'disabled',
+    path: resolve('output/playwright/existing-metadata-completion-light-1280x720.png'),
+  })
+  await electronApp.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0]?.setSize(1024, 640),
+  )
+  await expect(page.getByRole('dialog', { name: 'AI 补全模板元数据' })).toBeVisible()
+  await page.screenshot({
+    animations: 'disabled',
+    path: resolve('output/playwright/existing-metadata-completion-light-1024x640.png'),
+  })
+  await electronApp.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0]?.setSize(1440, 900),
+  )
+  await page.getByLabel(`${dijkstra!.name} 标签`).uncheck()
+  await page.getByRole('button', { name: '保存 1 个字段' }).click()
+  await expect(page.getByText('AI 补全的用途。')).toBeVisible()
+  const singleMetadata = await page.evaluate(
+    templateId => window.desktop.templateManagement.getMetadata(templateId),
+    dijkstra!.id,
+  )
+  expect(singleMetadata).toMatchObject({
+    notes: '这是不会发送给 AI 的现有用户笔记。',
+    solves: 'AI 补全的用途。',
+    tags: [],
+  })
+
+  await page.evaluate(
+    async targets => {
+      for (const target of targets) {
+        const metadata = await window.desktop.templateManagement.getMetadata(target.id)
+        await window.desktop.templateManagement.updateMetadata({
+          commonMistakes: metadata?.commonMistakes || '已有常见错误',
+          constraints: metadata?.constraints || '已有适用约束',
+          notes: metadata?.notes ?? '',
+          prerequisites: metadata?.prerequisites || '已有前置知识',
+          solves: '',
+          spaceComplexity: metadata?.spaceComplexity || 'O(1)',
+          tags: metadata?.tags.length ? metadata.tags : ['已有标签'],
+          templateId: target.id,
+          timeComplexity: metadata?.timeComplexity || 'O(1)',
+        })
+      }
+    },
+    batchTargets.map(item => ({ id: item.id })),
+  )
+  await page.getByRole('button', { name: '批量补全元数据' }).click()
+  for (const target of batchTargets) {
+    await page.getByLabel(`选择模板 ${target.name}`, { exact: true }).check()
+  }
+  await page.getByRole('button', { name: '预览并补全' }).click()
+  await page.getByRole('button', { name: '确认发送并生成' }).click()
+  await expect(page.getByRole('button', { name: '保存 2 个字段' })).toBeVisible()
+
+  await page.evaluate(async templateId => {
+    const metadata = await window.desktop.templateManagement.getMetadata(templateId)
+    if (!metadata) throw new Error('fixture metadata missing')
+    await window.desktop.templateManagement.updateMetadata({
+      commonMistakes: metadata.commonMistakes,
+      constraints: metadata.constraints,
+      notes: `${metadata.notes}外部变更`,
+      prerequisites: metadata.prerequisites,
+      solves: metadata.solves,
+      spaceComplexity: metadata.spaceComplexity,
+      tags: metadata.tags,
+      templateId,
+      timeComplexity: metadata.timeComplexity,
+    })
+  }, batchTargets[0]!.id)
+  await page.getByRole('button', { name: '保存 2 个字段' }).click()
+  await expect(page.getByText(/模板元数据已变化/)).toBeVisible()
+  const conflictedMetadata = await page.evaluate(
+    templateId => window.desktop.templateManagement.getMetadata(templateId),
+    batchTargets[1]!.id,
+  )
+  expect(conflictedMetadata?.solves).toBe('')
+
+  await page.getByRole('button', { name: '取消', exact: true }).click()
+  await page.getByRole('button', { name: '批量补全元数据' }).click()
+  for (const target of batchTargets) {
+    await page.getByLabel(`选择模板 ${target.name}`, { exact: true }).check()
+  }
+  await page.getByRole('button', { name: '预览并补全' }).click()
+  await page.getByRole('button', { name: '确认发送并生成' }).click()
+  await page.getByRole('button', { name: '保存 2 个字段' }).click()
+  await expect(page.getByRole('dialog', { name: 'AI 补全模板元数据' })).toHaveCount(0)
+  for (const target of batchTargets) {
+    const metadata = await page.evaluate(
+      templateId => window.desktop.templateManagement.getMetadata(templateId),
+      target.id,
+    )
+    expect(metadata?.solves).toBe('AI 补全的用途。')
+  }
 })

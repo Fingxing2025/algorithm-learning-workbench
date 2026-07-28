@@ -10,6 +10,7 @@ import type { TemplateManagementRepository } from '../database/template-manageme
 import type { WorkspaceRepository } from '../database/workspace-repository'
 import { PublicError } from '../errors/public-error'
 import { resolveAuthorizedFile } from '../security/path-guard'
+import { decodeTemplateSourceBuffer } from './template-source-codec'
 
 const MAX_ESTIMATED_INPUT_TOKENS = 96_000
 const MAX_WORKSPACE_CONTEXT_CHARS = 240_000
@@ -344,15 +345,13 @@ async function readRelatedDetails(
     if (includeSourceSnippets && sourceCharacters < MAX_RELATED_SOURCE_CHARS) {
       try {
         const file = await resolveAuthorizedFile(rootPath, template.path)
-        const source = await readFile(file.absolutePath, 'utf8')
-        if (!source.includes('\0')) {
-          const remaining = MAX_RELATED_SOURCE_CHARS - sourceCharacters
-          sourceSnippet = source.slice(
-            0,
-            Math.max(0, Math.min(MAX_RELATED_SOURCE_PER_TEMPLATE_CHARS, remaining)),
-          )
-          sourceCharacters += sourceSnippet.length
-        }
+        const source = decodeTemplateSourceBuffer(await readFile(file.absolutePath)).content
+        const remaining = MAX_RELATED_SOURCE_CHARS - sourceCharacters
+        sourceSnippet = source.slice(
+          0,
+          Math.max(0, Math.min(MAX_RELATED_SOURCE_PER_TEMPLATE_CHARS, remaining)),
+        )
+        sourceCharacters += sourceSnippet.length
       } catch {
         // The complete catalog remains available; source snippets are optional detail only.
       }
@@ -468,8 +467,13 @@ export class WorkspaceAiContextService {
     return { version: this.loadTemplateRecords(workspace).version, workspaceId: workspace.id }
   }
 
+  getCurrentWorkspaceId(): string | null {
+    return this.workspaceRepository.getActiveWorkspace()?.id ?? null
+  }
+
   async build(args: {
     includeRelatedSourceSnippets?: boolean
+    maxEstimatedInputTokens?: number
     outputLanguage: AiOutputLanguage
     providerId: string
     model: string
@@ -574,10 +578,14 @@ export class WorkspaceAiContextService {
         supplementalMetadataOmitted: true,
       },
     ]
+    const maxEstimatedInputTokens = Math.min(
+      MAX_ESTIMATED_INPUT_TOKENS,
+      Math.max(1, args.maxEstimatedInputTokens ?? MAX_ESTIMATED_INPUT_TOKENS),
+    )
     const reservedInputTokens = Math.max(0, args.reservedInputTokens ?? 0)
     const contextCharacterBudget = Math.min(
       MAX_WORKSPACE_CONTEXT_CHARS,
-      Math.max(0, (MAX_ESTIMATED_INPUT_TOKENS - reservedInputTokens) * 4),
+      Math.max(0, (maxEstimatedInputTokens - reservedInputTokens) * 4),
     )
 
     for (const attempt of serializationAttempts) {
@@ -659,7 +667,7 @@ export class WorkspaceAiContextService {
 
     throw new PublicError(
       'AI_CONTEXT_TOO_LARGE',
-      `当前输入无法在安全预算内同时保留 ${templates.length} 个模板的完整目录、ID 和名称。请缩短当前源码或题面、减少图片，或拆分工作区后重试；本版本不会退回局部候选。`,
+      `当前输入无法在单次 ${maxEstimatedInputTokens.toLocaleString()} Token 安全预算内同时保留 ${templates.length} 个模板的完整目录、ID 和名称。请缩短当前源码或题面、减少图片，或拆分工作区后重试；本版本不会退回局部候选。`,
     )
   }
 }

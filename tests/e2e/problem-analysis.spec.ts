@@ -56,6 +56,10 @@ async function setNextFileSelection(path: string) {
       canceled: false,
       filePaths: [selectedPath],
     })) as typeof dialog.showOpenDialog
+    dialog.showMessageBox = (async () => ({
+      checkboxChecked: false,
+      response: 1,
+    })) as typeof dialog.showMessageBox
   }, path)
 }
 
@@ -277,7 +281,7 @@ test('uses one new-problem entry and supports side-effect-free close plus manual
   )
   await page.getByRole('button', { name: '关闭新建题目' }).click()
   await expect(page.getByText('还没有题目卡片')).toBeVisible()
-  await expect(readdir(join(userDataDirectory, 'problem-images'))).rejects.toThrow()
+  await expect(readdir(join(workspaceRoot, 'problem-assets', 'images'))).resolves.toEqual([])
 
   await page.getByRole('button', { name: '新建题目' }).click()
   await page.getByLabel('题目标题').fill('手动多模板题')
@@ -512,7 +516,9 @@ test('keeps multi-direction AI candidates editable, rejects forged and duplicate
   await expect(page.getByText('3 个已确认关联')).toBeVisible()
   await expect(page.getByText('人工复核后只保存三个关系。')).toBeVisible()
   await expect(page.getByRole('img', { name: 'problem.png' })).toBeVisible()
-  const storedImages = await readdir(join(userDataDirectory, 'problem-images'), { recursive: true })
+  const storedImages = await readdir(join(workspaceRoot, 'problem-assets', 'images'), {
+    recursive: true,
+  })
   expect(storedImages.filter(path => path.endsWith('.png'))).toHaveLength(1)
 })
 
@@ -534,7 +540,7 @@ test('persists multiple confirmed relations after a desktop restart', async () =
   await expect(page.getByRole('heading', { level: 2, name: '修改后的跨方向题' })).toBeVisible()
   await expect(page.getByText('3 个已确认关联')).toBeVisible()
   await expect(page.getByText('人工复核后只保存三个关系。')).toBeVisible()
-  expect(await readFile(join(workspaceRoot, '图论', 'dijkstra.cpp'), 'utf8')).toBe(
+  expect(await readFile(join(workspaceRoot, 'templates', '图论', 'dijkstra.cpp'), 'utf8')).toBe(
     'void dijkstra() {}\n',
   )
 })

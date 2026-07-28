@@ -13,6 +13,7 @@ import {
 let electronApp: ElectronApplication
 let page: Page
 let temporaryRoot: string
+let templateRoot: string
 let userDataDirectory: string
 let workspaceRoot: string
 
@@ -43,6 +44,10 @@ async function setNextDirectorySelection(directoryPath: string) {
       canceled: false,
       filePaths: [selectedDirectory],
     })) as typeof dialog.showOpenDialog
+    dialog.showMessageBox = (async () => ({
+      checkboxChecked: false,
+      response: 1,
+    })) as typeof dialog.showMessageBox
   }, directoryPath)
 }
 
@@ -83,6 +88,7 @@ test.beforeAll(async () => {
   temporaryRoot = await mkdtemp(join(tmpdir(), 'template-relocation-e2e-'))
   userDataDirectory = join(temporaryRoot, 'user-data')
   workspaceRoot = join(temporaryRoot, 'workspace')
+  templateRoot = join(workspaceRoot, 'templates')
   await mkdir(userDataDirectory)
   await mkdir(join(workspaceRoot, '算法'), { recursive: true })
   await writeFile(join(workspaceRoot, '算法', 'a.cpp'), 'void stableTemplate() {}\n', 'utf8')
@@ -98,8 +104,10 @@ test.afterAll(async () => {
 test('renames and moves a real template with a stable ID, then deletes history without undoing it', async () => {
   await setNextDirectorySelection(workspaceRoot)
   await page.getByRole('button', { name: '选择目录' }).click()
+  await expect(page.getByRole('heading', { level: 1, name: '模板库' })).toBeVisible()
 
   await page.getByRole('button', { name: '题目', exact: true }).click()
+  await expect(page.getByRole('heading', { level: 1, name: '题目卡片' })).toBeVisible()
   await page.getByRole('button', { name: '新建题目' }).click()
   await page.getByLabel('题目标题').fill('模板移动关系验证')
   await page.getByRole('button', { name: '创建题目' }).click()
@@ -125,10 +133,10 @@ test('renames and moves a real template with a stable ID, then deletes history w
   await page.getByRole('button', { name: '确认重命名或移动' }).click()
   await expect(page.getByRole('heading', { name: '重命名或移动模板' })).toHaveCount(0)
 
-  expect(await readFile(join(workspaceRoot, '算法', '最短路', 'renamed.cpp'), 'utf8')).toBe(
+  expect(await readFile(join(templateRoot, '算法', '最短路', 'renamed.cpp'), 'utf8')).toBe(
     'void stableTemplate() {}\n',
   )
-  await expect(readFile(join(workspaceRoot, '算法', 'a.cpp'), 'utf8')).rejects.toThrow()
+  await expect(readFile(join(templateRoot, '算法', 'a.cpp'), 'utf8')).rejects.toThrow()
   const moved = await currentTemplate('算法/最短路/renamed.cpp')
   expect(moved?.id).toBe(original?.id)
 
@@ -138,7 +146,7 @@ test('renames and moves a real template with a stable ID, then deletes history w
   await expect(page.getByText('本地手动操作')).toBeVisible()
   const [executionId] = await fileExecutionIds()
   expect(executionId).toBeTruthy()
-  const backupPath = join(userDataDirectory, 'file-plan-backups', executionId!)
+  const backupPath = join(workspaceRoot, '.awb', 'file-plan-backups', executionId!)
   expect((await readdir(backupPath)).length).toBeGreaterThan(0)
   await page.getByRole('button', { name: '删除计划记录 本地手动操作' }).click()
   await expect(page.getByText(/将永久删除 1 份计划/)).toBeVisible()
@@ -149,10 +157,10 @@ test('renames and moves a real template with a stable ID, then deletes history w
   await expect(page.getByRole('button', { name: '从备份撤销' })).toHaveCount(0)
   await expect(readdir(backupPath)).rejects.toThrow()
 
-  expect(await readFile(join(workspaceRoot, '算法', '最短路', 'renamed.cpp'), 'utf8')).toBe(
+  expect(await readFile(join(templateRoot, '算法', '最短路', 'renamed.cpp'), 'utf8')).toBe(
     'void stableTemplate() {}\n',
   )
-  await expect(readFile(join(workspaceRoot, '算法', 'a.cpp'), 'utf8')).rejects.toThrow()
+  await expect(readFile(join(templateRoot, '算法', 'a.cpp'), 'utf8')).rejects.toThrow()
   const stillMoved = await currentTemplate('算法/最短路/renamed.cpp')
   expect(stillMoved?.id).toBe(original?.id)
   await page.getByRole('button', { name: '题目', exact: true }).click()
@@ -181,7 +189,7 @@ test('rolls history cleanup and the stable file index back when mutation steps f
   expect(executionIds).toHaveLength(2)
   for (const executionId of executionIds) {
     expect(
-      (await readdir(join(userDataDirectory, 'file-plan-backups', executionId))).length,
+      (await readdir(join(workspaceRoot, '.awb', 'file-plan-backups', executionId))).length,
     ).toBeGreaterThan(0)
   }
   await page.getByRole('button', { name: '一键删除计划记录' }).click()
@@ -190,7 +198,7 @@ test('rolls history cleanup and the stable file index back when mutation steps f
   await expect(page.getByText('本地手动操作')).toHaveCount(2)
   for (const executionId of executionIds) {
     expect(
-      (await readdir(join(userDataDirectory, 'file-plan-backups', executionId))).length,
+      (await readdir(join(workspaceRoot, '.awb', 'file-plan-backups', executionId))).length,
     ).toBeGreaterThan(0)
   }
 
@@ -202,7 +210,7 @@ test('rolls history cleanup and the stable file index back when mutation steps f
   await expect(page.getByText('本地手动操作')).toHaveCount(0)
   for (const executionId of executionIds) {
     await expect(
-      readdir(join(userDataDirectory, 'file-plan-backups', executionId)),
+      readdir(join(workspaceRoot, '.awb', 'file-plan-backups', executionId)),
     ).rejects.toThrow()
   }
 
@@ -218,10 +226,10 @@ test('rolls history cleanup and the stable file index back when mutation steps f
   await page.getByRole('button', { name: '确认重命名或移动' }).click()
   await expect(page.getByRole('alert')).toContainText('文件计划执行失败')
 
-  expect(await readFile(join(workspaceRoot, '阶段二', 'failure.cpp'), 'utf8')).toBe(
+  expect(await readFile(join(templateRoot, '阶段二', 'failure.cpp'), 'utf8')).toBe(
     'void rollbackTemplate() {}\n',
   )
-  await expect(readFile(join(workspaceRoot, '故障', 'failure.cpp'), 'utf8')).rejects.toThrow()
+  await expect(readFile(join(templateRoot, '故障', 'failure.cpp'), 'utf8')).rejects.toThrow()
   const afterFailure = await currentTemplate('阶段二/failure.cpp')
   expect(afterFailure?.id).toBe(original?.id)
 })

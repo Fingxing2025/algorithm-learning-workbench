@@ -3,7 +3,7 @@ import { realpathSync } from 'node:fs'
 import { isAbsolute, relative, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
 
-import { createAppDatabase, type AppDatabase } from './database/database'
+import { createAppDatabase, type AppDatabase, WorkspaceDatabaseManager } from './database/database'
 import { AiProviderRepository } from './database/ai-provider-repository'
 import { ProblemRepository } from './database/problem-repository'
 import { WorkspaceRepository } from './database/workspace-repository'
@@ -28,9 +28,12 @@ import { WorkspaceAiContextService } from './services/workspace-ai-context-servi
 import { DataManagementService } from './services/data-management-service'
 import { createMainWindow } from './window/create-main-window'
 import { BackgroundTaskRegistry } from './services/background-task-registry'
+import { WorkspaceStorageManager } from './services/workspace-storage'
+import { WorkspaceRuntimeManager } from './services/workspace-runtime-manager'
 
 let mainWindow: BrowserWindow | null = null
 let appDatabase: AppDatabase | null = null
+let workspaceDatabaseManager: WorkspaceDatabaseManager | null = null
 let aiTaskRunRegistry: AiTaskRunRegistry | null = null
 let backgroundTaskRegistry: BackgroundTaskRegistry | null = null
 let shutdownStarted = false
@@ -56,21 +59,36 @@ async function bootstrap(): Promise<void> {
 
   installApplicationSecurityGuards()
   appDatabase = createAppDatabase(app.getPath('userData'))
-  const templateManagementRepository = new TemplateManagementRepository(appDatabase)
-  const workspaceRepository = new WorkspaceRepository(appDatabase)
-  const problemRepository = new ProblemRepository(appDatabase)
+  workspaceDatabaseManager = new WorkspaceDatabaseManager()
+  const workspaceDatabase = workspaceDatabaseManager.database
+  const templateManagementRepository = new TemplateManagementRepository(workspaceDatabase)
+  const workspaceRepository = new WorkspaceRepository(workspaceDatabase, appDatabase)
+  const problemRepository = new ProblemRepository(workspaceDatabase)
+  const workspaceStorage = new WorkspaceStorageManager()
+  const workspaceRuntime = new WorkspaceRuntimeManager(
+    workspaceDatabaseManager,
+    workspaceRepository,
+    workspaceStorage,
+  )
   const workspaceService = new WorkspaceService(
     workspaceRepository,
     templateManagementRepository,
     app.getPath('userData'),
+    workspaceRuntime,
   )
+  await workspaceService.initializeActiveWorkspace()
   const aiProviderService = new AiProviderService(
     new AiProviderRepository(appDatabase),
     new SecretStore(app.getPath('userData')),
   )
   aiTaskRunRegistry = new AiTaskRunRegistry()
   backgroundTaskRegistry = new BackgroundTaskRegistry()
-  const problemService = new ProblemService(problemRepository, app.getPath('userData'))
+  const problemService = new ProblemService(
+    problemRepository,
+    app.getPath('userData'),
+    workspaceRepository,
+    workspaceStorage,
+  )
   const workspaceAiContextService = new WorkspaceAiContextService(
     workspaceRepository,
     templateManagementRepository,
@@ -82,8 +100,14 @@ async function bootstrap(): Promise<void> {
     app.getPath('userData'),
     workspaceAiContextService,
     aiTaskRunRegistry,
+    workspaceStorage,
   )
-  const dataManagementService = new DataManagementService(appDatabase, app.getPath('userData'))
+  const dataManagementService = new DataManagementService(
+    workspaceDatabase,
+    app.getPath('userData'),
+    workspaceRepository,
+    workspaceStorage,
+  )
   const templateManagementService = new TemplateManagementService(
     aiProviderService,
     templateManagementRepository,
@@ -93,14 +117,29 @@ async function bootstrap(): Promise<void> {
     workspaceAiContextService,
     aiTaskRunRegistry,
     dataManagementService.getLifecycleService(),
+    dataManagementService.getFileExecutionIntegrityService(),
+    workspaceStorage,
   )
   registerAppIpc()
   registerBackgroundTaskIpc(backgroundTaskRegistry)
   registerAiProviderIpc(aiProviderService)
-  registerDataManagementIpc(dataManagementService, () => mainWindow ?? undefined)
+  registerDataManagementIpc(
+    dataManagementService,
+    backgroundTaskRegistry,
+    () => mainWindow ?? undefined,
+  )
   registerProblemIpc(problemService, () => mainWindow ?? undefined)
   registerProblemAnalysisIpc(problemAnalysisService, () => mainWindow ?? undefined)
-  registerWorkspaceIpc(workspaceService, backgroundTaskRegistry, () => mainWindow ?? undefined)
+  registerWorkspaceIpc(
+    workspaceService,
+    backgroundTaskRegistry,
+    () => mainWindow ?? undefined,
+    async () => {
+      const aiCancellation = aiTaskRunRegistry?.cancelAll() ?? Promise.resolve()
+      const backgroundCancellation = backgroundTaskRegistry?.cancelAll() ?? Promise.resolve()
+      await Promise.allSettled([aiCancellation, backgroundCancellation])
+    },
+  )
   registerTemplateManagementIpc(
     templateManagementService,
     backgroundTaskRegistry,
@@ -130,11 +169,13 @@ app.on('before-quit', event => {
   event.preventDefault()
   if (shutdownStarted) return
   shutdownStarted = true
-  aiTaskRunRegistry?.cancelAll()
+  const aiShutdown = aiTaskRunRegistry?.cancelAll() ?? Promise.resolve()
   aiTaskRunRegistry = null
   const backgroundShutdown = backgroundTaskRegistry?.cancelAll() ?? Promise.resolve()
-  void backgroundShutdown.finally(() => {
+  void Promise.allSettled([aiShutdown, backgroundShutdown]).finally(() => {
     backgroundTaskRegistry = null
+    workspaceDatabaseManager?.close()
+    workspaceDatabaseManager = null
     appDatabase?.close()
     appDatabase = null
     shutdownComplete = true

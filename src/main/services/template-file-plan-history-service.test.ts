@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import type {
   FileExecutionDeletionRecord,
+  FileExecutionIntegrityRecord,
   FilePlanDeletionRecord,
 } from '../database/template-management-repository'
 import { TemplateFilePlanHistoryService } from './template-file-plan-history-service'
@@ -13,6 +14,18 @@ const planId = '30000000-0000-4000-8000-000000000001'
 
 function createService(options?: {
   executionRecords?: FileExecutionDeletionRecord[]
+  invalidAssessments?: Array<{
+    item: {
+      createdAt: string
+      deletable: boolean
+      id: string
+      operationCount: number | null
+      reason: 'backup-missing'
+      workspaceId: string
+      workspaceName: string
+    }
+    record: FileExecutionIntegrityRecord
+  }> | null
   planRecords?: FilePlanDeletionRecord[]
 }) {
   const executionRecords = options?.executionRecords ?? [
@@ -24,6 +37,33 @@ function createService(options?: {
     },
   ]
   const planRecords = options?.planRecords ?? []
+  const integrityRecord: FileExecutionIntegrityRecord = {
+    backupDirectory: `file-plan-backups/${executionId}`,
+    createdAt: '2026-07-22T09:00:00.000Z',
+    id: executionId,
+    operationsJson: '[{"kind":"move"}]',
+    planId,
+    status: 'applied',
+    workspaceId,
+    workspaceName: '测试工作区',
+  }
+  const invalidAssessments =
+    options && 'invalidAssessments' in options
+      ? options.invalidAssessments
+      : [
+          {
+            item: {
+              createdAt: integrityRecord.createdAt,
+              deletable: true,
+              id: executionId,
+              operationCount: 1,
+              reason: 'backup-missing' as const,
+              workspaceId,
+              workspaceName: '测试工作区',
+            },
+            record: integrityRecord,
+          },
+        ]
   const metadataRepository = {
     deleteFileExecutions: vi.fn().mockReturnValue({
       deletedAt: '2026-07-22T10:00:00.000Z',
@@ -34,6 +74,10 @@ function createService(options?: {
       deletedAt: '2026-07-22T10:00:00.000Z',
       deletedExecutionCount: planRecords.flatMap(plan => plan.executions).length,
       deletedPlanCount: planRecords.length,
+    }),
+    deleteInvalidFileExecutions: vi.fn().mockReturnValue({
+      deletedAt: '2026-07-22T10:00:00.000Z',
+      deletedExecutionCount: 1,
     }),
     inspectFileExecutionsForDeletion: vi.fn().mockReturnValue(executionRecords),
     inspectFilePlansForDeletion: vi.fn().mockReturnValue(planRecords),
@@ -51,14 +95,20 @@ function createService(options?: {
     })),
   }
   const workspaceRepository = { getActiveWorkspace: () => ({ id: workspaceId }) }
+  const integrity = {
+    findInvalidFileExecutions: vi.fn().mockResolvedValue(invalidAssessments ?? []),
+    inspectInvalidFileExecutions: vi.fn().mockResolvedValue(invalidAssessments),
+    listInvalidFileExecutionsPage: vi.fn(),
+  }
   const service = new TemplateFilePlanHistoryService(
     metadataRepository as never,
     workspaceRepository as never,
     {} as never,
     {} as never,
     lifecycle as never,
+    integrity as never,
   )
-  return { lifecycle, metadataRepository, service }
+  return { integrity, lifecycle, metadataRepository, service }
 }
 
 describe('TemplateFilePlanHistoryService permanent deletion previews', () => {
@@ -94,16 +144,14 @@ describe('TemplateFilePlanHistoryService permanent deletion previews', () => {
     )
   })
 
-  it('reports mutually exclusive applied, cancelled, rolled-back, and archived plan impacts', async () => {
+  it('reports mutually exclusive applied, cancelled, and rolled-back plan impacts', async () => {
     const records: FilePlanDeletionRecord[] = [
       {
-        archivedAt: null,
         executions: [],
         id: planId,
         status: 'cancelled',
       },
       {
-        archivedAt: '2026-07-18T10:00:00.000Z',
         executions: [
           {
             backupDirectory: `file-plan-backups/${rolledBackExecutionId}`,
@@ -116,7 +164,6 @@ describe('TemplateFilePlanHistoryService permanent deletion previews', () => {
         status: 'applied',
       },
       {
-        archivedAt: null,
         executions: [
           {
             backupDirectory: `file-plan-backups/${executionId}`,
@@ -134,7 +181,6 @@ describe('TemplateFilePlanHistoryService permanent deletion previews', () => {
 
     expect(preview).toMatchObject({
       appliedPlanCount: 1,
-      archivedPlanCount: 1,
       cancelledPlanCount: 1,
       executionCount: 2,
       planCount: 3,
@@ -159,5 +205,45 @@ describe('TemplateFilePlanHistoryService permanent deletion previews', () => {
     await expect(
       service.deleteFileExecutions({ confirmed: true, previewId: preview.previewId }),
     ).rejects.toThrow('预览不存在')
+  })
+
+  it('deletes only current-workspace missing-backup records after a one-time preview', async () => {
+    const { integrity, lifecycle, metadataRepository, service } = createService()
+
+    const preview = await service.previewDeleteInvalidFileExecutions({
+      executionIds: [executionId],
+    })
+    const result = await service.deleteInvalidFileExecutions({
+      confirmed: true,
+      previewId: preview.previewId,
+    })
+
+    expect(preview).toMatchObject({
+      executionCount: 1,
+      items: [expect.objectContaining({ id: executionId, reason: 'backup-missing' })],
+      workspaceCount: 1,
+    })
+    expect(result).toMatchObject({ deletedExecutionCount: 1, recordIds: [executionId] })
+    expect(integrity.inspectInvalidFileExecutions).toHaveBeenCalledTimes(2)
+    expect(metadataRepository.deleteInvalidFileExecutions).toHaveBeenCalledWith(workspaceId, [
+      expect.objectContaining({ id: executionId, workspaceId }),
+    ])
+    expect(lifecycle.executeManagedHistoryDeletion).not.toHaveBeenCalled()
+    await expect(
+      service.deleteInvalidFileExecutions({ confirmed: true, previewId: preview.previewId }),
+    ).rejects.toThrow('预览不存在')
+  })
+
+  it('rejects the whole cleanup when the backup reappears after preview', async () => {
+    const { integrity, metadataRepository, service } = createService()
+    const preview = await service.previewDeleteInvalidFileExecutions({
+      executionIds: [executionId],
+    })
+    integrity.inspectInvalidFileExecutions.mockResolvedValueOnce(null)
+
+    await expect(
+      service.deleteInvalidFileExecutions({ confirmed: true, previewId: preview.previewId }),
+    ).rejects.toThrow('撤销备份在确认前发生变化')
+    expect(metadataRepository.deleteInvalidFileExecutions).not.toHaveBeenCalled()
   })
 })

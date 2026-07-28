@@ -1,6 +1,6 @@
 # 项目状态、审计与多 Session 交接
 
-- 更新日期：2026-07-23
+- 更新日期：2026-07-28
 - 完整 AI 模板目录 Session 原始起点：`89dbde315457e95be0ec8198c7830c3c69b10288`
 - 并发 Windows 发布工作结束后的实际提交基座：`95a7795a8aac249714f4f6a3ddecd4e3066cdf87`
 - 完整 AI 模板目录 ADR 提交：`ac69d14 docs: decide complete ai template catalog`
@@ -31,13 +31,34 @@
 - Session F 收尾提交：`39421c0 docs: close session f development`
 - unsigned beta 候选来源提交：`39421c0329c463657cb43c4e552949e48bee93c9`（与收尾提交相同）
 - 源码版本：`0.1.2` 开发快照
-- 产品阶段：0.1.2 功能闭环、Session A/B、九项 Bugfix、Session C 发布候选工程、Session D UX/可访问性、Session E 大型工作区性能与 Session F 代码健康收尾均完成；随后针对明确产品需求完成新建模板、题目分析和总体文件管理三个 AI 入口的完整模板目录、可信预览与预算改进。历史 unsigned beta 仍来自 `39421c0`，本 Session 没有重新打包或推送
+- 产品阶段：0.1.2 核心功能、AI 完整目录、自包含工作区、当前工作区原地深拷贝恢复、跨平台可移植备份 v2 与中文源码读取的代码闭环已完成；当前工作树从 `e1f9ef1` 继续开发且未提交、未推送。已重新生成当前源码的 macOS arm64 测试 `.app`，并从隔离快照 `26dd07d` 生成原生 Windows x64 未签名 NSIS Preview；两者都不是正式签名发布候选，真实 Windows 双向往返尚未完成
 
 ## 0. 新阶段入口
 
 本阶段基于 0.1.2 功能冻结基线完成发布可信度收尾。后续不再横向增加 AI 页面、临时补丁或维护性拆分；只有真实 Bug、用户反馈或发布门禁触发时才重新开启工程任务。
 
-当前状态：**Session A：数据可靠性与恢复、Session B：AI 稳定性与兼容矩阵、九项 Bugfix Session、Session C：可审计发布候选工程、Session D：UX/可访问性、Session E：大型工作区性能与 Session F 代码健康收尾均已完成。Session F 的十个行为保持切片仍然冻结；2026-07-23 的重新开发由明确的 AI 完整目录产品需求触发，先覆盖新建模板与题目分析，再独立升级总体文件 AI 管理，没有开启第十一拆分切片。Windows 发布 Session 的提交保持不变，本阶段未修改 release 文件、未重新打包、未推送。**
+当前状态：**Session A：数据可靠性与恢复、Session B：AI 稳定性与兼容矩阵、九项 Bugfix Session、Session C：可审计发布候选工程、Session D：UX/可访问性、Session E：大型工作区性能与 Session F 代码健康收尾均已完成。Session F 的十个行为保持切片仍然冻结；2026-07-23 的重新开发由明确的 AI 完整目录产品需求触发，先覆盖新建模板与题目分析，再独立升级总体文件 AI 管理，没有开启第十一拆分切片。Windows 发布 Session 的提交保持不变；本次仅从当前工作树更新被 Git 忽略的 macOS arm64 测试 `.app`，没有生成正式候选、没有正式签名/公证，也没有推送。**
+
+### 当前工作区数据边界（2026-07-24）
+
+- ADR-0026 现为统一标准：活动工作区是模板、题目、关联、首页/搜索、总体文件 AI、计划/执行历史、失效记录、数据状态和备份恢复的唯一业务边界；切换工作区只切换可见域，不删除其他工作区数据。
+- migration `0007_problem_workspace_scope.sql` 为既有题目归属到升级时的活动工作区并建立必填保护；Main 对题目 CRUD、图片、AI 确认和模板关联再次校验当前工作区，数据库触发器阻止新建跨工作区关系。
+- Renderer 切换工作区或恢复后会清空旧题目/模板选择和旧题目搜索条件，再从 Main 重载当前工作区，避免旧内存快照泄漏到新工作区。
+- 数据状态和失效执行记录只统计当前工作区。ADR-0025 的一次性预览、确认复检、单事务只删执行行、父计划/当前文件/有效备份保护继续有效，但“跨全部工作区查询”已被取代。
+- `.awb-backup v2` 只导出当前工作区。SQLite 快照删除其他工作区和 Provider/路由后执行 `VACUUM`，文件清单固定深拷贝当前模板源码、题目图片和受管撤销备份；恢复目标始终是执行时的当前工作区，来源身份只作溯源。Main 在临时包副本中重映射内部 ID 与目录引用，其他工作区和 Provider 保持不变。多工作区或 manifest/SQLite 工作区不一致的包在校验阶段拒绝。
+- 最终源码门禁：`npm run check` 通过 TypeScript、ESLint 0 warnings、Prettier、49 个 Vitest 文件/375 项和 8 项发布脚本测试；单次完整真实 Electron E2E 为 57 项常规用例全部通过、2 项 packaged 条件跳过。定向证据包括单工作区数据边界 1/1、备份恢复 5/5、数据诊断计数 1/1、总体文件管理 5/5、模板入库 8/8、模板移动 2/2、首页本地化 1/1、Provider 4/4 和题目 AI 7/7。
+- 已人工复核当前工作区备份 1440×900 亮色、1280×720 深色、恢复对比 1440×900 和失效记录 1024×640 截图：主操作、内部滚动和焦点可达，无横向溢出；界面明确说明恢复只替换当前工作区。
+- 已从当前工作树重新生成 `release/mac-arm64/算法学习工作台.app`，全新 userData 与已有 V2 userData packaged smoke 2/2 通过。主程序和 `better_sqlite3.node` 均为 arm64，版本 0.1.2；`app.asar` SHA-256 为 `3d5f546c25e23d96a9be6c58a693a7c444f9eeceeb4a59b6f3ed007f4a1ee32a`。ASAR 10,798 个条目未发现禁止数据、个人绝对路径或疑似密钥。该 App 仅为 ad-hoc/linker-signed、无 TeamIdentifier、未公证的 macOS 测试包。
+- Windows 原生 runner 已从隔离私有快照 `26dd07dcf486663c5c917608a26cefdea3a53df1` 生成 `release/downloaded/Windows测试包-0.1.2-self-contained-26dd07d/算法学习工作台-0.1.2-win-x64.exe`。应用主程序和 native module 均为 x64，版本 0.1.2；全新/已有 V2 userData packaged smoke 2/2、运行时依赖 0 漏洞和隐私扫描通过。安装器为 115,905,616 bytes，SHA-256 `1ea82f1e32a1fc9b8b583edc54fe68acce0d2e01cf8e8dfff09905e0409d9190`，未签名；真实 Windows 安装与 Mac→Windows→Mac 恢复仍待用户实机验收。
+
+### 自包含工作区与原地恢复（2026-07-27）
+
+- 新建工作区是一个可直接携带的文件夹：根部保存 `workspace.awb.json` 与 `templates/`，题目图片在 `problem-assets/images/`，SQLite、撤销备份、恢复预备份、journal 和 cache 在 `.awb/`。标记和业务数据库不保存当前机器的绝对模板路径。
+- ADR-0031 规定唯一当前布局：marker 为 `formatVersion: 2` 且模板根固定为 `templates/`。普通模板文件夹确认升级后，Main 暂存完整内容、迁入 `templates/`、验证原始字节指纹，再发布 `.awb/workspace.sqlite` 和 marker；不读取旧全局业务表。
+- 全局数据库只保留 Provider、任务路由、工作区登记和活动路径。模板、题目、关系、图片、文件计划、执行记录、撤销备份与数据状态全部由当前工作区拥有；切换前会取消并等待 AI/后台任务，再关闭旧工作区数据库。
+- 正确 v2 备份可在任意当前工作区原地深拷贝恢复。来源工作区身份不决定目标，不选择父目录、不创建新工作区；当前目标的文件夹路径、名称和 UUID 保持不变，受管模板树、工作区 SQLite、题目图片和撤销备份被恢复内容替换。
+- 恢复前预备份包含模板源码；journal 覆盖 SQLite 提交前后中断，并通过新旧模板相对路径与 SHA-256 判断应恢复旧状态还是完成新状态。真实 Electron 已验证 A→B 后切到其他工作区再切回及重启均持久，修改 B 不影响 A。
+- 全新安装可直接创建上述空白自包含工作区；普通模板文件夹可经确认升级为同一当前格式，旧 marker 不兼容。跨平台容器继续使用 UTF-8/EFS、NFC 和逐文件 SHA-256，GBK/GB18030 源码保持原始字节；但 Windows 原生 runner 与真实 Mac→Windows→Mac 往返仍是外部门禁。
 
 Session D 的布局、键盘、焦点、状态播报、截图结论和可直接复制的下一 Session 提示词见 `docs/SESSION_D_SUMMARY_AND_NEXT_PROMPT.md`；Session C 候选证据仍保留在 `docs/SESSION_C_SUMMARY_AND_NEXT_PROMPT.md`，但没有被本 Session 重新打包或复用为新候选摘要。
 
@@ -45,18 +66,47 @@ Session D 的布局、键盘、焦点、状态播报、截图结论和可直接�
 
 新建模板/题目目录阶段的原始任务起点为 `89dbde315457e95be0ec8198c7830c3c69b10288`，并发 Windows 发布工作结束后的实际基座为 `95a7795a8aac249714f4f6a3ddecd4e3066cdf87`。总体文件 AI 阶段以 `fabb334` 为实际起点；两个阶段都未修改发布脚本、依赖或平台验收证据。
 
-- ADR-0022 引入 `schemaVersion: 1` 的 `WorkspaceTemplateCatalog`；ADR-0023 将同一完整目录标准扩展到总体文件 AI，并定义最终输入预算、一次性 `previewId` 快照、notes 隐私与旧计划兼容。目录树确定性排序，根目录模板使用 `rootTemplates`，每份模板保留稳定 ID、名称、语言、工作区相对路径与紧凑元数据。
+- ADR-0022 引入当前 `WorkspaceTemplateCatalog` 版本；ADR-0023 将同一完整目录标准扩展到总体文件 AI，并定义最终输入预算、一次性 `previewId` 快照和 notes 隐私。目录树确定性排序，每份模板保留稳定 ID、名称、语言、工作区相对路径与紧凑元数据。
 - 三个 AI 入口都包含全部目录、ID、名称、相对路径和语言，不设置 300 个模板或 250 个文件计划候选的产品级硬上限。题目候选仍用完整 `catalogTemplateRefs` 复检，最多返回 8 项；伪造、重复、不可用或跨工作区 ID 均被过滤。
 - 301 个短模板实测稳定上下文 98,774 字符/估算 24,694 Token；500 个短模板为 162,916 字符/估算 40,729 Token。两组均完整发送名称、ID、相对路径和分级树，`templateNamesTruncated === false`。
 - 完整目录继续通过现有 Provider Adapter 进入 OpenAI Chat Completions、OpenAI Responses、Anthropic Messages、Gemini GenerateContent 和 Ollama，没有增加第二次精排请求。相关模板、详细候选和有限源码只作为补充，不再决定目录覆盖或候选资格。
 - 输入安全预算为 96,000 个估算 Token，并覆盖最终稳定 catalog、审计 JSON、候选元数据/notes/源码、system prompt、Schema 与协议开销。退化顺序为缩短摘要、省略附加元数据、省略或缩短源码、再省略非审计详细候选；最小完整目录或审计必需候选仍超预算时，在网络发送前以 `AI_CONTEXT_TOO_LARGE` 失败。
 - `previewFilePlan` 在 Main 内存创建 5 分钟 TTL、一次性消费的快照；正式生成只接受 `previewId`，发送前复检工作区与 Provider/模型、catalog、候选源码指纹和 metadata 版本。过期、重复消费、跨工作区、Provider 变化或外部文件变化均要求重新预览。
 - 总体文件 AI 的用户笔记默认不发送，明确开启后才计入预览数量、字符数和总预算；新建模板/题目的 catalog 仍不含 notes。绝对路径、数据库/图片/备份路径、API Key、自定义鉴权头、密钥引用、错误日志、SHA-256、mtime 和大小不进入 Provider payload。
-- 文件计划预览显示完整目录覆盖、详细候选、源码/元数据/notes 字符、总输入 Token、退化标志、输入哈希与到期时间。计划审查显示八个元数据字段的旧值到新值，notes 标为高风险；所有删除默认未选，高度相似删除显示本地保留项证据；缺少 `previousMetadata` 的旧计划继续可读。
+- 文件计划预览显示完整目录覆盖、详细候选、源码/元数据/notes 字符、总输入 Token、退化标志、输入哈希与到期时间。计划审查显示八个元数据字段的旧值到新值，notes 标为高风险；所有删除默认未选，高度相似删除显示本地保留项证据；数据库只读取当前 `schemaVersion: 2` 计划封装。
+- 2026-07-25 的真实工作区反馈证明“只按输入大小分批 + 单批 16,384 Token 输出”仍会让 31 个小候选集中在一次请求中并超过 120 秒。当前方案改为 24,000 Token 单批输入、16,000 Token 完整目录上下文、常规每批最多 4 个候选/6 个审计问题和 4,096 Token 单批输出；31 个独立候选实测拆为 8 批。共享路径审计组保持完整，每批仍携带完整目录；任一批失败不创建半份计划。`npm run check` 为 48 个文件/363 项与 8 项发布脚本测试，完整 Electron E2E 61 项通过、2 项 packaged 条件跳过，文件管理定向 5/5、打包态 2/2 通过；新版 `app.asar` SHA-256 为 `7315188ef01f47a9777844c903c1bd4d8281e02a112456d5bc5ef8fc9b72647c`。
 - 没有 SQLite schema、migration、持久化文件格式、Provider timeout/重试边界、系统权限或新依赖变化。文件计划 IPC/Zod 的正式生成参数改为 `previewId`，快照不落库、不跨重启；全新、空白和已有 V2 userData 使用同一运行时 catalog，无需数据迁移。
 - Provider 边界仍为：`timeoutMs` 分别限制连接与响应读取；只对限流、连接突断/超时及 408/500/502/503/504 最多尝试 3 次，`Retry-After` 实际等待上限 10 秒；响应超时和流中断不自动重试。Token 是本地估算，不是供应商窗口保证，极端请求仍可能被特定 Provider 拒绝。
 
 当前源码的最终证据：定向 Vitest 4 个文件/33 项通过；`npm run check` 通过 TypeScript、ESLint 0 warnings、Prettier、40 个 Vitest 文件/270 项和 8 项发布脚本测试；文件管理、题目分析与模板入库 18/18 通过；最终单次完整 Electron E2E 为 57 项常规用例通过、2 项 packaged 因未设置 `PACKAGED_APP_PATH` 条件跳过。总体文件 AI 新增 9 张、原有模板/题目目录 8 张截图均已人工复核。本阶段没有重跑性能基准、没有重新打包，也没有推送远程。
+
+### 跨平台可移植备份 v2（2026-07-23）
+
+- ADR-0024 将外部导出升级为真正的单文件 ZIP v2；ADR-0031 进一步删除旧 v1 目录读取入口，并把 `restore-preflight-backups/` 统一为同一单文件 v2。entry 使用 UTF-8/EFS、`/` 和 NFC。
+- v2 严格拒绝绝对/穿越路径、反斜杠、Windows 非法字符/设备名、尾随点或空格、NFC/大小写碰撞、加密 entry、符号链接、清单外文件、异常压缩比和超量展开。manifest、`checksums.sha256`、逐文件 SHA-256、SQLite `quick_check`/外键与 Provider 密钥引用检查继续同时生效。
+- `yazl`/`yauzl` 是新增的两个小型 MIT 纯 JavaScript 依赖，只分别负责流式 ZIP 写入和懒加载读取；不调用系统压缩命令、不增加原生 ABI。
+- 完整便携备份强制包含模板源码并保持原始字节。恢复目标固定为确认时的当前自包含工作区；
+  不再选择父目录或创建新根。恢复前完整预备份当前工作区，再原地替换受管模板、工作区
+  SQLite、题目图片和撤销备份；包内来源 ID 只作溯源，当前目标保留路径/ID/名称。
+- 数据管理 UI 只接受 v2 单文件，在校验、来源→目标对比和显式确认后深拷贝；
+  不再提供跳过源码或选择新模板恢复位置的普通路径。工作区恢复不导入 Provider，也不改动
+  应用中既有 Provider/密钥。
+- `.github/workflows/quality.yml` 的 macOS 与 Windows 原生打包矩阵运行同一
+  `data-management.spec.ts` Electron 往返。macOS 自动化覆盖 v2 导出、哈希及 manifest
+  语义篡改拒绝、当前工作区原地恢复、切换/重启持久化、旧格式拒绝、预备份、故障回滚和
+  提交前后异常恢复；Windows CI 与真实 Windows 物理机往返尚未产生本轮证据，不能提前
+  标记通过。
+- 旧 v1 备份、旧 marker、旧裸计划 JSON、旧软归档列表与旧隔离 UI/IPC 不迁移、不修改、不兼容。当前 v2 journal 中断恢复仍作为数据保护边界。
+- 本轮最终源码门禁为 41 个 Vitest 文件/285 项、8 项发布脚本测试和完整 Electron E2E 57 项通过（2 项 packaged 条件跳过）；当前 macOS arm64 测试 `.app` 的全新/已有 V2 userData packaged smoke 2/2 通过。ASAR 10,762 个条目未发现用户数据、个人绝对路径或疑似密钥；测试 App 为无 TeamIdentifier 的 ad-hoc 预览，未 notarize，不能作为正式发布包。
+
+### macOS/Windows 中文源码编码闭环（2026-07-23）
+
+- 新增统一 Main 编解码层，严格支持 UTF-8、UTF-8 BOM、UTF-16LE/BE BOM、GB18030 与 GBK/CP936；BOM 优先，传统中文编码必须通过原编码回写字节一致性校验，无效字节、NUL 和二进制控制字符失败关闭。
+- 源码查看/复制、扫描与相似度索引、总体文件 AI/题目 AI 的源码片段、单文件与批量导入全部复用同一解码器。算法卡片和导入界面显示检测到的编码；已有文件编辑保持编码/BOM，外部源文件只读，新工作区副本写 UTF-8。
+- 相似度索引版本升至 2，使已有 V2 工作区在下一次扫描时按真实编码重建派生哈希；源码、元数据、关系和数据库 schema 不迁移。便携备份仍复制原始字节，GBK 源码经 v2 备份恢复后的 SHA-256 与应用内中文读取均由真实 Electron E2E 覆盖。
+- 新增 `iconv-lite 0.7.3`，MIT、纯 JavaScript、无原生 ABI；包内确认含 CP936、GBK 与 GB18030 表。`npm run check` 最终为 43 个 Vitest 文件/322 项和 8 项发布脚本测试；单次完整 Electron E2E 为 58 项通过、2 项 packaged 条件跳过，当前测试 App 的 packaged smoke 另为 2/2。
+- 测试 App 位于 `release/mac-arm64/算法学习工作台.app`；可传输 ZIP 为 `release/算法学习工作台-0.1.2-macos-windows-chinese-encoding-mac-arm64-test.zip`，138,333,039 bytes，SHA-256 `70e7527c064c07f96bc3b014783971699cc9cccfb5b8141ff7593d322b22389f`。ZIP 完整性、arm64 主程序/native module、版本、包内依赖、个人绝对路径与常见密钥模式检查通过。
+- Windows 原生 CI 已完成本轮 x64 构建、native module/版本/隐私验证和 packaged smoke 2/2；仍未完成真实 Windows 物理机的 macOS -> Windows -> macOS 双向迁移，因此不能称为 Windows 实机闭环。
 
 Session A 已交付四条可运行纵向切片：第一切片完成备份 ADR、版本化数据管理契约、只读一致性诊断、`.awb-backup` 目录备份包导出、全包 SHA-256 验证、损坏包拒绝和只读恢复预览；第二切片开放恢复执行、恢复前自动预备份以及 SQLite/userData 事务式恢复和故障回滚；第三切片补齐备份保留建议、空间统计、异常残留保护、逐项清理预览、应用隔离区和可撤销回滚；最终切片用版本化 journal、SQLite 事务提交标记和内容指纹完成异常中断后的人工安全恢复，并允许把已验证隔离记录移交系统废纸篓。
 
@@ -125,7 +175,7 @@ Session A 新增事实：
 - 文件范围：默认包含 SQLite 快照、题目图片、`file-plan-backups/`、`batch-import-backups/`；默认排除 `secrets/`、Electron 缓存、Local/Session Storage、Cookies 和模板源码。
 - 模板源码：必须由用户在数据管理页显式勾选才会复制；恢复执行首版只支持“跳过模板源码”，不会覆盖外部模板工作区。
 - 恢复：选择备份包后必须先校验和预览；用户勾选确认后，Main 进程创建恢复前备份并执行恢复。Provider `secret_ref` 不恢复，恢复后需要用户重新配置 API Key。
-- 新测试：`tests/e2e/data-management.spec.ts` 覆盖全新 userData 导出空白包、manifest 隐私声明、密钥目录排除、篡改后校验失败、已有 V2 数据恢复、模板源码跳过、Provider 密钥缺失状态和故障注入回滚。
+- 当前测试：`tests/e2e/data-management.spec.ts` 覆盖空白当前工作区导出、manifest 隐私声明、其他工作区/Provider 排除、篡改与多工作区包拒绝、单工作区恢复、模板源码跳过/新目录恢复、其他工作区与 Provider 保持不变，以及故障注入和提交前后中断恢复。
 - 生命周期契约：`schemaVersion: 1` 的清单按恢复预备份、文件计划备份、批量导入备份、题目图片残留、隔离区和异常中断分类，只返回计数、大小、时间、状态和候选短标识。
 - 清理格式：隔离操作写入 `data-management-quarantine/<operation-id>/manifest.json` 与 `COMPLETED`；manifest 为 `v1`，只保存受控 userData 相对路径和文件树指纹，不包含正文或绝对路径。
 - 保留边界：仍对应 `applied` 文件执行的备份、最新有效恢复预备份、符号链接和异常恢复目录不可选择；无记录备份与批量导入备份必须由用户主动判断。
@@ -269,9 +319,9 @@ Preload
   -> 约 40 个按领域命名的 IPC 操作
 Main
   -> Workspace / Problem / Template Management / AI Provider services
-  -> SQLite + Drizzle
-  -> 用户模板工作区
-  -> userData 中的图片、加密密钥和文件计划备份
+  -> 每工作区 SQLite + Drizzle
+  -> 自包含工作区中的模板、图片和文件计划备份
+  -> userData 中的全局登记、Provider 与加密密钥
   -> 外部 AI Provider
 ```
 
@@ -285,16 +335,15 @@ Main
 
 ### 4.2 数据所有权
 
-| 数据                                                  | 实际位置                               | 备注                                                 |
-| ----------------------------------------------------- | -------------------------------------- | ---------------------------------------------------- |
-| 模板源码                                              | 用户选择的工作区                       | 文件是真实来源，SQLite 只做索引和元数据              |
-| 工作区、模板索引、题目、关联、Provider 配置、计划记录 | `algorithm-workbench.sqlite`           | WAL、外键开启，使用版本化 migration                  |
-| 题目图片                                              | `userData/problem-images/`             | 数据库保存相对路径和受控元信息                       |
-| API Key                                               | `userData` 下独立加密文件              | Electron `safeStorage` 加密，SQLite 只存引用         |
-| 文件操作备份                                          | `userData/file-plan-backups/`          | `applied` 执行备份受保护；其他项可在生命周期清单判断 |
-| 批量覆盖备份                                          | `userData/batch-import-backups/`       | 覆盖前保存原文件；可统计、预览并由用户选择隔离       |
-| 恢复预备份                                            | `userData/restore-preflight-backups/`  | 最新有效项始终保护；保留策略只生成建议               |
-| 数据隔离区                                            | `userData/data-management-quarantine/` | `v1` 清单、完成标记、可撤销操作和系统废纸篓移交      |
+| 数据                               | 实际位置                              | 备注                                              |
+| ---------------------------------- | ------------------------------------- | ------------------------------------------------- |
+| 模板源码                           | `<workspace>/templates/`              | 文件是真实来源；所有工作区只有这一种模板根        |
+| 模板索引、题目、关联、计划与执行   | `<workspace>/.awb/workspace.sqlite`   | 每工作区独立；WAL、外键与 migration 开启          |
+| 题目图片                           | `<workspace>/problem-assets/images/`  | 数据库保存受控相对路径                            |
+| 文件操作与批量覆盖备份             | `<workspace>/.awb/*-backups/`         | 只属于当前工作区，撤销/恢复按记录保护             |
+| 恢复预备份、journal 与隔离兼容数据 | `<workspace>/.awb/`                   | 恢复中断只影响当前工作区                          |
+| Provider、任务路由与工作区登记     | `userData/algorithm-workbench.sqlite` | 应用级，不进入工作区便携备份                      |
+| API Key                            | `userData` 下独立加密文件             | Electron `safeStorage` 加密，全局 SQLite 只存引用 |
 
 ### 4.3 数据库状态
 
@@ -408,7 +457,7 @@ Session D 截图显示 1024×640 下导航、列表/树、详情和页头主操�
 - 完整审计最多遍历前 2,000 个模板。
 - 相同/相似源码分析最多保留前 500 个可读取文件参与相似度比较。
 - AI 文件计划必须详细表达全部审计必需候选，再按预算补充本地相关候选；不设候选数量硬上限，源码片段总量最多约 120,000 字符。若审计组路径本身截断或必需候选超预算，会在网络前明确失败并要求缩小范围。
-- 模板补全、题目分析和总体文件 AI 都发送完整目录、ID、名称、相对路径和语言，不设模板数量硬上限；工作区上下文最多 240,000 字符，总请求估算预算 96,000 Token。保留必需信息后仍超预算时会在发送前明确失败；相关详情仍是可退化补充，不限制目录覆盖或题目候选资格。
+- 模板补全、题目分析和总体文件 AI 都发送完整目录、ID、名称、相对路径和语言，不设模板数量硬上限；总体文件 AI 的完整目录上下文预算为 16,000 Token、单批总输入预算为 24,000 Token，其他任务继续使用各自预算。保留必需信息后仍超预算时会在发送前明确失败；相关详情仍是可退化补充，不限制目录覆盖或题目候选资格。
 - 单题最多 12 张本地图片；单次分析最多 6 张、合计 24 MiB。
 - 文件计划和执行历史界面各最多读取最近 100 条。
 

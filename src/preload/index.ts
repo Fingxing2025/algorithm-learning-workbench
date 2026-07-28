@@ -45,21 +45,13 @@ const desktopApi: DesktopApi = {
     exportBackup: request => invokeResult(IPC_CHANNELS.dataManagement.exportBackup, request),
     inspectBackupLifecycle: request =>
       invokeResult(IPC_CHANNELS.dataManagement.inspectBackupLifecycle, request),
-    previewCleanup: request => invokeResult(IPC_CHANNELS.dataManagement.previewCleanup, request),
     previewInterruptedRecovery: request =>
       invokeResult(IPC_CHANNELS.dataManagement.previewInterruptedRecovery, request),
-    previewQuarantineRelease: request =>
-      invokeResult(IPC_CHANNELS.dataManagement.previewQuarantineRelease, request),
-    previewRestore: () => invokeResult(IPC_CHANNELS.dataManagement.previewRestore),
-    quarantineCleanup: request =>
-      invokeResult(IPC_CHANNELS.dataManagement.quarantineCleanup, request),
+    previewRestore: request => invokeResult(IPC_CHANNELS.dataManagement.previewRestore, request),
     recoverInterruptedOperation: request =>
       invokeResult(IPC_CHANNELS.dataManagement.recoverInterruptedOperation, request),
-    releaseQuarantine: request =>
-      invokeResult(IPC_CHANNELS.dataManagement.releaseQuarantine, request),
     restoreBackup: request => invokeResult(IPC_CHANNELS.dataManagement.restoreBackup, request),
-    undoCleanup: request => invokeResult(IPC_CHANNELS.dataManagement.undoCleanup, request),
-    verifyBackup: () => invokeResult(IPC_CHANNELS.dataManagement.verifyBackup),
+    verifyBackup: request => invokeResult(IPC_CHANNELS.dataManagement.verifyBackup, request),
   },
   problems: {
     addImages: problemId => invokeResult(IPC_CHANNELS.problems.addImages, { problemId }),
@@ -98,6 +90,8 @@ const desktopApi: DesktopApi = {
     readSource: templateId => invokeResult(IPC_CHANNELS.templates.readSource, { templateId }),
   },
   templateManagement: {
+    applyExistingMetadataCompletion: request =>
+      invokeResult(IPC_CHANNELS.templateManagement.applyExistingMetadataCompletion, request),
     applyTemplateRelocation: request =>
       invokeResult(IPC_CHANNELS.templateManagement.applyTemplateRelocation, request),
     applyFilePlan: request => invokeResult(IPC_CHANNELS.templateManagement.applyFilePlan, request),
@@ -125,6 +119,8 @@ const desktopApi: DesktopApi = {
       invokeResult(IPC_CHANNELS.templateManagement.deleteTemplate, { templateId }),
     deleteFileExecutions: request =>
       invokeResult(IPC_CHANNELS.templateManagement.deleteFileExecutions, request),
+    deleteInvalidFileExecutions: request =>
+      invokeResult(IPC_CHANNELS.templateManagement.deleteInvalidFileExecutions, request),
     deleteFilePlans: request =>
       invokeResult(IPC_CHANNELS.templateManagement.deleteFilePlans, request),
     exportFilePlanDiagnostic: planId =>
@@ -141,28 +137,37 @@ const desktopApi: DesktopApi = {
       invokeResult(IPC_CHANNELS.templateManagement.previewBatchClassification, request),
     previewClassification: request =>
       invokeResult(IPC_CHANNELS.templateManagement.previewClassification, request),
+    previewExistingMetadataCompletion: request =>
+      invokeResult(IPC_CHANNELS.templateManagement.previewExistingMetadataCompletion, request),
     previewFilePlan: request =>
       invokeResult(IPC_CHANNELS.templateManagement.previewFilePlan, request),
     previewDeleteFileExecutions: request =>
       invokeResult(IPC_CHANNELS.templateManagement.previewDeleteFileExecutions, request),
+    previewDeleteInvalidFileExecutions: request =>
+      invokeResult(IPC_CHANNELS.templateManagement.previewDeleteInvalidFileExecutions, request),
     previewDeleteFilePlans: request =>
       invokeResult(IPC_CHANNELS.templateManagement.previewDeleteFilePlans, request),
     previewTemplateRelocation: request =>
       invokeResult(IPC_CHANNELS.templateManagement.previewTemplateRelocation, request),
     generateFilePlan: request =>
       invokeResult(IPC_CHANNELS.templateManagement.generateFilePlan, request),
+    generateExistingMetadataCompletion: request =>
+      invokeResult(IPC_CHANNELS.templateManagement.generateExistingMetadataCompletion, request),
     listFileExecutions: () => invokeResult(IPC_CHANNELS.templateManagement.listFileExecutions),
     listFileExecutionsPage: request =>
       invokeResult(IPC_CHANNELS.templateManagement.listFileExecutionsPage, request),
-    listArchivedFilePlansPage: request =>
-      invokeResult(IPC_CHANNELS.templateManagement.listArchivedFilePlansPage, request),
+    listInvalidFileExecutionsPage: request =>
+      invokeResult(IPC_CHANNELS.templateManagement.listInvalidFileExecutionsPage, request),
     listFilePlans: () => invokeResult(IPC_CHANNELS.templateManagement.listFilePlans),
     listFilePlansPage: request =>
       invokeResult(IPC_CHANNELS.templateManagement.listFilePlansPage, request),
     redraftFilePlan: planId =>
       invokeResult(IPC_CHANNELS.templateManagement.redraftFilePlan, { planId }),
-    rollbackFileExecution: executionId =>
-      invokeResult(IPC_CHANNELS.templateManagement.rollbackFileExecution, { executionId }),
+    rollbackFileExecution: (executionId, requestId) =>
+      invokeResult(IPC_CHANNELS.templateManagement.rollbackFileExecution, {
+        executionId,
+        requestId,
+      }),
     updateMetadata: request =>
       invokeResult(IPC_CHANNELS.templateManagement.updateMetadata, request),
   },

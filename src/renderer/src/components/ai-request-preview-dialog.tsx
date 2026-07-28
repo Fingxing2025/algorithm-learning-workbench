@@ -2,11 +2,13 @@ import * as Dialog from '@radix-ui/react-dialog'
 import { Braces, Database, FileText, Image, KeyRound, LoaderCircle, X } from 'lucide-react'
 
 import type { AiRequestPreview } from '@core/contracts/ai-request'
+import type { BackgroundTaskStatus } from '@core/contracts/background-task'
 import type { FilePlanRequestPreview } from '@core/contracts/template-management'
 
 import { Button } from '@/components/ui/button'
 import { restoreFocusAfterDialog } from '@/lib/focus-management'
 import { useI18n } from '@/lib/i18n'
+import { TaskProgressIndicator } from '@/components/task-progress-indicator'
 
 const itemIcons = {
   content: FileText,
@@ -23,6 +25,7 @@ export function AiRequestPreviewDialog({
   onConfirm,
   preview,
   progressText,
+  taskStatus,
   returnFocusTo,
 }: {
   allowCancelWhileBusy?: boolean
@@ -32,6 +35,7 @@ export function AiRequestPreviewDialog({
   onConfirm: () => void
   preview: AiRequestPreview | FilePlanRequestPreview
   progressText?: string
+  taskStatus?: BackgroundTaskStatus | null
   returnFocusTo?: HTMLElement | null
 }) {
   const { t } = useI18n()
@@ -201,6 +205,32 @@ export function AiRequestPreviewDialog({
                 <p className="text-xs font-semibold">{t('文件计划发送快照')}</p>
                 <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-[11px] sm:grid-cols-3">
                   <div>
+                    <dt className="text-muted-foreground">{t('预计请求批数')}</dt>
+                    <dd className="mt-0.5 font-semibold">
+                      {preview.filePlan.batchCount.toLocaleString()}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">{t('单批候选上限')}</dt>
+                    <dd className="mt-0.5 font-semibold">
+                      {preview.filePlan.maxCandidatesPerBatch.toLocaleString()}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">{t('单批输出上限')}</dt>
+                    <dd className="mt-0.5 font-semibold">
+                      {preview.filePlan.maxOutputTokensPerBatch.toLocaleString()} Token
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">{t('单批最大输入')}</dt>
+                    <dd className="mt-0.5 font-semibold">
+                      ≈{' '}
+                      {Math.ceil(preview.filePlan.largestBatchInputCharacters / 4).toLocaleString()}{' '}
+                      Token
+                    </dd>
+                  </div>
+                  <div>
                     <dt className="text-muted-foreground">{t('详细候选')}</dt>
                     <dd className="mt-0.5 font-semibold">
                       {preview.filePlan.detailedCandidateCount.toLocaleString()} /{' '}
@@ -234,9 +264,9 @@ export function AiRequestPreviewDialog({
                     </dd>
                   </div>
                   <div>
-                    <dt className="text-muted-foreground">{t('总输入字符')}</dt>
+                    <dt className="text-muted-foreground">{t('全部批次输入字符')}</dt>
                     <dd className="mt-0.5 font-semibold">
-                      {preview.filePlan.inputCharacters.toLocaleString()}
+                      {preview.filePlan.totalBatchInputCharacters.toLocaleString()}
                     </dd>
                   </div>
                 </dl>
@@ -274,6 +304,11 @@ export function AiRequestPreviewDialog({
             </section>
           </div>
 
+          {taskStatus && (
+            <div className="border-t border-border px-5 pt-4">
+              <TaskProgressIndicator status={taskStatus} />
+            </div>
+          )}
           <footer className="flex items-center justify-end gap-2 border-t border-border px-5 py-4">
             {progressText && (
               <p className="mr-auto text-[11px] font-medium text-primary" role="status">

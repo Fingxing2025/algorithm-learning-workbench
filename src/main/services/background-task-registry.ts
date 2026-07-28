@@ -32,6 +32,16 @@ interface StartTaskOptions {
   scope: string
 }
 
+interface TrackTaskOptions<Result> {
+  id: string
+  initialProgress?: BackgroundTaskProgress
+  run: (context: {
+    signal: AbortSignal
+    updateProgress: (progress: BackgroundTaskProgress) => void
+  }) => Promise<Result>
+  scope: string
+}
+
 function isActive(state: BackgroundTaskStatus['state']): boolean {
   return state === 'queued' || state === 'running' || state === 'cancelling'
 }
@@ -62,6 +72,78 @@ export class BackgroundTaskRegistry {
     return this.snapshot(this.requireRecord(taskId))
   }
 
+  track<Result>(options: TrackTaskOptions<Result>): Promise<Result> {
+    if (this.records.has(options.id)) {
+      throw new PublicError('INVALID_REQUEST', '同一批量任务已在运行，请勿重复提交。')
+    }
+    const record: TaskRecord = {
+      controller: new AbortController(),
+      error: null,
+      finishedAt: null,
+      id: options.id,
+      kind: 'batch-operation',
+      progress: options.initialProgress ?? {
+        currentItem: null,
+        phase: 'preparing',
+        processedCount: 0,
+        totalCount: null,
+      },
+      result: null,
+      scope: options.scope,
+      startedAt: new Date().toISOString(),
+      state: 'queued',
+    }
+    this.records.set(record.id, record)
+    const operation = Promise.resolve().then(async () => {
+      if (record.controller.signal.aborted)
+        throw new PublicError('TASK_CANCELLED', '后台任务已取消。')
+      record.state = 'running'
+      return options.run({
+        signal: record.controller.signal,
+        updateProgress: progress => {
+          if (record.state === 'running') {
+            record.progress = {
+              ...progress,
+              currentItem: progress.currentItem?.trim().slice(0, 500) || null,
+            }
+          }
+        },
+      })
+    })
+    const bookkeeping = operation
+      .then(() => {
+        if (record.controller.signal.aborted) {
+          record.state = 'cancelled'
+          return
+        }
+        record.progress = {
+          ...record.progress,
+          currentItem: null,
+          processedCount: record.progress.totalCount ?? record.progress.processedCount,
+        }
+        record.state = 'completed'
+      })
+      .catch(error => {
+        if (
+          record.controller.signal.aborted ||
+          (error instanceof PublicError && error.code === 'TASK_CANCELLED')
+        ) {
+          record.state = 'cancelled'
+          return
+        }
+        const publicError = toPublicIpcError(error)
+        record.error = { code: publicError.code, message: publicError.message }
+        record.state = 'failed'
+      })
+      .finally(() => {
+        record.finishedAt = new Date().toISOString()
+        this.prune()
+      })
+    this.running.add(bookkeeping)
+    void bookkeeping.finally(() => this.running.delete(bookkeeping))
+    return operation
+  }
+
   start(options: StartTaskOptions): BackgroundTaskStatus {
     const existingRequest = this.records.get(options.id)
     if (existingRequest) return this.snapshot(existingRequest)
@@ -77,7 +159,12 @@ export class BackgroundTaskRegistry {
       finishedAt: null,
       id: options.id,
       kind: options.kind,
-      progress: { phase: 'queued', processedCount: 0, totalCount: null },
+      progress: {
+        currentItem: null,
+        phase: 'queued',
+        processedCount: 0,
+        totalCount: null,
+      },
       result: null,
       scope: options.scope,
       startedAt: new Date().toISOString(),
@@ -92,7 +179,12 @@ export class BackgroundTaskRegistry {
         return options.run({
           signal: record.controller.signal,
           updateProgress: progress => {
-            if (record.state === 'running') record.progress = progress
+            if (record.state === 'running') {
+              record.progress = {
+                ...progress,
+                currentItem: progress.currentItem?.trim().slice(0, 500) || null,
+              }
+            }
           },
         })
       })

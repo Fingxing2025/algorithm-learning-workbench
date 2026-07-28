@@ -1,8 +1,9 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
+import iconv from 'iconv-lite'
 
 import { PublicError } from '../errors/public-error'
 import type { AiCompletionRequest } from './ai-provider-adapters'
@@ -59,6 +60,31 @@ function createService(rootPath: string, templates: TemplateIndexEntry[]) {
 }
 
 describe('TemplateManagementService feature contracts', () => {
+  it('decodes Windows GBK batch imports while leaving the external file unchanged', async () => {
+    const rootPath = await mkdtemp(join(tmpdir(), 'template-management-service-'))
+    const externalPath = join(rootPath, '中文模板.cpp')
+    const sourceBytes = iconv.encode('// 算法模板\nint main() {}\n', 'gbk')
+    await writeFile(externalPath, sourceBytes)
+    try {
+      const service = createService(rootPath, [])
+      const sources = await (
+        service as unknown as {
+          readBatchCppSources(
+            files: Array<{ displayPath: string; path: string }>,
+          ): Promise<Array<{ content: string; sourceEncoding: string }>>
+        }
+      ).readBatchCppSources([{ displayPath: '中文模板.cpp', path: externalPath }])
+
+      expect(sources[0]).toMatchObject({
+        content: '// 算法模板\nint main() {}\n',
+        sourceEncoding: 'gb18030',
+      })
+      expect(await readFile(externalPath)).toEqual(sourceBytes)
+    } finally {
+      await rm(rootPath, { force: true, recursive: true })
+    }
+  })
+
   it('reports normalized duplicate source groups with a deterministic keeper', async () => {
     const rootPath = await mkdtemp(join(tmpdir(), 'template-management-service-'))
     try {
@@ -103,6 +129,31 @@ describe('TemplateManagementService feature contracts', () => {
     expect(audit.truncated).toBe(true)
     expect(audit.truncatedReason).toContain(
       '1 个重复或相似组的路径超过 20 条，已在组内明确标记截断。',
+    )
+  })
+
+  it('reports decoding artifacts separately from ordinary naming inconsistencies', async () => {
+    const service = createService('/tmp/template-management-service-test', [
+      createTemplate('a', '锟斤拷.cpp', 'hash-a'),
+      createTemplate('b', 'plain copy.py', 'hash-b'),
+      createTemplate('c', '树状数组.cpp', 'hash-c'),
+    ])
+
+    const audit = await service.auditWorkspace()
+    const invalidNames = audit.issues.filter(issue => issue.kind === 'invalid-name')
+
+    expect(invalidNames).toHaveLength(2)
+    expect(invalidNames).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          detail: expect.stringContaining('乱码或错误解码'),
+          paths: ['锟斤拷.cpp'],
+        }),
+        expect.objectContaining({
+          detail: expect.stringContaining('副本标记或异常空格'),
+          paths: ['plain copy.py'],
+        }),
+      ]),
     )
   })
 

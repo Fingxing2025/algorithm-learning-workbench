@@ -56,10 +56,13 @@ function encodeTemplateCursor(template: Pick<TemplateSummary, 'id' | 'relativePa
 }
 
 export class WorkspaceRepository {
-  constructor(private readonly database: AppDatabase) {}
+  constructor(
+    private readonly database: AppDatabase,
+    private readonly registryDatabase: AppDatabase = database,
+  ) {}
 
   getActiveWorkspace(): WorkspaceRecord | undefined {
-    const activeState = this.database.orm
+    const activeState = this.registryDatabase.orm
       .select()
       .from(appState)
       .where(eq(appState.key, ACTIVE_WORKSPACE_KEY))
@@ -69,20 +72,40 @@ export class WorkspaceRepository {
       return undefined
     }
 
-    return this.database.orm
+    const registered = this.registryDatabase.orm
       .select()
       .from(workspaces)
       .where(eq(workspaces.id, activeState.value))
       .get()
+    if (!registered || this.registryDatabase === this.database || !this.database.path) {
+      return registered
+    }
+
+    const local = this.database.orm
+      .select()
+      .from(workspaces)
+      .where(eq(workspaces.id, registered.id))
+      .get()
+    return local
+      ? {
+          ...local,
+          createdAt: registered.createdAt,
+          id: registered.id,
+          name: registered.name,
+          rootPath: registered.rootPath,
+        }
+      : registered
   }
 
   getTemplateWithWorkspace(templateId: string) {
-    return this.database.orm
-      .select({ template: templates, workspace: workspaces })
+    const workspace = this.getActiveWorkspace()
+    if (!workspace) return undefined
+    const template = this.database.orm
+      .select()
       .from(templates)
-      .innerJoin(workspaces, eq(templates.workspaceId, workspaces.id))
-      .where(eq(templates.id, templateId))
+      .where(and(eq(templates.id, templateId), eq(templates.workspaceId, workspace.id)))
       .get()
+    return template ? { template, workspace } : undefined
   }
 
   getTemplateByRelativePath(
@@ -316,10 +339,26 @@ export class WorkspaceRepository {
         .where(eq(workspaces.id, workspaceId))
         .run()
     })
+    if (this.registryDatabase !== this.database) {
+      this.registryDatabase.orm
+        .update(workspaces)
+        .set({
+          caseConflictCount: summary.caseConflictCount,
+          issuesJson: JSON.stringify(summary.issues),
+          scanTruncated: summary.truncated,
+          scanStatsJson: JSON.stringify(stats),
+          scannedAt,
+          skippedSymlinkCount: summary.skippedSymlinkCount,
+          templateCount: summary.templateCount,
+          unsupportedFileCount: summary.unsupportedFileCount,
+        })
+        .where(eq(workspaces.id, workspaceId))
+        .run()
+    }
   }
 
   setActiveWorkspace(workspaceId: string): void {
-    this.database.orm
+    this.registryDatabase.orm
       .insert(appState)
       .values({ key: ACTIVE_WORKSPACE_KEY, value: workspaceId })
       .onConflictDoUpdate({ target: appState.key, set: { value: workspaceId } })
@@ -327,7 +366,7 @@ export class WorkspaceRepository {
   }
 
   upsertWorkspace(rootPath: string, name: string): WorkspaceRecord {
-    const existing = this.database.orm
+    const existing = this.registryDatabase.orm
       .select()
       .from(workspaces)
       .where(eq(workspaces.rootPath, rootPath))
@@ -335,7 +374,7 @@ export class WorkspaceRepository {
 
     if (existing) {
       if (existing.name !== name) {
-        this.database.orm
+        this.registryDatabase.orm
           .update(workspaces)
           .set({ name })
           .where(eq(workspaces.id, existing.id))
@@ -345,22 +384,123 @@ export class WorkspaceRepository {
       return existing
     }
 
-    const id = randomUUID()
-    this.database.orm
-      .insert(workspaces)
-      .values({ createdAt: new Date().toISOString(), id, name, rootPath })
-      .onConflictDoUpdate({ target: workspaces.rootPath, set: { name } })
-      .run()
+    return this.upsertWorkspaceIdentity({
+      createdAt: new Date().toISOString(),
+      id: randomUUID(),
+      name,
+      rootPath,
+    })
+  }
 
-    const workspace = this.database.orm
+  getWorkspaceById(workspaceId: string): WorkspaceRecord | undefined {
+    return this.registryDatabase.orm
+      .select()
+      .from(workspaces)
+      .where(eq(workspaces.id, workspaceId))
+      .get()
+  }
+
+  getWorkspaceByRootPath(rootPath: string): WorkspaceRecord | undefined {
+    return this.registryDatabase.orm
       .select()
       .from(workspaces)
       .where(eq(workspaces.rootPath, rootPath))
+      .get()
+  }
+
+  relocateUnavailableWorkspaceIdentity(workspaceId: string, rootPath: string, name: string): void {
+    const pathConflict = this.getWorkspaceByRootPath(rootPath)
+    if (pathConflict && pathConflict.id !== workspaceId) {
+      throw new PublicError('INVALID_REQUEST', '该文件夹已登记为另一个工作区。')
+    }
+    this.registryDatabase.orm
+      .update(workspaces)
+      .set({ name, rootPath })
+      .where(eq(workspaces.id, workspaceId))
+      .run()
+  }
+
+  upsertWorkspaceIdentity(identity: {
+    createdAt: string
+    id: string
+    name: string
+    rootPath: string
+  }): WorkspaceRecord {
+    const idConflict = this.getWorkspaceById(identity.id)
+    if (idConflict && idConflict.rootPath !== identity.rootPath) {
+      throw new PublicError(
+        'INVALID_REQUEST',
+        '该工作区身份已在另一个可用位置登记，请先打开原位置或将副本作为新工作区导入。',
+      )
+    }
+    const pathConflict = this.getWorkspaceByRootPath(identity.rootPath)
+    if (pathConflict && pathConflict.id !== identity.id) {
+      throw new PublicError('INVALID_REQUEST', '该文件夹已登记为另一个工作区。')
+    }
+    this.registryDatabase.orm
+      .insert(workspaces)
+      .values(identity)
+      .onConflictDoUpdate({
+        target: workspaces.id,
+        set: { name: identity.name, rootPath: identity.rootPath },
+      })
+      .run()
+
+    const workspace = this.registryDatabase.orm
+      .select()
+      .from(workspaces)
+      .where(eq(workspaces.id, identity.id))
       .get()
 
     if (!workspace) {
       throw new Error('Workspace was not persisted')
     }
     return workspace
+  }
+
+  ensureWorkspaceDatabaseRecord(workspace: WorkspaceRecord): void {
+    this.database.orm
+      .insert(workspaces)
+      .values({
+        ...workspace,
+        rootPath: 'templates',
+      })
+      .onConflictDoUpdate({
+        target: workspaces.id,
+        set: {
+          name: workspace.name,
+          rootPath: 'templates',
+        },
+      })
+      .run()
+    this.database.orm
+      .insert(appState)
+      .values({ key: ACTIVE_WORKSPACE_KEY, value: workspace.id })
+      .onConflictDoUpdate({ target: appState.key, set: { value: workspace.id } })
+      .run()
+  }
+
+  syncWorkspaceSummaryFromDatabase(workspaceId: string): void {
+    if (this.registryDatabase === this.database) return
+    const source = this.database.orm
+      .select()
+      .from(workspaces)
+      .where(eq(workspaces.id, workspaceId))
+      .get()
+    if (!source) return
+    this.registryDatabase.orm
+      .update(workspaces)
+      .set({
+        caseConflictCount: source.caseConflictCount,
+        issuesJson: source.issuesJson,
+        scanStatsJson: source.scanStatsJson,
+        scanTruncated: source.scanTruncated,
+        scannedAt: source.scannedAt,
+        skippedSymlinkCount: source.skippedSymlinkCount,
+        templateCount: source.templateCount,
+        unsupportedFileCount: source.unsupportedFileCount,
+      })
+      .where(eq(workspaces.id, workspaceId))
+      .run()
   }
 }

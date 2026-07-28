@@ -42,6 +42,10 @@ async function setNextDirectorySelection(directoryPath: string) {
       canceled: false,
       filePaths: [selectedDirectory],
     })) as typeof dialog.showOpenDialog
+    dialog.showMessageBox = (async () => ({
+      checkboxChecked: false,
+      response: 1,
+    })) as typeof dialog.showMessageBox
   }, directoryPath)
 }
 
@@ -167,8 +171,8 @@ test('falls back from invalid persisted values and resets all layouts without da
 })
 
 test('announces page changes and restores focus after search, template, and problem dialogs', async () => {
-  await page.getByRole('button', { name: '数据管理', exact: true }).click()
-  await expect(page.getByTestId('page-announcement')).toHaveText('已切换到 数据管理')
+  await page.getByRole('button', { name: '备份与恢复', exact: true }).click()
+  await expect(page.getByTestId('page-announcement')).toHaveText('已切换到 备份与恢复')
 
   const searchTrigger = page.getByRole('button', { name: '打开全局搜索' })
   await searchTrigger.focus()
@@ -265,7 +269,7 @@ test('uses the real 1024x640 window and keeps core controls reachable at 200 per
     ['模板库', '模板库', ['切换工作区', '重新扫描工作区', '新建模板']],
     ['题目', '题目卡片', ['新建题目']],
     ['AI 管理', '总体文件 AI 管理', ['AI 设置', '只读扫描', '生成 AI 计划']],
-    ['数据管理', '数据管理', ['重新诊断']],
+    ['备份与恢复', '备份与恢复', ['重新检查']],
   ] as const) {
     await page.getByRole('button', { name: navigationLabel, exact: true }).focus()
     await page.keyboard.press('Enter')
@@ -305,7 +309,7 @@ test('uses the real 1024x640 window and keeps core controls reachable at 200 per
     }
   }
 
-  for (const label of ['工作台', '模板库', '题目', 'AI 管理', '数据管理', 'AI 设置']) {
+  for (const label of ['工作台', '模板库', '题目', 'AI 管理', '备份与恢复', 'AI 设置']) {
     await expect(page.getByRole('button', { name: label, exact: true })).toBeVisible()
   }
 

@@ -26,6 +26,7 @@ import type {
   TemplatePageRequest,
   TemplateSummary,
   TemplateSource,
+  TemplateSourceEncoding,
   TemplateSourceEditDiff,
   TemplateSourceEditPreview,
   WorkspaceSnapshot,
@@ -42,6 +43,7 @@ import type {
   ImportTemplateRequest,
   ImportTemplateResult,
 } from '@core/contracts/template-management'
+import type { BackgroundTaskProgress } from '@core/contracts/background-task'
 
 import { TemplateManagementRepository } from '../database/template-management-repository'
 import { WorkspaceRepository, type WorkspaceRecord } from '../database/workspace-repository'
@@ -57,11 +59,19 @@ import {
   type TemplateScanOptions,
 } from './template-scanner'
 import { normalizeTemplateRelativePath } from '../security/template-path'
+import {
+  assertTemplateSourceText,
+  decodeTemplateSourceBuffer,
+  encodeTemplateSource,
+} from './template-source-codec'
+import type { WorkspaceRuntimeManager } from './workspace-runtime-manager'
 
 const MAX_SOURCE_BYTES = 2 * 1024 * 1024
 const SOURCE_EDIT_PREVIEW_TTL_MS = 10 * 60 * 1000
 
 interface StoredTemplateSourceEditPreview extends TemplateSourceEditPreview {
+  sourceEncoding: TemplateSourceEncoding
+  updatedBuffer: Buffer
   updatedContent: string
   workspaceId: string
 }
@@ -74,22 +84,21 @@ function sourceSha256(content: Buffer): string {
   return createHash('sha256').update(content).digest('hex')
 }
 
-function decodeSourceBuffer(content: Buffer): string {
+function decodeSourceBuffer(content: Buffer): ReturnType<typeof decodeTemplateSourceBuffer> {
   try {
-    return new TextDecoder('utf-8', { fatal: true }).decode(content)
+    return decodeTemplateSourceBuffer(content)
   } catch {
-    throw new PublicError('FILE_UNAVAILABLE', '该文件不是有效的 UTF-8 文本源码。')
+    throw new PublicError(
+      'FILE_UNAVAILABLE',
+      '该文件无法按 UTF-8、带 BOM 的 UTF-16 或 GB18030/GBK/CP936 中文编码读取。',
+    )
   }
 }
 
 function assertEditableText(content: string, message: string): void {
-  if (content.includes('\0')) throw new PublicError('FILE_UNAVAILABLE', message)
-  let suspiciousControls = 0
-  for (const character of content) {
-    const code = character.codePointAt(0) ?? 0
-    if (code < 32 && !['\t', '\n', '\r', '\f'].includes(character)) suspiciousControls += 1
-  }
-  if (suspiciousControls > Math.max(8, Math.floor(content.length * 0.01))) {
+  try {
+    assertTemplateSourceText(content)
+  } catch {
     throw new PublicError('FILE_UNAVAILABLE', message)
   }
 }
@@ -132,11 +141,17 @@ export class WorkspaceService {
     private readonly repository: WorkspaceRepository,
     private readonly metadataRepository?: TemplateManagementRepository,
     private readonly userDataPath?: string,
+    private readonly workspaceRuntime?: WorkspaceRuntimeManager,
   ) {}
+
+  async initializeActiveWorkspace(): Promise<void> {
+    await this.workspaceRuntime?.initializeActiveWorkspace()
+  }
 
   async chooseWorkspace(
     request: ChooseWorkspaceRequest,
     parentWindow?: BrowserWindow,
+    beforeWorkspaceChange?: () => Promise<void>,
   ): Promise<WorkspaceSnapshot | null> {
     const options: Electron.OpenDialogOptions = {
       buttonLabel: request.intent === 'create' ? '使用此文件夹' : '打开工作区',
@@ -155,12 +170,40 @@ export class WorkspaceService {
       return null
     }
 
-    const canonicalRoot = await resolveAuthorizedRoot(result.filePaths[0])
-    const workspace = this.repository.upsertWorkspace(
-      canonicalRoot,
-      basename(canonicalRoot) || '模板工作区',
-    )
-    this.repository.setActiveWorkspace(workspace.id)
+    const selectedRoot = await resolveAuthorizedRoot(result.filePaths[0])
+    let workspace: WorkspaceRecord
+    if (this.workspaceRuntime) {
+      const existingMarker = await this.workspaceRuntime.storage.inspect(selectedRoot)
+      if (!existingMarker && request.intent === 'open') {
+        const readOnlyScan = await scanTemplateWorkspace(selectedRoot, randomUUID())
+        const confirmationOptions: Electron.MessageBoxOptions = {
+          buttons: ['取消', '升级并打开'],
+          cancelId: 0,
+          defaultId: 1,
+          detail: `已只读扫描到 ${readOnlyScan.templates.length} 个模板。升级会创建固定的 templates/、workspace.awb.json、.awb 和 problem-assets，并把现有内容按原相对结构安全迁入 templates/；源码字节不会改变，失败会自动回滚。`,
+          message: '将此文件夹升级为自包含工作区？',
+          noLink: true,
+          title: '升级已有模板目录',
+          type: 'question',
+        }
+        const confirmation = parentWindow
+          ? await dialog.showMessageBox(parentWindow, confirmationOptions)
+          : await dialog.showMessageBox(confirmationOptions)
+        if (confirmation.response !== 1) return null
+      }
+      await beforeWorkspaceChange?.()
+      workspace = await this.workspaceRuntime.activateContainer(selectedRoot, {
+        intent: request.intent,
+        name: basename(selectedRoot) || '算法工作区',
+      })
+    } else {
+      await beforeWorkspaceChange?.()
+      workspace = this.repository.upsertWorkspace(
+        selectedRoot,
+        basename(selectedRoot) || '模板工作区',
+      )
+      this.repository.setActiveWorkspace(workspace.id)
+    }
     return this.scanAndSnapshot(workspace)
   }
 
@@ -279,13 +322,21 @@ export class WorkspaceService {
 
   async importTemplatesBatch(
     request: BatchImportTemplateRequest,
+    onProgress?: (progress: BackgroundTaskProgress) => void,
   ): Promise<BatchImportTemplateResult> {
+    onProgress?.({
+      currentItem: null,
+      phase: 'validating',
+      processedCount: 0,
+      totalCount: request.items.length,
+    })
     const workspace = this.requireWorkspace()
     const canonicalRoot = await resolveAuthorizedRoot(workspace.rootPath)
     if (!this.metadataRepository) {
       throw new PublicError('DATABASE_ERROR', '模板元数据服务未初始化。')
     }
-    if (!this.userDataPath) {
+    const managedDataRoot = this.getManagedDataRoot()
+    if (!managedDataRoot) {
       throw new PublicError('FILE_UNAVAILABLE', '批量导入备份目录未初始化。')
     }
     const seenPaths = new Set<string>()
@@ -326,7 +377,7 @@ export class WorkspaceService {
 
     const directoriesCreatedByBatch = new Set<string>()
     const overwriteItems: typeof prepared = []
-    for (const item of prepared) {
+    for (const [itemIndex, item] of prepared.entries()) {
       const targetStats = await lstat(item.targetPath)
         .then(stats => stats)
         .catch(error => {
@@ -368,10 +419,16 @@ export class WorkspaceService {
         directoriesCreatedByBatch.add(parent)
         parent = dirname(parent)
       }
+      onProgress?.({
+        currentItem: item.relativePath,
+        phase: 'validating',
+        processedCount: itemIndex + 1,
+        totalCount: prepared.length,
+      })
     }
 
     const batchId = randomUUID()
-    const backupRoot = join(this.userDataPath, 'batch-import-backups', batchId)
+    const backupRoot = join(managedDataRoot, 'batch-import-backups', batchId)
     const backupRecords = new Map<string, string>()
     const createdPaths: string[] = []
     const temporaryPaths: string[] = []
@@ -381,6 +438,12 @@ export class WorkspaceService {
         await mkdir(backupRoot, { mode: 0o700, recursive: true })
         for (let index = 0; index < overwriteItems.length; index += 1) {
           const item = overwriteItems[index]!
+          onProgress?.({
+            currentItem: item.relativePath,
+            phase: 'backing-up',
+            processedCount: index,
+            totalCount: overwriteItems.length,
+          })
           const backupPath = join(backupRoot, `${index}.backup`)
           await copyFile(item.targetPath, backupPath)
           backupRecords.set(item.targetPath, backupPath)
@@ -403,7 +466,13 @@ export class WorkspaceService {
           { encoding: 'utf8', flag: 'wx', mode: 0o600 },
         )
       }
-      for (const item of prepared) {
+      for (const [itemIndex, item] of prepared.entries()) {
+        onProgress?.({
+          currentItem: item.relativePath,
+          phase: 'writing',
+          processedCount: itemIndex,
+          totalCount: prepared.length,
+        })
         await mkdir(dirname(item.targetPath), { recursive: true })
         if (item.conflictAction === 'overwrite') {
           const temporaryPath = join(
@@ -429,6 +498,12 @@ export class WorkspaceService {
           createdPaths.push(item.targetPath)
         }
       }
+      onProgress?.({
+        currentItem: null,
+        phase: 'indexing',
+        processedCount: prepared.length,
+        totalCount: prepared.length,
+      })
       const snapshot = await this.scanAndSnapshot(workspace)
       const imported = prepared.map(item => {
         const createdTemplate = this.repository.getTemplateByRelativePath(
@@ -450,6 +525,12 @@ export class WorkspaceService {
           item.metadata ? [{ fields: item.metadata, templateId: item.templateId }] : [],
         ),
       )
+      onProgress?.({
+        currentItem: null,
+        phase: 'finalizing',
+        processedCount: prepared.length,
+        totalCount: prepared.length,
+      })
       return {
         imported: imported.map(item => ({
           relativePath: item.relativePath,
@@ -609,10 +690,6 @@ export class WorkspaceService {
     rawRequest: PreviewTemplateSourceEditRequest,
   ): Promise<TemplateSourceEditPreview> {
     const request = previewTemplateSourceEditRequestSchema.parse(rawRequest)
-    const updatedBytes = Buffer.byteLength(request.content, 'utf8')
-    if (updatedBytes > MAX_SOURCE_BYTES) {
-      throw new PublicError('FILE_TOO_LARGE', '模板源码超过 2 MiB，无法保存。')
-    }
     assertEditableText(request.content, '新源码包含 NUL 或二进制控制字符，未创建预览。')
     const workspace = this.requireWorkspace()
     const record = this.repository.getTemplateWithWorkspace(request.templateId)
@@ -627,30 +704,48 @@ export class WorkspaceService {
       throw new PublicError('FILE_TOO_LARGE', '模板文件超过 2 MiB，无法在应用内编辑。')
     }
     const originalBuffer = await readFile(resolvedFile.absolutePath)
-    const originalContent = decodeSourceBuffer(originalBuffer)
-    assertEditableText(originalContent, '该文件包含 NUL 或二进制控制字符，无法编辑。')
-    if (originalContent === request.content) {
+    const original = decodeSourceBuffer(originalBuffer)
+    if (original.content === request.content) {
       throw new PublicError('INVALID_REQUEST', '源码没有变化，无需保存。')
+    }
+    let updatedBuffer: Buffer
+    try {
+      updatedBuffer = encodeTemplateSource(request.content, original.encoding)
+    } catch {
+      throw new PublicError('FILE_UNAVAILABLE', '修改后的源码无法按原编码无损保存。')
+    }
+    if (updatedBuffer.length > MAX_SOURCE_BYTES) {
+      throw new PublicError('FILE_TOO_LARGE', '模板源码超过 2 MiB，无法保存。')
     }
 
     const previewId = randomUUID()
     const preview: StoredTemplateSourceEditPreview = {
-      diff: buildSourceEditDiff(originalContent, request.content),
+      diff: buildSourceEditDiff(original.content, request.content),
       expiresAt: new Date(Date.now() + SOURCE_EDIT_PREVIEW_TTL_MS).toISOString(),
       originalSha256: sourceSha256(originalBuffer),
       originalSizeBytes: originalBuffer.length,
       previewId,
       relativePath: record.template.relativePath,
+      sourceEncoding: original.encoding,
       templateId: record.template.id,
+      updatedBuffer,
       updatedContent: request.content,
-      updatedSizeBytes: updatedBytes,
+      updatedSizeBytes: updatedBuffer.length,
       workspaceId: workspace.id,
     }
     for (const [id, stored] of this.sourceEditPreviews) {
       if (Date.parse(stored.expiresAt) <= Date.now()) this.sourceEditPreviews.delete(id)
     }
     this.sourceEditPreviews.set(previewId, preview)
-    const { updatedContent, workspaceId, ...publicPreview } = preview
+    const {
+      sourceEncoding,
+      updatedBuffer: storedUpdatedBuffer,
+      updatedContent,
+      workspaceId,
+      ...publicPreview
+    } = preview
+    void sourceEncoding
+    void storedUpdatedBuffer
     void updatedContent
     void workspaceId
     return publicPreview
@@ -679,7 +774,8 @@ export class WorkspaceService {
     ) {
       throw new PublicError('FILE_UNAVAILABLE', '模板索引已变化，请重新读取并预览。')
     }
-    if (!this.userDataPath) {
+    const managedDataRoot = this.getManagedDataRoot()
+    if (!managedDataRoot) {
       throw new PublicError('FILE_UNAVAILABLE', '源码编辑备份目录未初始化。')
     }
 
@@ -688,17 +784,18 @@ export class WorkspaceService {
       throw new PublicError('FILE_TOO_LARGE', '模板文件超过 2 MiB，无法在应用内编辑。')
     }
     const originalBuffer = await readFile(resolvedFile.absolutePath)
-    const originalContent = decodeSourceBuffer(originalBuffer)
-    assertEditableText(originalContent, '该文件包含 NUL 或二进制控制字符，无法编辑。')
+    const original = decodeSourceBuffer(originalBuffer)
     if (sourceSha256(originalBuffer) !== preview.originalSha256) {
       throw new PublicError('FILE_UNAVAILABLE', '源码已在预览后被外部修改，拒绝覆盖；请重新读取。')
     }
-    assertEditableText(preview.updatedContent, '新源码包含 NUL 或二进制控制字符，未保存。')
-    if (Buffer.byteLength(preview.updatedContent, 'utf8') > MAX_SOURCE_BYTES) {
+    if (original.encoding !== preview.sourceEncoding) {
+      throw new PublicError('FILE_UNAVAILABLE', '源码编码已在预览后变化，请重新读取。')
+    }
+    if (preview.updatedBuffer.length > MAX_SOURCE_BYTES) {
       throw new PublicError('FILE_TOO_LARGE', '模板源码超过 2 MiB，无法保存。')
     }
 
-    const backupRoot = join(this.userDataPath, 'file-plan-backups', preview.previewId)
+    const backupRoot = join(managedDataRoot, 'file-plan-backups', preview.previewId)
     const backupPath = join(backupRoot, 'source.backup')
     const temporaryPath = join(
       dirname(resolvedFile.absolutePath),
@@ -713,7 +810,7 @@ export class WorkspaceService {
       backupCreated = true
       const handle = await open(temporaryPath, 'wx', 0o600)
       try {
-        await handle.writeFile(preview.updatedContent, 'utf8')
+        await handle.writeFile(preview.updatedBuffer)
         await handle.sync()
       } finally {
         await handle.close()
@@ -743,6 +840,7 @@ export class WorkspaceService {
         backupCleanupPending,
         source: {
           content: preview.updatedContent,
+          encoding: preview.sourceEncoding,
           id: preview.templateId,
           language: refreshed.language,
           relativePath: refreshed.relativePath,
@@ -800,11 +898,11 @@ export class WorkspaceService {
       throw new PublicError('FILE_TOO_LARGE', '模板文件超过 2 MiB，无法在应用内打开。')
     }
 
-    const content = decodeSourceBuffer(await readFile(resolvedFile.absolutePath))
-    assertEditableText(content, '该文件不是可显示的文本源码。')
+    const decoded = decodeSourceBuffer(await readFile(resolvedFile.absolutePath))
 
     return {
-      content,
+      content: decoded.content,
+      encoding: decoded.encoding,
       id: record.template.id,
       language: record.template.language,
       relativePath: record.template.relativePath,
@@ -824,6 +922,10 @@ export class WorkspaceService {
       throw new PublicError('WORKSPACE_REQUIRED', '请先创建或选择模板工作区。')
     }
     return workspace
+  }
+
+  private getManagedDataRoot(): string | undefined {
+    return this.workspaceRuntime?.storage.current?.dataRoot ?? this.userDataPath
   }
 
   private async scanAndSnapshot(
@@ -867,11 +969,15 @@ export class WorkspaceService {
       limit: 500,
       query: '',
     })
+    const activeStorage = this.workspaceRuntime?.storage.current
     return {
       available,
       id: workspace.id,
       name: workspace.name,
-      rootPath: workspace.rootPath,
+      rootPath:
+        activeStorage?.marker.workspaceId === workspace.id
+          ? activeStorage.containerRoot
+          : workspace.rootPath,
       scannedAt: workspace.scannedAt,
       summary: this.repository.parseSummary(workspace),
       templatePage: {

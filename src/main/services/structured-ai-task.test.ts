@@ -220,4 +220,58 @@ describe('runStructuredAiTask', () => {
     ).resolves.toMatchObject({ data: { count: 3 } })
     expect(runTask).toHaveBeenCalledTimes(2)
   })
+
+  it('keeps the original schema-valid result when semantic retry returns invalid JSON', async () => {
+    const runTask = vi
+      .fn()
+      .mockResolvedValueOnce({ model: 'fixture', providerName: 'Fixture', text: '{"count":1}' })
+      .mockResolvedValueOnce({ model: 'fixture', providerName: 'Fixture', text: 'not-json' })
+
+    await expect(
+      runStructuredAiTask({
+        aiProviderService: { runTask } as unknown as AiProviderService,
+        allowSemanticFallback: true,
+        invalidMessage: '语义连续无效',
+        request: { maxOutputTokens: 800, system: '业务指令', text: '原始输入' },
+        schema: resultSchema,
+        schemaName: 'fixture_result',
+        semanticRetryInstruction: '将结果修正为偶数。',
+        task: 'template-metadata',
+        validate: value => {
+          if (value.count % 2 !== 0) {
+            throw new PublicError('AI_INVALID_RESPONSE', '结果必须是偶数。')
+          }
+        },
+      }),
+    ).resolves.toMatchObject({ data: { count: 1 } })
+    expect(runTask).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps the original schema-valid result when the best-effort semantic retry times out', async () => {
+    const runTask = vi
+      .fn()
+      .mockResolvedValueOnce({ model: 'fixture', providerName: 'Fixture', text: '{"count":1}' })
+      .mockRejectedValueOnce(
+        new PublicError('AI_RESPONSE_TIMEOUT', '等待语义修正响应超时。', 1_000),
+      )
+
+    await expect(
+      runStructuredAiTask({
+        aiProviderService: { runTask } as unknown as AiProviderService,
+        allowSemanticFallback: true,
+        invalidMessage: '语义连续无效',
+        request: { maxOutputTokens: 800, system: '业务指令', text: '原始输入' },
+        schema: resultSchema,
+        schemaName: 'fixture_result',
+        semanticRetryInstruction: '将结果修正为偶数。',
+        task: 'template-metadata',
+        validate: value => {
+          if (value.count % 2 !== 0) {
+            throw new PublicError('AI_INVALID_RESPONSE', '结果必须是偶数。')
+          }
+        },
+      }),
+    ).resolves.toMatchObject({ data: { count: 1 } })
+    expect(runTask).toHaveBeenCalledTimes(2)
+  })
 })

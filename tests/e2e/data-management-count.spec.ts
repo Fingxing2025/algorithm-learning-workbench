@@ -10,6 +10,10 @@ import {
   type Page,
 } from '@playwright/test'
 
+import type { DesktopApi } from '@core/contracts/desktop-api'
+
+declare const window: { desktop: DesktopApi }
+
 let electronApp: ElectronApplication
 let page: Page
 let temporaryRoot: string
@@ -23,6 +27,10 @@ async function setNextDirectorySelection(directoryPath: string) {
       canceled: false,
       filePaths: [selectedDirectory],
     })) as typeof dialog.showOpenDialog
+    dialog.showMessageBox = (async () => ({
+      checkboxChecked: false,
+      response: 1,
+    })) as typeof dialog.showMessageBox
   }, directoryPath)
 }
 
@@ -35,9 +43,12 @@ async function setNextDirectorySelectionCancelled() {
   })
 }
 
-async function expectDataTemplateCount(count: number) {
-  await page.getByRole('button', { name: '数据管理' }).click()
-  await expect(page.getByTestId('data-count-templates')).toContainText(String(count))
+async function expectHealthyBackupPageAndInternalTemplateCount(count: number) {
+  await page.getByRole('button', { name: '备份与恢复' }).click()
+  await expect(page.locator('p').filter({ hasText: /^数据状态正常$/u })).toBeVisible()
+  await expect(page.getByTestId('data-count-templates')).toHaveCount(0)
+  const diagnostics = await page.evaluate(() => window.desktop.dataManagement.diagnose())
+  expect(diagnostics.counts.templates).toBe(count)
 }
 
 test.beforeAll(async () => {
@@ -65,23 +76,23 @@ test.afterAll(async () => {
   if (temporaryRoot) await rm(temporaryRoot, { force: true, recursive: true })
 })
 
-test('matches the visible current-workspace template count across switches and unavailable history', async () => {
+test('keeps diagnostics accurate without exposing management count tiles', async () => {
   await setNextDirectorySelection(workspaceA)
   await page.getByRole('button', { name: '选择目录' }).click()
   await expect(page.getByText('2 个模板').first()).toBeVisible()
-  await expectDataTemplateCount(2)
+  await expectHealthyBackupPageAndInternalTemplateCount(2)
 
   await page.getByRole('button', { name: '模板库', exact: true }).click()
   await setNextDirectorySelection(workspaceB)
   await page.getByRole('button', { name: '切换工作区' }).click()
   await expect(page.getByText('1 个模板').first()).toBeVisible()
-  await expectDataTemplateCount(1)
+  await expectHealthyBackupPageAndInternalTemplateCount(1)
 
   await page.getByRole('button', { name: '模板库', exact: true }).click()
-  await unlink(join(workspaceB, 'only.cpp'))
+  await unlink(join(workspaceB, 'templates', 'only.cpp'))
   await page.getByRole('button', { name: '重新扫描工作区' }).click()
   await expect(page.getByText('工作区还是空的')).toBeVisible()
-  await expectDataTemplateCount(0)
+  await expectHealthyBackupPageAndInternalTemplateCount(0)
 
   await page.getByRole('button', { name: '模板库', exact: true }).click()
   await setNextDirectorySelectionCancelled()
@@ -92,5 +103,5 @@ test('matches the visible current-workspace template count across switches and u
   await setNextDirectorySelection(workspaceA)
   await page.getByRole('button', { name: '切换工作区' }).click()
   await expect(page.getByText('2 个模板').first()).toBeVisible()
-  await expectDataTemplateCount(2)
+  await expectHealthyBackupPageAndInternalTemplateCount(2)
 })

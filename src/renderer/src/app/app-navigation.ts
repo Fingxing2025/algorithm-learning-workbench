@@ -5,7 +5,7 @@ export type AppView = 'ai' | 'dashboard' | 'data' | 'problems' | 'settings' | 't
 export const appViewLabels: Record<AppView, string> = {
   ai: 'AI 管理',
   dashboard: '工作台',
-  data: '数据管理',
+  data: '备份与恢复',
   problems: '题目',
   settings: 'AI 设置',
   templates: '模板库',

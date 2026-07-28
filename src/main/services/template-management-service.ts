@@ -28,6 +28,8 @@ import {
   type DeleteFilePlansResult,
   type DeleteFileExecutionsRequest,
   type DeleteFileExecutionsResult,
+  type DeleteInvalidFileExecutionsRequest,
+  type DeleteInvalidFileExecutionsResult,
   type BatchImportTemplateRequest,
   type BatchImportTemplateResult,
   type BatchTemplateImportSource,
@@ -46,9 +48,20 @@ import {
   type TemplateRelocationPreview,
   type PreviewTemplateRelocationRequest,
   type PreviewDeleteFileExecutionsRequest,
+  type PreviewDeleteInvalidFileExecutionsRequest,
   type PreviewDeleteFilePlansRequest,
+  type InvalidFileExecutionDeletionPreview,
+  type InvalidFileExecutionPage,
+  type InvalidFileExecutionPageRequest,
+  type ApplyExistingTemplateMetadataCompletionRequest,
+  type ApplyExistingTemplateMetadataCompletionResult,
+  type ExistingTemplateMetadataCompletionDraft,
+  type ExistingTemplateMetadataCompletionPreview,
+  type GenerateExistingTemplateMetadataCompletionRequest,
+  type PreviewExistingTemplateMetadataCompletionRequest,
 } from '@core/contracts/template-management'
 import type { AiRequestPreview } from '@core/contracts/ai-request'
+import type { BackgroundTaskProgress } from '@core/contracts/background-task'
 
 import { TemplateManagementRepository } from '../database/template-management-repository'
 import { WorkspaceRepository } from '../database/workspace-repository'
@@ -57,6 +70,11 @@ import { normalizeTemplateRelativePath } from '../security/template-path'
 import { resolveAuthorizedFile, resolveAuthorizedRoot } from '../security/path-guard'
 import type { AiProviderService } from './ai-provider-service'
 import type { AiTaskRunRegistry } from './ai-task-run-registry'
+import {
+  BATCH_AI_CONTEXT_ESTIMATED_INPUT_TOKENS,
+  BATCH_AI_MAX_SOURCE_CHARS,
+  compactAiSource,
+} from './ai-input-budget'
 import { getLanguageForExtension } from './template-scanner'
 import type { WorkspaceService } from './workspace-service'
 import {
@@ -84,6 +102,10 @@ import { TemplateFilePlanSafety } from './template-file-plan-safety'
 import { TemplateWorkspaceAuditService } from './template-workspace-audit-service'
 import type { WorkspaceAuditOptions } from './template-workspace-audit-service'
 import type { WorkspaceAudit } from '@core/contracts/template-management'
+import { decodeTemplateSourceBuffer } from './template-source-codec'
+import { FileExecutionIntegrityService } from './file-execution-integrity-service'
+import { TemplateMetadataCompletionService } from './template-metadata-completion-service'
+import type { WorkspaceStorageManager } from './workspace-storage'
 
 interface StoredTemplateRelocationPreview extends TemplateRelocationPreview {
   sourceModifiedAt: string
@@ -99,6 +121,7 @@ export class TemplateManagementService {
   private readonly filePlanGenerationService: TemplateFilePlanGenerationService
   private readonly filePlanExecutor: TemplateFilePlanExecutor
   private readonly filePlanHistoryService: TemplateFilePlanHistoryService
+  private readonly metadataCompletionService: TemplateMetadataCompletionService
 
   constructor(
     private readonly aiProviderService: AiProviderService,
@@ -112,6 +135,8 @@ export class TemplateManagementService {
       DataLifecycleService,
       'executeManagedHistoryDeletion' | 'inspectManagedHistoryBackups'
     > | null = null,
+    fileExecutionIntegrityService: FileExecutionIntegrityService | null = null,
+    workspaceStorage?: WorkspaceStorageManager,
   ) {
     this.auditService = new TemplateWorkspaceAuditService(
       this.metadataRepository,
@@ -135,6 +160,7 @@ export class TemplateManagementService {
       this.workspaceService,
       this.userDataPath,
       this.filePlanSafety,
+      workspaceStorage,
     )
     this.filePlanHistoryService = new TemplateFilePlanHistoryService(
       this.metadataRepository,
@@ -142,6 +168,20 @@ export class TemplateManagementService {
       this.auditService,
       this.filePlanSafety,
       historyDeletionLifecycle,
+      fileExecutionIntegrityService ??
+        new FileExecutionIntegrityService(
+          this.metadataRepository,
+          this.userDataPath,
+          workspaceStorage,
+        ),
+    )
+    this.metadataCompletionService = new TemplateMetadataCompletionService(
+      this.aiProviderService,
+      this.metadataRepository,
+      this.workspaceRepository,
+      this.workspaceService,
+      this.workspaceAiContextService,
+      this.aiTaskRunRegistry,
     )
   }
 
@@ -161,6 +201,24 @@ export class TemplateManagementService {
     rawRequest: DeleteFileExecutionsRequest,
   ): Promise<DeleteFileExecutionsResult> {
     return this.filePlanHistoryService.deleteFileExecutions(rawRequest)
+  }
+
+  listInvalidFileExecutionsPage(
+    request: InvalidFileExecutionPageRequest,
+  ): Promise<InvalidFileExecutionPage> {
+    return this.filePlanHistoryService.listInvalidFileExecutionsPage(request)
+  }
+
+  previewDeleteInvalidFileExecutions(
+    request: PreviewDeleteInvalidFileExecutionsRequest,
+  ): Promise<InvalidFileExecutionDeletionPreview> {
+    return this.filePlanHistoryService.previewDeleteInvalidFileExecutions(request)
+  }
+
+  deleteInvalidFileExecutions(
+    request: DeleteInvalidFileExecutionsRequest,
+  ): Promise<DeleteInvalidFileExecutionsResult> {
+    return this.filePlanHistoryService.deleteInvalidFileExecutions(request)
   }
 
   previewDeleteFilePlans(
@@ -326,18 +384,18 @@ export class TemplateManagementService {
       throw new PublicError('WORKSPACE_REQUIRED', '请先创建或选择模板工作区。')
     }
     const target = this.aiProviderService.getTaskTarget('template-metadata')
-    const sourceLength = Math.min(request.content.length, MAX_AI_SOURCE_CHARS)
+    const sourceLength = Math.min(request.content.length, BATCH_AI_MAX_SOURCE_CHARS)
     const draftLength = JSON.stringify({
       metadata: { ...request.metadata, notes: undefined },
       relativePath: request.fileName,
     }).length
     const context = await this.workspaceAiContextService.build({
       model: target.model,
+      maxEstimatedInputTokens: BATCH_AI_CONTEXT_ESTIMATED_INPUT_TOKENS,
       outputLanguage: request.outputLanguage,
       promptSchemaVersion: 'template-placement-v3',
       providerId: target.id,
       query: `${request.fileName}\n${request.content}`,
-      reservedInputTokens: Math.ceil((sourceLength + draftLength + 2_500) / 4),
       task: 'template-metadata',
     })
     return {
@@ -348,12 +406,12 @@ export class TemplateManagementService {
         workspaceContextVersion: context.version,
       },
       estimatedInputTokens: Math.ceil(
-        (context.estimatedCharacters + sourceLength + draftLength + 2_500) / 4,
+        (context.estimatedCharacters + sourceLength + draftLength + 16_000) / 4,
       ),
       endpointHost: target.endpointHost,
       items: [
         {
-          detail: `${sourceLength} / ${request.content.length} 字符`,
+          detail: `${sourceLength} / ${request.content.length} 字符；超出部分按头尾保留并显式标记`,
           kind: 'content',
           label: '当前模板源码',
         },
@@ -383,9 +441,28 @@ export class TemplateManagementService {
       providerName: target.providerName,
       protocol: target.protocol,
       task: 'template-metadata',
-      truncated: context.contextTruncated || request.content.length > MAX_AI_SOURCE_CHARS,
+      truncated: context.contextTruncated || request.content.length > BATCH_AI_MAX_SOURCE_CHARS,
       workspaceCatalog: workspaceCatalogPreview(context),
     }
+  }
+
+  previewExistingMetadataCompletion(
+    request: PreviewExistingTemplateMetadataCompletionRequest,
+  ): Promise<ExistingTemplateMetadataCompletionPreview> {
+    return this.metadataCompletionService.preview(request)
+  }
+
+  generateExistingMetadataCompletion(
+    request: GenerateExistingTemplateMetadataCompletionRequest,
+    onProgress?: (progress: BackgroundTaskProgress) => void,
+  ): Promise<ExistingTemplateMetadataCompletionDraft> {
+    return this.metadataCompletionService.generate(request, onProgress)
+  }
+
+  applyExistingMetadataCompletion(
+    request: ApplyExistingTemplateMetadataCompletionRequest,
+  ): Promise<ApplyExistingTemplateMetadataCompletionResult> {
+    return this.metadataCompletionService.apply(request)
   }
 
   async auditWorkspace(options: WorkspaceAuditOptions = {}): Promise<WorkspaceAudit> {
@@ -407,8 +484,11 @@ export class TemplateManagementService {
     return this.filePlanGenerationService.exportFilePlanDiagnostic(planId, parentWindow)
   }
 
-  async generateFilePlan(rawRequest: FilePlanGenerationRequest): Promise<FileChangePlan> {
-    return this.filePlanGenerationService.generateFilePlan(rawRequest)
+  async generateFilePlan(
+    rawRequest: FilePlanGenerationRequest,
+    onProgress?: (progress: BackgroundTaskProgress) => void,
+  ): Promise<FileChangePlan> {
+    return this.filePlanGenerationService.generateFilePlan(rawRequest, onProgress)
   }
 
   cancelFilePlan(planId: string): FileChangePlan {
@@ -427,15 +507,11 @@ export class TemplateManagementService {
     return this.filePlanHistoryService.listFilePlansPage(request)
   }
 
-  listArchivedFilePlansPage(request: FileHistoryPageRequest): FileChangePlanPage {
-    return this.filePlanHistoryService.listArchivedFilePlansPage(request)
-  }
-
-  listFileExecutions(): FileChangeExecution[] {
+  listFileExecutions(): Promise<FileChangeExecution[]> {
     return this.filePlanHistoryService.listFileExecutions()
   }
 
-  listFileExecutionsPage(request: FileHistoryPageRequest): FileChangeExecutionPage {
+  listFileExecutionsPage(request: FileHistoryPageRequest): Promise<FileChangeExecutionPage> {
     return this.filePlanHistoryService.listFileExecutionsPage(request)
   }
 
@@ -443,15 +519,22 @@ export class TemplateManagementService {
     return this.filePlanHistoryService.redraftFilePlan(planId)
   }
 
-  async applyFilePlan(rawRequest: {
-    operationIds: string[]
-    planId: string
-  }): Promise<FileChangeMutationResult> {
-    return this.filePlanExecutor.applyFilePlan(rawRequest)
+  async applyFilePlan(
+    rawRequest: {
+      operationIds: string[]
+      planId: string
+      requestId?: string
+    },
+    onProgress?: (progress: BackgroundTaskProgress) => void,
+  ): Promise<FileChangeMutationResult> {
+    return this.filePlanExecutor.applyFilePlan(rawRequest, onProgress)
   }
 
-  async rollbackFileExecution(executionId: string): Promise<FileChangeMutationResult> {
-    return this.filePlanExecutor.rollbackFileExecution(executionId)
+  async rollbackFileExecution(
+    executionId: string,
+    onProgress?: (progress: BackgroundTaskProgress) => void,
+  ): Promise<FileChangeMutationResult> {
+    return this.filePlanExecutor.rollbackFileExecution(executionId, onProgress)
   }
 
   private async readBatchCppSources(
@@ -482,15 +565,13 @@ export class TemplateManagementService {
         if (totalBytes > MAX_BATCH_SOURCE_BYTES) {
           throw new PublicError('FILE_TOO_LARGE', '单批 C++ 源码总大小不能超过 20 MiB。')
         }
-        const content = await readFile(file.path, 'utf8')
-        if (content.includes('\0')) {
-          throw new PublicError('FILE_UNAVAILABLE', '所选文件不是可读取的文本源码。')
-        }
+        const decoded = decodeTemplateSourceBuffer(await readFile(file.path))
         sources.push({
-          content,
+          content: decoded.content,
           displayPath: normalizeTemplateRelativePath(file.displayPath),
           fileName: basename(file.path).normalize('NFC'),
           id: randomUUID(),
+          sourceEncoding: decoded.encoding,
         })
       } catch (error) {
         if (error instanceof PublicError) throw error
@@ -586,22 +667,15 @@ export class TemplateManagementService {
       .slice(0, MAX_AI_SOURCE_CHARS)
     const context = await this.workspaceAiContextService.build({
       model: target.model,
+      maxEstimatedInputTokens: BATCH_AI_CONTEXT_ESTIMATED_INPUT_TOKENS,
       outputLanguage: request.outputLanguage,
       promptSchemaVersion: 'batch-template-placement-v2',
       providerId: target.id,
       query,
-      reservedInputTokens: Math.ceil(
-        (Math.min(
-          Math.max(...request.sources.map(source => source.content.length)),
-          MAX_AI_SOURCE_CHARS,
-        ) +
-          2_500) /
-          4,
-      ),
       task: 'template-metadata',
     })
     const sourceCharacters = request.sources.reduce(
-      (total, source) => total + source.content.length,
+      (total, source) => total + Math.min(source.content.length, BATCH_AI_MAX_SOURCE_CHARS),
       0,
     )
     return {
@@ -612,12 +686,15 @@ export class TemplateManagementService {
         workspaceContextVersion: context.version,
       },
       estimatedInputTokens: Math.ceil(
-        (sourceCharacters + context.estimatedCharacters * request.sources.length + 2_500) / 4,
+        (sourceCharacters +
+          context.estimatedCharacters * request.sources.length +
+          16_000 * request.sources.length) /
+          4,
       ),
       endpointHost: target.endpointHost,
       items: [
         {
-          detail: `${request.sources.length} 份 .cpp · ${sourceCharacters} 字符；逐份发送并显示进度`,
+          detail: `${request.sources.length} 份 .cpp · 实际发送最多 ${sourceCharacters} 字符；逐份发送、超长源码按头尾保留并显示进度`,
           kind: 'content',
           label: '批量 C++ 源码',
         },
@@ -647,16 +724,19 @@ export class TemplateManagementService {
       providerName: target.providerName,
       protocol: target.protocol,
       task: 'template-metadata',
-      truncated: context.contextTruncated || query.length >= MAX_AI_SOURCE_CHARS,
+      truncated:
+        context.contextTruncated ||
+        request.sources.some(source => source.content.length > BATCH_AI_MAX_SOURCE_CHARS),
       workspaceCatalog: workspaceCatalogPreview(context),
     }
   }
 
   async importTemplatesBatch(
     rawRequest: BatchImportTemplateRequest,
+    onProgress?: (progress: BackgroundTaskProgress) => void,
   ): Promise<BatchImportTemplateResult> {
     const request = batchImportTemplateRequestSchema.parse(rawRequest)
-    return this.workspaceService.importTemplatesBatch(request)
+    return this.workspaceService.importTemplatesBatch(request, onProgress)
   }
 
   async inspectBatchImport(
@@ -686,11 +766,8 @@ export class TemplateManagementService {
       if (!getLanguageForExtension(extname(fileName).toLowerCase())) {
         throw new PublicError('INVALID_REQUEST', '所选文件不是支持的源码类型。')
       }
-      const content = await readFile(selectedPath, 'utf8')
-      if (content.includes('\0')) {
-        throw new PublicError('FILE_UNAVAILABLE', '所选文件不是可读取的文本源码。')
-      }
-      return { content, fileName }
+      const decoded = decodeTemplateSourceBuffer(await readFile(selectedPath))
+      return { content: decoded.content, fileName, sourceEncoding: decoded.encoding }
     } catch (error) {
       if (error instanceof PublicError) throw error
       throw new PublicError('FILE_UNAVAILABLE', '无法读取所选源码文件。')
@@ -720,16 +797,11 @@ export class TemplateManagementService {
       }
       const context = await this.workspaceAiContextService.build({
         model: target.model,
+        maxEstimatedInputTokens: BATCH_AI_CONTEXT_ESTIMATED_INPUT_TOKENS,
         outputLanguage: request.outputLanguage,
         promptSchemaVersion: 'template-placement-v3',
         providerId: target.id,
         query: `${request.fileName}\n${request.content}`,
-        reservedInputTokens: Math.ceil(
-          (Math.min(request.content.length, MAX_AI_SOURCE_CHARS) +
-            JSON.stringify(currentDraft).length +
-            2_500) /
-            4,
-        ),
         task: 'template-metadata',
       })
       run.throwIfCancelled()
@@ -759,6 +831,7 @@ export class TemplateManagementService {
         '无法可靠判断的复杂度返回 null，其他无法判断的文本返回空字符串。',
         outputLanguageInstruction,
       ].join('\n')
+      const compactedSource = compactAiSource(request.content, BATCH_AI_MAX_SOURCE_CHARS)
       const completion = await runStructuredAiTask({
         aiProviderService: this.aiProviderService,
         allowSemanticFallback: true,
@@ -772,8 +845,10 @@ export class TemplateManagementService {
             currentDraft,
             fileName: request.fileName || null,
             relatedWorkspaceContext: JSON.parse(context.relatedContext),
-            source: request.content.slice(0, MAX_AI_SOURCE_CHARS),
-            sourceTruncated: request.content.length > MAX_AI_SOURCE_CHARS,
+            source: compactedSource.content,
+            sourceOriginalCharacters: compactedSource.originalCharacters,
+            sourceTruncated: compactedSource.truncated,
+            sourceTruncationStrategy: compactedSource.truncationStrategy,
           }),
         },
         normalize: value =>

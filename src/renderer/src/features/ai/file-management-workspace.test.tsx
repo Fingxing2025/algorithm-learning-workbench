@@ -5,6 +5,7 @@ import type {
   FileChangeExecution,
   FileChangeOperation,
   FileChangePlan,
+  InvalidFileExecutionItem,
   WorkspaceAudit,
 } from '@core/contracts/template-management'
 import type { BackgroundTaskStatus } from '@core/contracts/background-task'
@@ -19,6 +20,7 @@ const planId = '22222222-2222-4222-8222-222222222222'
 const executionId = '33333333-3333-4333-8333-333333333333'
 const planDeletePreviewId = '33333333-3333-4333-8333-333333333334'
 const executionDeletePreviewId = '33333333-3333-4333-8333-333333333335'
+const invalidExecutionPreviewId = '33333333-3333-4333-8333-333333333337'
 const moveOperationId = '55555555-5555-4555-8555-555555555555'
 const deleteOperationId = '66666666-6666-4666-8666-666666666666'
 const metadataOperationId = '66666666-6666-4666-8666-666666666667'
@@ -55,10 +57,14 @@ const plan: FileChangePlan = {
   contextVersion: null,
   createdAt,
   diagnostic: {
+    adaptiveSplitCount: 0,
     auditIssueCount: 0,
     candidateTemplateCount: 0,
     contextTruncated: false,
+    effectiveBatchCount: 0,
     inputHash: null,
+    initialBatchCount: 0,
+    languageFallbackBatchCount: 0,
     notesIncludedCount: 0,
     previewId: null,
     requestId: null,
@@ -169,10 +175,14 @@ const appliedExecution: FileChangeExecution = {
   status: 'applied',
 }
 
-const archivedPlan: FileChangePlan = {
-  ...plan,
-  id: '22222222-2222-4222-8222-222222222223',
-  providerName: '旧归档 Provider',
+const invalidExecution: InvalidFileExecutionItem = {
+  createdAt,
+  deletable: true,
+  id: appliedExecution.id,
+  operationCount: null,
+  reason: 'backup-missing',
+  workspaceId: '11111111-1111-4111-8111-111111111112',
+  workspaceName: '旧工作区',
 }
 
 const emptyAudit: WorkspaceAudit = {
@@ -202,6 +212,13 @@ const completedAudit: WorkspaceAudit = {
       kind: 'stale-relation',
       paths: ['旧目录/失效模板.cpp'],
       severity: 'info',
+    },
+    {
+      detail: '文件名疑似包含乱码或错误解码痕迹；AI 文件计划必须提供安全改名，执行前仍需确认。',
+      id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      kind: 'invalid-name',
+      paths: ['图论/锟斤拷.cpp'],
+      severity: 'warning',
     },
   ],
   processedCount: 3,
@@ -263,8 +280,8 @@ const runningAuditTask: BackgroundTaskStatus = {
 function installDesktopMock(
   planItems: FileChangePlan[] = [plan],
   auditStartStatus: BackgroundTaskStatus = completedAuditTask(emptyAudit),
-  archivedPlanItems: FileChangePlan[] = [],
   executionItems: FileChangeExecution[] = [execution],
+  invalidExecutionItems: InvalidFileExecutionItem[] = [],
 ) {
   const previewFilePlan = vi.fn().mockImplementation(async request => ({
     capabilities: {
@@ -282,6 +299,7 @@ function installDesktopMock(
     estimatedInputTokens: 1234,
     filePlan: {
       auditIssueCount: 2,
+      batchCount: 2,
       candidateMetadataOmitted: false,
       candidateSourceOmitted: true,
       candidateTemplateCount: 3,
@@ -289,6 +307,9 @@ function installDesktopMock(
       expiresAt: '2026-07-23T00:05:00.000Z',
       inputCharacters: 4936,
       inputHash: 'a'.repeat(64),
+      largestBatchInputCharacters: 2600,
+      maxCandidatesPerBatch: 4,
+      maxOutputTokensPerBatch: 4096,
       metadataCharacters: 420,
       notesCharacters: request.includeNotes ? 18 : 0,
       notesIncludedCount: request.includeNotes ? 2 : 0,
@@ -296,6 +317,7 @@ function installDesktopMock(
       sourceCharacters: 800,
       sourceReadFailureCount: 1,
       sourceSnippetCount: 2,
+      totalBatchInputCharacters: 4936,
     },
     items: [],
     model: 'fixture-model',
@@ -346,12 +368,16 @@ function installDesktopMock(
     missingBackupDirectoryCount: 0,
     recordIds: [planId],
   })
+  const deleteInvalidFileExecutions = vi.fn().mockResolvedValue({
+    deletedAt: createdAt,
+    deletedExecutionCount: invalidExecutionItems.length,
+    recordIds: invalidExecutionItems.map(item => item.id),
+  })
   const previewDeleteFileExecutions = vi.fn().mockImplementation(async request => {
     const selected = executionItems.filter(item => request.executionIds.includes(item.id))
     return {
       appliedExecutionCount: selected.filter(item => item.status === 'applied').length,
       appliedPlanCount: 0,
-      archivedPlanCount: 0,
       backupDirectoryCount: 0,
       cancelledPlanCount: 0,
       executionCount: selected.length,
@@ -368,7 +394,6 @@ function installDesktopMock(
   const previewDeleteFilePlans = vi.fn().mockResolvedValue({
     appliedExecutionCount: 0,
     appliedPlanCount: 0,
-    archivedPlanCount: 0,
     backupDirectoryCount: 0,
     cancelledPlanCount: 1,
     executionCount: 0,
@@ -380,6 +405,17 @@ function installDesktopMock(
     recordIds: [planId],
     rolledBackExecutionCount: 0,
     rolledBackPlanCount: 0,
+  })
+  const previewDeleteInvalidFileExecutions = vi.fn().mockImplementation(async request => {
+    const selected = invalidExecutionItems.filter(item => request.executionIds.includes(item.id))
+    return {
+      executionCount: selected.length,
+      expiresAt: '2026-07-20T00:10:00.000Z',
+      items: selected,
+      previewId: invalidExecutionPreviewId,
+      recordIds: selected.map(item => item.id),
+      workspaceCount: new Set(selected.map(item => item.workspaceId)).size,
+    }
   })
   const exportFilePlanDiagnostic = vi.fn().mockResolvedValue(true)
   const cancelBackgroundTask = vi.fn().mockResolvedValue(cancelledAuditTask)
@@ -408,13 +444,12 @@ function installDesktopMock(
     truncated: false,
     truncatedReason: null,
   })
-  const listArchivedFilePlansPage = vi.fn().mockResolvedValue({
-    draftCount: 0,
-    items: archivedPlanItems,
+  const listInvalidFileExecutionsPage = vi.fn().mockResolvedValue({
+    items: invalidExecutionItems,
     nextAction: null,
     nextCursor: null,
-    processedCount: archivedPlanItems.length,
-    totalCount: archivedPlanItems.length,
+    processedCount: invalidExecutionItems.length,
+    totalCount: invalidExecutionItems.length,
     truncated: false,
     truncatedReason: null,
   })
@@ -431,13 +466,15 @@ function installDesktopMock(
         cancelFilePlanGeneration,
         cancelFilePlan,
         deleteFileExecutions,
+        deleteInvalidFileExecutions,
         deleteFilePlans,
         exportFilePlanDiagnostic,
         generateFilePlan,
         listFileExecutionsPage,
-        listArchivedFilePlansPage,
+        listInvalidFileExecutionsPage,
         listFilePlansPage,
         previewDeleteFileExecutions,
+        previewDeleteInvalidFileExecutions,
         previewDeleteFilePlans,
         previewFilePlan,
         redraftFilePlan,
@@ -453,14 +490,16 @@ function installDesktopMock(
     cancelBackgroundTask,
     cancelFilePlan,
     deleteFileExecutions,
+    deleteInvalidFileExecutions,
     deleteFilePlans,
     exportFilePlanDiagnostic,
     generateFilePlan,
     getBackgroundTask,
     listFileExecutionsPage,
-    listArchivedFilePlansPage,
+    listInvalidFileExecutionsPage,
     listFilePlansPage,
     previewDeleteFileExecutions,
+    previewDeleteInvalidFileExecutions,
     previewDeleteFilePlans,
     previewFilePlan,
     redraftFilePlan,
@@ -472,10 +511,15 @@ function installDesktopMock(
 function renderWorkspace(
   planItems?: FileChangePlan[],
   auditStartStatus?: BackgroundTaskStatus,
-  archivedPlanItems?: FileChangePlan[],
   executionItems?: FileChangeExecution[],
+  invalidExecutionItems?: InvalidFileExecutionItem[],
 ) {
-  const desktop = installDesktopMock(planItems, auditStartStatus, archivedPlanItems, executionItems)
+  const desktop = installDesktopMock(
+    planItems,
+    auditStartStatus,
+    executionItems,
+    invalidExecutionItems,
+  )
   render(
     <I18nProvider>
       <FileManagementWorkspace
@@ -489,6 +533,64 @@ function renderWorkspace(
 }
 
 describe('FileManagementWorkspace history actions', () => {
+  it('shows cross-workspace invalid records even when current execution history is empty and cleans only selected items', async () => {
+    const desktop = renderWorkspace(
+      undefined,
+      completedAuditTask(emptyAudit),
+      [],
+      [invalidExecution],
+    )
+
+    expect(await screen.findByRole('heading', { name: '失效执行记录' })).toBeInTheDocument()
+    expect(screen.getByText('暂无文件执行记录。')).toBeInTheDocument()
+    const selection = screen.getByRole('checkbox', { name: '选择失效执行记录 旧工作区' })
+    expect(selection).not.toBeChecked()
+    expect(screen.getByRole('button', { name: /清理所选失效记录/ })).toBeDisabled()
+
+    fireEvent.click(selection)
+    fireEvent.click(screen.getByRole('button', { name: /清理所选失效记录/ }))
+    await waitFor(() =>
+      expect(desktop.previewDeleteInvalidFileExecutions).toHaveBeenCalledWith({
+        executionIds: [invalidExecution.id],
+      }),
+    )
+    const confirm = await screen.findByRole('button', { name: '确认清理失效记录' })
+    await waitFor(() => expect(confirm).toHaveFocus())
+    fireEvent.click(confirm)
+
+    await waitFor(() =>
+      expect(desktop.deleteInvalidFileExecutions).toHaveBeenCalledWith({
+        confirmed: true,
+        previewId: invalidExecutionPreviewId,
+        requestId: expect.any(String),
+      }),
+    )
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      '已清理 1 条失效执行记录；当前工作区文件未修改。',
+    )
+  })
+
+  it('blocks rollback and ordinary history deletion for an invalid current-workspace execution', async () => {
+    renderWorkspace(
+      undefined,
+      completedAuditTask(emptyAudit),
+      [
+        {
+          ...appliedExecution,
+          canRollback: false,
+          rollbackIssue: 'backup-missing',
+        },
+      ],
+      [invalidExecution],
+    )
+
+    expect(
+      await screen.findByText('撤销备份已缺失，请在上方失效执行记录中处理。'),
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '从备份撤销' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /永久删除执行记录/ })).not.toBeInTheDocument()
+  })
+
   it('keeps the history region keyboard contract and focuses the selected plan', async () => {
     renderWorkspace()
 
@@ -510,9 +612,13 @@ describe('FileManagementWorkspace history actions', () => {
     expect(desktop.deleteFilePlans).toHaveBeenCalledWith({
       confirmed: true,
       previewId: planDeletePreviewId,
+      requestId: expect.any(String),
     })
+    await screen.findByText(/已永久删除 1 份计划/)
 
-    fireEvent.click(screen.getAllByRole('button', { name: '复制为新计划' })[0]!)
+    const redraft = screen.getAllByRole('button', { name: '复制为新计划' })[0]!
+    await waitFor(() => expect(redraft).toBeEnabled())
+    fireEvent.click(redraft)
     await waitFor(() => expect(desktop.redraftFilePlan).toHaveBeenCalledWith(planId))
   })
 
@@ -521,9 +627,14 @@ describe('FileManagementWorkspace history actions', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: '从备份撤销' }))
     fireEvent.click(screen.getByRole('button', { name: '确认撤销' }))
-    await waitFor(() => expect(desktop.rollbackFileExecution).toHaveBeenCalledWith(executionId))
+    await waitFor(() =>
+      expect(desktop.rollbackFileExecution).toHaveBeenCalledWith(executionId, expect.any(String)),
+    )
+    await screen.findByText('已从备份撤销文件计划。')
 
-    fireEvent.click(screen.getByRole('button', { name: '一键删除执行记录' }))
+    const deleteExecution = screen.getByRole('button', { name: '一键删除执行记录' })
+    await waitFor(() => expect(deleteExecution).toBeEnabled())
+    fireEvent.click(deleteExecution)
     fireEvent.click(await screen.findByRole('button', { name: '确认永久删除执行记录' }))
     await waitFor(() =>
       expect(desktop.previewDeleteFileExecutions).toHaveBeenCalledWith({
@@ -533,20 +644,16 @@ describe('FileManagementWorkspace history actions', () => {
     expect(desktop.deleteFileExecutions).toHaveBeenCalledWith({
       confirmed: true,
       previewId: executionDeletePreviewId,
+      requestId: expect.any(String),
     })
   })
 
-  it('offers permanent deletion for applied executions and exposes old archived plans', async () => {
-    const desktop = renderWorkspace(
-      [plan],
-      completedAuditTask(emptyAudit),
-      [archivedPlan],
-      [appliedExecution],
-    )
+  it('offers permanent deletion for applied executions', async () => {
+    const desktop = renderWorkspace([plan], completedAuditTask(emptyAudit), [appliedExecution])
 
-    expect(await screen.findByText(/旧归档 Provider/)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '永久清理旧归档' })).toBeEnabled()
-    fireEvent.click(screen.getByRole('button', { name: /永久删除执行记录/ }))
+    const deleteExecution = screen.getByRole('button', { name: '一键删除执行记录' })
+    await waitFor(() => expect(deleteExecution).toBeEnabled())
+    fireEvent.click(deleteExecution)
     expect(await screen.findByText(/1 条执行记录：1 条已执行、0 条已撤销/)).toBeInTheDocument()
     await waitFor(() =>
       expect(desktop.previewDeleteFileExecutions).toHaveBeenCalledWith({
@@ -575,6 +682,12 @@ describe('FileManagementWorkspace plan review', () => {
     )
     expect(screen.getByRole('region', { name: '文件计划发送快照' })).toHaveTextContent(
       '详细候选3 / 3',
+    )
+    expect(screen.getByRole('region', { name: '文件计划发送快照' })).toHaveTextContent(
+      '单批候选上限4',
+    )
+    expect(screen.getByRole('region', { name: '文件计划发送快照' })).toHaveTextContent(
+      '单批输出上限4,096 Token',
     )
     expect(screen.getByRole('region', { name: '文件计划发送快照' })).toHaveTextContent(
       '用户笔记0 · 0 字符',
@@ -698,6 +811,7 @@ describe('FileManagementWorkspace plan review', () => {
       expect(desktop.applyFilePlan).toHaveBeenCalledWith({
         operationIds: [deleteOperationId],
         planId,
+        requestId: expect.any(String),
       }),
     )
   })
@@ -708,7 +822,7 @@ describe('FileManagementWorkspace audit display', () => {
     const desktop = renderWorkspace(undefined, runningAuditTask)
 
     fireEvent.click(screen.getByRole('button', { name: '只读扫描' }))
-    expect(await screen.findByText('已处理 2 / 6')).toBeInTheDocument()
+    expect(await screen.findByText(/已处理 2 \/ 6/)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '取消审计' }))
 
     await waitFor(() =>
@@ -729,6 +843,12 @@ describe('FileManagementWorkspace audit display', () => {
     ).toBeInTheDocument()
     expect(screen.getByText('失效关联')).toBeInTheDocument()
     expect(screen.getByText('模板关联指向当前不可用的模板。')).toBeInTheDocument()
+    expect(screen.getByText('命名异常')).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        '文件名疑似包含乱码或错误解码痕迹；AI 文件计划必须提供安全改名，执行前仍需确认。',
+      ),
+    ).toBeInTheDocument()
   })
 
   it('keeps the empty result and truncated 40-item display boundary', async () => {

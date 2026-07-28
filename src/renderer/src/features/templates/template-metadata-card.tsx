@@ -1,4 +1,4 @@
-import { AlertCircle, Check, Edit3, Info, LoaderCircle, Save, X } from 'lucide-react'
+import { AlertCircle, Check, Edit3, Info, LoaderCircle, Save, Sparkles, X } from 'lucide-react'
 import { useEffect, useState, type FormEvent } from 'react'
 
 import type { TemplateMetadataFields } from '@core/contracts/template-management'
@@ -20,9 +20,17 @@ const emptyFields: TemplateMetadataFields = {
   timeComplexity: null,
 }
 
-export function TemplateMetadataCard({ templateId }: { templateId: string }) {
+export function TemplateMetadataCard({
+  onCompleteWithAi,
+  refreshKey,
+  templateId,
+}: {
+  onCompleteWithAi: () => void
+  refreshKey: number
+  templateId: string
+}) {
   const { t } = useI18n()
-  const state = useTemplateMetadata(templateId)
+  const state = useTemplateMetadata(templateId, refreshKey)
   const [editing, setEditing] = useState(false)
   const [fields, setFields] = useState<TemplateMetadataFields>(emptyFields)
   const [tagsText, setTagsText] = useState('')
@@ -74,6 +82,16 @@ export function TemplateMetadataCard({ templateId }: { templateId: string }) {
         {state.metadata && <Badge className="ml-1">{t('已维护')}</Badge>}
         <Button
           className="ml-auto"
+          disabled={state.isBusy}
+          onClick={onCompleteWithAi}
+          size="compact"
+          type="button"
+          variant="outline"
+        >
+          <Sparkles className="size-3.5" />
+          {t('AI 补全空白字段')}
+        </Button>
+        <Button
           onClick={() => setEditing(value => !value)}
           size="compact"
           type="button"

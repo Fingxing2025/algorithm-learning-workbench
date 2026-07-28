@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 
-export const TEMPLATE_INDEX_VERSION = 1
+export const TEMPLATE_INDEX_VERSION = 2
 export const MAX_INDEXED_SOURCE_BYTES = 2 * 1024 * 1024
 
 export interface SimilaritySignature {

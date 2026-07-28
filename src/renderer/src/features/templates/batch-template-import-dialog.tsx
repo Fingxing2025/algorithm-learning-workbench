@@ -12,6 +12,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import type { AiRequestPreview } from '@core/contracts/ai-request'
+import type { BackgroundTaskStatus } from '@core/contracts/background-task'
 import type {
   BatchImportTemplateResult,
   BatchTemplateImportConflict,
@@ -23,9 +24,12 @@ import type {
 import { AiRequestPreviewDialog } from '@/components/ai-request-preview-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { TaskProgressIndicator } from '@/components/task-progress-indicator'
+import { runTrackedOperation } from '@/lib/background-task'
 import { useI18n } from '@/lib/i18n'
 
 import { emptyTemplateMetadata } from './template-metadata-merge'
+import { formatTemplateSourceEncoding } from './template-source-encoding'
 
 type BusyMode = 'choose' | 'classify' | 'import' | 'preview' | null
 type ConflictChoice = 'overwrite' | 'rename' | 'skip'
@@ -49,6 +53,7 @@ export function BatchTemplateImportDialog({
 }) {
   const { locale, t } = useI18n()
   const [busyMode, setBusyMode] = useState<BusyMode>(null)
+  const [taskStatus, setTaskStatus] = useState<BackgroundTaskStatus | null>(null)
   const cancelRequested = useRef(false)
   const activeClassificationRequestId = useRef<string | null>(null)
   const [classifications, setClassifications] = useState<Record<string, TemplateClassification>>({})
@@ -88,6 +93,7 @@ export function BatchTemplateImportDialog({
     if (open) return
     cancelRequested.current = false
     setBusyMode(null)
+    setTaskStatus(null)
     setClassifications({})
     setConflictChoices({})
     setConflicts([])
@@ -114,6 +120,22 @@ export function BatchTemplateImportDialog({
   const chooseSources = async (kind: 'directory' | 'files') => {
     setBusyMode('choose')
     setError(null)
+    const startedAt = new Date().toISOString()
+    setTaskStatus({
+      error: null,
+      finishedAt: null,
+      id: crypto.randomUUID(),
+      kind: 'batch-operation',
+      progress: {
+        currentItem: kind === 'files' ? t('多个 C++ 文件') : t('C++ 文件夹'),
+        phase: 'discovering',
+        processedCount: 0,
+        totalCount: null,
+      },
+      result: null,
+      startedAt,
+      state: 'running',
+    })
     try {
       replaceSources(
         kind === 'files'
@@ -124,12 +146,29 @@ export function BatchTemplateImportDialog({
       setError(caught instanceof Error ? caught.message : t('无法读取批量 C++ 源码。'))
     } finally {
       setBusyMode(null)
+      setTaskStatus(null)
     }
   }
 
   const previewClassification = async () => {
     setBusyMode('preview')
     setError(null)
+    const startedAt = new Date().toISOString()
+    setTaskStatus({
+      error: null,
+      finishedAt: null,
+      id: crypto.randomUUID(),
+      kind: 'batch-operation',
+      progress: {
+        currentItem: null,
+        phase: 'preparing',
+        processedCount: 0,
+        totalCount: selectedSources.length,
+      },
+      result: null,
+      startedAt,
+      state: 'running',
+    })
     try {
       setPreview(
         await window.desktop.templateManagement.previewBatchClassification({
@@ -141,6 +180,7 @@ export function BatchTemplateImportDialog({
       setError(caught instanceof Error ? caught.message : t('无法准备批量 AI 发送预览。'))
     } finally {
       setBusyMode(null)
+      setTaskStatus(null)
     }
   }
 
@@ -153,6 +193,23 @@ export function BatchTemplateImportDialog({
     setConflicts([])
     setProgress({ completed: 0, total: selectedSources.length })
     cancelRequested.current = false
+    const taskId = crypto.randomUUID()
+    const startedAt = new Date().toISOString()
+    setTaskStatus({
+      error: null,
+      finishedAt: null,
+      id: taskId,
+      kind: 'batch-operation',
+      progress: {
+        currentItem: selectedSources[0]?.displayPath ?? null,
+        phase: 'requesting-ai',
+        processedCount: 0,
+        totalCount: selectedSources.length,
+      },
+      result: null,
+      startedAt,
+      state: 'running',
+    })
     try {
       for (let index = 0; index < selectedSources.length; index += 1) {
         if (cancelRequested.current) {
@@ -160,6 +217,19 @@ export function BatchTemplateImportDialog({
           return
         }
         const source = selectedSources[index]!
+        setTaskStatus(current =>
+          current
+            ? {
+                ...current,
+                progress: {
+                  currentItem: source.displayPath,
+                  phase: 'requesting-ai',
+                  processedCount: index,
+                  totalCount: selectedSources.length,
+                },
+              }
+            : current,
+        )
         const requestId = crypto.randomUUID()
         activeClassificationRequestId.current = requestId
         const result = await window.desktop.templateManagement.classify({
@@ -177,6 +247,19 @@ export function BatchTemplateImportDialog({
         setClassifications(current => ({ ...current, [source.id]: result }))
         setTargetPaths(current => ({ ...current, [source.id]: result.suggestedRelativePath }))
         setProgress({ completed: index + 1, total: selectedSources.length })
+        setTaskStatus(current =>
+          current
+            ? {
+                ...current,
+                progress: {
+                  currentItem: source.displayPath,
+                  phase: 'processing',
+                  processedCount: index + 1,
+                  totalCount: selectedSources.length,
+                },
+              }
+            : current,
+        )
       }
     } catch (caught) {
       setError(
@@ -189,6 +272,7 @@ export function BatchTemplateImportDialog({
     } finally {
       activeClassificationRequestId.current = null
       setBusyMode(null)
+      setTaskStatus(null)
     }
   }
 
@@ -196,6 +280,7 @@ export function BatchTemplateImportDialog({
     if (!readyToImport) return
     setBusyMode('import')
     setError(null)
+    setTaskStatus(null)
     try {
       const candidates = selectedSources.filter(source => conflictChoices[source.id] !== 'skip')
       const inspection = await window.desktop.templateManagement.inspectBatchImport({
@@ -240,19 +325,26 @@ export function BatchTemplateImportDialog({
         setError(t('检测到 {count} 项路径冲突，请逐项选择处理方式。', { count: unresolved.length }))
         return
       }
-      const result = await window.desktop.templateManagement.importTemplatesBatch({
-        items: candidates.map(source => ({
-          content: source.content,
-          conflictAction: conflictChoices[source.id] === 'overwrite' ? 'overwrite' : 'create',
-          expectedExistingFileState:
-            conflictChoices[source.id] === 'overwrite'
-              ? (inspectedBySource.get(source.id)?.existingFileState ?? null)
-              : null,
-          metadata: classifications[source.id]?.metadata ?? null,
-          relativePath: targetPaths[source.id]!,
-          sourceId: source.id,
-        })),
-      })
+      const requestId = crypto.randomUUID()
+      const result = await runTrackedOperation(
+        requestId,
+        () =>
+          window.desktop.templateManagement.importTemplatesBatch({
+            items: candidates.map(source => ({
+              content: source.content,
+              conflictAction: conflictChoices[source.id] === 'overwrite' ? 'overwrite' : 'create',
+              expectedExistingFileState:
+                conflictChoices[source.id] === 'overwrite'
+                  ? (inspectedBySource.get(source.id)?.existingFileState ?? null)
+                  : null,
+              metadata: classifications[source.id]?.metadata ?? null,
+              relativePath: targetPaths[source.id]!,
+              sourceId: source.id,
+            })),
+            requestId,
+          }),
+        setTaskStatus,
+      )
       onComplete(result)
       onOpenChange(false)
     } catch (caught) {
@@ -304,6 +396,12 @@ export function BatchTemplateImportDialog({
                 role="alert"
               >
                 {t(error)}
+              </div>
+            )}
+
+            {taskStatus && ['queued', 'running', 'cancelling'].includes(taskStatus.state) && (
+              <div className="mb-4">
+                <TaskProgressIndicator status={taskStatus} title="批量任务" />
               </div>
             )}
 
@@ -429,6 +527,7 @@ export function BatchTemplateImportDialog({
                         <span className="min-w-0 flex-1 truncate text-xs font-semibold">
                           {source.displayPath}
                         </span>
+                        <Badge>{formatTemplateSourceEncoding(source.sourceEncoding)}</Badge>
                         {classification && (
                           <Badge tone="accent">
                             {Math.round(classification.confidence * 100)}%
@@ -437,6 +536,9 @@ export function BatchTemplateImportDialog({
                       </div>
                       {selected && (
                         <div className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                          <p className="text-[10px] text-muted-foreground sm:col-span-2">
+                            {t('已按源编码读取；工作区新副本统一保存为 UTF-8。')}
+                          </p>
                           <label className="text-[10px] font-medium text-muted-foreground">
                             {t('工作区保存路径')}
                             <input

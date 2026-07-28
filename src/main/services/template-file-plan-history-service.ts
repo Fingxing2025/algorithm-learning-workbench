@@ -3,12 +3,16 @@ import { randomUUID } from 'node:crypto'
 import { extname, join } from 'node:path'
 
 import {
+  deleteInvalidFileExecutionsRequestSchema,
   deleteFileExecutionsRequestSchema,
   deleteFilePlansRequestSchema,
+  previewDeleteInvalidFileExecutionsRequestSchema,
   previewDeleteFileExecutionsRequestSchema,
   previewDeleteFilePlansRequestSchema,
   type DeleteFilePlansRequest,
   type DeleteFilePlansResult,
+  type DeleteInvalidFileExecutionsRequest,
+  type DeleteInvalidFileExecutionsResult,
   type DeleteFileExecutionsRequest,
   type DeleteFileExecutionsResult,
   type FileChangeExecution,
@@ -17,6 +21,11 @@ import {
   type FileChangePlanPage,
   type FileHistoryDeletionPreview,
   type FileHistoryPageRequest,
+  type InvalidFileExecutionDeletionPreview,
+  type InvalidFileExecutionPage,
+  type InvalidFileExecutionPageRequest,
+  type InvalidFileExecutionReason,
+  type PreviewDeleteInvalidFileExecutionsRequest,
   type PreviewDeleteFileExecutionsRequest,
   type PreviewDeleteFilePlansRequest,
 } from '@core/contracts/template-management'
@@ -24,6 +33,7 @@ import {
 import {
   TemplateManagementRepository,
   type FileExecutionDeletionRecord,
+  type FileExecutionIntegrityRecord,
   type FilePlanDeletionRecord,
 } from '../database/template-management-repository'
 import { WorkspaceRepository } from '../database/workspace-repository'
@@ -33,6 +43,7 @@ import { normalizeTemplateRelativePath } from '../security/template-path'
 import { TemplateFilePlanSafety } from './template-file-plan-safety'
 import { TemplateWorkspaceAuditService } from './template-workspace-audit-service'
 import type { DataLifecycleService } from './data-lifecycle-service'
+import { FileExecutionIntegrityService } from './file-execution-integrity-service'
 
 const HISTORY_DELETION_PREVIEW_TTL_MS = 10 * 60 * 1_000
 
@@ -54,6 +65,15 @@ type StoredHistoryDeletionPreview =
 
 export class TemplateFilePlanHistoryService {
   private readonly deletionPreviews = new Map<string, StoredHistoryDeletionPreview>()
+  private readonly invalidExecutionDeletionPreviews = new Map<
+    string,
+    {
+      expiresAtMs: number
+      preview: InvalidFileExecutionDeletionPreview
+      records: FileExecutionIntegrityRecord[]
+      workspaceId: string
+    }
+  >()
 
   constructor(
     private readonly metadataRepository: TemplateManagementRepository,
@@ -64,7 +84,94 @@ export class TemplateFilePlanHistoryService {
       DataLifecycleService,
       'executeManagedHistoryDeletion' | 'inspectManagedHistoryBackups'
     > | null = null,
+    private readonly fileExecutionIntegrityService: FileExecutionIntegrityService | null = null,
   ) {}
+
+  listInvalidFileExecutionsPage(
+    request: InvalidFileExecutionPageRequest,
+  ): Promise<InvalidFileExecutionPage> {
+    return this.getFileExecutionIntegrityService().listInvalidFileExecutionsPage(
+      this.requireWorkspace().id,
+      request,
+    )
+  }
+
+  async previewDeleteInvalidFileExecutions(
+    rawRequest: PreviewDeleteInvalidFileExecutionsRequest,
+  ): Promise<InvalidFileExecutionDeletionPreview> {
+    const request = previewDeleteInvalidFileExecutionsRequestSchema.parse(rawRequest)
+    const workspace = this.requireWorkspace()
+    const assessments = await this.getFileExecutionIntegrityService().inspectInvalidFileExecutions(
+      workspace.id,
+      request.executionIds,
+    )
+    if (!assessments || assessments.some(({ item }) => !item.deletable)) {
+      throw new PublicError(
+        'INVALID_REQUEST',
+        '失效执行记录不存在、状态已变化或无法安全清理，请重新检查。',
+      )
+    }
+    const previewId = randomUUID()
+    const expiresAt = new Date(Date.now() + HISTORY_DELETION_PREVIEW_TTL_MS).toISOString()
+    const preview: InvalidFileExecutionDeletionPreview = {
+      executionCount: assessments.length,
+      expiresAt,
+      items: assessments.map(({ item }) => item),
+      previewId,
+      recordIds: assessments.map(({ item }) => item.id),
+      workspaceCount: new Set(assessments.map(({ item }) => item.workspaceId)).size,
+    }
+    this.invalidExecutionDeletionPreviews.set(previewId, {
+      expiresAtMs: Date.parse(expiresAt),
+      preview,
+      records: assessments.map(({ record }) => record),
+      workspaceId: workspace.id,
+    })
+    return preview
+  }
+
+  async deleteInvalidFileExecutions(
+    rawRequest: DeleteInvalidFileExecutionsRequest,
+  ): Promise<DeleteInvalidFileExecutionsResult> {
+    const request = deleteInvalidFileExecutionsRequestSchema.parse(rawRequest)
+    const stored = this.invalidExecutionDeletionPreviews.get(request.previewId)
+    this.invalidExecutionDeletionPreviews.delete(request.previewId)
+    if (!stored || stored.expiresAtMs <= Date.now()) {
+      throw new PublicError('INVALID_REQUEST', '清理预览不存在或已过期，请重新预览。')
+    }
+    if (this.requireWorkspace().id !== stored.workspaceId) {
+      throw new PublicError('INVALID_REQUEST', '当前工作区已变化，请重新预览失效记录。')
+    }
+    const fresh = await this.getFileExecutionIntegrityService().inspectInvalidFileExecutions(
+      stored.workspaceId,
+      stored.records.map(record => record.id),
+    )
+    if (
+      !fresh ||
+      fresh.some(({ item }) => !item.deletable) ||
+      !this.sameIntegrityRecords(
+        fresh.map(({ record }) => record),
+        stored.records,
+      )
+    ) {
+      throw new PublicError(
+        'INVALID_REQUEST',
+        '记录或撤销备份在确认前发生变化，未删除任何失效记录。',
+      )
+    }
+    const result = this.metadataRepository.deleteInvalidFileExecutions(
+      stored.workspaceId,
+      stored.records,
+    )
+    if (!result) {
+      throw new PublicError('INVALID_REQUEST', '执行记录在确认前发生变化，未删除任何失效记录。')
+    }
+    return {
+      deletedAt: result.deletedAt,
+      deletedExecutionCount: result.deletedExecutionCount,
+      recordIds: stored.preview.recordIds,
+    }
+  }
 
   async previewDeleteFileExecutions(
     rawRequest: PreviewDeleteFileExecutionsRequest,
@@ -165,7 +272,6 @@ export class TemplateFilePlanHistoryService {
       appliedPlanCount: plans.filter(
         plan => plan.status === 'applied' && !rolledBackPlanIds.has(plan.id),
       ).length,
-      archivedPlanCount: plans.filter(plan => plan.archivedAt !== null).length,
       backupDirectoryCount: backupInspection.existingRelativePaths.length,
       cancelledPlanCount: plans.filter(plan => plan.status === 'cancelled').length,
       executionCount: executions.length,
@@ -246,40 +352,28 @@ export class TemplateFilePlanHistoryService {
         }
   }
 
-  listArchivedFilePlansPage(request: FileHistoryPageRequest): FileChangePlanPage {
+  async listFileExecutions(): Promise<FileChangeExecution[]> {
     const workspace = this.workspaceRepository.getActiveWorkspace()
     return workspace
-      ? this.metadataRepository.listArchivedPlansPage(workspace.id, request)
-      : {
-          draftCount: 0,
-          items: [],
-          nextAction: null,
-          nextCursor: null,
-          processedCount: 0,
-          totalCount: 0,
-          truncated: false,
-          truncatedReason: null,
-        }
+      ? this.annotateInvalidExecutions(this.metadataRepository.listExecutions(workspace.id))
+      : []
   }
 
-  listFileExecutions(): FileChangeExecution[] {
+  async listFileExecutionsPage(request: FileHistoryPageRequest): Promise<FileChangeExecutionPage> {
     const workspace = this.workspaceRepository.getActiveWorkspace()
-    return workspace ? this.metadataRepository.listExecutions(workspace.id) : []
-  }
-
-  listFileExecutionsPage(request: FileHistoryPageRequest): FileChangeExecutionPage {
-    const workspace = this.workspaceRepository.getActiveWorkspace()
-    return workspace
-      ? this.metadataRepository.listExecutionsPage(workspace.id, request)
-      : {
-          items: [],
-          nextAction: null,
-          nextCursor: null,
-          processedCount: 0,
-          totalCount: 0,
-          truncated: false,
-          truncatedReason: null,
-        }
+    if (!workspace) {
+      return {
+        items: [],
+        nextAction: null,
+        nextCursor: null,
+        processedCount: 0,
+        totalCount: 0,
+        truncated: false,
+        truncatedReason: null,
+      }
+    }
+    const page = this.metadataRepository.listExecutionsPage(workspace.id, request)
+    return { ...page, items: await this.annotateInvalidExecutions(page.items) }
   }
 
   async redraftFilePlan(planId: string): Promise<FileChangePlan> {
@@ -382,7 +476,6 @@ export class TemplateFilePlanHistoryService {
     return {
       appliedExecutionCount: input.appliedExecutionCount ?? 0,
       appliedPlanCount: input.appliedPlanCount ?? 0,
-      archivedPlanCount: input.archivedPlanCount ?? 0,
       backupDirectoryCount: input.backupDirectoryCount ?? 0,
       cancelledPlanCount: input.cancelledPlanCount ?? 0,
       executionCount: input.executionCount ?? 0,
@@ -402,6 +495,57 @@ export class TemplateFilePlanHistoryService {
       throw new PublicError('UNKNOWN', '历史删除服务尚未就绪，请重启应用后重试。')
     }
     return this.lifecycleService
+  }
+
+  private getFileExecutionIntegrityService(): FileExecutionIntegrityService {
+    if (!this.fileExecutionIntegrityService) {
+      throw new PublicError('UNKNOWN', '失效执行记录检查服务尚未就绪，请重启应用后重试。')
+    }
+    return this.fileExecutionIntegrityService
+  }
+
+  private async annotateInvalidExecutions(
+    executions: FileChangeExecution[],
+  ): Promise<FileChangeExecution[]> {
+    const appliedIds = executions
+      .filter(execution => execution.status === 'applied')
+      .map(execution => execution.id)
+    const invalid = await this.getFileExecutionIntegrityService().findInvalidFileExecutions(
+      this.requireWorkspace().id,
+      appliedIds,
+    )
+    const reasonById = new Map(invalid.map(({ item }) => [item.id, item.reason]))
+    return executions.map(execution => {
+      const reason = reasonById.get(execution.id)
+      return reason
+        ? {
+            ...execution,
+            canRollback: false,
+            rollbackIssue: this.rollbackIssue(reason),
+          }
+        : execution
+    })
+  }
+
+  private rollbackIssue(
+    reason: InvalidFileExecutionReason,
+  ): NonNullable<FileChangeExecution['rollbackIssue']> {
+    return reason === 'backup-missing' ? 'backup-missing' : 'backup-invalid'
+  }
+
+  private sameIntegrityRecords(
+    left: FileExecutionIntegrityRecord[],
+    right: FileExecutionIntegrityRecord[],
+  ): boolean {
+    const sort = (records: FileExecutionIntegrityRecord[]) =>
+      [...records].sort((first, second) => first.id.localeCompare(second.id))
+    return JSON.stringify(sort(left)) === JSON.stringify(sort(right))
+  }
+
+  private requireWorkspace() {
+    const workspace = this.workspaceRepository.getActiveWorkspace()
+    if (!workspace) throw new PublicError('WORKSPACE_REQUIRED', '请先创建或选择模板工作区。')
+    return workspace
   }
 
   private takeDeletionPreview<Kind extends StoredHistoryDeletionPreview['kind']>(

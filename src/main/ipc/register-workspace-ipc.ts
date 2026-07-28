@@ -31,6 +31,7 @@ export function registerWorkspaceIpc(
   workspaceService: WorkspaceService,
   backgroundTasks: BackgroundTaskRegistry,
   getParentWindow: () => BrowserWindow | undefined,
+  beforeWorkspaceChange?: () => Promise<void>,
 ): void {
   registerValidatedHandler({
     channel: IPC_CHANNELS.workspace.getCurrent,
@@ -75,7 +76,8 @@ export function registerWorkspaceIpc(
 
   registerValidatedHandler({
     channel: IPC_CHANNELS.workspace.choose,
-    handler: request => workspaceService.chooseWorkspace(request, getParentWindow()),
+    handler: request =>
+      workspaceService.chooseWorkspace(request, getParentWindow(), beforeWorkspaceChange),
     inputSchema: chooseWorkspaceRequestSchema,
     outputSchema: workspaceSnapshotSchema.nullable(),
   })

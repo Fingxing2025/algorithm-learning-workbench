@@ -49,7 +49,7 @@ tests/
 
 ## 核心实体
 
-- `TemplateWorkspace`：用户创建或授权选择的模板根目录及展示设置。
+- `TemplateWorkspace`：一个自包含工作区文件夹及其标记、模板根和展示设置。
 - `Template`：模板索引和可编辑元数据；源码以文件为准。
 - `Problem`：题目卡片、题面、图片引用和用户备注。
 - `TemplateProblemRelation`：模板与题目的多对多关系。
@@ -59,13 +59,44 @@ tests/
 
 ## 数据策略
 
-- 首次启动在应用数据目录创建全新的 SQLite 数据库，不读取或依赖旧项目数据。
-- SQLite 保存索引、卡片、关系、配置和操作记录。
-- 模板源码保留在用户选择的文件夹，数据库不成为唯一副本。
-- 题目图片存放于应用数据目录，由数据库记录相对路径和校验信息。
-- API Key 由 Electron `safeStorage` 使用操作系统提供的安全能力加密，密文独立存放在应用数据目录；SQLite 只保存不可逆推出密钥的文件引用。
+- 首次启动在应用数据目录创建全局 SQLite 登记簿，不读取或依赖旧项目数据。全局库只
+  保存 Provider、任务路由、活动工作区路径等应用级状态；业务数据不以全局库为事实源。
+- 活动工作区是业务数据的唯一查询与修改边界。模板、题目、关联、文件计划、执行记录、
+  数据诊断和工作区备份都必须由 Main 解析活动工作区，Renderer 不能指定任意工作区。
+- 工作区的物理形式是一个可直接复制的文件夹：
+
+  ```text
+  <workspace>/
+    workspace.awb.json
+    templates/
+    problem-assets/images/
+    .awb/workspace.sqlite
+    .awb/file-plan-backups/
+    .awb/restore-preflight-backups/
+    .awb/recovery/
+    .awb/cache/
+  ```
+
+  所有工作区固定以 `templates/` 为模板相对路径起点；marker 只接受
+  `formatVersion: 2` 与 `templateDirectory: "templates"`。已有模板文件夹确认升级后，
+  Main 通过暂存、原始字节指纹校验、原子发布和补偿回滚把完整内容迁入 `templates/`。
+
+- `problems.workspace_id` 与模板、文件计划的工作区归属共同构成隔离边界；题目和
+  模板关联必须属于同一工作区。
+- 每个工作区的 `.awb/workspace.sqlite` 保存模板索引、元数据、题目、关系、文件计划和
+  执行记录。切换工作区前 Main 取消并等待旧工作区 AI/后台任务，再切换数据库。
+- 模板源码、题目图片、撤销备份和恢复状态都保存在工作区文件夹内；数据库只保存受控
+  相对路径，不保存工作区机器上的绝对位置。
+- Main 通过统一 `template-source-codec` 读取模板文本：BOM 优先识别 UTF-8/UTF-16LE/UTF-16BE，其次严格 UTF-8，最后以可回编码校验的 GB18030 兼容 Windows GBK/CP936。源码查看、扫描索引、相似度审计、AI 片段与外部导入不得各自宽松解码；已有文件编辑后保持原编码和 BOM，新建及导入的新副本统一写 UTF-8。
+- API Key 由 Electron `safeStorage` 使用操作系统提供的安全能力加密，密文独立存放在
+  Electron 应用数据目录；全局 SQLite 只保存不可逆推出密钥的文件引用。密钥不进入工作区。
 - schema 通过版本化 migration 演进。
 - 不提供旧版数据格式兼容层或旧项目导入器；schema migration 只负责保护 V2 自身版本升级后的用户数据。
+- 工作区备份使用过滤后的单工作区 SQLite 快照、完整模板源码与精确文件清单；恢复目标
+  永远由 Main 解析为活动工作区，包内工作区身份仅作溯源。恢复前在应用临时副本中把
+  workspace、模板、题目、图片、计划、执行及其 JSON/目录引用重映射到目标，再事务式
+  原地替换活动工作区的受管内容；目标文件夹路径、名称和 UUID 保持不变，其他工作区及
+  全局 Provider 配置不变。详细约束见 ADR-0024、ADR-0026 与 ADR-0030。
 
 ## 关键架构决策
 
@@ -73,6 +104,10 @@ tests/
 - 使用 React/TypeScript 是为了支撑复杂工作台 UI、跨模块状态和可测试组件。
 - 模板树使用“真实路径 + 展示路径”双模型，避免 UI 优化破坏用户文件。
 - AI 文件管理使用计划/预览/确认三阶段，不允许模型直接修改工作区。
+- 总体文件 AI 计划使用 24,000 Token 单批输入预算、16,000 Token 完整目录上下文预算
+  和 4,096 Token 单批输出上限；常规每批最多 4 个详细候选、6 个审计问题，共享路径
+  审计组不拆分。响应仍受 1 MiB 读取上限、结构化 Schema、单计划 100 项和逐字段
+  长度限制保护。
 - V2 采用独立首次启动流程，不以旧项目目录、模板或数据库作为运行前提。
 
 重大变更应在本文件追加决策记录，包括背景、备选方案、决定和后果。
@@ -102,6 +137,14 @@ tests/
 - `docs/decisions/0021-safe-source-editing-and-permanent-file-history-deletion.md`
 - `docs/decisions/0022-complete-workspace-ai-template-catalog.md`
 - `docs/decisions/0023-workspace-file-ai-complete-catalog-and-preview-snapshot.md`
+- `docs/decisions/0024-portable-cross-platform-backup-v2.md`
+- `docs/decisions/0025-invalid-file-execution-cleanup.md`
+- `docs/decisions/0026-current-workspace-data-boundary.md`
+- `docs/decisions/0027-existing-template-metadata-completion.md`
+- `docs/decisions/0028-visible-progress-for-batch-tasks.md`
+- `docs/decisions/0029-budgeted-batched-ai-requests.md`
+- `docs/decisions/0030-self-contained-workspace-folder.md`
+- `docs/decisions/0031-single-current-workspace-format.md`
 
 ## Session E 大型工作区架构
 
@@ -222,8 +265,8 @@ Session F 第八切片继续保持工作区审计的启动、轮询、取消、�
 Session F 第九切片在保持数据管理页的生命周期、诊断和备份协议不变的前提下，把“导出与验证”区域拆为受控展示组件。父工作区继续持有所有状态、`run` 错误/成功播报、恢复确认焦点引用、诊断刷新和命名 Preload 调用；新组件不访问 `window.desktop`、Node、SQLite、文件系统或密钥。
 
 - `data-backup-restore-panel.tsx`：导出范围勾选、导出/验证/恢复预览按钮、manifest/校验结果、恢复冲突、恢复确认焦点和恢复结果展示；通过受控 props 与回调接收数据和动作。
-- `data-management-workspace.tsx`：保留生命周期/中断恢复/隔离流程、所有 `dataManagement` 调用、恢复前后诊断刷新、`userData` 恢复安全提示和最终页面组合。
-- `data-management-workspace.test.tsx`：新增 3 项特征测试，锁定导出源码范围与 manifest 展示、独立校验调用、恢复预览焦点/显式确认/精确 `templateSourceStrategy: 'skip'` 请求及恢复后密钥重填播报。
+- `data-management-workspace.tsx`：保留当前 v2 诊断、恢复中断处理、备份导出/恢复和恢复前后状态刷新。
+- `data-management-workspace.test.tsx`：锁定强制深拷贝导出、自动校验、恢复预览焦点、显式确认和恢复后工作区刷新。
 
 拆分保持原 `section`、按钮/复选框 accessible name、确认焦点、加载禁用态、live region、亮暗主题和视觉 token；没有新增数据库字段、migration、IPC/Zod 契约、备份格式、Provider 协议、安全上限、依赖或 ADR。
 
@@ -232,10 +275,42 @@ Session F 第九切片在保持数据管理页的生命周期、诊断和备份�
 Session F 第十切片继续保持数据管理页的生命周期清单、异常恢复协议和诊断刷新不变，只把“异常中断恢复”条目与预览展示移到独立 Renderer 组件。父工作区仍负责 `previewInterruptedRecovery`、`recoverInterruptedOperation`、当前保留策略、恢复结果发布、重新诊断和状态播报；新组件不访问 `window.desktop`、Node、SQLite、文件系统或密钥。
 
 - `data-interrupted-recovery-panel.tsx`：异常中断条目、可恢复/受保护状态、动作/原因标签、恢复预览、阻止原因、显式确认和加载态；通过受控 props 与回调接收数据和动作。
-- `data-management-workspace.tsx`：保留生命周期刷新、治理/隔离流程、全部 `dataManagement` 调用、恢复结果发布、重新诊断、错误/成功播报和最终页面组合。
+- `data-management-workspace.tsx`：保留恢复中断状态刷新、预览/确认、恢复结果发布和错误/成功播报。
 - `data-management-workspace.test.tsx`：新增 3 项特征测试，锁定可恢复/受保护入口、状态变化时阻止确认，以及显式确认后的精确 `confirmRecovery` / `operationId` / `retentionPolicy` 请求、诊断刷新和成功播报。
 
 拆分保持原 DOM/class、按钮/复选框 accessible name、加载禁用态、live region、亮暗主题和视觉 token；没有新增数据库字段、migration、IPC/Zod 契约、备份/中断恢复格式、Provider 协议、安全上限、依赖或 ADR。
+
+### 备份与恢复的页面责任边界
+
+可见的“数据管理”已收缩并重命名为“备份与恢复”。Renderer 只提供当前单文件备份的导出、校验与恢复；Main 服务、IPC/Preload、Zod 契约、中断恢复和回滚逻辑继续保留。
+
+- `data-management-workspace.tsx` 是唯一 Preload 调用协调者，页面加载并行执行只读 `diagnose` 和 `inspectBackupLifecycle({ retentionPolicy: 'forever' })`。
+- `data-health-summary.tsx` 隐藏内部 issue code、SQLite quick check 和 WAL 细节，只展示可理解的数据健康结论与折叠详情。
+- `data-backup-restore-panel.tsx` 承载当前工作区导出与引导恢复；选择 `.awb-backup v2` 后自动校验，不提供旧目录格式入口。
+- `data-interrupted-recovery-panel.tsx` 只处理当前 v2 恢复操作的可验证中断现场；旧隔离数据的 Renderer、Preload 和 IPC 入口不再存在。
+- AI 文件管理负责当前工作区的计划、执行、撤销、历史删除和其 `file-plan-backups`；备份与恢复只负责当前工作区健康诊断、v2 导出/恢复和 v2 中断处理。
+
+### 当前工作区失效执行记录
+
+- `file-execution-integrity-service.ts` 是数据健康与 AI 文件历史共用的 Main 判定器。它通过执行、计划与工作区关联，只扫描当前工作区的 `applied` 记录；工作区由 Main 解析，Renderer 不能指定其他工作区。
+- 只有严格等于 `file-plan-backups/<execution-id>` 且对应普通目录不存在的记录可清理。路径格式异常、符号链接、非目录和不可读状态只显示为受保护项；`rolled-back` 缺少备份属于正常状态。
+- Renderer 只获得 UUID、工作区 UUID/名称、时间、可选操作数量和受控原因，不获得备份路径、绝对路径或数据库条件。三个命名 `template-management:*` IPC 分别负责分页、预览和确认。
+- 预览在 Main 内存保留 10 分钟且一次性消费。确认时重新检查数据库快照与文件系统；任一备份重现或记录变化都整批拒绝。成功路径只在单个 SQLite 事务删除执行行并保留父计划，不调用会移动或删除现存备份的通用历史删除器。
+
+### 批量任务可见进度
+
+- 统一决策见 `docs/decisions/0028-visible-progress-for-batch-tasks.md`。工作区扫描、审计、批量模板处理、已有模板元数据补全、总体文件 AI、文件计划执行和备份恢复均使用 Main 内存任务状态展示真实阶段。
+- `BackgroundTaskRegistry` 同时承载返回结果的可取消后台任务与保留原业务返回值的受跟踪操作；Renderer 只使用请求 UUID 通过命名 Preload API 轮询，不接触原始 IPC。
+- 进度只包含受控阶段、完成数、可空总数和安全当前项。绝对路径、源码、题面、用户笔记、API Key 和自定义鉴权头禁止进入进度状态或日志。
+- 单次 Provider 请求只显示等待阶段和已等待时间；没有可靠完成比例时不显示推测百分比。瞬时 SQLite 单事务操作只展示事务阶段，不伪造逐项进度。
+
+### 批量 AI 输入预算与分批
+
+- Main 在网络调用前完成全量本地盘点并锁定一次性发送快照；Renderer 只负责预览、确认和轮询进度，不拆分请求。
+- 总体文件 AI 使用约 24,000 个估算输入 Token 的单批预算，完整目录上下文自身先受约 16,000 Token 预算约束。每批重复完整最小 catalog，只携带与当前批次相关的审计问题、候选元数据和显式头尾压缩源码。
+- 除不可拆分的共享路径审计组外，常规每批最多 4 个详细候选和 6 个审计问题，单批输出上限 4,096 Token；提示词同时约束摘要、证据和备选方案长度，避免输入较小时仍因集中生成大量长操作而超时。
+- 审计问题按共享模板路径组成连通分组后确定性装箱；全部批次成功后才在 Main 合并，并执行同模板重复操作、跨批目标冲突、必需操作和总操作数校验。
+- 任一批失败或取消都不创建部分计划。连接超时、响应超时或流中断必须报告失败批次、估算输入、候选数和输出上限，并只写不含路径/源码/笔记/密钥的安全诊断。最小完整 catalog 无法装入单批时在发送前返回 `AI_CONTEXT_TOO_LARGE`，不得退回局部目录。详细协议与兼容边界见 ADR-0029。
 
 安全与发布文档：
 

@@ -15,10 +15,13 @@ import {
   similarityCandidateKeys,
   sourceShingles,
 } from './template-content-index'
+import { analyzeTemplateFileName } from './template-file-name-analysis'
 import { MAX_SIMILARITY_CANDIDATE_PAIRS, MAX_SOURCE_BYTES } from './template-management-constants'
+import { decodeTemplateSourceBuffer } from './template-source-codec'
 
 export interface WorkspaceAuditOptions {
   onProgress?: (progress: {
+    currentItem?: string | null
     phase: 'index-check' | 'duplicate-groups' | 'similarity' | 'finalizing'
     processedCount: number
     totalCount: number | null
@@ -66,9 +69,10 @@ export class TemplateWorkspaceAuditService {
           severity: 'info',
         })
       }
-      if (/\s|副本|copy(?:\s|\(|_|\d)/i.test(template.fileName)) {
+      const fileNameIssue = analyzeTemplateFileName(template.fileName)
+      if (fileNameIssue) {
         addIssue({
-          detail: '文件名可能包含副本标记或不一致空格，建议人工确认命名。',
+          detail: fileNameIssue.detail,
           id: randomUUID(),
           kind: 'invalid-name',
           paths: [template.relativePath],
@@ -90,6 +94,7 @@ export class TemplateWorkspaceAuditService {
         pathsByHash.set(template.normalizedContentHash, paths)
       }
       options.onProgress?.({
+        currentItem: template.relativePath.slice(0, 500),
         phase: 'index-check',
         processedCount: index + 1,
         totalCount: templates.length,
@@ -98,9 +103,13 @@ export class TemplateWorkspaceAuditService {
     for (const paths of pathsByHash.values()) {
       if (paths.length > 1) {
         const ordered = [...paths].sort((left, right) => {
-          const leftCopy = /\s|副本|copy(?:\s|\(|_|\d)/i.test(basename(left)) ? 1 : 0
-          const rightCopy = /\s|副本|copy(?:\s|\(|_|\d)/i.test(basename(right)) ? 1 : 0
-          return leftCopy - rightCopy || left.length - right.length || left.localeCompare(right)
+          const leftNameIssue = analyzeTemplateFileName(basename(left)) ? 1 : 0
+          const rightNameIssue = analyzeTemplateFileName(basename(right)) ? 1 : 0
+          return (
+            leftNameIssue - rightNameIssue ||
+            left.length - right.length ||
+            left.localeCompare(right)
+          )
         })
         addIssue({
           detail: `这些模板源码规范化后完全相同；建议仅保留 ${ordered[0]}。`,
@@ -115,6 +124,7 @@ export class TemplateWorkspaceAuditService {
       }
     }
     options.onProgress?.({
+      currentItem: null,
       phase: 'duplicate-groups',
       processedCount: pathsByHash.size,
       totalCount: pathsByHash.size,
@@ -175,7 +185,7 @@ export class TemplateWorkspaceAuditService {
         const resolved = await resolveAuthorizedFile(workspace.rootPath, path)
         if (resolved.sizeBytes > MAX_SOURCE_BYTES) return null
         const normalized = normalizeSourceForComparison(
-          await readFile(resolved.absolutePath, 'utf8'),
+          decodeTemplateSourceBuffer(await readFile(resolved.absolutePath)).content,
         )
         const shingles = normalized ? sourceShingles(normalized) : null
         normalizedSourceCache.set(path, shingles)
@@ -208,6 +218,11 @@ export class TemplateWorkspaceAuditService {
       }
       comparedPairs += 1
       options.onProgress?.({
+        currentItem:
+          `${leftSource.template.relativePath} ↔ ${rightSource.template.relativePath}`.slice(
+            0,
+            500,
+          ),
         phase: 'similarity',
         processedCount: comparedPairs,
         totalCount: candidatePairs.size,
@@ -253,6 +268,7 @@ export class TemplateWorkspaceAuditService {
       })
     }
     options.onProgress?.({
+      currentItem: null,
       phase: 'finalizing',
       processedCount: templates.length,
       totalCount: templates.length,

@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import iconv from 'iconv-lite'
 
 import type { TemplateMetadataFields } from '@core/contracts/template-management'
 import type { TemplatePage, TemplateSummary } from '@core/contracts/workspace'
@@ -247,5 +248,43 @@ describe('WorkspaceService template source editing', () => {
     expect(await readFile(sourcePath, 'utf8')).toBe('int stable() { return 1; }\n')
     expect(metadataRepository.getMetadata(templateId)?.notes).toBe(metadataFields.notes)
     expect((await service.readTemplateSource(templateId)).id).toBe(templateId)
+  })
+
+  it('reads and edits Windows GBK/CP936 source without changing its encoding', async () => {
+    const original = '// 算法模板\nint stable() { return 1; }\n'
+    const updated = '// 算法模板\nint stable() { return 2; }\n'
+    await writeFile(sourcePath, iconv.encode(original, 'gbk'))
+
+    await expect(service.readTemplateSource(templateId)).resolves.toMatchObject({
+      content: original,
+      encoding: 'gb18030',
+    })
+    const preview = await service.previewTemplateSourceEdit({ content: updated, templateId })
+    const result = await service.applyTemplateSourceEdit({
+      confirmed: true,
+      previewId: preview.previewId,
+    })
+
+    expect(result.source.encoding).toBe('gb18030')
+    expect(await readFile(sourcePath)).toEqual(iconv.encode(updated, 'gb18030'))
+    expect((await readFile(sourcePath)).includes(Buffer.from([0xef, 0xbb, 0xbf]))).toBe(false)
+  })
+
+  it('preserves an existing UTF-16 BOM after source editing', async () => {
+    const original = '// 中文\nint stable() { return 1; }\n'
+    const updated = '// 中文\nint stable() { return 3; }\n'
+    await writeFile(
+      sourcePath,
+      Buffer.concat([Buffer.from([0xff, 0xfe]), iconv.encode(original, 'utf16-le')]),
+    )
+
+    const preview = await service.previewTemplateSourceEdit({ content: updated, templateId })
+    const result = await service.applyTemplateSourceEdit({
+      confirmed: true,
+      previewId: preview.previewId,
+    })
+
+    expect(result.source.encoding).toBe('utf-16le-bom')
+    expect((await readFile(sourcePath)).subarray(0, 2)).toEqual(Buffer.from([0xff, 0xfe]))
   })
 })

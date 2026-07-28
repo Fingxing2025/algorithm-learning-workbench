@@ -32,6 +32,7 @@ import {
   type WorkspaceAiContextService,
 } from './workspace-ai-context-service'
 import { runStructuredAiTask } from './structured-ai-task'
+import type { WorkspaceStorageManager } from './workspace-storage'
 
 function toPortablePath(...parts: string[]): string {
   return join(...parts)
@@ -46,6 +47,7 @@ export class ProblemAnalysisService {
     private readonly userDataPath: string,
     private readonly workspaceAiContextService: WorkspaceAiContextService,
     private readonly aiTaskRunRegistry: AiTaskRunRegistry,
+    private readonly workspaceStorage?: WorkspaceStorageManager,
   ) {}
 
   async preview(rawRequest: PreviewProblemAnalysisRequest): Promise<AiRequestPreview> {
@@ -252,15 +254,23 @@ export class ProblemAnalysisService {
 
   async commit(rawRequest: CommitProblemAnalysisRequest): Promise<Problem> {
     const request = commitProblemAnalysisRequestSchema.parse(rawRequest)
+    const workspaceId = this.workspaceAiContextService.getCurrentWorkspaceId()
+    if (!workspaceId) {
+      throw new PublicError('WORKSPACE_REQUIRED', '请先创建或选择模板工作区。')
+    }
     const decodedImages = decodeProblemAnalysisImages(request.images)
     for (const relation of request.relations) {
-      if (!this.problemRepository.isTemplateAvailable(relation.templateId)) {
+      if (!this.problemRepository.isTemplateAvailable(workspaceId, relation.templateId)) {
         throw new PublicError('TEMPLATE_NOT_FOUND', '候选模板已不可用，请重新分析或取消该关联。')
       }
     }
 
     const problemId = randomUUID()
-    const imageDirectory = join(this.userDataPath, 'problem-images', problemId)
+    const imageDirectory = join(
+      this.workspaceStorage?.current?.problemImagesRoot ??
+        join(this.userDataPath, 'problem-images'),
+      problemId,
+    )
     const imageRows: NewProblemImage[] = []
     try {
       if (decodedImages.length > 0) await mkdir(imageDirectory, { mode: 0o700, recursive: true })
@@ -277,6 +287,7 @@ export class ProblemAnalysisService {
         })
       }
       return this.problemRepository.createAnalyzedProblem(
+        workspaceId,
         problemId,
         request.fields,
         imageRows,

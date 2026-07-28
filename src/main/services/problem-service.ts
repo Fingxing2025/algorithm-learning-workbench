@@ -19,8 +19,10 @@ import type {
 } from '@core/contracts/problem'
 
 import { ProblemRepository, type NewProblemImage } from '../database/problem-repository'
+import { WorkspaceRepository } from '../database/workspace-repository'
 import { PublicError } from '../errors/public-error'
 import { resolveAuthorizedFile } from '../security/path-guard'
+import type { WorkspaceStorageManager } from './workspace-storage'
 
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024
 const MAX_IMAGES_PER_PROBLEM = 12
@@ -66,10 +68,13 @@ export class ProblemService {
   constructor(
     private readonly repository: ProblemRepository,
     private readonly userDataPath: string,
+    private readonly workspaceRepository: WorkspaceRepository,
+    private readonly workspaceStorage?: WorkspaceStorageManager,
   ) {}
 
   async addImages(problemId: string, parentWindow?: BrowserWindow): Promise<Problem | null> {
-    this.requireProblem(problemId)
+    const workspaceId = this.requireWorkspaceId()
+    this.requireProblem(workspaceId, problemId)
     const options: Electron.OpenDialogOptions = {
       buttonLabel: '添加到题目',
       filters: [{ extensions: ['jpg', 'jpeg', 'png', 'webp'], name: '题目图片' }],
@@ -83,7 +88,7 @@ export class ProblemService {
       return null
     }
 
-    const existingCount = this.repository.countImages(problemId)
+    const existingCount = this.repository.countImages(workspaceId, problemId)
     if (existingCount + result.filePaths.length > MAX_IMAGES_PER_PROBLEM) {
       throw new PublicError(
         'IMAGE_LIMIT_REACHED',
@@ -124,7 +129,7 @@ export class ProblemService {
       }
     }
 
-    const targetDirectory = join(this.userDataPath, 'problem-images', problemId)
+    const targetDirectory = join(this.getProblemImageRoot(), problemId)
     await mkdir(targetDirectory, { recursive: true })
     const createdPaths: string[] = []
     const imageRows: NewProblemImage[] = []
@@ -143,22 +148,23 @@ export class ProblemService {
           sizeBytes: image.buffer.byteLength,
         })
       }
-      this.repository.addImages(problemId, imageRows)
+      this.repository.addImages(workspaceId, problemId, imageRows)
     } catch {
       await Promise.all(createdPaths.map(path => unlink(path).catch(() => undefined)))
       throw new PublicError('FILE_UNAVAILABLE', '无法保存题目图片，请重试。')
     }
 
-    return this.requireProblem(problemId)
+    return this.requireProblem(workspaceId, problemId)
   }
 
   createProblem(request: CreateProblemRequest): Problem {
-    return this.repository.createProblem(request)
+    return this.repository.createProblem(this.requireWorkspaceId(), request)
   }
 
   async deleteProblem(problemId: string): Promise<void> {
-    this.requireProblem(problemId)
-    const imageRoot = join(this.userDataPath, 'problem-images')
+    const workspaceId = this.requireWorkspaceId()
+    this.requireProblem(workspaceId, problemId)
+    const imageRoot = this.getProblemImageRoot()
     const sourceDirectory = join(imageRoot, problemId)
     const trashDirectory = join(imageRoot, '.trash')
     const trashPath = join(trashDirectory, `${problemId}-${randomUUID()}`)
@@ -180,7 +186,7 @@ export class ProblemService {
     }
 
     try {
-      if (!this.repository.deleteProblem(problemId)) {
+      if (!this.repository.deleteProblem(workspaceId, problemId)) {
         throw new PublicError('PROBLEM_NOT_FOUND', '题目卡片不存在或已经被移除。')
       }
     } catch (error) {
@@ -196,23 +202,23 @@ export class ProblemService {
   }
 
   getProblems(): Problem[] {
-    return this.repository.listProblems()
+    return this.repository.listProblems(this.requireWorkspaceId())
   }
 
   getProblem(problemId: string): Problem {
-    return this.requireProblem(problemId)
+    return this.requireProblem(this.requireWorkspaceId(), problemId)
   }
 
   getProblemsByTemplate(request: TemplateProblemPageRequest): TemplateProblemPage {
-    return this.repository.listProblemsByTemplate(request)
+    return this.repository.listProblemsByTemplate(this.requireWorkspaceId(), request)
   }
 
   getProblemsPage(request: ProblemPageRequest): ProblemPage {
-    return this.repository.listProblemsPage(request)
+    return this.repository.listProblemsPage(this.requireWorkspaceId(), request)
   }
 
   async readImage(imageId: string): Promise<ProblemImageData> {
-    const image = this.repository.getImage(imageId)
+    const image = this.repository.getImage(this.requireWorkspaceId(), imageId)
     if (!image) {
       throw new PublicError('FILE_UNAVAILABLE', '题目图片不存在或记录无效。')
     }
@@ -232,7 +238,8 @@ export class ProblemService {
   }
 
   async removeImage(request: RemoveProblemImageRequest): Promise<Problem> {
-    const image = this.repository.getImage(request.imageId, request.problemId)
+    const workspaceId = this.requireWorkspaceId()
+    const image = this.repository.getImage(workspaceId, request.imageId, request.problemId)
     if (!image) {
       throw new PublicError('FILE_UNAVAILABLE', '题目图片不存在或已经移除。')
     }
@@ -246,7 +253,7 @@ export class ProblemService {
       }
     }
 
-    const trashDirectory = join(this.userDataPath, 'problem-images', '.trash')
+    const trashDirectory = join(this.getProblemImageRoot(), '.trash')
     const trashPath = join(trashDirectory, `${image.id}.deleted`)
     let movedToTrash = false
     if (sourcePath) {
@@ -258,7 +265,7 @@ export class ProblemService {
     }
 
     try {
-      if (!this.repository.removeImage(request.imageId, request.problemId)) {
+      if (!this.repository.removeImage(workspaceId, request.imageId, request.problemId)) {
         throw new PublicError('FILE_UNAVAILABLE', '题目图片不存在或已经移除。')
       }
     } catch (error) {
@@ -271,19 +278,20 @@ export class ProblemService {
     if (movedToTrash) {
       await unlink(trashPath).catch(() => undefined)
     }
-    return this.requireProblem(request.problemId)
+    return this.requireProblem(workspaceId, request.problemId)
   }
 
   removeRelation(request: RemoveProblemRelationRequest): Problem {
-    this.requireProblem(request.problemId)
-    if (!this.repository.removeRelation(request.problemId, request.templateId)) {
+    const workspaceId = this.requireWorkspaceId()
+    this.requireProblem(workspaceId, request.problemId)
+    if (!this.repository.removeRelation(workspaceId, request.problemId, request.templateId)) {
       throw new PublicError('INVALID_REQUEST', '该题目与模板之间没有可解除的关联。')
     }
-    return this.requireProblem(request.problemId)
+    return this.requireProblem(workspaceId, request.problemId)
   }
 
   updateProblem(request: UpdateProblemRequest): Problem {
-    const problem = this.repository.updateProblem(request)
+    const problem = this.repository.updateProblem(this.requireWorkspaceId(), request)
     if (!problem) {
       throw new PublicError('PROBLEM_NOT_FOUND', '题目卡片不存在或已经被移除。')
     }
@@ -291,19 +299,28 @@ export class ProblemService {
   }
 
   upsertRelation(request: UpsertProblemRelationRequest): Problem {
-    this.requireProblem(request.problemId)
-    if (!this.repository.isTemplateAvailable(request.templateId)) {
+    const workspaceId = this.requireWorkspaceId()
+    this.requireProblem(workspaceId, request.problemId)
+    if (!this.repository.isTemplateAvailable(workspaceId, request.templateId)) {
       throw new PublicError('TEMPLATE_NOT_FOUND', '所选模板当前不可用，请重新扫描工作区。')
     }
-    return this.repository.upsertRelation(request)
+    return this.repository.upsertRelation(workspaceId, request)
   }
 
-  private requireProblem(problemId: string): Problem {
-    const problem = this.repository.getProblem(problemId)
+  private requireProblem(workspaceId: string, problemId: string): Problem {
+    const problem = this.repository.getProblem(workspaceId, problemId)
     if (!problem) {
       throw new PublicError('PROBLEM_NOT_FOUND', '题目卡片不存在或已经被移除。')
     }
     return problem
+  }
+
+  private requireWorkspaceId(): string {
+    const workspace = this.workspaceRepository.getActiveWorkspace()
+    if (!workspace) {
+      throw new PublicError('WORKSPACE_REQUIRED', '请先创建或选择模板工作区。')
+    }
+    return workspace.id
   }
 
   private async resolveStoredImage(relativePath: string) {
@@ -314,6 +331,12 @@ export class ProblemService {
     if (!pathWithinImageRoot || pathWithinImageRoot.startsWith('.trash/')) {
       throw new PublicError('PATH_NOT_AUTHORIZED', '题目图片记录不在受控目录内。')
     }
-    return resolveAuthorizedFile(join(this.userDataPath, 'problem-images'), pathWithinImageRoot)
+    return resolveAuthorizedFile(this.getProblemImageRoot(), pathWithinImageRoot)
+  }
+
+  private getProblemImageRoot(): string {
+    return (
+      this.workspaceStorage?.current?.problemImagesRoot ?? join(this.userDataPath, 'problem-images')
+    )
   }
 }

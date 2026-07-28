@@ -50,8 +50,13 @@ test('scrolls the dashboard, opens summary cards, and persists both interface la
         canceled: false,
         filePaths: [selectedPath],
       })) as typeof dialog.showOpenDialog
+      dialog.showMessageBox = (async () => ({
+        checkboxChecked: false,
+        response: 1,
+      })) as typeof dialog.showMessageBox
     }, workspaceRoot)
     await page.getByRole('button', { name: '选择目录' }).click()
+    await expect(page.getByRole('heading', { level: 1, name: '模板库' })).toBeVisible()
     await page.getByRole('button', { name: '工作台' }).click()
 
     const dashboard = page.getByTestId('dashboard-scroll-region')

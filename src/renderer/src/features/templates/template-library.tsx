@@ -1,4 +1,4 @@
-import { FileCode2, FolderOpen, LoaderCircle, Plus, RefreshCw, X } from 'lucide-react'
+import { FileCode2, FolderOpen, LoaderCircle, Plus, RefreshCw, Sparkles, X } from 'lucide-react'
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 
 import type {
@@ -21,10 +21,12 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { layoutPreferenceKeys } from '@/hooks/use-layout-preference'
 import { backgroundTaskProgressText } from '@/lib/background-task'
+import { activeElementOrNull } from '@/lib/focus-management'
 import { useI18n } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 
 import { TemplateTree } from './template-tree'
+import { TemplateMetadataCompletionDialog } from './template-metadata-completion-dialog'
 import { useTemplateSource } from './use-template-source'
 
 const AlgorithmCard = lazy(async () => {
@@ -96,6 +98,11 @@ export function TemplateLibrary({
   const [relatedProblemError, setRelatedProblemError] = useState<string | null>(null)
   const [relatedProblems, setRelatedProblems] = useState<TemplateProblemSummary[]>([])
   const [relatedProblemTotalCount, setRelatedProblemTotalCount] = useState(0)
+  const [metadataCompletion, setMetadataCompletion] = useState<{
+    initialTemplate: TemplateSummary | null
+    returnFocusTo: HTMLElement | null
+  } | null>(null)
+  const [metadataRefreshKey, setMetadataRefreshKey] = useState(0)
   relatedTemplateIdRef.current = selectedTemplate?.id ?? null
 
   const loadRelatedProblems = useCallback(
@@ -193,6 +200,21 @@ export function TemplateLibrary({
           >
             <RefreshCw aria-hidden="true" className={cn('size-4', isBusy && 'animate-spin')} />
           </Button>
+          <Button
+            disabled={isBusy}
+            onClick={() =>
+              setMetadataCompletion({
+                initialTemplate: null,
+                returnFocusTo: activeElementOrNull(),
+              })
+            }
+            size="compact"
+            type="button"
+            variant="outline"
+          >
+            <Sparkles aria-hidden="true" className="size-3.5" />
+            {t('批量补全元数据')}
+          </Button>
           <Button disabled={isBusy} onClick={onCreateTemplate} size="compact" type="button">
             <Plus aria-hidden="true" className="size-3.5" />
             {t('新建模板')}
@@ -236,11 +258,19 @@ export function TemplateLibrary({
           }
         >
           <AlgorithmCard
+            metadataRefreshKey={metadataRefreshKey}
             onAction={onAction}
             onDelete={onDeleteTemplate}
             isProblemBusy={isProblemBusy || isBusy}
             isLoadingRelatedProblems={isLoadingRelatedProblems}
             onClearProblemError={onClearProblemError}
+            onCompleteMetadata={() => {
+              if (!selectedTemplate) return
+              setMetadataCompletion({
+                initialTemplate: selectedTemplate,
+                returnFocusTo: activeElementOrNull(),
+              })
+            }}
             onLoadMoreRelatedProblems={() => {
               if (selectedTemplate && relatedProblemCursor) {
                 void loadRelatedProblems(selectedTemplate.id, relatedProblemCursor, true)
@@ -263,6 +293,14 @@ export function TemplateLibrary({
           />
         </Suspense>
       </ResizableLayout>
+      {metadataCompletion && (
+        <TemplateMetadataCompletionDialog
+          initialTemplate={metadataCompletion.initialTemplate}
+          onApplied={() => setMetadataRefreshKey(key => key + 1)}
+          onClose={() => setMetadataCompletion(null)}
+          returnFocusTo={metadataCompletion.returnFocusTo}
+        />
+      )}
     </main>
   )
 }

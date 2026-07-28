@@ -3,7 +3,11 @@ import { z } from 'zod'
 import { workspaceAuditSchema } from './template-management'
 import { workspaceSnapshotSchema } from './workspace'
 
-export const backgroundTaskKindSchema = z.enum(['workspace-scan', 'workspace-audit'])
+export const backgroundTaskKindSchema = z.enum([
+  'workspace-scan',
+  'workspace-audit',
+  'batch-operation',
+])
 export const backgroundTaskStateSchema = z.enum([
   'queued',
   'running',
@@ -14,12 +18,21 @@ export const backgroundTaskStateSchema = z.enum([
 ])
 export const backgroundTaskPhaseSchema = z.enum([
   'queued',
+  'preparing',
   'discovering',
   'indexing',
   'publishing',
   'index-check',
   'duplicate-groups',
   'similarity',
+  'validating',
+  'requesting-ai',
+  'processing',
+  'backing-up',
+  'writing',
+  'verifying',
+  'restoring',
+  'cleaning',
   'finalizing',
 ])
 export const backgroundTaskProgressSchema = z
@@ -27,6 +40,7 @@ export const backgroundTaskProgressSchema = z
     phase: backgroundTaskPhaseSchema,
     processedCount: z.number().int().nonnegative(),
     totalCount: z.number().int().nonnegative().nullable(),
+    currentItem: z.string().trim().min(1).max(500).nullable().optional(),
   })
   .strict()
 export const backgroundTaskResultSchema = z.discriminatedUnion('kind', [

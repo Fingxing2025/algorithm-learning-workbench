@@ -5,11 +5,67 @@ export type AppLocale = 'en' | 'zh-CN'
 const LOCALE_STORAGE_KEY = 'ui:locale'
 
 const english: Record<string, string> = {
+  '恢复前会自动备份当前工作区；模板源码按备份相对路径原地写入当前工作区文件夹，当前路径和身份保持不变。':
+    'The current workspace is backed up first. Template sources are restored in place using backup-relative paths, while the current path and identity remain unchanged.',
+  已原地恢复模板源码: 'Template sources restored in place',
+  '该工作区身份已在另一个可用位置登记，请先打开原位置或将副本作为新工作区导入。':
+    'This workspace identity is registered at another available location. Open the original location or import this folder as a new workspace.',
+  '该文件夹已登记为另一个工作区。': 'This folder is already registered as another workspace.',
+  '通用备份必须包含完整模板源码。': 'A portable backup must include the complete template sources.',
+  '模拟恢复异常中断，当前工作区已回滚。': 'The simulated interrupted restore was rolled back.',
+  '模拟恢复异常中断，已保留可验证恢复现场。':
+    'The simulated interrupted restore left a verified recovery state.',
+  '通用备份必须只包含一个工作区。': 'A portable backup must contain exactly one workspace.',
+  '模板恢复路径越出当前工作区。': 'A template restore path escapes the current workspace.',
+  '模板源码暂存后哈希校验失败。': 'Template source hash verification failed after staging.',
+  '模板暂存目录包含无效条目。': 'The template staging directory contains an invalid entry.',
+  '题目图片路径越出当前工作区。': 'A problem image path escapes the current workspace.',
+  '工作区数据路径越出受管目录。': 'A workspace data path escapes the managed directory.',
+  '检测到同一工作区身份的另一个可用文件夹。为避免两个副本共享身份，已停止打开。':
+    'Another available folder has the same workspace identity. Opening was stopped to prevent two copies from sharing one identity.',
+  '文件夹包含不完整或冲突的工作区受管目录，请先恢复这些目录或选择其他文件夹。':
+    'The folder contains incomplete or conflicting managed workspace data. Recover it or choose another folder.',
+  '无法创建自包含工作区，原数据未被删除。':
+    'The self-contained workspace could not be created. Original data was not deleted.',
+  '工作区数据库升级校验失败。': 'Workspace database verification failed during upgrade.',
+  '工作区数据升级数量校验失败。': 'Workspace data row counts failed verification during upgrade.',
+  '当前工作区模板目录不可用。': 'The current workspace template directory is unavailable.',
+  '模板中断恢复失败且回滚未完成，请保留现场。':
+    'Interrupted template recovery failed and rollback did not complete. Preserve the current state.',
+  '模板中断恢复失败，已保持原状态。':
+    'Interrupted template recovery failed. The original state was preserved.',
+  '题目图片升级后校验失败。': 'Problem image verification failed after upgrade.',
+  '文件计划撤销备份升级后校验失败。':
+    'File-plan rollback backup verification failed after upgrade.',
+  '请先创建或选择工作区。': 'Create or choose a workspace first.',
+  '工作区标记不是普通文件，已停止打开。':
+    'The workspace marker is not a regular file. Opening was stopped.',
+  '工作区标记已损坏或版本不受支持。':
+    'The workspace marker is damaged or uses an unsupported version.',
+  '模板目录不在工作区文件夹内。': 'The template directory is outside the workspace folder.',
+  '工作区路径必须是绝对路径。': 'The workspace path must be absolute.',
+  '工作区文件夹不存在或不可访问。': 'The workspace folder is missing or unavailable.',
+  '工作区必须是普通文件夹。': 'A workspace must be a regular folder.',
+  '待升级文件夹包含符号链接，无法安全迁移。':
+    'The folder to upgrade contains a symbolic link and cannot be migrated safely.',
+  '待升级文件夹包含非普通文件，无法安全迁移。':
+    'The folder to upgrade contains a non-regular file and cannot be migrated safely.',
+  '新建工作区需要空白文件夹；若要使用现有内容，请选择“打开工作区”进行升级。':
+    'A new workspace requires an empty folder. To use existing content, choose Open Workspace to upgrade it.',
+  '无法升级为当前工作区，原文件已恢复。':
+    'The folder could not be upgraded to the current workspace format. Original files were restored.',
+  '无法创建当前工作区，未保留不完整数据。':
+    'The current workspace could not be created. Incomplete managed data was removed.',
+  'templates 已存在但不是普通文件夹。': 'The existing templates entry is not a regular folder.',
+  '当前工作区数据库初始化校验失败。':
+    'Current workspace database initialization verification failed.',
   'AI 变更先预览': 'Preview AI changes first',
   'AI 管理': 'AI Management',
   'AI 生成已取消，未创建计划或修改文件。':
     'AI generation cancelled. No plan was created and no files were changed.',
   'AI 设置': 'AI Settings',
+  '已按源编码读取；工作区新副本统一保存为 UTF-8。':
+    'Decoded using the source encoding; the new workspace copy will be saved as UTF-8.',
   'Provider 列表面板': 'Provider list panel',
   'Provider 详情面板': 'Provider details panel',
   'Provider 列表宽度 {size} 像素': 'Provider list width: {size} pixels',
@@ -62,6 +118,38 @@ const english: Record<string, string> = {
   '扫描完成：发现 {count} 个模板': 'Scan complete: {count} templates found',
   '已处理 {processed}': 'Processed {processed}',
   '已处理 {processed} / {total}': 'Processed {processed} / {total}',
+  当前项: 'Current item',
+  批量任务: 'Batch task',
+  '已等待 {seconds} 秒': '{seconds}s elapsed',
+  '任务进度 {percentage}%': 'Task progress {percentage}%',
+  任务正在排队: 'Task queued',
+  正在准备任务: 'Preparing task',
+  正在发现文件: 'Discovering files',
+  正在读取并建立索引: 'Reading and indexing',
+  正在发布结果: 'Publishing results',
+  正在检查模板索引: 'Checking template index',
+  正在整理重复分组: 'Grouping duplicates',
+  正在比较相似内容: 'Comparing similar content',
+  正在校验数据: 'Validating data',
+  '正在等待 Provider 响应': 'Waiting for Provider response',
+  正在处理结果: 'Processing results',
+  正在创建安全备份: 'Creating safety backup',
+  正在写入数据: 'Writing data',
+  正在验证结果: 'Verifying results',
+  正在恢复数据: 'Restoring data',
+  正在清理临时数据: 'Cleaning temporary data',
+  正在完成收尾: 'Finalizing',
+  当前工作区数据: 'Current workspace data',
+  可移植备份包: 'Portable backup package',
+  临时备份包: 'Temporary backup package',
+  已发布备份包: 'Published backup package',
+  所选备份包: 'Selected backup package',
+  备份包: 'Backup package',
+  当前工作区操作前备份: 'Current workspace preflight backup',
+  当前工作区数据库: 'Current workspace database',
+  异常中断数据: 'Interrupted operation data',
+  '多个 C++ 文件': 'Multiple C++ files',
+  'C++ 文件夹': 'C++ folder',
   取消扫描: 'Cancel scan',
   取消审计: 'Cancel audit',
   加载更多题目: 'Load more problems',
@@ -181,8 +269,8 @@ const english: Record<string, string> = {
   切换工作区: 'Switch workspace',
   选择目录: 'Choose folder',
   选择工作区: 'Choose workspace',
-  '选择一个已有模板目录，先只读扫描，不会自动改名或移动文件。':
-    'Choose an existing template folder. The first scan is read-only and never renames or moves files.',
+  '先只读扫描；确认升级后，完整内容按原结构迁入 templates，失败会自动回滚。':
+    'The folder is scanned read-only first. After confirmation, all content moves into templates with its structure preserved; failures roll back automatically.',
   选择一份算法模板: 'Select an algorithm template',
   调整导航宽度: 'Resize navigation',
   '调整 Provider 列表宽度': 'Resize Provider list',
@@ -266,8 +354,8 @@ const english: Record<string, string> = {
     'Connect a template workspace or create a problem to start searching.',
   选择已有模板目录: 'Choose an existing template folder',
   '首次设置 · 约 1 分钟': 'First setup · about 1 minute',
-  '工作区是你自己的普通文件夹。模板源码始终保留在文件系统中，应用只建立本地索引。':
-    'A workspace is a regular folder you own. Source files remain in the file system while the app builds a local index.',
+  '工作区是你自己的自包含文件夹；模板统一位于 templates，题目和元数据也随文件夹保存。':
+    'Your workspace is a self-contained folder. Templates live under templates, while problems and metadata travel with the folder.',
   '目录授权和文件访问只发生在 Electron Main 进程。Renderer 不会获得文件系统或原始 IPC 权限。':
     'Folder authorization and file access stay in the Electron Main process. The Renderer receives neither file-system access nor raw IPC.',
 }
@@ -401,7 +489,10 @@ Object.assign(english, {
   导出与验证: 'Export and verification',
   '导出包不包含 API Key 或安全存储密钥；Provider 恢复后需要重新填写密钥。':
     'Exported backups do not include API keys or secure-storage key files. Provider keys must be re-entered after restore.',
+  'v2 导出为可直接传输的单文件；不包含 API Key 或安全存储密钥，Provider 恢复后需要重新填写密钥。':
+    'V2 exports a directly transferable single file. API keys and secure-storage key files are excluded and must be re-entered after restore.',
   包含模板源码副本: 'Include template source copies',
+  '（完整便携备份，推荐）': '(complete portable backup, recommended)',
   导出备份: 'Export backup',
   验证备份包: 'Verify backup',
   恢复预览: 'Restore preview',
@@ -417,24 +508,14 @@ Object.assign(english, {
   恢复预览可继续: 'Restore preview can continue',
   恢复预览存在阻止项: 'Restore preview has blocking items',
   恢复执行确认: 'Restore execution confirmation',
-  '恢复前会自动备份当前数据；本版本会跳过模板源码恢复，不会修改外部模板工作区。':
-    'The app will back up current data before restore. This version skips template sources and will not modify external template workspaces.',
-  '我已确认恢复预览，并允许应用恢复 userData 中的数据副本。':
-    'I reviewed the restore preview and allow the app to restore the data copy in userData.',
   确认恢复: 'Confirm restore',
   恢复完成: 'Restore complete',
   '恢复完成。Provider 密钥未恢复，请重新配置密钥。':
     'Restore complete. Provider keys were not restored; reconfigure the keys.',
   '恢复完成。恢复前自动备份已保存。': 'Restore complete. The preflight backup was saved.',
-  '备份包包含模板源码副本；本次已按策略跳过。':
-    'The backup package contains template source copies; they were skipped by policy.',
-  '恢复执行只处理应用 userData 数据；模板源码默认跳过，外部工作区不会被修改。':
-    'Restore execution only handles app userData. Template sources are skipped by default, and external workspaces are not modified.',
   '备份包校验未通过，禁止恢复。': 'Backup verification failed. Restore is blocked.',
   '备份包版本不兼容。': 'Backup package version is incompatible.',
   '备份包版本不兼容，无法恢复。': 'Backup package version is incompatible and cannot be restored.',
-  '当前版本只支持跳过模板源码恢复。':
-    'This version only supports skipping template source restore.',
   '恢复前自动备份验证失败，恢复已取消。':
     'Preflight backup verification failed. Restore was cancelled.',
   '恢复前自动备份发布后验证失败，恢复已取消。':
@@ -454,9 +535,61 @@ Object.assign(english, {
   '导出备份失败，临时文件已清理。': 'Backup export failed. Temporary files were cleaned up.',
   '目标备份包已存在，请选择新的导出位置。':
     'The target backup package already exists. Choose a new export location.',
+  '备份包含空路径或过长路径。': 'The backup contains an empty or excessively long path.',
+  '备份路径必须使用 NFC Unicode 形式。': 'Backup paths must use NFC Unicode normalization.',
+  '备份包含绝对路径。': 'The backup contains an absolute path.',
+  '备份路径必须使用正斜杠。': 'Backup paths must use forward slashes.',
+  '备份路径包含空段或目录穿越。': 'A backup path contains an empty segment or traversal.',
+  '备份路径包含超过 255 字符的文件名。':
+    'A backup path contains a filename longer than 255 characters.',
+  '备份路径包含 Windows 不支持的字符。':
+    'A backup path contains characters unsupported by Windows.',
+  '备份路径包含 Windows 不支持的尾随点或空格。':
+    'A backup path contains a trailing dot or space unsupported by Windows.',
+  '备份路径包含 Windows 保留设备名。': 'A backup path contains a Windows reserved device name.',
+  '备份路径在 NFC 或大小写规则下发生冲突。':
+    'Backup paths collide under NFC or case-insensitive rules.',
+  '便携备份文件数量超出安全范围。': 'The portable backup file count exceeds the safety limit.',
+  '便携备份只能包含普通文件。': 'A portable backup may contain only regular files.',
+  '便携备份中的单个文件超过安全上限。': 'A file in the portable backup exceeds the safety limit.',
+  '便携备份展开大小超过安全上限。': 'The expanded portable backup exceeds the safety limit.',
+  '便携备份的压缩比异常。': 'The portable backup has an unsafe compression ratio.',
+  '便携 ZIP 结构无效。': 'The portable ZIP structure is invalid.',
+  '便携 ZIP 解包或完整性校验失败。':
+    'The portable ZIP failed extraction or integrity verification.',
+  '备份目录包含符号链接。': 'The backup directory contains a symbolic link.',
+  '备份包包含 manifest 清单外文件。': 'The backup contains a file not declared by the manifest.',
+  '备份包缺少 manifest 声明文件。': 'The backup is missing a file declared by the manifest.',
+  '备份 manifest 不是当前单工作区完整源码格式。':
+    'The backup manifest is not the current single-workspace full-source format.',
+  '当前版本只接受单文件 .awb-backup 备份。':
+    'The current version accepts only a single-file .awb-backup.',
+  '备份容器与 manifest 格式版本不一致。':
+    'The backup container does not match the manifest format version.',
+  'manifest 包含重复文件路径。': 'The manifest contains duplicate file paths.',
+  'manifest 路径在 NFC 或大小写规则下冲突。':
+    'Manifest paths collide under NFC or case-insensitive rules.',
+  'manifest 未包含 SQLite 快照。': 'The manifest does not include the SQLite snapshot.',
+  '模板路径在 Windows 大小写或 Unicode 规则下冲突，便携备份已取消。':
+    'Template paths collide under Windows case or Unicode rules; portable backup was cancelled.',
+  '模板工作区不可用，无法生成完整便携备份。':
+    'The template workspace is unavailable, so a complete portable backup cannot be created.',
+  '存在无法读取的模板源码，便携备份已取消。':
+    'A template source file is unreadable; portable backup was cancelled.',
+  '模板源码恢复后哈希校验失败。': 'A restored template source failed SHA-256 verification.',
+  '备份包结构无效，禁止恢复。': 'The backup structure is invalid. Restore is blocked.',
+  '备份工作区清单包含重复标识。': 'The backup workspace manifest contains duplicate IDs.',
+  '模板源码清单引用了未知工作区。': 'The template source manifest references an unknown workspace.',
+  '备份声明不含模板源码，但清单中存在源码文件。':
+    'The backup declares that template sources are excluded, but source files are present in the manifest.',
+  '模板源码数量与工作区清单不一致。':
+    'The template source file count does not match the workspace manifest.',
+  '工作区数量超过便携备份安全上限。':
+    'The workspace count exceeds the portable backup safety limit.',
+  '备份包扩展名不受支持。': 'The backup file extension is unsupported.',
+  '备份包不存在或是符号链接。': 'The backup does not exist or is a symbolic link.',
+  '备份包不是普通文件或目录。': 'The backup is not a regular file or directory.',
   'SQLite 快照校验失败，导出已取消。': 'SQLite snapshot verification failed. Export was cancelled.',
-  '当前版本只开放恢复预览；执行恢复会在导出校验和失败回滚测试稳定后开放。':
-    'This version only exposes restore preview. Executing restore will open after export verification and rollback tests are stable.',
   '正在打开数据管理…': 'Opening Data Management...',
   '已批量导入 {count} 份 C++ 模板': 'Imported {count} C++ templates',
   '已填入阿里云北京区域兼容端点；如控制台配置不同，请按实际端点调整。':
@@ -961,8 +1094,10 @@ Object.assign(english, {
   高度相似: 'Highly similar',
   失效关联: 'Stale relation',
   '算法卡片尚未补充结构化元数据。': 'The algorithm card does not have structured metadata yet.',
-  '文件名可能包含副本标记或不一致空格，建议人工确认命名。':
-    'The file name may contain a copy marker or inconsistent spaces. Review it manually.',
+  '文件名包含副本标记或异常空格；AI 文件计划必须提供安全改名，执行前仍需确认。':
+    'The file name contains a copy marker or unusual spacing. The AI file plan must propose a safe rename, which still requires confirmation before execution.',
+  '文件名疑似包含乱码或错误解码痕迹；AI 文件计划必须提供安全改名，执行前仍需确认。':
+    'The file name may contain mojibake or decoding artifacts. The AI file plan must propose a safe rename, which still requires confirmation before execution.',
   '模板文件为空。': 'The template file is empty.',
   '这些模板源码规范化后完全相同；建议仅保留 {path}。':
     'These templates are identical after normalization. Keep only {path}.',
@@ -1175,15 +1310,18 @@ Object.assign(english, {
     'Unacceptable template-name truncation detected. Sending is blocked.',
   '模板名称完整，无不可接受裁剪。': 'All template names are included without truncation.',
   文件计划发送快照: 'File-plan request snapshot',
+  预算分批请求: 'Budgeted request batches',
   详细候选: 'Detailed candidates',
   源码片段: 'Source snippets',
   元数据字符: 'Metadata characters',
   总输入字符: 'Total input characters',
+  预计请求批数: 'Estimated request batches',
+  单批候选上限: 'Candidates per batch',
+  单批输出上限: 'Output limit per batch',
+  单批最大输入: 'Largest batch input',
+  全部批次输入字符: 'Input characters across all batches',
   候选元数据省略: 'Candidate metadata omitted',
   候选源码省略: 'Candidate source omitted',
-  '旧版计划没有旧值快照；以下仅展示计划保存的新值。':
-    'This legacy plan has no previous-value snapshot; only the saved new values are shown.',
-  旧计划未记录旧值: 'Previous value not recorded in this legacy plan',
   解决问题: 'Solves',
   高风险: 'High risk',
   '已展示 {shown} / {total}': 'Showing {shown} / {total}',
@@ -1463,6 +1601,18 @@ Object.assign(english, {
     'Unable to connect to the AI service. Check the network and base URL.',
   '同一 AI 请求已在运行，请勿重复提交。':
     'The same AI request is already running. Do not submit it again.',
+  '同一批量任务已在运行，请勿重复提交。':
+    'The same batch task is already running. Do not submit it again.',
+  '文件计划批次在最终序列化后超过输入预算，已在网络发送前停止。':
+    'The file-plan batch exceeded the input budget after final serialization and was stopped before any network request.',
+  'AI 计划请求与发送预览不匹配，请重新预览。':
+    'The AI plan request does not match the send preview. Create a new preview.',
+  'AI 返回了当前批次之外的模板操作，已拒绝整份计划。工作区未被修改。':
+    'AI returned an operation outside the current batch. The entire plan was rejected and the workspace was not changed.',
+  'AI 在不同批次为同一模板返回了重复操作，已拒绝整份计划。工作区未被修改。':
+    'AI returned duplicate operations for one template across batches. The entire plan was rejected and the workspace was not changed.',
+  'AI 在不同批次返回了冲突的目标路径，已拒绝整份计划。工作区未被修改。':
+    'AI returned conflicting target paths across batches. The entire plan was rejected and the workspace was not changed.',
   '当前任务模型不支持图片输入。请改用声明视觉能力的 Provider。':
     'The current model does not support image input. Choose a provider that declares vision capability.',
   取消当前及后续补全: 'Cancel current and remaining completion',
@@ -1481,18 +1631,12 @@ Object.assign(english, {
   'Provider 列表滚动区': 'Provider list scroll area',
   '已加载 {processed} / {total} 份计划；确认后永久删除历史与专属撤销备份。':
     'Loaded {processed} / {total} plans. Confirmation permanently deletes history and its dedicated rollback backups.',
-  '将永久删除 {count} 份计划：{cancelled} 份已取消、{applied} 份已执行、{rolledBack} 份已撤销；其中 {archived} 份为旧归档记录。':
-    'Permanently delete {count} plans: {cancelled} cancelled, {applied} applied, and {rolledBack} rolled back. {archived} are legacy archived records.',
+  '将永久删除 {count} 份计划：{cancelled} 份已取消、{applied} 份已执行、{rolledBack} 份已撤销。':
+    'Permanently delete {count} plans: {cancelled} cancelled, {applied} applied, and {rolledBack} rolled back.',
   '同时永久删除 {executions} 条子执行和 {backups} 份现存撤销备份；另有 {missing} 份备份已缺失。当前模板文件不会恢复、移动或修改。删除后计划、执行记录和撤销能力均无法恢复。':
     'Also permanently delete {executions} child executions and {backups} existing rollback backups; {missing} backups are already missing. Current template files will not be restored, moved, or changed. The plans, execution records, and rollback capability cannot be recovered afterward.',
   确认永久删除计划记录: 'Confirm permanent plan record deletion',
   '暂无可删除计划记录。': 'No plan records can be deleted.',
-  旧归档记录: 'Legacy archived records',
-  永久清理旧归档: 'Permanently clean legacy archives',
-  '没有旧版软归档记录。': 'No legacy soft-archived records.',
-  旧归档: 'Legacy archive',
-  永久删除旧归档记录: 'Permanently delete legacy archived record',
-  加载更多旧归档记录: 'Load more legacy archived records',
   '将永久删除 {count} 条执行记录：{applied} 条已执行、{rolledBack} 条已撤销。':
     'Permanently delete {count} execution records: {applied} applied and {rolledBack} rolled back.',
   '将永久删除 {backups} 份现存撤销备份，另有 {missing} 份已缺失；当前模板、题目、关系和源码不会被撤销或修改。已执行记录删除后无法再从备份撤销，本次历史删除无法恢复。':
@@ -1503,6 +1647,39 @@ Object.assign(english, {
     'Permanently deleted {count} plans, {executions} child executions, and {backups} rollback backups. Current template files were not changed.',
   '已永久删除 {count} 条执行记录和 {backups} 份撤销备份；当前模板文件未修改。':
     'Permanently deleted {count} execution records and {backups} rollback backups. Current template files were not changed.',
+  失效执行记录: 'Invalid execution records',
+  '这里只显示当前工作区的记录。撤销备份已经缺失或状态异常；清理记录不会修改当前模板文件。':
+    'Only records from the current workspace are shown. Their rollback backups are missing or invalid; cleaning the records does not change current template files.',
+  清理所选失效记录: 'Clean selected invalid records',
+  '将清理当前工作区的 {count} 条失效执行记录。':
+    'Clean {count} invalid execution records from the current workspace.',
+  '撤销能力在本次操作前已经丢失。本次只删除历史记录，父计划和当前文件保持不变；清理后记录无法恢复。':
+    'Rollback capability was already lost before this action. Only history records are deleted; parent plans and current files stay unchanged. The cleaned records cannot be recovered.',
+  确认清理失效记录: 'Confirm invalid record cleanup',
+  '正在检查当前工作区的失效执行记录…':
+    'Checking invalid execution records in the current workspace...',
+  选择失效执行记录: 'Select invalid execution record',
+  可清理: 'Cleanable',
+  受保护: 'Protected',
+  操作数量未知: 'Operation count unknown',
+  '{count} 项操作': '{count} operations',
+  '{count} 项状态异常记录已受保护，不会进入清理预览。':
+    '{count} records with unsafe backup state are protected and excluded from cleanup preview.',
+  加载更多失效记录: 'Load more invalid records',
+  撤销备份已缺失: 'Rollback backup is missing',
+  '备份引用格式异常，无法自动处理':
+    'Backup reference is invalid and cannot be handled automatically',
+  '备份位置是符号链接，无法自动处理':
+    'Backup location is a symbolic link and cannot be handled automatically',
+  '备份位置不是普通目录，无法自动处理':
+    'Backup location is not a regular directory and cannot be handled automatically',
+  无法安全读取备份位置: 'The backup location cannot be read safely',
+  '撤销备份已缺失，请在上方失效执行记录中处理。':
+    'The rollback backup is missing. Handle this record in the invalid execution section above.',
+  '撤销备份状态异常，已阻止自动撤销和删除。':
+    'The rollback backup state is unsafe, so automatic rollback and deletion are blocked.',
+  '已清理 {count} 条失效执行记录；当前工作区文件未修改。':
+    'Cleaned {count} invalid execution records. Current workspace files were not changed.',
   清理已完成历史删除标记: 'Clear completed history-deletion marker',
   完成已提交历史删除的备份清理: 'Finish backup cleanup for committed history deletion',
   '历史删除已提交，可安全完成备份清理':
@@ -1571,7 +1748,23 @@ Object.assign(english, {
     'The history-deletion service is not ready. Restart the app and try again.',
   '删除预览不存在、已过期或工作区已变化，请重新预览。':
     'The deletion preview does not exist, expired, or belongs to a changed workspace. Preview again.',
+  '失效执行记录分页位置已失效，请重新加载。':
+    'The invalid execution page position is no longer valid. Reload the list.',
+  '失效执行记录不存在、状态已变化或无法安全清理，请重新检查。':
+    'An invalid execution record is missing, changed state, or cannot be cleaned safely. Check again.',
+  '清理预览不存在或已过期，请重新预览。':
+    'The cleanup preview does not exist or has expired. Preview again.',
+  '记录或撤销备份在确认前发生变化，未删除任何失效记录。':
+    'A record or rollback backup changed before confirmation. No invalid records were deleted.',
+  '执行记录在确认前发生变化，未删除任何失效记录。':
+    'An execution record changed before confirmation. No invalid records were deleted.',
+  '失效执行记录检查服务尚未就绪，请重启应用后重试。':
+    'The invalid execution integrity service is not ready. Restart the app and try again.',
   '该文件不是有效的 UTF-8 文本源码。': 'This file is not valid UTF-8 text source.',
+  '该文件无法按 UTF-8、带 BOM 的 UTF-16 或 GB18030/GBK/CP936 中文编码读取。':
+    'This file cannot be read as UTF-8, BOM-marked UTF-16, or GB18030/GBK/CP936 Chinese text.',
+  '修改后的源码无法按原编码无损保存。':
+    'The edited source cannot be saved losslessly using its original encoding.',
   '模板源码超过 2 MiB，无法保存。': 'Template source exceeds 2 MiB and cannot be saved.',
   '模板文件超过 2 MiB，无法在应用内编辑。':
     'The template file exceeds 2 MiB and cannot be edited in the app.',
@@ -1582,6 +1775,8 @@ Object.assign(english, {
   '源码编辑备份目录未初始化。': 'The source edit backup directory is not initialized.',
   '源码已在预览后被外部修改，拒绝覆盖；请重新读取。':
     'The source was modified externally after the preview. Overwrite was refused; read it again.',
+  '源码编码已在预览后变化，请重新读取。':
+    'The source encoding changed after the preview. Read the source again.',
   '源码已在确认保存时发生变化，拒绝覆盖；请重新读取。':
     'The source changed while save was being confirmed. Overwrite was refused; read it again.',
   '源码已写入，但模板索引同步失败。':
@@ -1590,10 +1785,275 @@ Object.assign(english, {
     'Source save failed and automatic recovery did not finish. A safety backup was retained; stop editing and inspect the workspace.',
 })
 
+Object.assign(english, {
+  备份与恢复: 'Backup & Restore',
+  '正在打开备份与恢复…': 'Opening Backup & Restore...',
+  '检查当前工作区数据，导出工作区备份，或从已验证的备份恢复':
+    'Check current-workspace data, export its backup, or restore a verified backup',
+  数据状态: 'Data health',
+  数据状态正常: 'Data is healthy',
+  '正在检查本地数据…': 'Checking local data...',
+  暂时无法确认数据状态: 'Data health is currently unavailable',
+  发现需要处理的数据问题: 'Data issues need attention',
+  发现需要检查的数据项: 'Some data needs review',
+  发现需要检查的数据项目: 'Some data needs review',
+  '当前工作区的题目图片和关键撤销备份未发现问题。':
+    'No issues were found in the current workspace problem images or essential undo backups.',
+  '请重新检查；检查本身不会修改任何用户文件。':
+    'Check again. The check itself never modifies user files.',
+  '上一次数据操作未完成，请先查看安全处理方式。':
+    'A previous data operation did not finish. Review the safe handling option first.',
+  '发现 {count} 项需要检查的数据；应用不会自动删除或修复。':
+    '{count} data items need review. The app will not delete or repair them automatically.',
+  正常: 'Healthy',
+  需要检查: 'Review needed',
+  需要处理: 'Action needed',
+  提示: 'Info',
+  重新检查: 'Check again',
+  查看检查详情: 'View check details',
+  发现没有对应记录的批量导入备份: 'Batch-import backups without matching records were found',
+  数据库中的关联关系不完整: 'Some database relations are incomplete',
+  数据库完整性检查未通过: 'The database integrity check failed',
+  文件执行记录缺少撤销备份: 'A file execution is missing its undo backup',
+  '前往 AI 管理处理失效执行记录': 'Open AI Management to handle invalid execution records',
+  '前往 AI 管理处理': 'Handle in AI Management',
+  发现没有对应执行记录的撤销备份: 'Undo backups without matching executions were found',
+  题目图片记录对应的文件缺失: 'A problem image file is missing',
+  发现没有对应题目的图片记录: 'Image records without a problem were found',
+  发现没有对应记录的题目图片文件: 'Problem image files without matching records were found',
+  题目图片回收区仍有残留: 'Items remain in the problem image recovery area',
+  发现上次操作留下的临时文件: 'Temporary files from a previous operation were found',
+  当前工作区备份: 'Current workspace backup',
+  '只导出当前工作区的模板、题目、图片、关联和必要撤销备份。':
+    'Export only the current workspace templates, problems, images, relations, and required undo backups.',
+  完整深拷贝: 'Complete deep copy',
+  '固定包含模板源码、相对路径、元数据、题目、图片和关联，可恢复到任意当前工作区。':
+    'Always includes template sources, relative paths, metadata, problems, images, and relations, and can be restored into any current workspace.',
+  包含模板源码: 'Include template sources',
+  '推荐保留，方便在新电脑上恢复当前工作区。':
+    'Recommended so the current workspace can be restored on another computer.',
+  导出当前工作区备份: 'Export current workspace backup',
+  当前工作区备份已导出并通过校验: 'Current workspace backup exported and verified',
+  '备份不包含 API Key 或系统安全存储中的密钥。':
+    'Backups exclude API keys and secrets held in system secure storage.',
+  '{count} 项': '{count} items',
+  恢复备份: 'Restore backup',
+  '选择备份后会先自动校验，并展示恢复前后的数据对比。':
+    'The selected backup is verified automatically before current and backup data are compared.',
+  选择备份并恢复: 'Choose backup to restore',
+  '备份检查通过，可以恢复': 'Backup checks passed and restore can continue',
+  这个备份暂时无法恢复: 'This backup cannot currently be restored',
+  '已自动验证备份完整性。': 'Backup integrity was verified automatically.',
+  '备份完整性校验未通过。': 'Backup integrity verification failed.',
+  数据项: 'Data',
+  当前: 'Current',
+  目标当前: 'Current target',
+  备份: 'Backup',
+  备份内容来源: 'Backup content source',
+  未知工作区: 'Unknown workspace',
+  深拷贝到当前工作区: 'Deep-copy into current workspace',
+  '来源工作区身份不参与恢复；当前工作区保留名称和标识，来源及其他工作区不变。':
+    'The source workspace identity does not select the restore target. The current workspace keeps its name and ID, while the source and all other workspaces remain unchanged.',
+  模板与题目关联: 'Template-problem relations',
+  '题目与模板必须属于当前工作区。': 'Problems and templates must belong to the current workspace.',
+  'AI Provider 配置': 'AI provider profiles',
+  '恢复只会替换当前工作区，不会覆盖其他工作区，也不是合并操作。':
+    'Restore replaces only the current workspace. It neither overwrites other workspaces nor merges data.',
+  '恢复会把备份内容深拷贝到当前工作区；不会修改来源或其他工作区，也不是合并操作。':
+    'Restore deep-copies the backup content into the current workspace. It does not modify the source or other workspaces and is not a merge.',
+  '恢复前会自动备份当前工作区；模板源码固定写入全新目录，恢复后的文件与来源完全独立。':
+    'The current workspace is backed up first. Template sources are always written to a new directory, so restored files are fully independent from the source.',
+  '该备份未记录题目工作区归属，不能按当前工作区安全恢复。':
+    'This backup does not record problem workspace ownership and cannot be safely restored into the current workspace.',
+  '导出期间当前工作区已变化，请重新导出。':
+    'The current workspace changed during export. Export it again.',
+  '当前工作区已变化，请重新预览备份。': 'The current workspace changed. Preview the backup again.',
+  '备份来源或当前目标工作区已变化，请重新预览。':
+    'The backup source or current target workspace changed. Preview the backup again.',
+  '该备份不是包含完整模板源码的通用深拷贝备份，禁止恢复。':
+    'This backup is not a universal deep-copy package with complete template sources and cannot be restored.',
+  '通用备份必须将完整模板源码深拷贝到全新目录。':
+    'A universal backup must deep-copy all template sources into a new directory.',
+  'v2 通用备份必须包含完整模板源码。': 'A v2 universal backup must contain all template sources.',
+  '备份内容重映射后校验失败，禁止恢复。':
+    'Verification failed after remapping the backup into the target scope. Restore is blocked.',
+  '备份数据无法安全重映射到当前工作区。':
+    'The backup data could not be safely remapped into the current workspace.',
+  '备份中的文件计划记录已损坏。': 'A file plan record in the backup is damaged.',
+  '备份中的文件计划记录不兼容。': 'A file plan record in the backup is incompatible.',
+  '文件计划引用了备份外的模板。': 'A file plan references a template outside the backup.',
+  '备份中的文件执行记录已损坏。': 'A file execution record in the backup is damaged.',
+  '备份缺少唯一的源工作区，禁止恢复。':
+    'The backup does not contain exactly one source workspace and cannot be restored.',
+  '当前工作区存在无效题目图片记录，备份已取消。':
+    'The current workspace contains invalid problem image records. The backup was canceled.',
+  '当前工作区存在无法读取的题目图片，备份已取消。':
+    'The current workspace contains unreadable problem images. The backup was canceled.',
+  '备份包含多个工作区或工作区清单不一致，不能覆盖当前工作区；请使用单工作区备份。':
+    'The backup contains multiple workspaces or an inconsistent workspace manifest. Use a single-workspace backup.',
+  '备份包含多个工作区，不能覆盖当前工作区；请使用单工作区备份。':
+    'This backup contains multiple workspaces. Use a single-workspace backup.',
+  '备份包含工作区归属不一致的数据，禁止恢复。':
+    'The backup contains inconsistent workspace ownership and cannot be restored.',
+  '备份所属工作区已存在，请先切换到该工作区再恢复。':
+    'The backup workspace already exists. Switch to that workspace before restoring.',
+  '备份记录标识与其他工作区冲突，未修改当前工作区。':
+    'Backup record IDs conflict with another workspace. The current workspace was not modified.',
+  '备份包含无法归属到当前工作区的批量临时备份，禁止恢复。':
+    'The backup contains unscoped batch temporary backups and cannot be restored.',
+  '备份包含当前格式不允许的批量临时备份，不能恢复到当前工作区。':
+    'The backup contains batch temporary backups that are not allowed by the current format.',
+  '备份数据库缺少当前格式必需的题目工作区字段，不能安全恢复。':
+    'The backup database is missing the problem workspace field required by the current format.',
+  '备份文件目录包含不属于源工作区的内容，禁止恢复。':
+    'The backup file directories contain data outside the source workspace and cannot be restored.',
+  '备份文件与其他工作区发生冲突，未修改当前工作区。':
+    'Backup files conflict with another workspace. The current workspace was not modified.',
+  '我了解恢复会替换当前工作区，并确认继续。':
+    'I understand that restore replaces the current workspace and confirm that I want to continue.',
+  '恢复完成，但无法重新加载当前工作区，请重启应用。':
+    'Restore completed, but the current workspace could not be reloaded. Restart the app.',
+  '当前工作区不存在，请重新选择工作区。':
+    'The current workspace no longer exists. Select a workspace again.',
+  '当前工作区已变化，请重新预览失效记录。':
+    'The current workspace changed. Preview the invalid records again.',
+  '当前工作区恢复完成；其他工作区和 Provider 配置未修改。':
+    'The current workspace was restored. Other workspaces and provider settings were not modified.',
+  'Provider 密钥不会从备份恢复，请在 AI 设置中重新填写。':
+    'Provider keys are not restored from backups. Re-enter them in AI Settings.',
+  '备份包含模板源码副本；本次已按策略跳过。':
+    'The backup contains template source copies; they were skipped by policy.',
+  上一次数据操作未完成: 'A previous data operation did not finish',
+  '应用不会自动改动这些数据。请查看处理方式并手动确认。':
+    'The app will not change this data automatically. Review the handling option and confirm it manually.',
+  上一次数据整理未完成: 'A previous data cleanup did not finish',
+  上一次备份恢复需要收尾: 'A previous restore needs finalization',
+  上一次备份恢复未完成: 'A previous restore did not finish',
+  发现未识别的临时数据: 'Unrecognized temporary data was found',
+  可安全处理: 'Safe to handle',
+  已保护: 'Protected',
+  查看处理方式: 'View handling option',
+  '安全信息完整，可以恢复原状':
+    'Safety information is complete; the original state can be restored',
+  '主要数据已恢复，可以完成收尾': 'The main data was restored; finalization can continue',
+  '历史记录已处理，可以完成备份收尾': 'History was processed; backup finalization can continue',
+  '安全信息不足，应用已保持只读保护':
+    'Safety information is insufficient; the app kept the data read-only',
+  '恢复已完成，只需清理剩余状态': 'Restore is complete; only final state cleanup remains',
+  '数据尚未替换，可以安全返回原状':
+    'Data was not replaced and can safely return to its original state',
+  已准备安全处理方案: 'Safe handling is ready',
+  当前状态不能安全处理: 'The current state cannot be handled safely',
+  '应用将：{action}。': 'The app will: {action}.',
+  '数据状态已变化，请重新检查后再试。': 'Data changed. Check again before retrying.',
+  '我已查看处理方式，并确认让应用执行。':
+    'I reviewed the handling option and allow the app to run it.',
+  确认执行安全处理: 'Confirm safe handling',
+  清理已完成的历史删除状态: 'Clear completed history-deletion state',
+  清理已完成的恢复状态: 'Clear completed restore state',
+  完成历史删除后的备份收尾: 'Finalize backups after history deletion',
+  完成备份恢复后的安全收尾: 'Safely finalize the backup restore',
+  '继续保护现有数据，不做修改': 'Keep current data protected without changes',
+  恢复到上一次操作之前: 'Return to the state before the previous operation',
+  将未完成整理的数据放回原位置: 'Return unfinished cleanup data to its original location',
+  '未完成的数据操作已按预览安全处理。':
+    'The unfinished data operation was handled safely as previewed.',
+  '模板源码已保存；事务备份暂未清理，应用会继续保留以避免数据丢失':
+    'Template source saved. The transactional backup is being retained to avoid data loss.',
+})
+
+Object.assign(english, {
+  批量补全元数据: 'Complete metadata in batch',
+  'AI 补全空白字段': 'AI complete empty fields',
+  'AI 补全模板元数据': 'AI complete template metadata',
+  '批量 AI 补全元数据': 'Batch AI metadata completion',
+  '只补全空白字段；已有内容和用户笔记保持不变，确认前不会写入。':
+    'Only empty fields are completed. Existing content and user notes stay unchanged, and nothing is saved before confirmation.',
+  关闭元数据补全: 'Close metadata completion',
+  '无法读取模板列表。': 'Unable to load the template list.',
+  '无法读取更多模板。': 'Unable to load more templates.',
+  '无法生成 AI 发送预览。': 'Unable to prepare the AI request preview.',
+  '无法保存 AI 元数据补全结果。': 'Unable to save the AI metadata completion results.',
+  搜索待补全模板: 'Search templates to complete',
+  按名称或路径搜索: 'Search by name or path',
+  选择待补全模板: 'Select templates to complete',
+  选择模板: 'Select template',
+  加载更多模板: 'Load more templates',
+  补全范围: 'Completion scope',
+  '已选择 {count} 份模板': '{count} templates selected',
+  '正在逐份补全 {count} 份模板…': 'Completing {count} templates one by one...',
+  '{count} 个建议字段': '{count} suggested fields',
+  '保存 {count} 个字段': 'Save {count} fields',
+  '最多选择 20 份；没有空白字段的模板不会调用 AI。':
+    'Select up to 20 templates. Templates with no empty fields do not call AI.',
+  已有模板补全语言: 'Existing template completion language',
+  'AI 补全草稿已生成': 'AI completion draft generated',
+  '逐字段检查并取消不需要的建议；保存时整批成功或整批失败。':
+    'Review each field and deselect unwanted suggestions. Saving succeeds or fails as one batch.',
+  无需补全: 'No completion needed',
+  预览并补全: 'Preview and complete',
+  已有模板元数据补全: 'Existing template metadata completion',
+  '仅为空字段生成建议；确认后一次性写入 SQLite，不修改模板文件':
+    'Generate suggestions only for empty fields. After confirmation, save once to SQLite without modifying template files.',
+  '用户笔记、绝对路径、API Key、题目正文和非当前工作区数据不会发送':
+    'User notes, absolute paths, API keys, problem statements, and data outside the current workspace are not sent.',
+  '元数据补全预览不存在、已过期或已消费，请重新预览。':
+    'The metadata completion preview is missing, expired, or already consumed. Preview again.',
+  '元数据补全草稿不存在或已过期，请重新生成。':
+    'The metadata completion draft is missing or expired. Generate it again.',
+  '当前工作区已切换，请重新预览元数据补全。':
+    'The current workspace changed. Preview metadata completion again.',
+  '当前工作区已切换，请重新生成元数据补全草稿。':
+    'The current workspace changed. Generate a new metadata completion draft.',
+  '工作区目录、Provider 或模型已变化，请重新预览。':
+    'The workspace catalog, provider, or model changed. Preview again.',
+  '所选模板不存在或不属于当前工作区。':
+    'A selected template is missing or does not belong to the current workspace.',
+  '模板已在补全期间移除或切换工作区，请重新生成。':
+    'A template was removed or the workspace changed during completion. Generate a new draft.',
+  '模板元数据在确认前发生变化，未写入任何补全结果。':
+    'Template metadata changed before confirmation. No completion results were saved.',
+  '确认字段不属于当前元数据补全草稿。':
+    'A confirmed field does not belong to the current metadata completion draft.',
+})
+
 const englishPatterns: Array<{
   pattern: RegExp
   replace: (matches: RegExpMatchArray) => string
 }> = [
+  {
+    pattern:
+      /^(\d+) 批 · 每批最多 (\d+) 个候选 · 输出上限 ([\d,]+) Token · 单批最大输入约 ([\d,]+) Token$/u,
+    replace: matches =>
+      `${matches[1] ?? ''} batches · up to ${matches[2] ?? ''} candidates each · ${matches[3] ?? ''} output tokens · largest input about ${matches[4] ?? ''} tokens`,
+  },
+  {
+    pattern:
+      /^总体文件 AI 第 (\d+)\/(\d+) 批(连接超时|等待响应超时|流式响应中断)（该批约 ([\d,]+) 输入 Token，(\d+) 个候选，输出上限 ([\d,]+) Token）。已完成 (\d+) 批；不会创建部分计划或修改文件。请稍后重试，或为文件管理选择响应更快的模型。$/u,
+    replace: matches => {
+      const failure =
+        matches[3] === '连接超时'
+          ? 'connection timeout'
+          : matches[3] === '流式响应中断'
+            ? 'stream interrupted'
+            : 'response timeout'
+      return `Overall file AI batch ${matches[1] ?? ''}/${matches[2] ?? ''} failed (${failure}; about ${matches[4] ?? ''} input tokens, ${matches[5] ?? ''} candidates, ${matches[6] ?? ''} output tokens). ${matches[7] ?? ''} batches completed; no partial plan was created and no files were changed. Retry later or choose a faster model for file management.`
+    },
+  },
+  {
+    pattern:
+      /^AI 在第 (\d+)\/(\d+) 批返回了当前批次之外的模板操作，已拒绝整份计划。工作区未被修改。$/u,
+    replace: matches =>
+      `AI returned an operation outside locked batch ${matches[1] ?? ''}/${matches[2] ?? ''}. The entire plan was rejected and the workspace was not changed.`,
+  },
+  {
+    pattern: /^模板源码已变化，请重新补全：(.+)$/u,
+    replace: matches => `The template source changed. Complete it again: ${matches[1] ?? ''}`,
+  },
+  {
+    pattern: /^模板元数据已变化，请重新补全：(.+)$/u,
+    replace: matches => `The template metadata changed. Complete it again: ${matches[1] ?? ''}`,
+  },
   {
     pattern: /^每次最多批量导入 (\d+) 个 C\+\+ 文件。$/u,
     replace: matches => `A batch can include at most ${matches[1] ?? ''} C++ files.`,
@@ -1708,7 +2168,7 @@ interface I18nContextValue {
 const defaultValue: I18nContextValue = {
   locale: 'zh-CN',
   setLocale: () => undefined,
-  t: source => source,
+  t: (source, variables) => interpolate(source, variables),
   toggleLocale: () => undefined,
 }
 

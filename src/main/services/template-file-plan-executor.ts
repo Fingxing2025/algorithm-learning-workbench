@@ -10,6 +10,7 @@ import {
   type FileChangeOperation,
   type TemplateMetadataFields,
 } from '@core/contracts/template-management'
+import type { BackgroundTaskProgress } from '@core/contracts/background-task'
 
 import { TemplateManagementRepository } from '../database/template-management-repository'
 import { WorkspaceRepository } from '../database/workspace-repository'
@@ -17,6 +18,7 @@ import { PublicError } from '../errors/public-error'
 import { resolveAuthorizedFile, resolveAuthorizedRoot } from '../security/path-guard'
 import { TemplateFilePlanSafety } from './template-file-plan-safety'
 import type { WorkspaceService } from './workspace-service'
+import type { WorkspaceStorageManager } from './workspace-storage'
 
 export class TemplateFilePlanExecutor {
   constructor(
@@ -25,6 +27,7 @@ export class TemplateFilePlanExecutor {
     private readonly workspaceService: WorkspaceService,
     private readonly userDataPath: string,
     private readonly safety: TemplateFilePlanSafety,
+    private readonly workspaceStorage?: WorkspaceStorageManager,
   ) {}
 
   async deleteTemplate(templateId: string): Promise<FileChangeMutationResult> {
@@ -65,10 +68,14 @@ export class TemplateFilePlanExecutor {
     return this.applyFilePlan({ operationIds: [operation.id], planId: plan.id })
   }
 
-  async applyFilePlan(rawRequest: {
-    operationIds: string[]
-    planId: string
-  }): Promise<FileChangeMutationResult> {
+  async applyFilePlan(
+    rawRequest: {
+      operationIds: string[]
+      planId: string
+      requestId?: string
+    },
+    onProgress?: (progress: BackgroundTaskProgress) => void,
+  ): Promise<FileChangeMutationResult> {
     const request = applyFileChangePlanRequestSchema.parse(rawRequest)
     const workspace = this.workspaceRepository.getActiveWorkspace()
     const plan = this.metadataRepository.getPlan(request.planId)
@@ -86,10 +93,16 @@ export class TemplateFilePlanExecutor {
     if (selected.length !== request.operationIds.length)
       throw new PublicError('INVALID_REQUEST', '选择的计划操作无效。')
     const root = await resolveAuthorizedRoot(workspace.rootPath)
+    onProgress?.({
+      currentItem: null,
+      phase: 'validating',
+      processedCount: 0,
+      totalCount: selected.length,
+    })
     await this.safety.assertOperationPreconditions(root, selected)
     const executionId = randomUUID()
     const backupRelative = `file-plan-backups/${executionId}`
-    const backupAbsolute = join(this.userDataPath, backupRelative)
+    const backupAbsolute = join(this.getManagedDataRoot(), backupRelative)
     const stored: Array<{
       operation: FileChangeOperation
       previousMetadata: TemplateMetadataFields | null
@@ -97,7 +110,13 @@ export class TemplateFilePlanExecutor {
     const applied: FileChangeOperation[] = []
     try {
       await mkdir(backupAbsolute, { mode: 0o700, recursive: true })
-      for (const operation of selected) {
+      for (const [operationIndex, operation] of selected.entries()) {
+        onProgress?.({
+          currentItem: operation.sourcePath,
+          phase: 'backing-up',
+          processedCount: operationIndex,
+          totalCount: selected.length,
+        })
         const source = await resolveAuthorizedFile(root, operation.sourcePath)
         if (operation.kind === 'move') {
           await this.safety.assertSafeMoveTarget(
@@ -127,7 +146,13 @@ export class TemplateFilePlanExecutor {
             : null,
         })
       }
-      for (const operation of selected) {
+      for (const [operationIndex, operation] of selected.entries()) {
+        onProgress?.({
+          currentItem: operation.sourcePath,
+          phase: 'writing',
+          processedCount: operationIndex,
+          totalCount: selected.length,
+        })
         const source = await resolveAuthorizedFile(root, operation.sourcePath)
         if (operation.kind === 'move') {
           const targetAbsolute = await this.safety.assertSafeMoveTarget(
@@ -154,6 +179,12 @@ export class TemplateFilePlanExecutor {
           operation.kind === 'move' ? [[operation.targetPath, operation.templateId] as const] : [],
         ),
       )
+      onProgress?.({
+        currentItem: null,
+        phase: 'indexing',
+        processedCount: selected.length,
+        totalCount: selected.length,
+      })
       const snapshot = await this.workspaceService.rescanCurrentWorkspace(stableIdsByRelativePath)
       this.metadataRepository.finalizeExecution({
         backupDirectory: backupRelative,
@@ -175,6 +206,12 @@ export class TemplateFilePlanExecutor {
       const execution = this.metadataRepository
         .listExecutions(workspace.id)
         .find(item => item.id === executionId)!
+      onProgress?.({
+        currentItem: null,
+        phase: 'finalizing',
+        processedCount: selected.length,
+        totalCount: selected.length,
+      })
       return { execution, workspace: snapshot }
     } catch (error) {
       for (const operation of applied.reverse()) {
@@ -217,7 +254,10 @@ export class TemplateFilePlanExecutor {
     }
   }
 
-  async rollbackFileExecution(executionId: string): Promise<FileChangeMutationResult> {
+  async rollbackFileExecution(
+    executionId: string,
+    onProgress?: (progress: BackgroundTaskProgress) => void,
+  ): Promise<FileChangeMutationResult> {
     const workspace = this.workspaceRepository.getActiveWorkspace()
     const record = this.metadataRepository.getExecutionRecord(executionId)
     if (
@@ -249,11 +289,17 @@ export class TemplateFilePlanExecutor {
       throw new PublicError('DATABASE_ERROR', '执行记录损坏，无法安全撤销。')
     }
     const root = await resolveAuthorizedRoot(workspace.rootPath)
-    const backupAbsolute = join(this.userDataPath, record.backupDirectory)
+    const backupAbsolute = join(this.getManagedDataRoot(), record.backupDirectory)
     const reversed: FileChangeOperation[] = []
     try {
-      for (const item of stored) {
+      for (const [itemIndex, item] of stored.entries()) {
         const operation = item.operation
+        onProgress?.({
+          currentItem: operation.sourcePath,
+          phase: 'validating',
+          processedCount: itemIndex,
+          totalCount: stored.length,
+        })
         if (operation.kind === 'move') {
           const target = await resolveAuthorizedFile(root, operation.targetPath)
           const originalAbsolute = join(root, ...operation.sourcePath.split('/'))
@@ -296,8 +342,14 @@ export class TemplateFilePlanExecutor {
           await lstat(join(backupAbsolute, `${operation.id}.backup`))
         }
       }
-      for (const item of [...stored].reverse()) {
+      for (const [itemIndex, item] of [...stored].reverse().entries()) {
         const operation = item.operation
+        onProgress?.({
+          currentItem: operation.sourcePath,
+          phase: 'restoring',
+          processedCount: itemIndex,
+          totalCount: stored.length,
+        })
         if (operation.kind === 'move') {
           await mkdir(dirname(join(root, ...operation.sourcePath.split('/'))), { recursive: true })
           await rename(
@@ -334,6 +386,12 @@ export class TemplateFilePlanExecutor {
       const execution = this.metadataRepository
         .listExecutions(workspace.id)
         .find(item => item.id === executionId)!
+      onProgress?.({
+        currentItem: null,
+        phase: 'finalizing',
+        processedCount: stored.length,
+        totalCount: stored.length,
+      })
       return { execution, workspace: snapshot }
     } catch (error) {
       for (const operation of reversed.reverse()) {
@@ -367,5 +425,9 @@ export class TemplateFilePlanExecutor {
       if (error instanceof PublicError) throw error
       throw new PublicError('FILE_UNAVAILABLE', '撤销未完成，已恢复到撤销前状态。')
     }
+  }
+
+  private getManagedDataRoot(): string {
+    return this.workspaceStorage?.current?.dataRoot ?? this.userDataPath
   }
 }

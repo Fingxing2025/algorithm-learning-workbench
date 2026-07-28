@@ -50,7 +50,7 @@ const navigationItems: NavigationItem[] = [
   { icon: FileCode2, id: 'templates', label: '模板库', shortcut: '2', tone: 'cyan' },
   { icon: BookOpenText, id: 'problems', label: '题目', shortcut: '3', tone: 'coral' },
   { icon: Sparkles, id: 'ai', label: 'AI 管理', shortcut: '4', tone: 'amber' },
-  { icon: ShieldCheck, id: 'data', label: '数据管理', shortcut: '5', tone: 'indigo' },
+  { icon: ShieldCheck, id: 'data', label: '备份与恢复', shortcut: '5', tone: 'indigo' },
 ]
 
 function NavigationButton({

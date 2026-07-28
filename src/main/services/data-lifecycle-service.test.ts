@@ -92,7 +92,7 @@ describe('DataLifecycleService', () => {
       key: `data_restore_commit:${restoreId}`,
       value: JSON.stringify({
         committedAt: new Date().toISOString(),
-        formatVersion: 'v1',
+        formatVersion: 'v2',
         restoreId,
         rollbackBackupName,
       }),
@@ -104,7 +104,7 @@ describe('DataLifecycleService', () => {
       key: `file_history_delete_commit:${operationId}`,
       value: JSON.stringify({
         committedAt: new Date().toISOString(),
-        formatVersion: 'v1',
+        formatVersion: 'v2',
         operationId,
       }),
     })
@@ -127,9 +127,10 @@ describe('DataLifecycleService', () => {
     const restoredInspection = await service.inspectPathForJournal(restoredRoot)
     await service.writeRestoreJournal(stagingRoot, {
       createdAt: new Date().toISOString(),
-      formatVersion: 'v1',
+      formatVersion: 'v2',
       restoreId,
       rollbackBackupName,
+      templateSwap: null,
       swaps: [
         {
           directoryName: 'batch-import-backups',

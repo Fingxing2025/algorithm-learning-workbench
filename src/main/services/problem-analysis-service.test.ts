@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import type { AiCompletionRequest } from './ai-provider-adapters'
 import { ProblemAnalysisService } from './problem-analysis-service'
@@ -173,5 +173,100 @@ describe('ProblemAnalysisService complete workspace catalog', () => {
       templateCount: 25,
       templateNamesTruncated: false,
     })
+  })
+})
+
+describe('ProblemAnalysisService current workspace commit boundary', () => {
+  const workspaceId = '40000000-0000-4000-8000-000000000010'
+  const templateId = 'a'.repeat(64)
+  const fields = {
+    aiSummary: '',
+    analysis: {
+      algorithmSignals: [],
+      constraints: [],
+      edgeCases: [],
+      examples: [],
+      inputDescription: '',
+      outputDescription: '',
+    },
+    difficulty: null,
+    notes: '',
+    platform: null,
+    problemCode: null,
+    statement: '',
+    status: 'unattempted' as const,
+    tags: [],
+    title: '当前工作区题目',
+    url: null,
+  }
+
+  function createCommitService(currentWorkspaceId: string | null) {
+    const isTemplateAvailable = vi.fn(
+      (targetWorkspaceId: string, targetTemplateId: string) =>
+        targetWorkspaceId === workspaceId && targetTemplateId === templateId,
+    )
+    const createAnalyzedProblem = vi.fn((targetWorkspaceId: string, problemId: string) => ({
+      ...fields,
+      createdAt: '2026-07-24T00:00:00.000Z',
+      id: problemId,
+      images: [],
+      relations: [],
+      title: `${fields.title}-${targetWorkspaceId}`,
+      updatedAt: '2026-07-24T00:00:00.000Z',
+    }))
+    const service = new ProblemAnalysisService(
+      {} as never,
+      { createAnalyzedProblem, isTemplateAvailable } as never,
+      '/tmp/problem-analysis-workspace-boundary',
+      { getCurrentWorkspaceId: () => currentWorkspaceId } as never,
+      {} as never,
+    )
+    return { createAnalyzedProblem, isTemplateAvailable, service }
+  }
+
+  it('resolves the workspace in Main and passes it to relation validation and persistence', async () => {
+    const { createAnalyzedProblem, isTemplateAvailable, service } = createCommitService(workspaceId)
+
+    await service.commit({
+      fields,
+      images: [],
+      relations: [{ note: '', relationType: 'recommended', templateId }],
+    })
+
+    expect(isTemplateAvailable).toHaveBeenCalledWith(workspaceId, templateId)
+    expect(createAnalyzedProblem).toHaveBeenCalledWith(
+      workspaceId,
+      expect.any(String),
+      fields,
+      [],
+      [{ note: '', relationType: 'recommended', templateId }],
+    )
+  })
+
+  it('rejects commits without an active workspace before validating or persisting relations', async () => {
+    const { createAnalyzedProblem, isTemplateAvailable, service } = createCommitService(null)
+
+    await expect(
+      service.commit({
+        fields,
+        images: [],
+        relations: [{ note: '', relationType: 'recommended', templateId }],
+      }),
+    ).rejects.toThrow('请先创建或选择模板工作区')
+    expect(isTemplateAvailable).not.toHaveBeenCalled()
+    expect(createAnalyzedProblem).not.toHaveBeenCalled()
+  })
+
+  it('rejects a template outside the active workspace without writing a problem', async () => {
+    const { createAnalyzedProblem, service } = createCommitService(workspaceId)
+
+    await expect(
+      service.commit({
+        fields,
+        images: [],
+        relations: [{ note: '', relationType: 'recommended', templateId: 'b'.repeat(64) }],
+      }),
+    ).rejects.toThrow('候选模板已不可用')
+    expect(createAnalyzedProblem).not.toHaveBeenCalled()
   })
 })

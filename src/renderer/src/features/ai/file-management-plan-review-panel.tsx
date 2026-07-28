@@ -57,9 +57,6 @@ function metadataValue(value: TemplateMetadataFields[keyof TemplateMetadataField
 function metadataDiff(operation: Extract<FileChangeOperation, { kind: 'update-metadata' }>) {
   return metadataFieldLabels.flatMap(([field, label]) => {
     const next = metadataValue(operation.metadata[field])
-    if (!operation.previousMetadata) {
-      return [{ field, label, next, previous: '旧计划未记录旧值' }]
-    }
     const previous = metadataValue(operation.previousMetadata[field])
     return previous === next ? [] : [{ field, label, next, previous }]
   })
@@ -204,11 +201,6 @@ export function FileManagementPlanReviewPanel({
                       )}
                       {operation.kind === 'update-metadata' && (
                         <span className="mt-2 block space-y-2 rounded-lg bg-muted px-3 py-2 text-[11px]">
-                          {!operation.previousMetadata && (
-                            <span className="block text-warning">
-                              {t('旧版计划没有旧值快照；以下仅展示计划保存的新值。')}
-                            </span>
-                          )}
                           {metadataDiff(operation).map(change => (
                             <span className="block" key={change.field}>
                               <span className="flex items-center gap-2 font-semibold">

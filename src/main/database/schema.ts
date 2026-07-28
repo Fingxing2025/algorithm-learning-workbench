@@ -169,10 +169,14 @@ export const problems = sqliteTable(
     title: text('title').notNull(),
     updatedAt: text('updated_at').notNull(),
     url: text('url'),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
   },
   table => [
     index('problems_updated_at_index').on(table.updatedAt),
     index('problems_updated_id_index').on(table.updatedAt, table.id),
+    index('problems_workspace_updated_id_index').on(table.workspaceId, table.updatedAt, table.id),
   ],
 )
 

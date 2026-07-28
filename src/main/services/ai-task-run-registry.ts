@@ -3,7 +3,9 @@ import type { AiTaskKind } from '@core/contracts/ai-provider'
 import { PublicError } from '../errors/public-error'
 
 interface ActiveAiTaskRun {
+  completed: Promise<void>
   controller: AbortController
+  finish: () => void
   task: AiTaskKind
 }
 
@@ -26,11 +28,21 @@ export class AiTaskRunRegistry {
       throw new PublicError('INVALID_REQUEST', '同一 AI 请求已在运行，请勿重复提交。')
     }
     const controller = new AbortController()
-    const run = { controller, task }
+    let markCompleted!: () => void
+    const completed = new Promise<void>(resolve => {
+      markCompleted = resolve
+    })
+    const run: ActiveAiTaskRun = {
+      completed,
+      controller,
+      finish: markCompleted,
+      task,
+    }
     this.activeRuns.set(key, run)
     return {
       finish: () => {
         if (this.activeRuns.get(key) === run) this.activeRuns.delete(key)
+        run.finish()
       },
       signal: controller.signal,
       throwIfCancelled: () => {
@@ -45,8 +57,9 @@ export class AiTaskRunRegistry {
     this.activeRuns.get(this.key(task, requestId))?.controller.abort()
   }
 
-  cancelAll(): void {
-    for (const run of this.activeRuns.values()) run.controller.abort()
-    this.activeRuns.clear()
+  async cancelAll(): Promise<void> {
+    const runs = [...this.activeRuns.values()]
+    for (const run of runs) run.controller.abort()
+    await Promise.allSettled(runs.map(run => run.completed))
   }
 }
