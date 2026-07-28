@@ -4,6 +4,8 @@ import { join, resolve } from 'node:path'
 
 import { _electron as electron, expect, test, type Page } from '@playwright/test'
 
+import { dismissGettingStartedGuideIfNeeded } from './helpers/getting-started'
+
 async function expectNoChineseInterfaceText(page: Page) {
   const visibleInterface = await page.evaluate(() => {
     const browser = globalThis as unknown as {
@@ -44,6 +46,7 @@ test('scrolls the dashboard, opens summary cards, and persists both interface la
   try {
     const page = await electronApp.firstWindow()
     await page.waitForLoadState('domcontentloaded')
+    await dismissGettingStartedGuideIfNeeded(page)
     await electronApp.evaluate(({ BrowserWindow, dialog }, selectedPath) => {
       BrowserWindow.getAllWindows()[0]?.setSize(1280, 720)
       dialog.showOpenDialog = (async () => ({

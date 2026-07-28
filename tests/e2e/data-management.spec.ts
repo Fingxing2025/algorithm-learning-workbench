@@ -19,6 +19,7 @@ import {
   extractPortableBackupArchive,
   type PortableArchiveSource,
 } from '../../src/main/services/portable-backup-archive'
+import { dismissGettingStartedGuideIfNeeded } from './helpers/getting-started'
 
 declare const window: { desktop: DesktopApi }
 
@@ -38,6 +39,7 @@ async function launchApplication(extraEnv: Record<string, string> = {}) {
   })
   page = await electronApp.firstWindow()
   await page.waitForLoadState('domcontentloaded')
+  await dismissGettingStartedGuideIfNeeded(page)
   await electronApp.evaluate(({ BrowserWindow }) =>
     BrowserWindow.getAllWindows()[0]?.setSize(1440, 900),
   )
@@ -51,7 +53,9 @@ async function seedV2Data(
   const label = options.label ?? 'Restore E2E'
   await setNextSelection(workspacePath)
   const onboardingSelection = page.getByRole('button', { name: '选择目录' })
-  if (await onboardingSelection.isVisible().catch(() => false)) {
+  const currentWorkspace = await page.evaluate(() => window.desktop.workspace.getCurrent())
+  if (!currentWorkspace) {
+    await expect(onboardingSelection).toBeVisible()
     await onboardingSelection.click()
   } else {
     await page.getByRole('button', { name: '模板库', exact: true }).click()

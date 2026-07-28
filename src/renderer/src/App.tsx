@@ -203,6 +203,7 @@ function AppContent() {
       onNavigate={setCurrentView}
       onOpenCommand={openCommandPalette}
       onOpenCreate={openCreateDialog}
+      onOpenGuide={dialogs.openGuide}
       onToggleLocale={toggleLocale}
       onToggleTheme={toggleTheme}
       overlays={
@@ -238,6 +239,11 @@ function AppContent() {
             },
             open: dialogs.createOpen,
             returnFocusTo: dialogs.createReturnFocusRef.current,
+          }}
+          gettingStarted={{
+            onOpenChange: dialogs.setGuideOpen,
+            open: dialogs.guideOpen,
+            returnFocusTo: dialogs.guideReturnFocusRef.current,
           }}
         />
       }

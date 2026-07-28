@@ -12,6 +12,8 @@ import {
 
 import type { DesktopApi } from '@core/contracts/desktop-api'
 
+import { dismissGettingStartedGuideIfNeeded } from './helpers/getting-started'
+
 declare const window: { desktop: DesktopApi }
 
 let electronApp: ElectronApplication
@@ -69,6 +71,7 @@ test.beforeAll(async () => {
   })
   page = await electronApp.firstWindow()
   await page.waitForLoadState('domcontentloaded')
+  await dismissGettingStartedGuideIfNeeded(page)
 })
 
 test.afterAll(async () => {

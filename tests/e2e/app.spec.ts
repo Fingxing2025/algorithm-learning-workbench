@@ -137,6 +137,64 @@ test.afterAll(async () => {
   }
 })
 
+test('shows the first-install guide once and keeps a stable help entry', async () => {
+  const guide = page.getByRole('dialog', { name: '使用说明' })
+  await expect(guide).toBeVisible()
+  await expect(guide.getByText('连接模板工作区')).toBeVisible()
+  await expect(guide.getByText('AI 文件管理必须先预览')).toBeVisible()
+  await page.screenshot({
+    animations: 'disabled',
+    path: resolve('output/playwright/getting-started-guide-light-1440x900.png'),
+  })
+
+  await page.getByRole('button', { name: '开始使用' }).click()
+  await expect(guide).toHaveCount(0)
+  expect(
+    await page.evaluate(() => globalThis.localStorage.getItem('ui:getting-started:v1:seen')),
+  ).toBe('true')
+
+  const guideEntry = page.getByRole('button', { name: '使用说明' })
+  await page.getByRole('button', { name: '切换到深色主题' }).click()
+  await guideEntry.click()
+  await expect(guide).toBeVisible()
+  await page.screenshot({
+    animations: 'disabled',
+    path: resolve('output/playwright/getting-started-guide-dark-1440x900.png'),
+  })
+
+  await electronApp.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0]?.setSize(1024, 640),
+  )
+  await page.screenshot({
+    animations: 'disabled',
+    path: resolve('output/playwright/getting-started-guide-dark-1024x640.png'),
+  })
+  await guide.getByText('本地优先与安全边界').scrollIntoViewIfNeeded()
+  await expect(guide.getByText('本地优先与安全边界')).toBeVisible()
+  expect(
+    await page.evaluate(() => {
+      const browser = globalThis as unknown as {
+        document: { documentElement: { clientWidth: number; scrollWidth: number } }
+      }
+      return (
+        browser.document.documentElement.scrollWidth <= browser.document.documentElement.clientWidth
+      )
+    }),
+  ).toBe(true)
+  await page.getByRole('button', { name: '关闭使用说明' }).click()
+  await expect(guideEntry).toBeFocused()
+  await expect(guideEntry).toBeInViewport()
+
+  await electronApp.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0]?.setSize(1440, 900),
+  )
+  await page.getByRole('button', { name: '切换到浅色主题' }).click()
+  await electronApp.close()
+  await launchApplication()
+  await expect(page.getByRole('dialog', { name: '使用说明' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '使用说明' })).toBeVisible()
+})
+
 test('starts from zero through the real desktop entry with a narrow preload API', async () => {
   await expect(page).toHaveTitle('智能算法学习助手 V2')
   await expect(page.getByRole('heading', { level: 1, name: '连接你的模板工作区' })).toBeVisible()

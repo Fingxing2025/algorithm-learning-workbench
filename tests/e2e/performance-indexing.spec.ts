@@ -24,6 +24,7 @@ import {
 
 import type { DesktopApi } from '../../src/core/contracts/desktop-api'
 import { TEMPLATE_INDEX_VERSION } from '../../src/main/services/template-content-index'
+import { dismissGettingStartedGuideIfNeeded } from './helpers/getting-started'
 
 let app: ElectronApplication
 let databasePath: string
@@ -179,6 +180,7 @@ test.beforeAll(async () => {
   })
   page = await app.firstWindow()
   await page.waitForLoadState('domcontentloaded')
+  await dismissGettingStartedGuideIfNeeded(page)
 })
 
 test.afterAll(async () => {

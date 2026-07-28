@@ -1,9 +1,11 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { Problem } from '@core/contracts/problem'
 import type { WorkspaceSnapshot } from '@core/contracts/workspace'
+
+import { gettingStartedSeenStorageKey } from '@/app/use-app-dialogs'
 
 import App from './App'
 
@@ -201,7 +203,35 @@ function installDesktopMock(currentWorkspace: WorkspaceSnapshot | null, problems
 describe('App', () => {
   beforeEach(() => {
     window.localStorage.clear()
+    window.localStorage.setItem(gettingStartedSeenStorageKey, 'true')
     document.documentElement.classList.remove('dark')
+  })
+
+  it('shows the use guide once and keeps a stable entry with focus return', async () => {
+    window.localStorage.removeItem(gettingStartedSeenStorageKey)
+    installDesktopMock(null)
+    const user = userEvent.setup()
+    const firstRender = render(<App />)
+
+    const firstGuide = await screen.findByRole('dialog', { name: '使用说明' })
+    expect(firstGuide).toHaveTextContent('连接模板工作区')
+    expect(firstGuide).toHaveTextContent('AI 文件管理必须先预览')
+
+    await user.click(screen.getByRole('button', { name: '开始使用' }))
+    expect(screen.queryByRole('dialog', { name: '使用说明' })).not.toBeInTheDocument()
+    expect(window.localStorage.getItem(gettingStartedSeenStorageKey)).toBe('true')
+
+    const guideEntry = screen.getByRole('button', { name: '使用说明' })
+    await user.click(guideEntry)
+    expect(await screen.findByRole('dialog', { name: '使用说明' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '关闭使用说明' }))
+    await waitFor(() => expect(guideEntry).toHaveFocus())
+
+    firstRender.unmount()
+    render(<App />)
+    await screen.findByRole('heading', { level: 1, name: '连接你的模板工作区' })
+    expect(screen.queryByRole('dialog', { name: '使用说明' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '使用说明' })).toBeEnabled()
   })
 
   it('shows first-run workspace onboarding and runtime status', async () => {
@@ -336,6 +366,11 @@ describe('App', () => {
     expect(
       screen.getByRole('button', { name: /Algorithm templates.*Open Templates/ }),
     ).toBeEnabled()
+    await user.click(screen.getByRole('button', { name: 'User guide' }))
+    expect(await screen.findByRole('dialog', { name: 'User guide' })).toHaveTextContent(
+      'Connect a template workspace',
+    )
+    await user.click(screen.getByRole('button', { name: 'Close user guide' }))
 
     firstRender.unmount()
     render(<App />)

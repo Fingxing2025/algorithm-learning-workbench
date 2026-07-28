@@ -10,6 +10,8 @@ import {
   type Page,
 } from '@playwright/test'
 
+import { dismissGettingStartedGuideIfNeeded } from './helpers/getting-started'
+
 const storageKeys = {
   navigation: 'ui:layout:v1:app-navigation',
   problems: 'ui:layout:v1:problem-workspace',
@@ -31,6 +33,7 @@ async function launchApplication() {
   })
   page = await app.firstWindow()
   await page.waitForLoadState('domcontentloaded')
+  await dismissGettingStartedGuideIfNeeded(page)
   await app.evaluate(({ BrowserWindow }) => {
     BrowserWindow.getAllWindows()[0]?.setSize(1280, 720)
   })

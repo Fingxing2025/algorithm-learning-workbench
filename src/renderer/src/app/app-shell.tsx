@@ -144,6 +144,7 @@ interface AppShellProps {
   onNavigate: (view: AppView) => void
   onOpenCommand: () => void
   onOpenCreate: () => void
+  onOpenGuide: () => void
   onToggleLocale: () => void
   onToggleTheme: () => void
   overlays: ReactNode
@@ -166,6 +167,7 @@ export function AppShell({
   onNavigate,
   onOpenCommand,
   onOpenCreate,
+  onOpenGuide,
   onToggleLocale,
   onToggleTheme,
   overlays,
@@ -368,6 +370,15 @@ export function AppShell({
                 <kbd className="ml-auto font-sans text-[9px] text-muted-foreground">
                   {createShortcutLabel}
                 </kbd>
+              </button>
+              <button
+                aria-label={t('使用说明')}
+                className="quick-action-row group"
+                onClick={onOpenGuide}
+                type="button"
+              >
+                <BookOpenText aria-hidden="true" className="size-3.5 text-accent-coral" />
+                <span className="quick-action-label">{t('使用说明')}</span>
               </button>
               <button
                 aria-label={t('重置布局')}

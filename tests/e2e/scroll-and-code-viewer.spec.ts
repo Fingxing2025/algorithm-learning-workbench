@@ -4,6 +4,8 @@ import { join, resolve } from 'node:path'
 
 import { _electron as electron, expect, test, type Locator, type Page } from '@playwright/test'
 
+import { dismissGettingStartedGuideIfNeeded } from './helpers/getting-started'
+
 async function scrollWithMouseWheel(page: Page, region: Locator) {
   await region.evaluate(element => {
     element.scrollTop = 0
@@ -62,6 +64,7 @@ test('scrolls large template and problem lists and switches the code theme', asy
   try {
     const page = await electronApp.firstWindow()
     await page.waitForLoadState('domcontentloaded')
+    await dismissGettingStartedGuideIfNeeded(page)
     await electronApp.evaluate(({ BrowserWindow, dialog }, selectedPath) => {
       BrowserWindow.getAllWindows()[0]?.setSize(1280, 720)
       dialog.showOpenDialog = (async () => ({

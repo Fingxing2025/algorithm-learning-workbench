@@ -6,6 +6,8 @@ import { _electron as electron, expect, test, type ElectronApplication } from '@
 
 import type { DesktopApi } from '@core/contracts/desktop-api'
 
+import { dismissGettingStartedGuideIfNeeded } from './helpers/getting-started'
+
 declare const window: { desktop: DesktopApi }
 
 test('upgrades an existing folder into the only current workspace layout', async () => {
@@ -25,6 +27,8 @@ test('upgrades an existing folder into the only current workspace layout', async
       env: { ...process.env, E2E_USER_DATA_DIR: userDataDirectory, NODE_ENV: 'test' },
     })
     let page = await electronApp.firstWindow()
+    await page.waitForLoadState('domcontentloaded')
+    await dismissGettingStartedGuideIfNeeded(page)
     await electronApp.evaluate(({ dialog }, selectedDirectory) => {
       dialog.showOpenDialog = (async () => ({
         canceled: false,
@@ -69,6 +73,8 @@ test('upgrades an existing folder into the only current workspace layout', async
       env: { ...process.env, E2E_USER_DATA_DIR: userDataDirectory, NODE_ENV: 'test' },
     })
     page = await electronApp.firstWindow()
+    await page.waitForLoadState('domcontentloaded')
+    await dismissGettingStartedGuideIfNeeded(page)
     await page.getByRole('button', { name: '模板库', exact: true }).click()
     await expect(page.evaluate(() => window.desktop.workspace.getCurrent())).resolves.toMatchObject(
       {
@@ -107,6 +113,8 @@ test('rejects previous workspace markers instead of opening a compatibility path
       env: { ...process.env, E2E_USER_DATA_DIR: userDataDirectory, NODE_ENV: 'test' },
     })
     const page = await electronApp.firstWindow()
+    await page.waitForLoadState('domcontentloaded')
+    await dismissGettingStartedGuideIfNeeded(page)
     await electronApp.evaluate(({ dialog }, selectedDirectory) => {
       dialog.showOpenDialog = (async () => ({
         canceled: false,

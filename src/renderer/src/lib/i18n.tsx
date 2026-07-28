@@ -5,6 +5,34 @@ export type AppLocale = 'en' | 'zh-CN'
 const LOCALE_STORAGE_KEY = 'ui:locale'
 
 const english: Record<string, string> = {
+  'AI 文件管理必须先预览': 'AI file management always starts with a preview',
+  'AI 设置是可选项': 'AI setup is optional',
+  '不配置 Provider 也能浏览模板、管理题目和手动关联。需要 AI 时，再到 AI 设置中添加 Provider、模型和任务路由。':
+    'You can browse templates, manage problems, and create links without a provider. Add a provider, model, and task routes in AI Settings only when you need AI.',
+  '以后可随时从左侧“快捷操作”中的“使用说明”重新打开。':
+    'Reopen this guide anytime from “User guide” under Quick actions in the sidebar.',
+  '便携备份会深拷贝当前工作区；恢复也只原地替换当时连接的当前工作区，不会选择父目录、创建新工作区或导入 Provider。':
+    'Portable backup deep-copies the current workspace. Restore replaces only the workspace connected at that moment, without selecting a parent folder, creating another workspace, or importing providers.',
+  '先创建空白工作区，或选择一个已有模板目录并确认升级。未连接时，知识工作台页面会始终引导你连接工作区。':
+    'Create a blank workspace, or select an existing template folder and confirm its upgrade. Until one is connected, every knowledge-workbench page guides you to connect a workspace.',
+  关闭使用说明: 'Close user guide',
+  '在模板库新建、上传或批量导入源码。外部源文件保持只读，入库内容保存到当前工作区的 templates/。':
+    'Create, upload, or batch-import source files in Templates. External source files stay read-only, and imported copies are stored under templates/ in the current workspace.',
+  '在题目页记录题面、图片、状态与备注，并把一道题关联到一个或多个算法模板。解除关系不会删除题目或模板。':
+    'Record statements, images, status, and notes in Problems, then link a problem to one or more algorithm templates. Removing a link does not delete either item.',
+  备份恢复只作用当前工作区: 'Backup and restore affect only the current workspace',
+  本地优先与安全边界: 'Local-first data and safety boundaries',
+  '模板、题目、关系、图片和撤销数据属于工作区。API Key 由操作系统安全存储保护，不进入工作区备份，也不会暴露给页面。':
+    'Templates, problems, links, images, and undo data belong to the workspace. API keys are protected by operating-system secure storage, excluded from workspace backups, and never exposed to the page.',
+  模板入库与模板库: 'Template intake and library',
+  '用几分钟了解工作区、知识整理、AI 与备份的安全边界。':
+    'Take a few minutes to learn the workspace, knowledge organization, AI, and backup safety boundaries.',
+  使用说明: 'User guide',
+  首次使用指南: 'Getting started',
+  连接模板工作区: 'Connect a template workspace',
+  题目卡片与模板关联: 'Problem cards and template links',
+  'AI 只能生成可审查的整理计划。移动、覆盖、删除和元数据更新都要经过 Diff、用户确认、执行前备份、冲突复检和失败回滚。':
+    'AI can only generate a reviewable organization plan. Moves, overwrites, deletions, and metadata updates require a diff, user confirmation, a pre-execution backup, conflict rechecks, and rollback on failure.',
   '恢复前会自动备份当前工作区；模板源码按备份相对路径原地写入当前工作区文件夹，当前路径和身份保持不变。':
     'The current workspace is backed up first. Template sources are restored in place using backup-relative paths, while the current path and identity remain unchanged.',
   已原地恢复模板源码: 'Template sources restored in place',

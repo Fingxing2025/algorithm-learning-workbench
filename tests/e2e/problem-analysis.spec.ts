@@ -11,6 +11,8 @@ import {
   type Page,
 } from '@playwright/test'
 
+import { dismissGettingStartedGuideIfNeeded } from './helpers/getting-started'
+
 interface WorkspaceTemplateInput {
   id: string
   name: string
@@ -45,6 +47,7 @@ async function launchApplication() {
   })
   page = await electronApp.firstWindow()
   await page.waitForLoadState('domcontentloaded')
+  await dismissGettingStartedGuideIfNeeded(page)
   await electronApp.evaluate(({ BrowserWindow }) =>
     BrowserWindow.getAllWindows()[0]?.setSize(1440, 900),
   )

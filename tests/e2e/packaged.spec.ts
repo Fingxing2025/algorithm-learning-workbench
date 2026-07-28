@@ -4,6 +4,8 @@ import { join, resolve } from 'node:path'
 
 import { _electron as electron, expect, test } from '@playwright/test'
 
+import { dismissGettingStartedGuideIfNeeded } from './helpers/getting-started'
+
 test('launches the packaged desktop app with a clean user-data directory', async () => {
   const executablePath = process.env.PACKAGED_APP_PATH
   test.skip(!executablePath, 'PACKAGED_APP_PATH is only set during packaged smoke tests')
@@ -25,6 +27,8 @@ test('launches the packaged desktop app with a clean user-data directory', async
   })
   try {
     const page = await app.firstWindow()
+    await page.waitForLoadState('domcontentloaded')
+    await dismissGettingStartedGuideIfNeeded(page)
     await expect(page).toHaveTitle('智能算法学习助手 V2')
     await expect(page.getByRole('heading', { level: 1, name: '连接你的模板工作区' })).toBeVisible()
     await expect(page.getByText(`V2 · ${packageVersion}`)).toBeVisible()
@@ -70,6 +74,8 @@ test('preserves an existing V2 workspace across packaged app relaunch', async ()
   let app = await launch()
   try {
     let page = await app.firstWindow()
+    await page.waitForLoadState('domcontentloaded')
+    await dismissGettingStartedGuideIfNeeded(page)
     await app.evaluate(({ dialog }, selectedDirectory) => {
       dialog.showOpenDialog = (async () => ({
         canceled: false,
@@ -131,6 +137,8 @@ test('preserves an existing V2 workspace across packaged app relaunch', async ()
 
     app = await launch()
     page = await app.firstWindow()
+    await page.waitForLoadState('domcontentloaded')
+    await dismissGettingStartedGuideIfNeeded(page)
     await expect(page.getByRole('heading', { level: 1, name: '工作台' })).toBeVisible()
     await expect(page.getByText('1 个模板 · 本地索引')).toBeVisible()
     await page.getByRole('button', { name: '模板库', exact: true }).click()
