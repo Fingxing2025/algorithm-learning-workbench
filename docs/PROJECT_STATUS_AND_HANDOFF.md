@@ -1,6 +1,6 @@
 # 项目状态、审计与多 Session 交接
 
-- 更新日期：2026-07-28
+- 更新日期：2026-07-29
 - 完整 AI 模板目录 Session 原始起点：`89dbde315457e95be0ec8198c7830c3c69b10288`
 - 并发 Windows 发布工作结束后的实际提交基座：`95a7795a8aac249714f4f6a3ddecd4e3066cdf87`
 - 完整 AI 模板目录 ADR 提交：`ac69d14 docs: decide complete ai template catalog`
@@ -30,18 +30,30 @@
 - Session F 第十切片代码结束提交：`436ff70 refactor: split interrupted recovery panel`
 - Session F 收尾提交：`39421c0 docs: close session f development`
 - unsigned beta 候选来源提交：`39421c0329c463657cb43c4e552949e48bee93c9`（与收尾提交相同）
-- 源码版本：`0.1.3` RC1 Preview
-- 当前发布分支：`codex/release-0.1.3-rc.1`；RC1 Windows 产品基线为 `b69cab21b89ac7a196c9624f05d61a7ca825b083`，候选证据提交为仅额外修改私有 CI 的 `efec93a9adf5d8aac5871b201bdee7dcdece4279`
-- 产品阶段：核心功能、AI 完整目录、自包含工作区、当前工作区原地深拷贝恢复、跨平台可移植备份 v2 与中文源码读取的代码闭环已完成。`0.1.3` macOS arm64 与 Windows x64 Preview 候选都已生成并通过打包入口验证；现在的外部门禁是双平台正式签名、`0.1.3` Windows 实机安装/升级/卸载和 Mac→Windows→Mac 备份往返
-- `0.1.3` RC1 源码门禁：`npm run check` 通过 TypeScript、ESLint 0 warnings、Prettier、49 个 Vitest 文件/375 项和 8 项发布脚本测试；备份恢复定向真实 Electron E2E 5/5，完整 Electron E2E 57 项通过、2 项 packaged 条件跳过
+- 未连接工作区路由修复提交：`efb3379 fix: require workspace for knowledge pages`
+- 首次使用说明提交/当前产品源码基线：`668511ee0659e64e60d8b6c0c9a8120ddd975ead`
+- 源码版本：`0.1.3`；最新 Windows 测试候选为 RC2 Preview，最后完整 macOS DMG/ZIP 候选仍为 RC1 Preview
+- 当前发布分支：`codex/release-0.1.3-rc.1`；Windows RC2 产品基线为 `668511e`，候选证据提交为仅额外修改私有 CI 的 `4f0965c2dc04d0b67990a0a78070be5d386e1121`
+- 产品阶段：核心功能、AI 完整目录、自包含工作区、当前工作区原地深拷贝恢复、跨平台可移植备份 v2 与中文源码读取的代码闭环已完成。首次无工作区错误与首次使用说明已修复，Windows RC2 已通过原生 runner 和用户真实 Windows 探索性测试。剩余外部门禁是双平台正式签名、脚本化 Windows 安装/升级/快捷方式/卸载证据和 Mac→Windows→Mac 备份往返
+- `0.1.3` RC2 产品源码门禁：`npm run check` 通过 TypeScript、ESLint 0 warnings、Prettier、49 个 Vitest 文件/377 项和 8 项发布脚本测试；完整 Electron E2E 59 项通过、2 项 packaged 条件跳过
 - `0.1.3` macOS arm64 RC1 Preview 已从干净提交 `797700e5f0abd5cc5dd544bc9f70f9d3256ce3bd` 生成：DMG 137,537,321 bytes / SHA-256 `4edb8074898670cf38831ecf0bfc55b11e416986e8f7b6e5ead7e1614b492be6`，ZIP 137,007,161 bytes / SHA-256 `5597a8f3f59d71692ccd3ee29e9de308c0a15a5f5284bb9ebddfabe5ad71680b`；架构、Info.plist、DMG、ZIP、99 组件 SBOM、隐私和 packaged smoke 2/2 通过。该包为 ad-hoc Preview，无 TeamIdentifier、未公证
-- `0.1.3` Windows x64 RC1 Preview 已由原生 Windows runner 生成：安装器 115,907,713 bytes / SHA-256 `fd3f3b11faa48edba2087f89041146a1de12e3c65fe48b34cc4b339c05268064`；主程序和 `better_sqlite3.node` 均为 x64，99 组件 SBOM、隐私扫描、运行时依赖审计和 packaged smoke 2/2 通过。该包为 unsigned Preview，未完成 Authenticode 或真实 NSIS 安装验收
+- 产品提交 `668511e` 的 macOS arm64 目录 App 已更新：版本 `0.1.3`，`app.asar` SHA-256 `025b77ee86e4e864ee46dffeaa1ce39be9ad6dbc673e8762fe21fbcc5e6d5717`，packaged smoke 2/2 通过；仍为 ad-hoc、无 TeamIdentifier、未公证，且未据此重建 DMG/ZIP
+- `0.1.3` Windows x64 RC2 Preview 已由原生 Windows runner 生成：安装器 115,910,744 bytes / SHA-256 `041dc0a632c53cabeb7ac75ef43564542c0654880882b8f05361062b9fd721f5`；主程序和 `better_sqlite3.node` 均为 x64，SBOM、隐私扫描、运行时依赖审计和 packaged smoke 2/2 通过。用户在真实 Windows 上安装并测试后反馈“没有问题”；该反馈没有配套 `windows-acceptance-evidence.json`，包仍为 unsigned Preview
 
 ## 0. 新阶段入口
 
 本阶段基于 0.1.2 功能冻结基线完成发布可信度收尾。后续不再横向增加 AI 页面、临时补丁或维护性拆分；只有真实 Bug、用户反馈或发布门禁触发时才重新开启工程任务。
 
-当前状态：**功能开发已经冻结，`0.1.3` RC1 的 macOS arm64 与 Windows x64 Preview 候选已生成。本轮不修改 AI Provider、数据库 schema、系统权限或视觉系统，不推送主项目远程仓库。下一步是在真实 Windows 上完成该候选的安装和跨平台备份往返，然后在获得证书后生成 macOS Developer ID/notarized 与 Windows Authenticode 正式候选。**
+当前状态：**功能开发已经冻结。Windows `0.1.3` RC2 已完成原生构建、打包入口 smoke 和一次真实 Windows 探索性安装/使用测试；macOS 已更新目录 App，最后完整 DMG/ZIP 候选仍是 RC1。下一步如需正式证据，应在真实 Windows 上运行验收脚本并完成跨平台备份往返；获得证书后再生成 macOS Developer ID/notarized 与 Windows Authenticode 正式候选。**
+
+### `0.1.3` RC2 首次使用修复与实机反馈（2026-07-29）
+
+- 根因是工作区依赖页面和 `useProblems` 在没有当前工作区时仍可能查询 Main，使全新 Windows 启动在工作台显示“操作未完成，请重试”。修复后，工作台、模板库、题目、总体文件 AI 与备份恢复在未连接工作区时统一显示“连接你的模板工作区”；应用级 AI Provider 设置仍可访问。
+- 全新 userData 会自动打开一次“使用说明”，已读状态只写入应用级展示偏好 `ui:getting-started:v1:seen=true`。侧栏永久保留“使用说明”入口，支持关闭、Escape、焦点回归和中英文；没有新增数据库、migration、IPC、Main/Preload 权限或工作区数据。
+- 修复提交分别为 `efb33792b3fdaff08b2628d128c00f267bd4e221` 与 `668511ee0659e64e60d8b6c0c9a8120ddd975ead`。本地源码门禁为 49 个 Vitest 文件/377 项、8 项发布脚本测试；完整 Electron E2E 59 项通过、2 项 packaged 条件跳过。使用说明已人工检查亮/暗主题与 1024×640 紧凑窗口。
+- Windows 原生工作流 [Run 30387340749](https://github.com/Fingxing2025/algorithm-workbench-windows-build-89dbde3/actions/runs/30387340749) 从产品基线 `668511e` 构建；构建提交 `4f0965c` 只额外修改 Windows 候选工作流。运行时依赖审计 0 漏洞，原生依赖重建、x64 候选、隐私扫描和 packaged smoke 2/2 通过。
+- 安装器为 115,910,744 bytes，SHA-256 `041dc0a632c53cabeb7ac75ef43564542c0654880882b8f05361062b9fd721f5`。传输 ZIP 为 115,940,009 bytes，SHA-256 `f508e8107a939051d7a8c6eb38fd760398e7d8ecbbc06f29c75beaed208cca4a`。
+- 用户在真实 Windows 上安装并测试 RC2 后反馈“没有问题”。这是实机探索性验收，不等于已运行 `scripts/release/windows-acceptance.ps1`；仓库和候选中没有 `windows-acceptance-evidence.json`，不得虚构脚本证据或把 Authenticode、升级、快捷方式、卸载和 Mac→Windows→Mac 往返标记为通过。
 
 ### 当前工作区数据边界（2026-07-24）
 
@@ -50,10 +62,10 @@
 - Renderer 切换工作区或恢复后会清空旧题目/模板选择和旧题目搜索条件，再从 Main 重载当前工作区，避免旧内存快照泄漏到新工作区。
 - 数据状态和失效执行记录只统计当前工作区。ADR-0025 的一次性预览、确认复检、单事务只删执行行、父计划/当前文件/有效备份保护继续有效，但“跨全部工作区查询”已被取代。
 - `.awb-backup v2` 只导出当前工作区。SQLite 快照删除其他工作区和 Provider/路由后执行 `VACUUM`，文件清单固定深拷贝当前模板源码、题目图片和受管撤销备份；恢复目标始终是执行时的当前工作区，来源身份只作溯源。Main 在临时包副本中重映射内部 ID 与目录引用，其他工作区和 Provider 保持不变。多工作区或 manifest/SQLite 工作区不一致的包在校验阶段拒绝。
-- 最终源码门禁：`npm run check` 通过 TypeScript、ESLint 0 warnings、Prettier、49 个 Vitest 文件/375 项和 8 项发布脚本测试；单次完整真实 Electron E2E 为 57 项常规用例全部通过、2 项 packaged 条件跳过。定向证据包括单工作区数据边界 1/1、备份恢复 5/5、数据诊断计数 1/1、总体文件管理 5/5、模板入库 8/8、模板移动 2/2、首页本地化 1/1、Provider 4/4 和题目 AI 7/7。
+- 当前产品源码门禁：`npm run check` 通过 TypeScript、ESLint 0 warnings、Prettier、49 个 Vitest 文件/377 项和 8 项发布脚本测试；单次完整真实 Electron E2E 为 59 项常规用例全部通过、2 项 packaged 条件跳过。原工作区数据边界定向证据继续有效，本轮新增未连接工作区路由与首次使用说明回归。
 - 已人工复核当前工作区备份 1440×900 亮色、1280×720 深色、恢复对比 1440×900 和失效记录 1024×640 截图：主操作、内部滚动和焦点可达，无横向溢出；界面明确说明恢复只替换当前工作区。
 - 已从当前工作树重新生成 `release/mac-arm64/算法学习工作台.app`，全新 userData 与已有 V2 userData packaged smoke 2/2 通过。主程序和 `better_sqlite3.node` 均为 arm64，版本 0.1.2；`app.asar` SHA-256 为 `3d5f546c25e23d96a9be6c58a693a7c444f9eeceeb4a59b6f3ed007f4a1ee32a`。ASAR 10,798 个条目未发现禁止数据、个人绝对路径或疑似密钥。该 App 仅为 ad-hoc/linker-signed、无 TeamIdentifier、未公证的 macOS 测试包。
-- Windows 原生 runner 已从 `0.1.3` RC1 产品基线 `b69cab2` 生成 `release/downloaded/Windows测试包-0.1.3-rc1-b69cab2/算法学习工作台-0.1.3-win-x64.exe`。应用主程序和 native module 均为 x64，版本 0.1.3；全新/已有 V2 userData packaged smoke 2/2、运行时依赖 0 漏洞和隐私扫描通过。安装器为 115,907,713 bytes，SHA-256 `fd3f3b11faa48edba2087f89041146a1de12e3c65fe48b34cc4b339c05268064`，未签名；真实 Windows 安装与 Mac→Windows→Mac 恢复仍待用户实机验收。
+- Windows 原生 runner 已从 `0.1.3` RC2 产品基线 `668511e` 生成 `release/downloaded/Windows测试包-0.1.3-rc2-668511e/算法学习工作台-0.1.3-win-x64.exe`。应用主程序和 native module 均为 x64，版本 0.1.3；全新/已有 V2 userData packaged smoke 2/2、运行时依赖 0 漏洞和隐私扫描通过。安装器为 115,910,744 bytes，SHA-256 `041dc0a632c53cabeb7ac75ef43564542c0654880882b8f05361062b9fd721f5`，未签名。用户真实 Windows 探索性测试反馈“没有问题”；脚本化验收与 Mac→Windows→Mac 恢复仍待完成。
 
 ### 自包含工作区与原地恢复（2026-07-27）
 
@@ -242,7 +254,7 @@ Session D 后续修复（基线 `8071970`）：
 
 V2 已经完成从零开始使用所需的核心纵向流程，不再是界面原型：新用户可以创建空白工作区，录入和浏览模板，创建题目并建立多对多关联，配置多供应商 AI，确认题目分析草稿，并通过可预览、可撤销的计划整理模板文件。
 
-当前工作的重心应从“继续增加页面和功能”切换为“把已有产品做成可放心发布和长期使用的工具”。V2 数据恢复、五类 AI 协议稳定性和发布候选自动化都已形成闭环；最高价值外部缺口是真实 Windows 验收和 macOS/Windows 代码签名，无证书或硬件时可并行推进 UX/可访问性。
+当前工作的重心应从“继续增加页面和功能”切换为“把已有产品做成可放心发布和长期使用的工具”。V2 数据恢复、五类 AI 协议稳定性和发布候选自动化都已形成闭环；Windows RC2 的用户探索性安装/使用反馈正常，但脚本化平台验收、跨平台备份往返和 macOS/Windows 代码签名仍是外部缺口。
 
 按不同维度估算当前完成度：
 
@@ -254,15 +266,15 @@ V2 已经完成从零开始使用所需的核心纵向流程，不再是界面�
 | AI Provider 稳定性 | Session B 完成 |        95% | 五类协议统一结构化管线、阶段错误、取消、有限重试与主要失败矩阵                              |
 | UI 与交互          | Session D 完成 |        92% | 布局记忆、全键盘、焦点回归、状态播报、1024×640、200% 与减少动效均有自动化和截图证据         |
 | 性能与大型工作区   | 未充分证明     |        65% | 有虚拟树和上下文上限，但没有大型工作区基准与增量相似度索引                                  |
-| 测试与工程质量     | 良好           |        98% | 375 项 Vitest、8 项发布脚本测试和 57 项常规 Electron E2E 通过；macOS/Windows 打包入口各 2/2 |
-| 公开发布准备       | 外部门禁待完成 |        75% | 双平台 Preview 候选与证据已完成；仍缺正式签名/公证、Windows 实机和跨平台备份往返            |
+| 测试与工程质量     | 良好           |        98% | 377 项 Vitest、8 项发布脚本测试和 59 项常规 Electron E2E 通过；macOS/Windows 打包入口各 2/2 |
+| 公开发布准备       | 外部门禁待完成 |        78% | Windows RC2 探索性实测正常；仍缺正式签名/公证、脚本化 Windows 验收和跨平台备份往返          |
 
 这些百分比用于安排优先级，不是发布承诺。公开发布必须按质量门禁逐项提供证据。
 
 ## 2. 当前 Git 与工作区规则
 
 - 当前分支：`codex/release-0.1.3-rc.1`。
-- Windows RC1 产品源码基线：`b69cab21b89ac7a196c9624f05d61a7ca825b083`；本交接文档提交会晚于候选来源，必须继续区分两者。
+- Windows RC2 产品源码基线：`668511ee0659e64e60d8b6c0c9a8120ddd975ead`；Windows 构建提交 `4f0965c2dc04d0b67990a0a78070be5d386e1121` 只额外修改私有 CI 工作流。本交接文档提交会晚于候选来源，必须继续区分三者。
 - 用户保护内容：`.codex/config.toml`、`问题反馈.txt`；本轮开始时前者已有用户修改，后者未跟踪，两者均未被覆盖、回滚、格式化、暂存或纳入提交。
 - 上述两个文件未被本切片覆盖、回滚、格式化、暂存或纳入提交，后续 Session 仍须继续排除。
 - `C++高亮测试/代码高亮综合测试.cpp` 是本阶段保留的人工代码高亮验收夹具，已纳入源码提交。
@@ -275,7 +287,7 @@ V2 已经完成从零开始使用所需的核心纵向流程，不再是界面�
 
 | 模块               | 已实现内容                                                                          | 主要证据                                                                                    |
 | ------------------ | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| 首次启动           | 创建空白工作区、选择已有目录、只读首扫、空状态                                      | `workspace-service.ts`、`workspace-onboarding.tsx`、`app.spec.ts`                           |
+| 首次启动           | 一次性使用说明、稳定查阅入口、创建/选择工作区、只读首扫、统一未连接空状态           | `getting-started-dialog.tsx`、`workspace-onboarding.tsx`、`app.spec.ts`                     |
 | 模板库             | 树形浏览、单子目录折叠、虚拟滚动、筛选、全局搜索、右键操作                          | `template-tree.tsx`、`template-tree-model.ts`                                               |
 | 源码查看           | CodeMirror 6、C++ 高亮、VS Code 风格主题、独立主题记忆、聚焦大窗口                  | `code-viewer.tsx`、`scroll-and-code-viewer.spec.ts`                                         |
 | 模板入库           | 中英文 AI 补全、批量 `.cpp` 选择/扫描、默认全选、无 AI 直导、逐项跳过/改名/备份覆盖 | `create-template-dialog.tsx`、`batch-template-import-dialog.tsx`、`template-intake.spec.ts` |
@@ -292,21 +304,21 @@ V2 已经完成从零开始使用所需的核心纵向流程，不再是界面�
 
 ### 3.2 功能存在，但还没有达到发布级完整度
 
-| 模块             | 当前能力                                                                           | 仍缺少的细节                                                                                     |
-| ---------------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| V2 数据保护      | 可验证导出/恢复、原子回滚、中断恢复、空间统计、保留建议、逐项隔离/撤销/废纸篓移交  | 定时备份、用户可选压缩包格式和跨设备兼容验证                                                     |
-| AI JSON 稳定性   | 三类任务统一 JSON 提取、envelope、Schema、一次结构修复和安全阶段错误               | 复杂供应商专属 tool-call envelope 尚未纳入首批协议边界                                           |
-| Provider 兼容    | 五类 Adapter 已覆盖统一成功与主要失败契约矩阵                                      | 尚未使用五个真实云端账号做外部集成认证；当前证据为本地 mock 契约                                 |
-| 错误处理         | 鉴权、模型、限流、网络、连接/响应超时、取消、能力、超大响应和流中断可操作提示      | 仍缺统一离线检测和跨应用重启的远端任务恢复；首版明确不恢复远端生成任务                           |
-| 辅助技术人工验收 | 语义树、键盘、焦点、live region、减少动效和 200% 已自动化并人工查看截图            | macOS VoiceOver 仅完成语义/键盘证据，未做长期真人任务审计；Windows Narrator/高对比模式未实机验证 |
-| 大型工作区       | 模板树虚拟化、读取与 AI 上下文有限额                                               | 相似度只分析前 500 个可读取文件，审计最多遍历前 2000 个模板，文件计划相关候选最多 250 个         |
-| 发布             | macOS arm64 与 Windows x64 RC1 Preview、SHA-256、SBOM、隐私检查与双 userData smoke | macOS Developer ID/notarization、Windows Authenticode、实机安装/升级/卸载与跨平台往返            |
+| 模块             | 当前能力                                                                                | 仍缺少的细节                                                                                     |
+| ---------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| V2 数据保护      | 可验证导出/恢复、原子回滚、中断恢复、空间统计、保留建议、逐项隔离/撤销/废纸篓移交       | 定时备份、用户可选压缩包格式和跨设备兼容验证                                                     |
+| AI JSON 稳定性   | 三类任务统一 JSON 提取、envelope、Schema、一次结构修复和安全阶段错误                    | 复杂供应商专属 tool-call envelope 尚未纳入首批协议边界                                           |
+| Provider 兼容    | 五类 Adapter 已覆盖统一成功与主要失败契约矩阵                                           | 尚未使用五个真实云端账号做外部集成认证；当前证据为本地 mock 契约                                 |
+| 错误处理         | 鉴权、模型、限流、网络、连接/响应超时、取消、能力、超大响应和流中断可操作提示           | 仍缺统一离线检测和跨应用重启的远端任务恢复；首版明确不恢复远端生成任务                           |
+| 辅助技术人工验收 | 语义树、键盘、焦点、live region、减少动效和 200% 已自动化并人工查看截图                 | macOS VoiceOver 仅完成语义/键盘证据，未做长期真人任务审计；Windows Narrator/高对比模式未实机验证 |
+| 大型工作区       | 模板树虚拟化、读取与 AI 上下文有限额                                                    | 相似度只分析前 500 个可读取文件，审计最多遍历前 2000 个模板，文件计划相关候选最多 250 个         |
+| 发布             | macOS 更新目录 App、Windows x64 RC2 Preview、SHA-256、SBOM、隐私检查与双 userData smoke | macOS 新 DMG/ZIP 与 Developer ID/notarization、Windows Authenticode、脚本化实机验收与跨平台往返  |
 
 ### 3.3 尚未实现
 
 - 应用内永久清空隔离数据；当前版本刻意只移交系统废纸篓，不绕过操作系统执行不可逆删除。
 - 自动更新和更新回滚策略。
-- 真实 Windows 主机的安装、启动、文件权限、升级和卸载证据。
+- 真实 Windows 已有 RC2 探索性安装/启动反馈，但尚无脚本化文件权限、升级、快捷方式和卸载证据。
 - macOS/Windows 正式签名流程。
 - 完整的大型工作区性能基准和后台增量索引。
 - Provider 精确计费/成本估算和本地隐私历史（已有粗略 Token 估算与发送预览）。
@@ -433,7 +445,7 @@ Session D 截图显示 1024×640 下导航、列表/树、详情和页头主操�
 
 ### P0：公开发布前必须完成
 
-1. 使用已交付的 `0.1.3` RC1 在真实 Windows 完成安装/升级/卸载，以及 Mac→Windows恢复、切换持久化、Windows 重新导出→Mac 恢复往返。
+1. 使用已交付的 `0.1.3` RC2 在真实 Windows 运行 `scripts/release/windows-acceptance.ps1`，补齐安装/升级/快捷方式/卸载/userData 保留证据，并完成 Mac→Windows 恢复、切换持久化、Windows 重新导出→Mac 恢复往返。已有“没有问题”反馈保留为探索性验收，不替代脚本 JSON。
 2. macOS Developer ID 签名与 notarization；Windows Authenticode。
 3. 在获得受保护凭据后从同一提交运行 `release:mac:signed` / `release:win:signed`，保存签名、公证和摘要证据；不要给聊天发送私钥或密码。
 
@@ -540,7 +552,7 @@ Session D 截图显示 1024×640 下导航、列表/树、详情和页头主操�
 
 ### Session C：发布工程与平台验收（自动化已完成，外部门禁待完成）
 
-状态：可重复候选、摘要、SBOM、元数据、隐私/架构/图标检查、双 userData smoke、签名失败关闭和 Windows 实机脚本已完成。当前机器没有 Apple Developer ID/notarization 凭据，也没有 Windows 实机，因此不能把签名、公证和 NSIS 实机验收标记为通过。
+状态：可重复候选、摘要、SBOM、元数据、隐私/架构/图标检查、双 userData smoke、签名失败关闭和 Windows 实机脚本已完成。Windows RC2 已由用户在真实 Windows 上安装和探索性测试，反馈“没有问题”；但未运行验收脚本，也没有 `windows-acceptance-evidence.json`。当前机器没有 Apple Developer ID/notarization 凭据，因此仍不能把签名、公证和完整 NSIS 验收标记为通过。
 
 目标：把开发预览推进到可验证的发布候选。
 
@@ -559,7 +571,7 @@ Session D 截图显示 1024×640 下导航、列表/树、详情和页头主操�
 仍受外部条件阻塞：
 
 - macOS `codesign --verify`、`spctl` 和 notarization 正式证据。
-- Windows Authenticode 和真实主机的安装、启动、已有 V2 数据升级、快捷方式、权限及卸载保留策略。
+- Windows Authenticode，以及真实主机的脚本化安装/升级、快捷方式、权限、卸载和 userData 保留证据。
 
 恢复外部门禁时的启动提示：
 
@@ -745,7 +757,7 @@ Session E 性能（完成）         ├-> Session F 代码健康与文档发布
 Session A/B/C                  ┘
 ```
 
-- Session A、B、C 自动化与 Session D/E 均已完成；签名、公证和 Windows 实机证据等待证书、账号与硬件。
+- Session A、B、C 自动化与 Session D/E 均已完成；Windows RC2 已有真实主机探索性反馈，脚本化验收、跨平台往返、签名和公证仍等待相应环境与凭据。
 - Session F 已完成并冻结；无外部发布条件时不再继续维护性拆分。
 - 仅在真实 Bug、用户反馈或外部签名/Windows 条件齐备时恢复相应门禁，并保持 Session D 的布局/键盘/focus/live 与 Session E 的增量索引、取消、分页和基准回归。
 
