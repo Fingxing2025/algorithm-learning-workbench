@@ -144,7 +144,9 @@ powershell -ExecutionPolicy Bypass -File scripts/release/windows-acceptance.ps1 
 
 脚本会检查安装器摘要/签名、静默安装、App 版本与签名、全新和已有 V2 userData 启动、桌面/开始菜单快捷方式、静默卸载和 userData 保留。执行后仍必须人工确认 UI、已有模板/题目/关系/图片/Provider 状态和安装权限。测试已有数据时只能使用备份副本，不要直接拿唯一生产 userData 做验收。
 
-上一份 `0.1.2` 未签名安装包已经由用户在真实 Windows 上测试，用户反馈所测流程没有发现问题；AI 首次鉴权失败在 Windows 本机重新保存 API Key 后恢复，符合密钥不跨操作系统复制的设计。由于没有配套的 `windows-acceptance-evidence.json`，该反馈只能作为真实主机探索性验收，不能替代脚本对安装升级、快捷方式、卸载和 userData 保留的逐项证据。`0.1.3` RC1 仍需重新生成原生 Windows 候选，Authenticode 也仍未完成。
+上一份 `0.1.2` 未签名安装包已经由用户在真实 Windows 上测试，用户反馈所测流程没有发现问题；AI 首次鉴权失败在 Windows 本机重新保存 API Key 后恢复，符合密钥不跨操作系统复制的设计。由于没有配套的 `windows-acceptance-evidence.json`，该反馈只能作为历史探索性验收。
+
+`0.1.3` RC1 Windows x64 Preview 已在原生 Windows runner 生成，并通过全新/已有 V2 userData 打包入口 smoke 2/2。该证据只覆盖未安装的 `win-unpacked` 真实入口；不能替代本节脚本对该候选的交互式安装、升级、快捷方式、权限、卸载和 userData 保留验收，也没有完成 Mac→Windows→Mac 备份往返。Authenticode 仍未完成。
 
 ## 产物隐私与供应链检查
 
@@ -170,13 +172,13 @@ GitHub Actions 使用固定 commit SHA 的 checkout、setup-node 与 upload-arti
 ## 候选、源码与正式发布状态
 
 - 最终源码 HEAD：以当前交接文档所在最终提交为准；候选生成后如再提交证据文档，最终 HEAD 会晚于候选来源提交，两者必须分开记录。
-- `0.1.3` RC1 候选来源：干净提交 `797700e5f0abd5cc5dd544bc9f70f9d3256ce3bd`；当前发布分支为 `codex/release-0.1.3-rc.1`。
+- `0.1.3` RC1 macOS 候选来源：干净提交 `797700e5f0abd5cc5dd544bc9f70f9d3256ce3bd`。Windows 候选的产品源码基线为 `b69cab21b89ac7a196c9624f05d61a7ca825b083`，私有构建证据提交为 `efec93a9adf5d8aac5871b201bdee7dcdece4279`，两者之间只修改 `.github/workflows/release-candidate.yml`。当前发布分支为 `codex/release-0.1.3-rc.1`。
 - `0.1.3` RC1 源码门禁：`npm run check` 通过 49 个 Vitest 文件/375 项和 8 项发布脚本测试；`tests/e2e/data-management.spec.ts` 5/5，完整真实 Electron E2E 57 项通过、2 项 packaged 条件跳过。
-- 最后已验证打包版本：`0.1.3` macOS arm64 RC1 Preview；全新/已有 V2 userData packaged smoke 2/2 通过。
+- 最后已验证打包版本：`0.1.3` macOS arm64 与 Windows x64 RC1 Preview；两个平台均完成全新/已有 V2 userData packaged smoke 2/2。
 - 正式签名版本：不存在。本机 `security find-identity -v -p codesigning` 为 `0 valid identities found`，不得把 ad-hoc App 描述为 Developer ID signed/notarized。
-- Windows 实机状态：上一份 `0.1.2` 未签名包已有用户探索性实测且所测流程无已知问题；没有脚本生成的逐项验收 JSON。`0.1.3` 原生候选、Authenticode 和正式安装/升级/卸载证据仍未完成。
+- Windows 实机状态：`0.1.3` 原生 x64 候选已完成 CI 构建和打包入口验证；仍未完成该候选的 Authenticode、正式安装/升级/卸载证据和 Mac→Windows→Mac 往返。上一份 `0.1.2` 的用户探索性实测不代替新候选验收。
 
-本次 RC1 候选证据目录：`release/candidates/0.1.3-mac-arm64-preview/`。
+本次 RC1 macOS 候选证据目录：`release/candidates/0.1.3-mac-arm64-preview/`。
 
 | 制品                                 |      字节数 | SHA-256                                                            |
 | ------------------------------------ | ----------: | ------------------------------------------------------------------ |
@@ -190,6 +192,23 @@ GitHub Actions 使用固定 commit SHA 的 checkout、setup-node 与 upload-arti
 - packaged smoke：候选源目录和复制回项目后的 App 都完成全新 userData 与已有 V2 userData 重启 2/2。
 - 签名：unsigned/ad-hoc，无 Authority/TeamIdentifier，未 staple，Gatekeeper 不接受；仅适合测试分发，不是正式签名版本。
 - 构建环境说明：顶层 `npm run release:mac:preview` 在 electron-builder 联网获取 Electron 校验清单时因 GitHub 端点长期停在 `SYN_SENT` 被人工终止；随后使用本机缓存的官方 `electron-v43.1.0-darwin-arm64.zip` 继续标准 builder/SBOM/验证流程。该 ZIP 的 SHA-256 `2ee24f768c41bc2ed9bd580d7797b185dffb550dafca59c2cd08b51965bcda3a` 与 `electron` 包内 `checksums.json` 完全一致。候选源码预检仍为 `sourceTree=clean`，但不能把顶层单命令描述为端到端成功。
+
+### Windows x64 Preview 候选证据
+
+原生 Windows 工作流 [Run 30360091935](https://github.com/Fingxing2025/algorithm-workbench-windows-build-89dbde3/actions/runs/30360091935) 于 2026-07-28 成功。候选已下载到本机被 Git 忽略的 `release/downloaded/Windows测试包-0.1.3-rc1-b69cab2/`；交付时应以其 `candidates/0.1.3-win-x64-preview/` 内的机器证据为准。
+
+| 制品                               |      字节数 | SHA-256                                                            |
+| ---------------------------------- | ----------: | ------------------------------------------------------------------ |
+| `算法学习工作台-0.1.3-win-x64.exe` | 115,907,713 | `fd3f3b11faa48edba2087f89041146a1de12e3c65fe48b34cc4b339c05268064` |
+
+- GitHub artifact `algorithm-workbench-preview-win-x64` 为 115,935,020 字节，外层 ZIP SHA-256 为 `d9aa03adbb31df689c9e96ead1ddb6f206704ef6062edf4ce8dcc44be3dab46c`；本机下载后的字节数、摘要和 ZIP 完整性均一致。
+- 产品基线 `b69cab2` 与证据提交 `efec93a` 之间只有私有 CI 工作流差异。候选 `sourceTree=clean`，版本 `0.1.3`，Electron `43.1.0` / ABI `148`，`better-sqlite3 12.11.1`。
+- 安装器是 NSIS 自解压引导程序；从其中独立提取的 `算法学习工作台.exe` 与 `better_sqlite3.node` 均为 PE32+ x86-64。`app.asar` 为 66,566,587 字节，SHA-256 为 `e997ae74fe6bbcb0682db6f7d0a5d71b0631085522ba33ee09b4066888afb60b`。
+- 源码门禁：运行时依赖审计 0 漏洞；TypeScript、ESLint 0 warnings、Prettier、49 个 Vitest 文件/375 项与 8 项发布脚本测试全部通过。
+- packaged smoke：原生 Windows 候选以全新 userData 启动，并使用已写入 V2 工作区的同一 userData 重启，2/2 通过。
+- 供应链/隐私：CycloneDX 1.5 SBOM 共 99 个组件；ASAR 10,859 个条目，禁用条目、禁用外部文件、个人绝对路径和疑似密钥均 0 命中。
+- 签名：Windows PowerShell 验证返回安装器与主程序 `NotSigned`；该文件是 unsigned Preview，SmartScreen 警告属于预期，不得标记为正式发布。
+- 实机边界：CI 没有执行 NSIS 交互式安装、快捷方式、升级、权限、卸载、Windows 辅助技术或 Mac→Windows→Mac 完整备份往返；这些必须在真实 Windows 上重新验收。
 
 ## 历史本机候选记录
 

@@ -31,7 +31,8 @@
 - `npm run check` 通过 TypeScript、ESLint 0 warnings、Prettier、49 个 Vitest 文件/375 项和 8 项发布脚本测试；备份恢复定向 Electron E2E 5/5、完整 Electron E2E 57 项通过，2 项 packaged 因尚未提供新候选路径按条件跳过。
 - 用户已在真实 Windows 上测试上一份 `0.1.2` 未签名安装包并反馈所测流程未发现问题；首次 AI 鉴权失败在重新保存 Windows 本机 API Key 后恢复。
 - 该反馈没有配套 `windows-acceptance-evidence.json`，不能据此逐项宣称安装升级、快捷方式、卸载和数据保留脚本全部通过；Windows Authenticode 仍未完成。
-- `0.1.3` RC1 macOS arm64 Preview 已从干净提交 `797700e` 生成并通过架构、版本、DMG、ZIP、SHA-256、SBOM、隐私与 packaged smoke 2/2 验证；新 Windows 原生候选仍待生成。
+- `0.1.3` RC1 macOS arm64 Preview 已从干净提交 `797700e` 生成并通过架构、版本、DMG、ZIP、SHA-256、SBOM、隐私与 packaged smoke 2/2 验证。
+- `0.1.3` RC1 Windows x64 Preview 已在原生 Windows runner 从产品基线 `b69cab2` 生成；安装器 SHA-256 为 `fd3f3b11faa48edba2087f89041146a1de12e3c65fe48b34cc4b339c05268064`，主程序与 `better_sqlite3.node` 均为 x64，隐私扫描和 packaged smoke 2/2 通过。该候选未签名，真实 Windows 安装/升级/卸载与 Mac→Windows→Mac 往返仍需实机验收。
 
 ## [0.1.2] - 2026-07-18
 
