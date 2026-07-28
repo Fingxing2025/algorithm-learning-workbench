@@ -50,7 +50,20 @@ async function seedV2Data(
 ) {
   const label = options.label ?? 'Restore E2E'
   await setNextSelection(workspacePath)
-  const snapshot = await page.evaluate(() => window.desktop.workspace.choose({ intent: 'open' }))
+  const onboardingSelection = page.getByRole('button', { name: '选择目录' })
+  if (await onboardingSelection.isVisible().catch(() => false)) {
+    await onboardingSelection.click()
+  } else {
+    await page.getByRole('button', { name: '模板库', exact: true }).click()
+    await page.getByRole('button', { name: '切换工作区' }).click()
+  }
+  const expectedRootPath = await realpath(workspacePath)
+  await expect
+    .poll(() =>
+      page.evaluate(() => window.desktop.workspace.getCurrent().then(value => value?.rootPath)),
+    )
+    .toBe(expectedRootPath)
+  const snapshot = await page.evaluate(() => window.desktop.workspace.getCurrent())
   const template = snapshot?.templates[0]
   if (!template) throw new Error('seed workspace did not produce a template')
   const problem = await page.evaluate(

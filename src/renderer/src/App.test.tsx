@@ -218,6 +218,24 @@ describe('App', () => {
     expect(screen.getByText('尚未连接工作区')).toBeInTheDocument()
   })
 
+  it('keeps every knowledge-workbench page in onboarding until a workspace is connected', async () => {
+    installDesktopMock(null)
+    const listProblemsPage = vi.mocked(window.desktop.problems.listPage)
+    const user = userEvent.setup()
+    render(<App />)
+
+    await screen.findByRole('heading', { level: 1, name: '连接你的模板工作区' })
+    expect(listProblemsPage).not.toHaveBeenCalled()
+
+    for (const pageName of ['工作台', '模板库', '题目', 'AI 管理', '备份与恢复']) {
+      await user.click(screen.getByRole('button', { name: pageName }))
+      expect(
+        await screen.findByRole('heading', { level: 1, name: '连接你的模板工作区' }),
+      ).toBeInTheDocument()
+      expect(screen.queryByText('操作未完成，请重试。')).not.toBeInTheDocument()
+    }
+  })
+
   it('opens empty global search and switches theme', async () => {
     installDesktopMock(null)
     const user = userEvent.setup()

@@ -14,7 +14,7 @@ function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : '操作未完成，请重试。'
 }
 
-export function useProblems() {
+export function useProblems(workspaceId: string | null) {
   const [error, setError] = useState<string | null>(null)
   const [isBusy, setIsBusy] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
@@ -59,6 +59,7 @@ export function useProblems() {
 
   const loadProblems = useCallback(
     async (searchQuery: string) => {
+      if (!workspaceId) return null
       setIsLoading(true)
       setError(null)
       try {
@@ -77,11 +78,27 @@ export function useProblems() {
         setIsLoading(false)
       }
     },
-    [applyPage],
+    [applyPage, workspaceId],
   )
 
   useEffect(() => {
     let isActive = true
+    if (!workspaceId) {
+      setError(null)
+      setIsLoading(false)
+      setIsLoadingMore(false)
+      setMatchedCount(0)
+      setNextCursor(null)
+      setProblems([])
+      setQuery('')
+      setTotalCount(0)
+      setTotalRelationCount(0)
+      return () => {
+        isActive = false
+      }
+    }
+    setIsLoading(true)
+    setError(null)
     window.desktop.problems
       .listPage({ cursor: null, limit: 100, query: '' })
       .then(page => {
@@ -96,7 +113,7 @@ export function useProblems() {
     return () => {
       isActive = false
     }
-  }, [applyPage])
+  }, [applyPage, workspaceId])
 
   const loadMore = useCallback(async () => {
     if (!nextCursor || isLoadingMore) return null
@@ -127,14 +144,18 @@ export function useProblems() {
     [problems, replaceProblem],
   )
 
-  const searchProblems = useCallback(async (searchQuery: string) => {
-    const page = await window.desktop.problems.listPage({
-      cursor: null,
-      limit: 100,
-      query: searchQuery,
-    })
-    return page.items
-  }, [])
+  const searchProblems = useCallback(
+    async (searchQuery: string) => {
+      if (!workspaceId) return []
+      const page = await window.desktop.problems.listPage({
+        cursor: null,
+        limit: 100,
+        query: searchQuery,
+      })
+      return page.items
+    },
+    [workspaceId],
+  )
 
   const runMutation = useCallback(
     async (operation: () => Promise<Problem | null>) => {

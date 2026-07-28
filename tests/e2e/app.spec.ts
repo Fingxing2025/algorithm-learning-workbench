@@ -213,6 +213,25 @@ test('starts from zero through the real desktop entry with a narrow preload API'
   })
 })
 
+test('keeps every knowledge-workbench page on workspace onboarding before setup', async () => {
+  for (const pageName of ['工作台', '模板库', '题目', 'AI 管理', '备份与恢复']) {
+    await page.getByRole('button', { name: pageName, exact: true }).click()
+    await expect(page.getByRole('heading', { level: 1, name: '连接你的模板工作区' })).toBeVisible()
+    await expect(page.getByText('操作未完成，请重试。')).toHaveCount(0)
+  }
+
+  await electronApp.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0]?.setSize(1024, 640),
+  )
+  await page.screenshot({
+    animations: 'disabled',
+    path: resolve('output/playwright/workspace-required-all-pages-light-1024x640.png'),
+  })
+  await electronApp.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0]?.setSize(1440, 900),
+  )
+})
+
 test('creates an empty workspace and the first template without allowing overwrite', async () => {
   await setNextDirectorySelection(blankWorkspace)
   await page.getByRole('button', { name: '创建工作区' }).click()

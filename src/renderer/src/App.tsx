@@ -27,9 +27,6 @@ function AppContent() {
   const { locale, t, toggleLocale } = useI18n()
   const runtimeState = useRuntimeInfo()
   const { theme, toggleTheme } = useTheme()
-  const problemState = useProblems()
-  const loadProblem = problemState.loadProblem
-  const loadedProblems = problemState.problems
   const {
     cancelRescan,
     chooseWorkspace,
@@ -49,6 +46,9 @@ function AppContent() {
     searchTemplates,
     workspace,
   } = useWorkspace()
+  const problemState = useProblems(workspace?.available ? workspace.id : null)
+  const loadProblem = problemState.loadProblem
+  const loadedProblems = problemState.problems
   const source = useTemplateSource(selectedTemplateId)
 
   const openCommandPalette = dialogs.openCommandPalette
@@ -132,7 +132,7 @@ function AppContent() {
     if (value) {
       setSelectedProblemId(null)
       setSelectedTemplateId(null)
-      await problemState.search('')
+      if (workspace?.id === value.id) await problemState.search('')
       setCurrentView('templates')
       setNotice(t('已连接工作区“{name}”', { name: value.name }))
     }

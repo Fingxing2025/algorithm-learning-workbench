@@ -7,13 +7,20 @@ import { resolveAppRoute } from './app-route'
 const workspace = { available: true } as WorkspaceSnapshot
 
 describe('resolveAppRoute', () => {
-  it('keeps settings and management routes available without a workspace', () => {
+  it('keeps only app-level settings available without a workspace', () => {
     expect(
       resolveAppRoute({ currentView: 'settings', isWorkspaceLoading: true, workspace: null }),
     ).toBe('settings')
-    expect(
-      resolveAppRoute({ currentView: 'data', isWorkspaceLoading: false, workspace: null }),
-    ).toBe('data')
+
+    expect(resolveAppRoute({ currentView: 'ai', isWorkspaceLoading: true, workspace: null })).toBe(
+      'loading',
+    )
+
+    for (const currentView of ['dashboard', 'templates', 'problems', 'ai', 'data'] as const) {
+      expect(resolveAppRoute({ currentView, isWorkspaceLoading: false, workspace: null })).toBe(
+        'onboarding',
+      )
+    }
   })
 
   it('resolves workspace lifecycle states before domain pages', () => {
@@ -25,7 +32,7 @@ describe('resolveAppRoute', () => {
     ).toBe('onboarding')
     expect(
       resolveAppRoute({
-        currentView: 'templates',
+        currentView: 'data',
         isWorkspaceLoading: false,
         workspace: { ...workspace, available: false },
       }),

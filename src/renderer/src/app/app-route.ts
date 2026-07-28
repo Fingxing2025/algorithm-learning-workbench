@@ -13,9 +13,7 @@ export function resolveAppRoute({
   isWorkspaceLoading: boolean
   workspace: WorkspaceSnapshot | null
 }): AppRoute {
-  if (currentView === 'ai' || currentView === 'data' || currentView === 'settings') {
-    return currentView
-  }
+  if (currentView === 'settings') return currentView
   if (isWorkspaceLoading) return 'loading'
   if (!workspace) return 'onboarding'
   if (!workspace.available) return 'unavailable'
