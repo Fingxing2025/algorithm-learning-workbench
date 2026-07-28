@@ -7,6 +7,11 @@ import { _electron as electron, expect, test } from '@playwright/test'
 test('launches the packaged desktop app with a clean user-data directory', async () => {
   const executablePath = process.env.PACKAGED_APP_PATH
   test.skip(!executablePath, 'PACKAGED_APP_PATH is only set during packaged smoke tests')
+  const packageVersion = (
+    JSON.parse(await readFile(resolve('package.json'), 'utf8')) as {
+      version: string
+    }
+  ).version
   const temporaryRoot = await mkdtemp(join(tmpdir(), 'algorithm-workbench-packaged-'))
   const userDataDirectory = join(temporaryRoot, 'user-data')
   await mkdir(userDataDirectory)
@@ -22,7 +27,7 @@ test('launches the packaged desktop app with a clean user-data directory', async
     const page = await app.firstWindow()
     await expect(page).toHaveTitle('智能算法学习助手 V2')
     await expect(page.getByRole('heading', { level: 1, name: '连接你的模板工作区' })).toBeVisible()
-    await expect(page.getByText('V2 · 0.1.2')).toBeVisible()
+    await expect(page.getByText(`V2 · ${packageVersion}`)).toBeVisible()
     await expect(page.getByText(/Electron 43\.1\.0 · (darwin|linux|win32)/)).toBeVisible()
     const boundary = await page.evaluate(() => {
       const scope = globalThis as unknown as {
