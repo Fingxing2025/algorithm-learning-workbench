@@ -1,0 +1,62 @@
+# Algorithm Learning Workbench
+
+[简体中文](README.md)
+
+A local-first Electron desktop workbench for building and maintaining a personal algorithm knowledge base. Start with an empty workspace, then organize algorithm templates, problem cards, their many-to-many links, and configurable AI providers.
+
+## Preview release
+
+[0.1.3 RC2 Preview](https://github.com/Fingxing2025/algorithm-learning-workbench/releases/tag/v0.1.3-rc.2) is a public **pre-release**, not a stable production release.
+
+- macOS: Apple Silicon (arm64) only, macOS 12 or later.
+- Windows: x64 only.
+- All installers are unsigned. Download only from the release page and verify the included `SHA256SUMS.txt` before installing.
+
+The release includes SHA-256 checksums, a CycloneDX SBOM, and an artifact-verification report. It is not signed or notarized for macOS, and it has no Windows Authenticode signature. See the release notes for the full verification scope and known limitations.
+
+## What it does
+
+- Creates self-contained, portable workspaces that keep templates, problem assets, workspace data, and backups together.
+- Browses, searches, imports, and edits algorithm templates while keeping their source files user-visible.
+- Stores problem cards and explicit many-to-many relationships with templates.
+- Supports OpenAI-compatible Chat Completions, OpenAI Responses, Anthropic Messages, Gemini GenerateContent, and Ollama through provider adapters.
+- Produces AI analysis as reviewable drafts; nothing becomes a problem card or template relationship until the user confirms it.
+- Produces previewable, selectable, and reversible AI file-change plans; destructive file actions require confirmation and use backups/rollback safeguards.
+
+## Technology
+
+- Electron, React, TypeScript, and Vite
+- Tailwind CSS with shadcn/ui and Radix UI
+- SQLite with Drizzle ORM
+- Vitest, React Testing Library, and Playwright
+
+## Local development
+
+Requires Node.js 24 or later. `better-sqlite3` is a native dependency, so rebuild it when installing dependencies or changing Electron versions.
+
+```bash
+npm ci
+npm run rebuild:native
+npm run dev
+npm run check
+npm run test:e2e
+```
+
+`npm run check` runs TypeScript, ESLint, formatting, unit tests, and release-script tests. `npm run test:e2e` builds the application and runs the Electron end-to-end suite.
+
+## Data safety and privacy
+
+- The renderer has no direct access to the file system, database, system keychain, or raw IPC.
+- API keys are stored through the operating system's secure-storage facilities; workspace databases retain references rather than plaintext keys.
+- AI providers can propose changes, but file moves, overwrites, merges, and deletions are shown for review and require explicit confirmation.
+- Back up a workspace before testing a preview build. Do not delete application data or modify your only workspace copy during evaluation.
+
+## Documentation
+
+- [Product specification](docs/V2_PRODUCT_SPEC.md)
+- [Architecture](docs/ARCHITECTURE.md)
+- [Release and packaging notes](docs/RELEASE.md)
+- [User guide](docs/USER_GUIDE.md)
+- [Security review](docs/SECURITY_REVIEW.md)
+
+The detailed project documentation is currently written in Simplified Chinese.
