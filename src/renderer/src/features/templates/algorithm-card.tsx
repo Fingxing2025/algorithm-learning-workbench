@@ -1,0 +1,632 @@
+import {
+  AlertCircle,
+  BookOpenText,
+  ChevronRight,
+  Copy,
+  ExternalLink,
+  FileCode2,
+  FilePenLine,
+  Link2,
+  RefreshCw,
+  Save,
+  Trash2,
+  X,
+} from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+
+import type {
+  Problem,
+  RelationType,
+  TemplateProblemSummary,
+  UpsertProblemRelationRequest,
+} from '@core/contracts/problem'
+import type {
+  ApplyTemplateSourceEditResult,
+  TemplateActionRequest,
+  TemplateSourceEditPreview,
+  TemplateSummary,
+} from '@core/contracts/workspace'
+import type { FileChangeMutationResult } from '@core/contracts/template-management'
+
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { activeElementOrNull } from '@/lib/focus-management'
+import { useI18n } from '@/lib/i18n'
+
+import type { TemplateSourceState } from './use-template-source'
+import { CodeViewer, SourceCodeEditor } from './code-viewer'
+import { TemplateMetadataCard } from './template-metadata-card'
+import { TemplateProblemRelationDialog } from './template-problem-relation-dialog'
+import { TemplateRelocationDialog } from './template-relocation-dialog'
+import { formatTemplateSourceEncoding } from './template-source-encoding'
+
+interface AlgorithmCardProps {
+  metadataRefreshKey: number
+  onAction: (request: TemplateActionRequest) => void
+  onClearProblemError: () => void
+  onCompleteMetadata: () => void
+  onDelete: (templateId: string) => Promise<boolean>
+  onOpenProblem: (problemId: string) => void
+  onLoadMoreRelatedProblems: () => void
+  onRelocated: (templateId: string, result: FileChangeMutationResult) => void
+  onReload: () => void
+  onSourceEdited: (templateId: string, result: ApplyTemplateSourceEditResult) => void
+  onSearchProblems: (query: string) => Promise<Problem[]>
+  onUpsertProblemRelation: (request: UpsertProblemRelationRequest) => Promise<boolean>
+  problemError: string | null
+  problemTotalCount: number
+  relatedProblems: TemplateProblemSummary[]
+  relatedProblemError: string | null
+  relatedProblemsHasMore: boolean
+  relatedProblemTotalCount: number
+  isLoadingRelatedProblems: boolean
+  isProblemBusy: boolean
+  sourceState: TemplateSourceState
+  template: TemplateSummary | null
+}
+
+const relationLabels: Record<RelationType, string> = {
+  alternative: '备选',
+  recommended: '推荐',
+  used: '实际使用',
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) {
+    return `${bytes} B`
+  }
+  if (bytes < 1024 * 1024) {
+    return `${(bytes / 1024).toFixed(1)} KiB`
+  }
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MiB`
+}
+
+export function AlgorithmCard({
+  metadataRefreshKey,
+  onAction,
+  onClearProblemError,
+  onCompleteMetadata,
+  onDelete,
+  onOpenProblem,
+  onLoadMoreRelatedProblems,
+  onRelocated,
+  onReload,
+  onSourceEdited,
+  onSearchProblems,
+  onUpsertProblemRelation,
+  problemError,
+  problemTotalCount,
+  relatedProblems,
+  relatedProblemError,
+  relatedProblemsHasMore,
+  relatedProblemTotalCount,
+  isLoadingRelatedProblems,
+  isProblemBusy,
+  sourceState,
+  template,
+}: AlgorithmCardProps) {
+  const { t } = useI18n()
+  const [relationDialogOpen, setRelationDialogOpen] = useState(false)
+  const [relocationOpen, setRelocationOpen] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [confirmDiscardEdit, setConfirmDiscardEdit] = useState(false)
+  const [editError, setEditError] = useState<string | null>(null)
+  const [editSession, setEditSession] = useState(0)
+  const [editedSource, setEditedSource] = useState('')
+  const [isEditingSource, setIsEditingSource] = useState(false)
+  const [isSourceEditBusy, setIsSourceEditBusy] = useState(false)
+  const [sourceEditPreview, setSourceEditPreview] = useState<TemplateSourceEditPreview | null>(null)
+  const relationReturnFocusRef = useRef<HTMLElement | null>(null)
+
+  useEffect(() => {
+    setConfirmDelete(false)
+    setConfirmDiscardEdit(false)
+    setEditError(null)
+    setEditedSource('')
+    setIsEditingSource(false)
+    setIsSourceEditBusy(false)
+    setSourceEditPreview(null)
+  }, [template?.id])
+
+  useEffect(() => {
+    if (!sourceEditPreview) return
+    const closeDiffOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      setSourceEditPreview(null)
+    }
+    window.addEventListener('keydown', closeDiffOnEscape)
+    return () => window.removeEventListener('keydown', closeDiffOnEscape)
+  }, [sourceEditPreview])
+
+  if (!template) {
+    return (
+      <section className="relative grid min-h-0 place-items-center overflow-hidden bg-background p-8 text-center">
+        <div
+          aria-hidden="true"
+          className="app-grid-texture pointer-events-none absolute inset-0 opacity-55"
+        />
+        <div className="relative max-w-sm rounded-3xl border border-border bg-panel/90 px-8 py-9 shadow-panel">
+          <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-primary/10 text-primary ring-1 ring-primary/10">
+            <FileCode2 aria-hidden="true" className="size-6" />
+          </span>
+          <h2 className="mt-4 text-sm font-semibold">{t('选择一份算法模板')}</h2>
+          <p className="mt-2 text-xs leading-5 text-muted-foreground">
+            {t('从左侧模板树打开源码；搜索结果也会自动定位并展开对应目录。')}
+          </p>
+        </div>
+      </section>
+    )
+  }
+
+  const originalSource = sourceState.status === 'ready' ? sourceState.value.content : ''
+  const sourceIsDirty = isEditingSource && editedSource !== originalSource
+
+  const beginSourceEdit = () => {
+    if (sourceState.status !== 'ready') return
+    setEditedSource(sourceState.value.content)
+    setEditSession(value => value + 1)
+    setEditError(null)
+    setConfirmDiscardEdit(false)
+    setSourceEditPreview(null)
+    setIsEditingSource(true)
+  }
+
+  const finishSourceEdit = () => {
+    setConfirmDiscardEdit(false)
+    setEditError(null)
+    setSourceEditPreview(null)
+    setIsEditingSource(false)
+  }
+
+  const requestCancelSourceEdit = () => {
+    if (sourceEditPreview) {
+      setSourceEditPreview(null)
+      return
+    }
+    if (sourceIsDirty) {
+      setConfirmDiscardEdit(true)
+      return
+    }
+    finishSourceEdit()
+  }
+
+  const previewSourceEdit = async () => {
+    if (!sourceIsDirty || isSourceEditBusy) {
+      if (!sourceIsDirty) setEditError(t('源码没有变化，无需保存。'))
+      return
+    }
+    setIsSourceEditBusy(true)
+    setEditError(null)
+    try {
+      const preview = await window.desktop.templates.previewSourceEdit({
+        content: editedSource,
+        templateId: template.id,
+      })
+      setSourceEditPreview(preview)
+    } catch (error) {
+      setEditError(error instanceof Error ? error.message : t('无法生成源码 Diff，请重试。'))
+    } finally {
+      setIsSourceEditBusy(false)
+    }
+  }
+
+  const applySourceEdit = async () => {
+    if (!sourceEditPreview || isSourceEditBusy) return
+    setIsSourceEditBusy(true)
+    setEditError(null)
+    try {
+      const result = await window.desktop.templates.applySourceEdit({
+        confirmed: true,
+        previewId: sourceEditPreview.previewId,
+      })
+      finishSourceEdit()
+      onSourceEdited(template.id, result)
+    } catch (error) {
+      setSourceEditPreview(null)
+      setEditError(error instanceof Error ? error.message : t('源码保存失败，原文件已保持或恢复。'))
+    } finally {
+      setIsSourceEditBusy(false)
+    }
+  }
+
+  return (
+    <section className="flex h-full min-h-0 flex-col bg-background/75">
+      <header
+        aria-label={t('模板摘要')}
+        className="relative overflow-hidden border-b border-primary/12 bg-panel px-5 py-4 shadow-xs"
+      >
+        <div aria-hidden="true" className="absolute inset-y-0 left-0 w-1 bg-primary" />
+        <div
+          aria-hidden="true"
+          className="absolute -right-12 -top-20 size-52 rounded-full bg-primary/8 blur-3xl"
+        />
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="relative min-w-[180px] flex-1">
+            <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.11em] text-primary">
+              {t('当前模板')}
+            </div>
+            <div className="flex items-center gap-2.5">
+              <h1 className="truncate text-xl font-semibold tracking-[-0.03em]">{template.name}</h1>
+              <Badge tone="accent">{template.language}</Badge>
+            </div>
+            <p
+              className="mt-1 truncate text-xs text-muted-foreground"
+              title={template.relativePath}
+            >
+              {template.relativePath}
+            </p>
+          </div>
+          <div className="relative flex max-w-full flex-wrap justify-end gap-2">
+            <Button
+              aria-label={`${t('重命名或移动模板')} ${template.name}`}
+              disabled={isProblemBusy}
+              onClick={() => setRelocationOpen(true)}
+              size="icon"
+              type="button"
+              variant="ghost"
+            >
+              <FilePenLine aria-hidden="true" className="size-4 text-primary" />
+            </Button>
+            {confirmDelete ? (
+              <div className="flex items-center gap-2 rounded-xl border border-red-500/20 bg-red-500/5 px-2 py-1">
+                <span className="text-[11px] text-red-600 dark:text-red-300">
+                  {t('源文件将备份后删除')}
+                </span>
+                <Button
+                  disabled={isProblemBusy}
+                  onClick={() => void onDelete(template.id)}
+                  size="compact"
+                  type="button"
+                  variant="outline"
+                >
+                  {t('确认删除')}
+                </Button>
+                <Button
+                  onClick={() => setConfirmDelete(false)}
+                  size="compact"
+                  type="button"
+                  variant="ghost"
+                >
+                  {t('取消')}
+                </Button>
+              </div>
+            ) : (
+              <Button
+                aria-label={`${t('删除模板')} ${template.name}`}
+                disabled={isProblemBusy}
+                onClick={() => setConfirmDelete(true)}
+                size="icon"
+                type="button"
+                variant="ghost"
+              >
+                <Trash2 aria-hidden="true" className="size-4 text-red-500" />
+              </Button>
+            )}
+            <Button
+              onClick={() => onAction({ action: 'copy-source', templateId: template.id })}
+              size="compact"
+              type="button"
+              variant="outline"
+            >
+              <Copy aria-hidden="true" className="size-3.5" />
+              {t('复制源码')}
+            </Button>
+            <Button
+              aria-label={t('在文件管理器中显示')}
+              onClick={() => onAction({ action: 'reveal', templateId: template.id })}
+              size="icon"
+              type="button"
+              variant="ghost"
+            >
+              <ExternalLink aria-hidden="true" className="size-4" />
+            </Button>
+          </div>
+        </div>
+
+        <dl className="relative mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px] text-muted-foreground">
+          {[
+            [t('文件类型'), template.extension],
+            [t('文件大小'), formatBytes(template.sizeBytes)],
+            [t('关联题目'), String(relatedProblemTotalCount)],
+          ].map(([label, value]) => (
+            <div className="flex items-center gap-1.5" key={label}>
+              <dt>{label}</dt>
+              <dd className="font-medium text-foreground">{value}</dd>
+            </div>
+          ))}
+        </dl>
+      </header>
+
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4 lg:p-5">
+        <div className="mb-2.5 flex items-center justify-between px-1">
+          <div>
+            <h2 className="text-xs font-semibold">{t('模板源码')}</h2>
+            <p className="mt-0.5 text-[10px] text-muted-foreground">
+              {isEditingSource
+                ? t('编辑模式 · Cmd/Ctrl+S 查看 Diff · Escape 取消')
+                : t('只读查看 · 可切换 VS Code 主题')}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            {sourceState.status === 'ready' && (
+              <Badge>{formatTemplateSourceEncoding(sourceState.value.encoding)}</Badge>
+            )}
+            {sourceIsDirty && <Badge tone="warning">{t('未保存')}</Badge>}
+            {isEditingSource ? (
+              <>
+                <Button
+                  disabled={!sourceIsDirty || isSourceEditBusy}
+                  onClick={() => void previewSourceEdit()}
+                  size="compact"
+                  type="button"
+                  variant="outline"
+                >
+                  <Save aria-hidden="true" className="size-3.5" />
+                  {t('查看 Diff')}
+                </Button>
+                <Button
+                  disabled={isSourceEditBusy}
+                  onClick={requestCancelSourceEdit}
+                  size="compact"
+                  type="button"
+                  variant="ghost"
+                >
+                  <X aria-hidden="true" className="size-3.5" />
+                  {t('取消编辑')}
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button
+                  disabled={sourceState.status !== 'ready'}
+                  onClick={beginSourceEdit}
+                  size="compact"
+                  type="button"
+                  variant="outline"
+                >
+                  <FilePenLine aria-hidden="true" className="size-3.5" />
+                  {t('编辑代码')}
+                </Button>
+                <Button
+                  aria-label={t('重新读取源码')}
+                  onClick={onReload}
+                  size="icon"
+                  type="button"
+                  variant="ghost"
+                >
+                  <RefreshCw aria-hidden="true" className="size-3.5" />
+                </Button>
+              </>
+            )}
+          </div>
+        </div>
+
+        {editError && (
+          <div
+            className="mb-3 rounded-xl border border-red-500/25 bg-red-500/6 px-3 py-2 text-xs text-red-700 dark:text-red-300"
+            role="alert"
+          >
+            {t(editError)}
+          </div>
+        )}
+
+        {confirmDiscardEdit && (
+          <div className="mb-3 rounded-xl border border-warning/25 bg-warning/7 p-3 text-xs">
+            <p className="font-semibold">{t('放弃未保存的源码修改？')}</p>
+            <p className="mt-1 text-muted-foreground">
+              {t('取消编辑不会写入文件，当前修改将从编辑器中移除。')}
+            </p>
+            <div className="mt-2 flex gap-2">
+              <Button onClick={finishSourceEdit} size="compact" type="button" variant="outline">
+                {t('确认放弃')}
+              </Button>
+              <Button
+                onClick={() => setConfirmDiscardEdit(false)}
+                size="compact"
+                type="button"
+                variant="ghost"
+              >
+                {t('继续编辑')}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {sourceState.status === 'loading' && (
+          <div className="min-h-0 flex-1 animate-pulse rounded-xl border border-border bg-muted/45" />
+        )}
+        {sourceState.status === 'error' && (
+          <div className="grid min-h-0 flex-1 place-items-center rounded-xl border border-red-500/20 bg-red-500/5 p-6 text-center">
+            <div>
+              <AlertCircle aria-hidden="true" className="mx-auto size-6 text-red-500" />
+              <p className="mt-3 text-sm font-medium">{t('源码读取失败')}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{t(sourceState.message)}</p>
+              <Button
+                className="mt-4"
+                onClick={onReload}
+                size="compact"
+                type="button"
+                variant="outline"
+              >
+                {t('重试')}
+              </Button>
+            </div>
+          </div>
+        )}
+        {sourceState.status === 'ready' && !isEditingSource && (
+          <CodeViewer code={sourceState.value.content} language={sourceState.value.language} />
+        )}
+        {sourceState.status === 'ready' && isEditingSource && !sourceEditPreview && (
+          <SourceCodeEditor
+            code={editedSource}
+            key={`${template.id}-${editSession}`}
+            language={sourceState.value.language}
+            onCancelRequest={requestCancelSourceEdit}
+            onChange={value => {
+              setEditedSource(value)
+              setConfirmDiscardEdit(false)
+              setEditError(null)
+            }}
+            onSaveRequest={() => void previewSourceEdit()}
+          />
+        )}
+        {sourceEditPreview && (
+          <section
+            aria-label={t('源码修改 Diff')}
+            className="min-h-[440px] rounded-xl border border-warning/25 bg-panel p-4 shadow-panel"
+          >
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-semibold">{t('确认源码修改')}</h3>
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  {t('原文件 SHA-256 已锁定；确认前文件变化会拒绝覆盖。')}
+                </p>
+              </div>
+              <Badge tone="warning">
+                {sourceEditPreview.originalSizeBytes} B → {sourceEditPreview.updatedSizeBytes} B
+              </Badge>
+            </div>
+            <div className="mt-4 grid min-h-0 gap-3 lg:grid-cols-2">
+              <div className="min-w-0 rounded-xl border border-red-500/20 bg-red-500/5">
+                <p className="border-b border-red-500/15 px-3 py-2 text-[11px] font-semibold text-red-700 dark:text-red-300">
+                  {t('修改前')} · {sourceEditPreview.diff.beforeStartLine}–
+                  {sourceEditPreview.diff.beforeEndLine}
+                </p>
+                <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words p-3 font-mono text-xs leading-5">
+                  {sourceEditPreview.diff.before || t('（无内容）')}
+                </pre>
+              </div>
+              <div className="min-w-0 rounded-xl border border-success/20 bg-success/5">
+                <p className="border-b border-success/15 px-3 py-2 text-[11px] font-semibold text-success">
+                  {t('修改后')} · {sourceEditPreview.diff.afterStartLine}–
+                  {sourceEditPreview.diff.afterEndLine}
+                </p>
+                <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words p-3 font-mono text-xs leading-5">
+                  {sourceEditPreview.diff.after || t('（无内容）')}
+                </pre>
+              </div>
+            </div>
+            <p className="mt-3 text-[11px] leading-5 text-muted-foreground">
+              {t('关闭 Diff 或取消不会写入；确认保存后将原子替换源码并重新同步索引。')}
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button
+                disabled={isSourceEditBusy}
+                onClick={() => void applySourceEdit()}
+                size="compact"
+                type="button"
+              >
+                {t('确认保存源码')}
+              </Button>
+              <Button
+                disabled={isSourceEditBusy}
+                onClick={() => setSourceEditPreview(null)}
+                size="compact"
+                type="button"
+                variant="ghost"
+              >
+                {t('返回编辑')}
+              </Button>
+            </div>
+          </section>
+        )}
+
+        <TemplateMetadataCard
+          key={template.id}
+          onCompleteWithAi={onCompleteMetadata}
+          refreshKey={metadataRefreshKey}
+          templateId={template.id}
+        />
+
+        <section className="mt-4 rounded-2xl border border-border bg-panel p-4 shadow-panel">
+          <div className="flex items-center gap-2">
+            <BookOpenText aria-hidden="true" className="size-4 text-muted-foreground" />
+            <h2 className="text-xs font-semibold">{t('关联题目')}</h2>
+            <Badge className="ml-auto">{relatedProblemTotalCount}</Badge>
+            <Button
+              disabled={isProblemBusy || problemTotalCount === 0}
+              onClick={() => {
+                relationReturnFocusRef.current = activeElementOrNull()
+                onClearProblemError()
+                setRelationDialogOpen(true)
+              }}
+              size="compact"
+              type="button"
+              variant="outline"
+            >
+              <Link2 aria-hidden="true" className="size-3.5" />
+              {t('设置关联')}
+            </Button>
+          </div>
+          {relatedProblems.length === 0 ? (
+            <p className="mt-3 text-[11px] leading-5 text-muted-foreground">
+              {t('还没有题目使用该模板。点击“设置关联”即可从题库中添加。')}
+            </p>
+          ) : (
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              {relatedProblems.map(problem => (
+                <button
+                  className="interactive-lift flex items-center gap-3 rounded-xl border border-border bg-background px-3 py-2.5 text-left outline-none hover:border-primary/25 hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-ring"
+                  key={problem.id}
+                  onClick={() => onOpenProblem(problem.id)}
+                  type="button"
+                >
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-xs font-medium">{problem.title}</span>
+                    <span className="mt-0.5 block text-[10px] text-muted-foreground">
+                      {t(relationLabels[problem.relationType])}
+                    </span>
+                  </span>
+                  <ChevronRight aria-hidden="true" className="size-3.5 text-muted-foreground" />
+                </button>
+              ))}
+            </div>
+          )}
+          {relatedProblemError && (
+            <p className="mt-3 text-[11px] text-red-600 dark:text-red-300" role="alert">
+              {t(relatedProblemError)}
+            </p>
+          )}
+          {relatedProblemsHasMore && (
+            <div className="mt-3 rounded-xl border border-border bg-muted/25 p-3">
+              <p className="text-[10px] leading-4 text-muted-foreground">
+                {t('关联题目按最近修改时间分批加载。')} {relatedProblems.length} /{' '}
+                {relatedProblemTotalCount}
+              </p>
+              <Button
+                className="mt-2"
+                disabled={isLoadingRelatedProblems}
+                onClick={onLoadMoreRelatedProblems}
+                size="compact"
+                type="button"
+                variant="outline"
+              >
+                {t('加载更多关联题目')}
+              </Button>
+            </div>
+          )}
+        </section>
+      </div>
+      <TemplateProblemRelationDialog
+        error={problemError}
+        isBusy={isProblemBusy}
+        onOpenChange={open => {
+          setRelationDialogOpen(open)
+          if (!open) onClearProblemError()
+        }}
+        onSearchProblems={onSearchProblems}
+        onSave={onUpsertProblemRelation}
+        open={relationDialogOpen}
+        returnFocusTo={relationReturnFocusRef.current}
+        template={template}
+      />
+      <TemplateRelocationDialog
+        onCompleted={onRelocated}
+        onOpenChange={setRelocationOpen}
+        open={relocationOpen}
+        template={template}
+      />
+    </section>
+  )
+}

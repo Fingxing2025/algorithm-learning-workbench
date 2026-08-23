@@ -1,0 +1,84 @@
+name: quality
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm audit --audit-level=moderate
+      - run: npm run check
+      - run: npm run build
+
+  electron-e2e:
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run rebuild:native
+      - run: npm run test:e2e
+
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            arch: arm64
+            command: release:mac:preview
+            executable: release/mac-arm64/算法学习工作台.app/Contents/MacOS/算法学习工作台
+            artifact: macos
+            platform: mac
+          - os: windows-latest
+            arch: x64
+            command: release:win:preview
+            executable: release/win-unpacked/算法学习工作台.exe
+            artifact: windows
+            platform: win
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run rebuild:native
+      - run: npm run ${{ matrix.command }}
+      - name: Portable backup export and restore round trip
+        run: node ./node_modules/@playwright/test/cli.js test tests/e2e/data-management.spec.ts
+      - name: Packaged smoke with clean and existing V2 userData
+        run: node ./node_modules/@playwright/test/cli.js test tests/e2e/packaged.spec.ts
+        env:
+          PACKAGED_APP_PATH: ${{ github.workspace }}/${{ matrix.executable }}
+      - name: Export application version
+        shell: bash
+        run: node -e "console.log('APP_VERSION=' + require('./package.json').version)" >> "$GITHUB_ENV"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: algorithm-workbench-${{ matrix.artifact }}
+          path: |
+            release/*-${{ env.APP_VERSION }}-${{ matrix.platform }}-${{ matrix.arch }}.dmg
+            release/*-${{ env.APP_VERSION }}-${{ matrix.platform }}-${{ matrix.arch }}.zip
+            release/*-${{ env.APP_VERSION }}-${{ matrix.platform }}-${{ matrix.arch }}.exe
+            release/candidates/${{ env.APP_VERSION }}-${{ matrix.platform }}-${{ matrix.arch }}-preview/**
+          if-no-files-found: error

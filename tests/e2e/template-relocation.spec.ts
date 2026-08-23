@@ -1,0 +1,238 @@
+import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
+
+import {
+  _electron as electron,
+  expect,
+  test,
+  type ElectronApplication,
+  type Page,
+} from '@playwright/test'
+
+import { dismissGettingStartedGuideIfNeeded } from './helpers/getting-started'
+
+let electronApp: ElectronApplication
+let page: Page
+let temporaryRoot: string
+let templateRoot: string
+let userDataDirectory: string
+let workspaceRoot: string
+
+async function launchApplication(options?: {
+  fileFailure?: boolean
+  historyDeleteFailureAfterMoves?: number
+}) {
+  electronApp = await electron.launch({
+    args: [resolve('.')],
+    env: {
+      ...process.env,
+      E2E_FILE_PLAN_FAILURE_STAGE: options?.fileFailure ? 'after-file-mutations' : '',
+      E2E_HISTORY_DELETE_FAIL_AFTER_MOVES: String(options?.historyDeleteFailureAfterMoves ?? ''),
+      E2E_USER_DATA_DIR: userDataDirectory,
+      NODE_ENV: 'test',
+    },
+  })
+  page = await electronApp.firstWindow()
+  await page.waitForLoadState('domcontentloaded')
+  await dismissGettingStartedGuideIfNeeded(page)
+  await electronApp.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0]?.setSize(1440, 900),
+  )
+}
+
+async function setNextDirectorySelection(directoryPath: string) {
+  await electronApp.evaluate(({ dialog }, selectedDirectory) => {
+    dialog.showOpenDialog = (async () => ({
+      canceled: false,
+      filePaths: [selectedDirectory],
+    })) as typeof dialog.showOpenDialog
+    dialog.showMessageBox = (async () => ({
+      checkboxChecked: false,
+      response: 1,
+    })) as typeof dialog.showMessageBox
+  }, directoryPath)
+}
+
+async function currentTemplate(relativePath: string) {
+  return page.evaluate(async path => {
+    const api = (
+      globalThis as unknown as {
+        desktop: {
+          workspace: {
+            getCurrent: () => Promise<{ templates: Array<{ id: string; relativePath: string }> }>
+          }
+        }
+      }
+    ).desktop
+    const workspace = await api.workspace.getCurrent()
+    return workspace.templates.find(template => template.relativePath === path) ?? null
+  }, relativePath)
+}
+
+async function fileExecutionIds() {
+  return page.evaluate(async () => {
+    const api = (
+      globalThis as unknown as {
+        desktop: {
+          templateManagement: {
+            listFileExecutions: () => Promise<Array<{ id: string }>>
+          }
+        }
+      }
+    ).desktop
+    return (await api.templateManagement.listFileExecutions()).map(execution => execution.id)
+  })
+}
+
+test.describe.configure({ mode: 'serial' })
+
+test.beforeAll(async () => {
+  temporaryRoot = await mkdtemp(join(tmpdir(), 'template-relocation-e2e-'))
+  userDataDirectory = join(temporaryRoot, 'user-data')
+  workspaceRoot = join(temporaryRoot, 'workspace')
+  templateRoot = join(workspaceRoot, 'templates')
+  await mkdir(userDataDirectory)
+  await mkdir(join(workspaceRoot, '算法'), { recursive: true })
+  await writeFile(join(workspaceRoot, '算法', 'a.cpp'), 'void stableTemplate() {}\n', 'utf8')
+  await writeFile(join(workspaceRoot, 'failure.cpp'), 'void rollbackTemplate() {}\n', 'utf8')
+  await launchApplication()
+})
+
+test.afterAll(async () => {
+  await electronApp?.close()
+  if (temporaryRoot) await rm(temporaryRoot, { force: true, recursive: true })
+})
+
+test('renames and moves a real template with a stable ID, then deletes history without undoing it', async () => {
+  await setNextDirectorySelection(workspaceRoot)
+  await page.getByRole('button', { name: '选择目录' }).click()
+  await expect(page.getByRole('heading', { level: 1, name: '模板库' })).toBeVisible()
+
+  await page.getByRole('button', { name: '题目', exact: true }).click()
+  await expect(page.getByRole('heading', { level: 1, name: '题目卡片' })).toBeVisible()
+  await page.getByRole('button', { name: '新建题目' }).click()
+  await page.getByLabel('题目标题').fill('模板移动关系验证')
+  await page.getByRole('button', { name: '创建题目' }).click()
+  await page.getByRole('button', { name: '添加关联' }).click()
+  await page.getByLabel('算法模板', { exact: true }).selectOption({ label: 'a · 算法/a.cpp' })
+  await page.getByLabel('关系类型', { exact: true }).selectOption('used')
+  await page.getByRole('button', { name: '保存关联' }).click()
+
+  const original = await currentTemplate('算法/a.cpp')
+  expect(original).not.toBeNull()
+  await page.getByRole('button', { name: '模板库', exact: true }).click()
+  await page.getByText('算法', { exact: true }).click()
+  await page.getByText('a.cpp', { exact: true }).click()
+  await page.getByRole('button', { name: '重命名或移动模板 a' }).click()
+  await page.getByLabel('新的文件名与相对路径').fill('算法/最短路/renamed.cpp')
+  await page.getByRole('button', { name: '预览变更' }).click()
+  await expect(page.getByText('重命名并移动')).toBeVisible()
+  await expect(page.getByText('1 项保持原模板 ID')).toBeVisible()
+  await page.screenshot({
+    animations: 'disabled',
+    path: resolve('output/playwright/template-relocation-preview-light-1440x900.png'),
+  })
+  await page.getByRole('button', { name: '确认重命名或移动' }).click()
+  await expect(page.getByRole('heading', { name: '重命名或移动模板' })).toHaveCount(0)
+
+  expect(await readFile(join(templateRoot, '算法', '最短路', 'renamed.cpp'), 'utf8')).toBe(
+    'void stableTemplate() {}\n',
+  )
+  await expect(readFile(join(templateRoot, '算法', 'a.cpp'), 'utf8')).rejects.toThrow()
+  const moved = await currentTemplate('算法/最短路/renamed.cpp')
+  expect(moved?.id).toBe(original?.id)
+
+  await page.getByRole('button', { name: '题目', exact: true }).click()
+  await expect(page.getByRole('button', { name: /renamed 实际使用/ })).toBeVisible()
+  await page.getByRole('button', { name: 'AI 管理', exact: true }).click()
+  await expect(page.getByText('本地手动操作')).toBeVisible()
+  const [executionId] = await fileExecutionIds()
+  expect(executionId).toBeTruthy()
+  const backupPath = join(workspaceRoot, '.awb', 'file-plan-backups', executionId!)
+  expect((await readdir(backupPath)).length).toBeGreaterThan(0)
+  await page.getByRole('button', { name: '删除计划记录 本地手动操作' }).click()
+  await expect(page.getByText(/将永久删除 1 份计划/)).toBeVisible()
+  await expect(page.getByText(/同时永久删除 1 条子执行和 1 份现存撤销备份/)).toBeVisible()
+  await page.getByRole('button', { name: '确认永久删除计划记录' }).click()
+  await expect(page.getByRole('status').filter({ hasText: '当前模板文件未修改' })).toBeVisible()
+  await expect(page.getByText('本地手动操作')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '从备份撤销' })).toHaveCount(0)
+  await expect(readdir(backupPath)).rejects.toThrow()
+
+  expect(await readFile(join(templateRoot, '算法', '最短路', 'renamed.cpp'), 'utf8')).toBe(
+    'void stableTemplate() {}\n',
+  )
+  await expect(readFile(join(templateRoot, '算法', 'a.cpp'), 'utf8')).rejects.toThrow()
+  const stillMoved = await currentTemplate('算法/最短路/renamed.cpp')
+  expect(stillMoved?.id).toBe(original?.id)
+  await page.getByRole('button', { name: '题目', exact: true }).click()
+  await expect(page.getByRole('button', { name: /renamed 实际使用/ })).toBeVisible()
+})
+
+test('rolls history cleanup and the stable file index back when mutation steps fail', async () => {
+  await page.getByRole('button', { name: '模板库', exact: true }).click()
+  await page.getByText('failure.cpp', { exact: true }).click()
+  await page.getByRole('button', { name: '重命名或移动模板 failure' }).click()
+  await page.getByLabel('新的文件名与相对路径').fill('阶段一/failure.cpp')
+  await page.getByRole('button', { name: '预览变更' }).click()
+  await page.getByRole('button', { name: '确认重命名或移动' }).click()
+  await expect(page.getByRole('heading', { name: '重命名或移动模板' })).toHaveCount(0)
+  await page.getByRole('button', { name: '重命名或移动模板 failure' }).click()
+  await page.getByLabel('新的文件名与相对路径').fill('阶段二/failure.cpp')
+  await page.getByRole('button', { name: '预览变更' }).click()
+  await page.getByRole('button', { name: '确认重命名或移动' }).click()
+  await expect(page.getByRole('heading', { name: '重命名或移动模板' })).toHaveCount(0)
+
+  await electronApp.close()
+  await launchApplication({ historyDeleteFailureAfterMoves: 1 })
+  await page.getByRole('button', { name: 'AI 管理', exact: true }).click()
+  await expect(page.getByText('本地手动操作')).toHaveCount(2)
+  const executionIds = await fileExecutionIds()
+  expect(executionIds).toHaveLength(2)
+  for (const executionId of executionIds) {
+    expect(
+      (await readdir(join(workspaceRoot, '.awb', 'file-plan-backups', executionId))).length,
+    ).toBeGreaterThan(0)
+  }
+  await page.getByRole('button', { name: '一键删除计划记录' }).click()
+  await page.getByRole('button', { name: '确认永久删除计划记录' }).click()
+  await expect(page.getByRole('alert')).toContainText('模拟历史删除暂存失败')
+  await expect(page.getByText('本地手动操作')).toHaveCount(2)
+  for (const executionId of executionIds) {
+    expect(
+      (await readdir(join(workspaceRoot, '.awb', 'file-plan-backups', executionId))).length,
+    ).toBeGreaterThan(0)
+  }
+
+  await electronApp.close()
+  await launchApplication()
+  await page.getByRole('button', { name: 'AI 管理', exact: true }).click()
+  await page.getByRole('button', { name: '一键删除计划记录' }).click()
+  await page.getByRole('button', { name: '确认永久删除计划记录' }).click()
+  await expect(page.getByText('本地手动操作')).toHaveCount(0)
+  for (const executionId of executionIds) {
+    await expect(
+      readdir(join(workspaceRoot, '.awb', 'file-plan-backups', executionId)),
+    ).rejects.toThrow()
+  }
+
+  await electronApp.close()
+  await launchApplication({ fileFailure: true })
+  await page.getByRole('button', { name: '模板库', exact: true }).click()
+  const original = await currentTemplate('阶段二/failure.cpp')
+  await page.getByText('阶段二', { exact: true }).click()
+  await page.getByText('failure.cpp', { exact: true }).click()
+  await page.getByRole('button', { name: '重命名或移动模板 failure' }).click()
+  await page.getByLabel('新的文件名与相对路径').fill('故障/failure.cpp')
+  await page.getByRole('button', { name: '预览变更' }).click()
+  await page.getByRole('button', { name: '确认重命名或移动' }).click()
+  await expect(page.getByRole('alert')).toContainText('文件计划执行失败')
+
+  expect(await readFile(join(templateRoot, '阶段二', 'failure.cpp'), 'utf8')).toBe(
+    'void rollbackTemplate() {}\n',
+  )
+  await expect(readFile(join(templateRoot, '故障', 'failure.cpp'), 'utf8')).rejects.toThrow()
+  const afterFailure = await currentTemplate('阶段二/failure.cpp')
+  expect(afterFailure?.id).toBe(original?.id)
+})
