@@ -12,6 +12,19 @@ V2 [`0.1.3 RC2 Preview`](https://github.com/Fingxing2025/algorithm-learning-work
 
 当前包不具备 macOS Developer ID/notarization 或 Windows Authenticode 签名。Windows RC2 已有真实安装使用反馈，但尚未形成完整的安装、升级、卸载和跨平台备份往返自动化证据。详见 [发布说明](docs/RELEASE.md) 和 [用户指南](docs/USER_GUIDE.md)。
 
+### macOS 命令安装（Apple Silicon）
+
+如果不想手动下载 DMG，可在终端下载、校验并运行官方安装脚本：
+
+```bash
+curl -fLO https://github.com/Fingxing2025/algorithm-learning-workbench/releases/download/v0.1.3-rc.2/install-macos-preview.sh
+curl -fLO https://github.com/Fingxing2025/algorithm-learning-workbench/releases/download/v0.1.3-rc.2/SHA256SUMS.txt
+grep 'install-macos-preview.sh$' SHA256SUMS.txt | shasum -a 256 -c -
+sh install-macos-preview.sh
+```
+
+校验通过后，脚本会下载并复核 DMG，安装到 `~/Applications`，再仅移除该已验证预览 App 的下载隔离标记；遇到已有同名 App 时会停止，不会覆盖。它不能替代 macOS 正式签名或公证。
+
 ## 已确定技术方向
 
 - Electron + React + TypeScript + Vite

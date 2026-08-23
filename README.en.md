@@ -14,6 +14,19 @@ A local-first Electron desktop workbench for building and maintaining a personal
 
 The release includes SHA-256 checksums, a CycloneDX SBOM, and an artifact-verification report. It is not signed or notarized for macOS, and it has no Windows Authenticode signature. See the release notes for the full verification scope and known limitations.
 
+### macOS command-line install
+
+Apple Silicon users who do not want to download and mount the DMG manually can download, verify, and run the official installer script:
+
+```bash
+curl -fLO https://github.com/Fingxing2025/algorithm-learning-workbench/releases/download/v0.1.3-rc.2/install-macos-preview.sh
+curl -fLO https://github.com/Fingxing2025/algorithm-learning-workbench/releases/download/v0.1.3-rc.2/SHA256SUMS.txt
+grep 'install-macos-preview.sh$' SHA256SUMS.txt | shasum -a 256 -c -
+sh install-macos-preview.sh
+```
+
+After verification, the script downloads and verifies the DMG, installs the App in `~/Applications`, and removes the download-quarantine flag from that verified preview App only. It stops instead of replacing an existing App. This does not replace macOS code signing or notarization.
+
 ## What it does
 
 - Creates self-contained, portable workspaces that keep templates, problem assets, workspace data, and backups together.
