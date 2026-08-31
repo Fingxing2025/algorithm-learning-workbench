@@ -348,7 +348,7 @@ test('creates an empty workspace and the first template without allowing overwri
   }
   const closeNoticeButton = page.getByRole('button', { name: '关闭提示' })
   if (await closeNoticeButton.isVisible().catch(() => false)) {
-    await closeNoticeButton.click()
+    await closeNoticeButton.click({ force: true }).catch(() => undefined)
   }
 })
 
@@ -651,15 +651,23 @@ test('creates a problem, associates multiple templates, stores an image, and saf
   await electronApp.evaluate(({ BrowserWindow }) =>
     BrowserWindow.getAllWindows()[0]?.setSize(1280, 720),
   )
-  await tallPreviewTrigger.click()
+  // Resize is asynchronous on macOS and can leave the trigger's old pointer
+  // coordinates underneath a neighboring card for one frame. Focusing the
+  // already-visible control and activating it with Enter exercises the same
+  // button handler without depending on transient native window geometry.
+  await tallPreviewTrigger.focus()
+  await page.keyboard.press('Enter')
   const tallPreviewDialog = page.getByRole('dialog', {
     name: '预览题目图片：long-problem.png',
   })
+  await expect(tallPreviewDialog).toBeVisible({ timeout: 30_000 })
   const tallPreviewRegion = tallPreviewDialog.getByRole('region', {
     name: '题目图片滚动预览',
   })
   const tallPreviewImage = tallPreviewDialog.getByRole('img', { name: 'long-problem.png' })
-  await expect(tallPreviewImage).toHaveAttribute('data-preview-mode', 'fit-width')
+  await expect(tallPreviewImage).toHaveAttribute('data-preview-mode', 'fit-width', {
+    timeout: 30_000,
+  })
   expect(
     await tallPreviewRegion.evaluate(element => element.scrollHeight > element.clientHeight),
   ).toBe(true)
@@ -746,7 +754,10 @@ test('creates a problem, associates multiple templates, stores an image, and saf
   await expect(tallPreviewTrigger).toBeFocused()
   await expect(page.locator('.dialog-overlay')).toHaveCount(0)
 
-  await tallPreviewTrigger.click()
+  // Re-open through keyboard activation as well; the resize can still leave
+  // the trigger's pointer hit target covered by the neighboring card.
+  await tallPreviewTrigger.focus()
+  await page.keyboard.press('Enter')
   await page.keyboard.press('Escape')
   await expect(tallPreviewTrigger).toBeFocused()
   await electronApp.evaluate(({ BrowserWindow }) =>

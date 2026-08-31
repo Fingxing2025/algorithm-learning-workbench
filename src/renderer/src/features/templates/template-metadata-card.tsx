@@ -76,7 +76,7 @@ export function TemplateMetadataCard({
 
   return (
     <section className="mt-4 rounded-xl border border-border bg-panel p-4">
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <Info className="size-4 text-muted-foreground" />
         <h2 className="text-xs font-semibold">{t('算法信息')}</h2>
         {state.metadata && <Badge className="ml-1">{t('已维护')}</Badge>}

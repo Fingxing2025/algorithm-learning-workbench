@@ -12,7 +12,7 @@
 - 用户可选生成 `.doc`。该文件使用 Word/Office 兼容的 RTF 容器（扩展名保持 `.doc`），由 Main 直接写出，不依赖 Word、LibreOffice 或其他外部程序。
 - Main 通过保存对话框取得用户目标文件，生成同目录的 `.tex`、`<名称>-resources/README.txt`，以及成功编译时的 `.pdf`。先在受控临时目录写入并检查目标冲突，再发布；目标已存在时拒绝覆盖。导出不写 SQLite 历史。
 - 模板文件只能由 Main 依据当前工作区 UUID 解析并用统一 `template-source-codec` 解码；UTF-8、UTF-8 BOM、UTF-16LE/BE BOM、GB18030/GBK 均转为 UTF-8 LaTeX。普通文本和元数据经过 LaTeX 转义；源码使用 `fancyvrb` 的 `Verbatim` 环境并处理结束标记。
-- PDF 使用已有 `highlight.js` 做 C/C++ 等常见语言的 HTML 高亮，不新增依赖；内置打印使用紧凑字号、双栏单页目录和连续模板排版。LaTeX 源码仍使用可移植的等宽 Verbatim 环境与 `ctexart`，以保证中文与特殊字符安全。
+- PDF 使用已有 `highlight.js` 做 C/C++ 等常见语言的 HTML 高亮，不新增依赖；内置打印使用紧凑字号、双栏单页树形目录（分类/子目录为父节点、模板为叶节点）和连续模板排版。LaTeX 源码仍使用可移植的等宽 Verbatim 环境与 `ctexart`，以保证中文与特殊字符安全。
 - 请求只包含当前工作区模板 UUID（去重，最多 100）、是否包含基础元数据、受控编译开关和可选取消 ID。Renderer 不接收绝对路径、源码全文、数据库路径或 API Key；结果只返回安全文件名、计数、字节数和分类状态。
 - 取消通过请求 ID 中止编译进程并清理临时目录；目标冲突、工作区/模板失效、无 TeX 和编译失败分别返回可操作提示。发布前失败不留下半份目标产物，且不产生业务写入。
 
