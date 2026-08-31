@@ -5,7 +5,7 @@
 - 结束基线：本文所在提交
 - 分支：`main`
 - 发布方式：仅本地提交，没有推送远程仓库
-- 最新测试 App：`<项目根目录>/release/mac-arm64/算法学习工作台.app`
+- 最新测试 App：`/Users/ffxx/Desktop/项目/智能算法学习助手-v2/release/mac-arm64/算法学习工作台.app`
 
 ## 本次结论
 
@@ -65,7 +65,7 @@
 继续开发“智能算法学习助手 V2”。
 
 工作目录：
-<项目根目录>
+/Users/ffxx/Desktop/项目/智能算法学习助手-v2
 
 本 Session：
 Session C：发布工程与平台验收

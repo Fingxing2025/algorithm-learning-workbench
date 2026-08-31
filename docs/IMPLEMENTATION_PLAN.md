@@ -237,4 +237,4 @@ userData packaged smoke 2/2 通过。安装器 SHA-256 为
 2. 在真实 Windows 主机验证 Session E 的大工作区滚动、取消和原位升级；macOS arm64 结果不能替代该证据。
 3. 若出现真实 Bug 或用户反馈，先建立复现证据和最小修复范围，再决定是否重开维护性工作。
 
-详细任务边界、验收条件和后续重新开启条件见 `docs/PROJECT_STATUS_AND_HANDOFF.md`。
+详细任务边界、验收条件和后续重新开启条件见 `docs/PROJECT_STATUS_AND_HANDOFF.md`。针对老师反馈整理的下一阶段可交接实施计划见 `docs/SESSION_G_PRODUCT_EVOLUTION_PLAN.md`；当前用户明确授权的执行范围仅为其中的 G1 模板导出 LaTeX/PDF，其他工作包暂缓。

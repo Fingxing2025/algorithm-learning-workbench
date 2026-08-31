@@ -1,7 +1,7 @@
 # 当前工作区备份与恢复：交接提示词
 
 ```text
-你在 <项目根目录> 中工作。
+你在 /Users/ffxx/Desktop/项目/智能算法学习助手-v2 中工作。
 
 先读取 AGENTS.md、docs/V2_PRODUCT_SPEC.md、docs/ARCHITECTURE.md、docs/QUALITY_GATES.md、docs/decisions/0026-current-workspace-data-boundary.md，并重新检查 git status 与 HEAD。保留用户未提交改动；不修改 .codex/config.toml、问题反馈.txt 或相邻旧项目；不 stage、commit、push。
 

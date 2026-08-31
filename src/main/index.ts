@@ -30,6 +30,8 @@ import { createMainWindow } from './window/create-main-window'
 import { BackgroundTaskRegistry } from './services/background-task-registry'
 import { WorkspaceStorageManager } from './services/workspace-storage'
 import { WorkspaceRuntimeManager } from './services/workspace-runtime-manager'
+import { TemplateExportService } from './services/template-export-service'
+import { registerTemplateExportIpc } from './ipc/register-template-export-ipc'
 
 let mainWindow: BrowserWindow | null = null
 let appDatabase: AppDatabase | null = null
@@ -120,6 +122,10 @@ async function bootstrap(): Promise<void> {
     dataManagementService.getFileExecutionIntegrityService(),
     workspaceStorage,
   )
+  const templateExportService = new TemplateExportService(
+    workspaceRepository,
+    templateManagementRepository,
+  )
   registerAppIpc()
   registerBackgroundTaskIpc(backgroundTaskRegistry)
   registerAiProviderIpc(aiProviderService)
@@ -140,6 +146,7 @@ async function bootstrap(): Promise<void> {
       await Promise.allSettled([aiCancellation, backgroundCancellation])
     },
   )
+  registerTemplateExportIpc(templateExportService, () => mainWindow ?? undefined)
   registerTemplateManagementIpc(
     templateManagementService,
     backgroundTaskRegistry,
@@ -184,7 +191,8 @@ app.on('before-quit', event => {
 })
 
 configureTestUserData()
-void bootstrap().catch(() => {
+void bootstrap().catch(error => {
+  console.error('[bootstrap] local data initialization failed', error)
   dialog.showErrorBox('无法启动应用', '本地数据初始化失败，请重新启动应用。')
   app.quit()
 })

@@ -1,29 +1,14 @@
 # 智能算法学习助手 V2
 
-[English](README.en.md)
-
 面向所有算法学习者的本地优先桌面工作台。用户可以从空白工作区开始建立自己的模板、题目、关联关系和多供应商 AI 配置。
 
 ## 当前状态
 
-V2 [`0.1.3 RC2 Preview`](https://github.com/Fingxing2025/algorithm-learning-workbench/releases/tag/v0.1.3-rc.2) 已公开发布。它是未签名的预发布版本，不是正式稳定版：macOS 仅支持 Apple Silicon（arm64，macOS 12+），Windows 仅支持 x64；请仅从 Release 页面下载，并先校验 `SHA256SUMS.txt`。
+V2 `0.1.3` RC1 已进入候选验证：从全新应用数据目录开始，用户可以创建可直接复制的自包含工作区，在当前工作区内管理模板、题目和多对多关系，配置五类 AI 协议及 DeepSeek/阿里云百炼快捷预设，并通过可预览、可撤销的计划整理整个模板库。
 
-与该标签对应的源码门禁已通过：49 个 Vitest 文件/377 项、8 项发布脚本测试和 59 项常规 Electron E2E。macOS arm64 与 Windows x64 产物已完成架构、版本、SHA-256、SBOM、隐私检查和全新/已有 V2 userData 的 packaged smoke 2/2。正式发布仍受 macOS 签名/公证和 Windows Authenticode 阻塞；完整风险与限制以 Release 页面为准。
+`0.1.3` RC1 源码门禁已通过：49 个 Vitest 文件/375 项、8 项发布脚本测试和 57 项常规 Electron E2E 全部通过。macOS arm64 与 Windows x64 Preview 均已在原生平台生成，架构、版本、SHA-256、SBOM、隐私检查和各平台 packaged smoke 2/2 通过。核心产品流程、当前工作区深拷贝备份恢复、五协议 AI 稳定性和大型工作区性能已闭环，公开发布仍被 macOS 签名/公证与 Windows Authenticode 阻塞。完整进度和风险见 [项目状态与交接](docs/PROJECT_STATUS_AND_HANDOFF.md)。
 
-当前包不具备 macOS Developer ID/notarization 或 Windows Authenticode 签名。Windows RC2 已有真实安装使用反馈，但尚未形成完整的安装、升级、卸载和跨平台备份往返自动化证据。详见 [发布说明](docs/RELEASE.md) 和 [用户指南](docs/USER_GUIDE.md)。
-
-### macOS 命令安装（Apple Silicon）
-
-如果不想手动下载 DMG，可在终端下载、校验并运行官方安装脚本：
-
-```bash
-curl -fLO https://github.com/Fingxing2025/algorithm-learning-workbench/releases/download/v0.1.3-rc.2/install-macos-preview.sh
-curl -fLO https://github.com/Fingxing2025/algorithm-learning-workbench/releases/download/v0.1.3-rc.2/SHA256SUMS.txt
-grep 'install-macos-preview.sh$' SHA256SUMS.txt | shasum -a 256 -c -
-sh install-macos-preview.sh
-```
-
-校验通过后，脚本会下载并复核 DMG，安装到 `~/Applications`，再仅移除该已验证预览 App 的下载隔离标记；遇到已有同名 App 时会停止，不会覆盖。它不能替代 macOS 正式签名或公证。
+macOS arm64 与 Windows x64 已建立可重复候选流程：精确选择当前版本产物，生成 SHA-256、CycloneDX SBOM、构建元数据、隐私报告和发布说明草稿。当前没有 Developer ID/notarization 凭据，macOS 只能作为开发预览；Windows `0.1.3` RC1 安装器已生成并通过 CI 打包态验证，但未签名，且尚未产生该候选的真实安装/升级/卸载与跨平台备份往返证据。详见 [发布说明](docs/RELEASE.md) 和 [用户指南](docs/USER_GUIDE.md)。
 
 ## 已确定技术方向
 

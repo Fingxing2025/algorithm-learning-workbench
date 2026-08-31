@@ -44,7 +44,7 @@
 
 ### Session D 视觉证据
 
-- 最终目录：`<项目根目录>/output/playwright/session-d-final/`。
+- 最终目录：`/Users/ffxx/Desktop/项目/智能算法学习助手-v2/output/playwright/session-d-final/`。
 - 四页面矩阵：模板库、题目、AI 管理和数据管理各覆盖 1440×900、1280×720、1024×640 的亮暗主题，以及 200% 亮暗关键状态，共 32 张。
 - 附加证据：`dashboard-light-reduced-motion-1280x720.png`、`templates-light-focus-separator-1024x640.png` 和四张 `_contact-*.png` 人工联系图。
 - 人工复核结论：常用与紧凑尺寸无 document 横向溢出；长题目、16 个长标签、长路径和 C++ 徽标保持可读；AI 页头三操作和数据管理诊断在 1024×640 可达；亮暗主题信息层级一致。

@@ -54,6 +54,8 @@ export const IPC_CHANNELS = {
     performAction: 'templates:perform-action',
     previewSourceEdit: 'templates:preview-source-edit',
     readSource: 'templates:read-source',
+    export: 'templates:export',
+    cancelExport: 'templates:cancel-export',
   },
   templateManagement: {
     applyExistingMetadataCompletion: 'template-management:apply-existing-metadata-completion',

@@ -6,8 +6,8 @@
 - 结束基线：本文所在提交
 - 分支：`main`
 - 发布方式：仅本地提交，没有推送远程仓库
-- 最终测试 App：`<项目根目录>/release/mac-arm64/算法学习工作台.app`
-- 候选证据：`<项目根目录>/release/candidates/0.1.2-mac-arm64-preview/`
+- 最终测试 App：`/Users/ffxx/Desktop/项目/智能算法学习助手-v2/release/mac-arm64/算法学习工作台.app`
+- 候选证据：`/Users/ffxx/Desktop/项目/智能算法学习助手-v2/release/candidates/0.1.2-mac-arm64-preview/`
 
 ## 本次结论
 
@@ -81,7 +81,7 @@ Playwright skill 影响了本次验收方式：仓库已经标准化 Electron `@
 继续开发“智能算法学习助手 V2”。
 
 工作目录：
-<项目根目录>
+/Users/ffxx/Desktop/项目/智能算法学习助手-v2
 
 本 Session：
 Session D：UX、可访问性与窗口适配

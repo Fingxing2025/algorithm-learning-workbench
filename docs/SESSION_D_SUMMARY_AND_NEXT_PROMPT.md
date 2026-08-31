@@ -179,7 +179,7 @@ Session D 新增/加强证据：
 
 绝对目录：
 
-`<项目根目录>/output/playwright/session-d-final/`
+`/Users/ffxx/Desktop/项目/智能算法学习助手-v2/output/playwright/session-d-final/`
 
 原始矩阵：
 
@@ -196,15 +196,15 @@ Session D 新增/加强证据：
 - `_contact-problems.png`
 - `_contact-ai-management.png`
 - `_contact-data-management.png`
-- `<项目根目录>/output/playwright/problem-image-long-preview-1280x720.png`
-- `<项目根目录>/output/playwright/problem-ai-busy-close-1440x900.png`
-- `<项目根目录>/output/playwright/problem-card-detail-scroll-1024x640.png`
-- `<项目根目录>/output/playwright/problem-editor-scroll-and-close-1024x640.png`
-- `<项目根目录>/output/playwright/problem-image-long-preview-fit-window-1280x720.png`
-- `<项目根目录>/output/playwright/problem-image-long-preview-fit-window-200-percent.png`
-- `<项目根目录>/output/playwright/file-execution-delete-confirm-light-1440x900.png`
-- `<项目根目录>/output/playwright/file-execution-delete-confirm-dark-1440x900.png`
-- `<项目根目录>/output/playwright/file-execution-delete-data-sync-light-1440x900.png`
+- `/Users/ffxx/Desktop/项目/智能算法学习助手-v2/output/playwright/problem-image-long-preview-1280x720.png`
+- `/Users/ffxx/Desktop/项目/智能算法学习助手-v2/output/playwright/problem-ai-busy-close-1440x900.png`
+- `/Users/ffxx/Desktop/项目/智能算法学习助手-v2/output/playwright/problem-card-detail-scroll-1024x640.png`
+- `/Users/ffxx/Desktop/项目/智能算法学习助手-v2/output/playwright/problem-editor-scroll-and-close-1024x640.png`
+- `/Users/ffxx/Desktop/项目/智能算法学习助手-v2/output/playwright/problem-image-long-preview-fit-window-1280x720.png`
+- `/Users/ffxx/Desktop/项目/智能算法学习助手-v2/output/playwright/problem-image-long-preview-fit-window-200-percent.png`
+- `/Users/ffxx/Desktop/项目/智能算法学习助手-v2/output/playwright/file-execution-delete-confirm-light-1440x900.png`
+- `/Users/ffxx/Desktop/项目/智能算法学习助手-v2/output/playwright/file-execution-delete-confirm-dark-1440x900.png`
+- `/Users/ffxx/Desktop/项目/智能算法学习助手-v2/output/playwright/file-execution-delete-data-sync-light-1440x900.png`
 
 人工结论：
 
@@ -251,7 +251,7 @@ Session D 新增/加强证据：
 继续开发“智能算法学习助手 V2”。
 
 工作目录：
-<项目根目录>
+/Users/ffxx/Desktop/项目/智能算法学习助手-v2
 
 本 Session：
 Session E：性能与大型工作区

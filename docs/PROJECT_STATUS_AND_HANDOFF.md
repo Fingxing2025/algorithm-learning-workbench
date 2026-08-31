@@ -229,7 +229,7 @@ Session D 新增事实：
 - Electron 最小窗口恢复为真实 1024×640；200% 缩放时导航变为 72 px 图标栏，六个入口仍保留。长工作区名、长路径、长题目、600–900 字符连续题面和 16 个长标签均有自动化证据。
 - ResizableLayout 面板和模板树被约束到容器高度，大型虚拟树和题目列表在各自区域内部滚动，不再撑高或滚动整个工作区。
 - 本 Session 没有新增数据库字段、migration、IPC、系统权限或 ADR；Main/Preload/Renderer 安全边界和 Session C 发布脚本保持不变。
-- 最终截图目录为 `<项目根目录>/output/playwright/session-d-final/`，覆盖模板库、题目、AI 管理、数据管理的 1440×900、1280×720、1024×640、亮暗主题与 200% 关键状态，并包含减少动效和可见分隔条焦点证据。
+- 最终截图目录为 `/Users/ffxx/Desktop/项目/智能算法学习助手-v2/output/playwright/session-d-final/`，覆盖模板库、题目、AI 管理、数据管理的 1440×900、1280×720、1024×640、亮暗主题与 200% 关键状态，并包含减少动效和可见分隔条焦点证据。
 
 Session D 后续修复（基线 `8071970`）：
 
@@ -246,7 +246,7 @@ Session D 后续修复（基线 `8071970`）：
 - Electron E2E 使用 600×4000 PNG 覆盖按宽度滚动、整图、200% 与焦点回归，并覆盖未撤销拒绝、混合批次拒绝、确认焦点、用户文件不变和数据管理计数 1→0。
 - Electron E2E 另使用 36 道题和长题面验证列表/详情/编辑器的滚轮及滚动条拖动；截图为 `problem-card-detail-scroll-1024x640.png` 与 `problem-editor-scroll-and-close-1024x640.png`。
 - 题目 AI E2E 使用受控慢响应验证空闲预览 `X`、Escape 与生成中 `X`；关闭后触发器回焦、连接关闭且题目零写入。截图为 `problem-ai-busy-close-1440x900.png`。
-- 截图位于 `<项目根目录>/output/playwright/`，其余文件名以 `problem-image-long-preview-` 和 `file-execution-delete-` 开头。
+- 截图位于 `/Users/ffxx/Desktop/项目/智能算法学习助手-v2/output/playwright/`，其余文件名以 `problem-image-long-preview-` 和 `file-execution-delete-` 开头。
 
 当前 macOS arm64 目录包已从源码提交 `4c13dc8` 使用 `package:dir` 重新生成，位于 `release/mac-arm64/算法学习工作台.app`；该后续修复把代码专注模式通过 portal 挂到 `document.body`，避免工作台面板分隔条覆盖代码或截获点击，并保持 Esc 与触发按钮焦点回归。全新/已有 V2 userData 的 packaged smoke 2 项通过；常规 Electron E2E 还会在原分隔条坐标验证命中目标属于全屏代码视图。`release/candidates/0.1.2-mac-arm64-preview/` 仍是 Session C 历史候选证据，没有被本轮复用或重写。`release/` 已被 Git 忽略，目录包不属于源码提交；该 App 未正式签名或公证，只能用于本机预览与验收。
 

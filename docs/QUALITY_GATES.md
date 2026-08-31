@@ -51,7 +51,7 @@
 - `tests/e2e/template-intake.spec.ts` 额外要求新建模板卡片和遮罩计算为 `-webkit-app-region: no-drag`，并分别在刚打开、切换“补全语言”后从 `X` 图标中心关闭。定向 packaged 回归覆盖同一契约；真实 macOS 鼠标验收必须使用隔离 bundle ID，避免同名旧进程造成误判。
 - `tests/e2e/problem-analysis.spec.ts` 7 项通过：AI 发送预览空闲时点击 `X`、按 Escape，以及生成中点击 `X` 均退出整张题目卡片；题目主 `X` 与预览 `X` 在忙碌状态均断言为 enabled，生成中退出会关闭本地 mock 连接且零题目写入，“取消生成”仍保留草稿。
 - `tests/e2e/file-management.spec.ts` 另验证未撤销执行不可删除、混合批次整批拒绝、单条/批量确认焦点，以及删除后数据管理执行记录计数从 1 同步为 0。
-- 最终截图目录：`<项目根目录>/output/playwright/session-d-final/`。
+- 最终截图目录：`/Users/ffxx/Desktop/项目/智能算法学习助手-v2/output/playwright/session-d-final/`。
 - 必须人工复核四页面 1440×900、1280×720、1024×640 的亮暗主题以及 200% 关键状态；联系图只能辅助浏览，不能替代原始截图。
 - 当前屏幕阅读器限制：已有语义树、accessible name、键盘和 live region 自动化；macOS VoiceOver 长流程真人审计、Windows Narrator 与高对比模式仍未完成，不能宣称跨平台辅助技术完全通过。
 

@@ -522,6 +522,51 @@ Object.assign(english, {
   包含模板源码副本: 'Include template source copies',
   '（完整便携备份，推荐）': '(complete portable backup, recommended)',
   导出备份: 'Export backup',
+  未分类: 'Uncategorized',
+  '模板导出失败，请重试。': 'Template export failed. Try again.',
+  导出算法模板册: 'Export algorithm template book',
+  导出模板册: 'Export template book',
+  '选择单份、多份或分类；Main 将按稳定路径顺序生成 LaTeX。':
+    'Choose one, many, or a category. Main generates LaTeX in stable path order.',
+  关闭导出: 'Close export',
+  '当前工作区没有可导出的模板。': 'There are no exportable templates in the current workspace.',
+  取消分类: 'Clear category',
+  选择分类: 'Select category',
+  份模板: 'templates',
+  '按分类、相对路径和模板 ID 稳定排序':
+    'Sorted deterministically by category, relative path, and template ID',
+  '预计文件名：算法模板册.tex': 'Expected filename: 算法模板册.tex',
+  '代码 + 基础元数据（名称、复杂度、解决的问题、输入输出格式、标签）':
+    'Code + base metadata (name, complexity, solved problem, I/O format, tags)',
+  '同时生成 PDF（内置引擎，无需安装 TeX）': 'Generate PDF (built-in engine; TeX is not required)',
+  '同时生成 Word 文档（.doc）': 'Generate Word document (.doc)',
+  'PDF 已生成': 'PDF generated',
+  'PDF 未验证': 'PDF not verified',
+  'Word 文档已生成': 'Word document generated',
+  '本机 TeX 编译不可用，已使用内置 PDF 引擎生成 PDF。':
+    'The local TeX compiler was unavailable; the built-in PDF engine generated the PDF.',
+  '已使用内置 PDF 引擎生成 PDF，无需安装 TeX。':
+    'The built-in PDF engine generated the PDF; TeX is not required.',
+  '已使用内置 PDF 引擎生成紧凑高亮 PDF，无需安装 TeX。':
+    'The built-in PDF engine generated a compact, highlighted PDF; TeX is not required.',
+  'PDF 生成失败；请重试并检查应用权限。': 'PDF generation failed. Retry and check app permissions.',
+  'LaTeX 已生成，但 PDF 生成失败；请重试并检查应用权限。':
+    'LaTeX was generated, but PDF generation failed. Retry and check app permissions.',
+  '已生成 LaTeX 文档。': 'LaTeX document generated.',
+  'LaTeX 与 PDF 均已生成。': 'LaTeX and PDF generated.',
+  'Word 文档生成失败，请重试。': 'Word document generation failed. Try again.',
+  '不会修改模板源码、数据库或其他工作区。':
+    'Template sources, database, and other workspaces are not modified.',
+  取消导出: 'Cancel export',
+  关闭: 'Close',
+  选择位置并导出: 'Choose location and export',
+  '导出已取消，未写入完整产物。': 'Export cancelled; no incomplete artifact was written.',
+  '所选模板不存在或已不可用，请刷新后重试。':
+    'A selected template is missing or unavailable. Refresh and try again.',
+  '模板源码无法按受支持的 UTF-8、UTF-16 或中文编码读取，请检查文件后重试。':
+    'The template source could not be decoded as supported UTF-8, UTF-16, or Chinese encodings. Check the file and try again.',
+  '导出文件发布失败，未覆盖已有文件；请重试。':
+    'Export files could not be published and existing files were not overwritten. Try again.',
   验证备份包: 'Verify backup',
   恢复预览: 'Restore preview',
   '备份已导出并通过校验。': 'Backup exported and verified.',

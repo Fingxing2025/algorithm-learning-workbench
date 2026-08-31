@@ -293,6 +293,7 @@ export function AppWorkspaceRoute({
 
   return (
     <Dashboard
+      onChangeWorkspace={() => void handleChooseWorkspace({ intent: 'open' })}
       onCreateTemplate={openCreateDialog}
       onOpenAi={() => onNavigate('ai')}
       onOpenProblem={openProblem}

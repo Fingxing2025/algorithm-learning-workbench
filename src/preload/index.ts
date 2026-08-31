@@ -88,6 +88,10 @@ const desktopApi: DesktopApi = {
     },
     previewSourceEdit: request => invokeResult(IPC_CHANNELS.templates.previewSourceEdit, request),
     readSource: templateId => invokeResult(IPC_CHANNELS.templates.readSource, { templateId }),
+    export: request => invokeResult(IPC_CHANNELS.templates.export, request),
+    cancelExport: async request => {
+      await invokeResult<null>(IPC_CHANNELS.templates.cancelExport, request)
+    },
   },
   templateManagement: {
     applyExistingMetadataCompletion: request =>

@@ -145,6 +145,7 @@ tests/
 - `docs/decisions/0029-budgeted-batched-ai-requests.md`
 - `docs/decisions/0030-self-contained-workspace-folder.md`
 - `docs/decisions/0031-single-current-workspace-format.md`
+- `docs/decisions/0033-template-export-format-and-build.md`
 
 ## Session E 大型工作区架构
 
