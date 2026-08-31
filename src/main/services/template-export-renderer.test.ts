@@ -95,4 +95,32 @@ describe('template export renderer', () => {
     expect(doc).toContain('\\u20013?')
     expect(doc).not.toContain('private note')
   })
+
+  it('renders the PDF table of contents as a nested category tree', () => {
+    const html = renderTemplateExportHtml(
+      [
+        {
+          source: 'int root() {}',
+          template: template('e'.repeat(64), '图论/最短路/dijkstra.cpp', 'Dijkstra'),
+        },
+        {
+          source: 'int flat() {}',
+          template: template('f'.repeat(64), '图论/并查集.cpp', '并查集'),
+        },
+        {
+          source: 'int uncategorized() {}',
+          template: template('g'.repeat(64), '孤立.cpp', '孤立模板'),
+        },
+      ],
+      false,
+    )
+
+    expect(html).toContain('<ol class="toc-tree">')
+    expect(html).toContain('<li class="toc-branch"><div class="toc-category">')
+    expect(html).toContain('<ol class="toc-children">')
+    expect(html).toContain('最短路')
+    expect(html).toContain('toc-leaf-marker')
+    expect(html.indexOf('并查集')).toBeLessThan(html.indexOf('Dijkstra'))
+    expect(html.indexOf('Dijkstra')).toBeLessThan(html.indexOf('孤立模板'))
+  })
 })

@@ -159,21 +159,53 @@ function highlightSource(source: string, language: string): string {
   }
 }
 
+interface TemplateExportTocNode {
+  children: Map<string, TemplateExportTocNode>
+  templates: Array<{ index: number; name: string }>
+}
+
+function categorySegmentsFor(template: TemplateSummary): string[] {
+  const parts = template.relativePath.split('/').filter(Boolean)
+  return parts.length > 1 ? parts.slice(0, -1) : ['未分类']
+}
+
+function renderTemplateExportTocNode(name: string, node: TemplateExportTocNode): string {
+  const leaves = node.templates
+    .map(
+      item =>
+        `<li class="toc-leaf"><span aria-hidden="true" class="toc-leaf-marker">└─</span><span>${item.index}. ${escapeHtml(item.name)}</span></li>`,
+    )
+    .join('')
+  const branches = [...node.children.entries()]
+    .sort(([left], [right]) => compareText(left, right))
+    .map(([childName, child]) => renderTemplateExportTocNode(childName, child))
+    .join('')
+  return `<li class="toc-branch"><div class="toc-category"><span aria-hidden="true" class="toc-branch-marker">▾</span><span>${escapeHtml(name)}</span></div><ol class="toc-children">${leaves}${branches}</ol></li>`
+}
+
+function renderTemplateExportToc(documents: TemplateExportDocument[]): string {
+  const root: TemplateExportTocNode = { children: new Map(), templates: [] }
+  for (const [index, document] of documents.entries()) {
+    let node = root
+    for (const segment of categorySegmentsFor(document.template)) {
+      const child = node.children.get(segment) ?? { children: new Map(), templates: [] }
+      node.children.set(segment, child)
+      node = child
+    }
+    node.templates.push({ index: index + 1, name: document.template.name })
+  }
+  return [...root.children.entries()]
+    .sort(([left], [right]) => compareText(left, right))
+    .map(([name, node]) => renderTemplateExportTocNode(name, node))
+    .join('')
+}
+
 export function renderTemplateExportHtml(
   documents: TemplateExportDocument[],
   includeMetadata: boolean,
 ): string {
   const ordered = orderTemplateExportDocuments(documents)
-  const toc: string[] = []
-  let tocCategory = ''
-  for (const [index, document] of ordered.entries()) {
-    const category = templateExportCategory(document.template)
-    if (category !== tocCategory) {
-      tocCategory = category
-      toc.push(`<li class="toc-category">${escapeHtml(category)}</li>`)
-    }
-    toc.push(`<li><span>${index + 1}. ${escapeHtml(document.template.name)}</span></li>`)
-  }
+  const toc = renderTemplateExportToc(ordered)
   const sections: string[] = []
   let currentCategory = ''
   for (const document of ordered) {
@@ -195,8 +227,8 @@ export function renderTemplateExportHtml(
     )
   }
   return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>算法模板册</title><style>
-@page{size:A4;margin:12mm 12mm}*{box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;color:#17191c;font-size:9pt;line-height:1.28;margin:0}.toc{height:calc(100vh - 24mm);page-break-after:always}.toc h1{font-size:16pt;margin:0 0 4mm;border-bottom:1px solid #aeb4bd;padding-bottom:2mm}.toc-list{columns:2;column-gap:10mm;margin:0;padding:0;list-style:none;font-size:8pt;line-height:1.3}.toc-list li{break-inside:avoid;margin:0 0 1mm}.toc-list .toc-category{font-size:9pt;font-weight:700;color:#1d4ed8;margin-top:2mm}.category{font-size:13pt;border-bottom:1px solid #c7ccd4;padding-bottom:1.5mm;margin:0 0 3mm;page-break-after:avoid}h2{font-size:10.5pt;margin:0 0 1.5mm;line-height:1.2}article{break-inside:avoid;margin:0 0 4mm}dl{display:grid;grid-template-columns:max-content 1fr;gap:.5mm 2.5mm;margin:0 0 2mm;font-size:7.5pt;line-height:1.2}dt{font-weight:700}dd{margin:0;white-space:pre-wrap}pre{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:7.1pt;line-height:1.17;white-space:pre-wrap;overflow-wrap:anywhere;background:#f6f8fa;border:1px solid #d5d9df;border-radius:1.2mm;padding:2mm;margin:0;color:#24292f}pre code{font-family:inherit}.hljs-comment,.hljs-quote{color:#6a737d}.hljs-keyword,.hljs-selector-tag,.hljs-built_in{color:#cf222e}.hljs-title,.hljs-title.function_,.hljs-type{color:#8250df}.hljs-string,.hljs-attr,.hljs-literal{color:#0a3069}.hljs-number{color:#0550ae}.hljs-meta{color:#953800}
-</style></head><body><section class="toc"><h1>目录</h1><ol class="toc-list">${toc.join('')}</ol></section>${sections.join('')}</body></html>`
+@page{size:A4;margin:12mm 12mm}*{box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;color:#17191c;font-size:9pt;line-height:1.28;margin:0}.toc{height:calc(100vh - 24mm);page-break-after:always}.toc h1{font-size:16pt;margin:0 0 4mm;border-bottom:1px solid #aeb4bd;padding-bottom:2mm}.toc-tree{columns:2;column-gap:10mm;margin:0;padding:0;list-style:none;font-size:8pt;line-height:1.3}.toc-branch{break-inside:avoid;margin:0 0 1.2mm}.toc-category{display:flex;align-items:baseline;gap:1mm;font-size:9pt;font-weight:700;color:#1d4ed8}.toc-branch-marker{font-size:7pt;color:#6b7280}.toc-children{list-style:none;margin:0 0 0 2mm;padding:0 0 0 3mm;border-left:.35mm solid #d5d9df}.toc-leaf{display:flex;gap:1mm;break-inside:avoid;margin:0 0 .7mm}.toc-leaf-marker{color:#9ca3af}.category{font-size:13pt;border-bottom:1px solid #c7ccd4;padding-bottom:1.5mm;margin:0 0 3mm;page-break-after:avoid}h2{font-size:10.5pt;margin:0 0 1.5mm;line-height:1.2}article{break-inside:avoid;margin:0 0 4mm}dl{display:grid;grid-template-columns:max-content 1fr;gap:.5mm 2.5mm;margin:0 0 2mm;font-size:7.5pt;line-height:1.2}dt{font-weight:700}dd{margin:0;white-space:pre-wrap}pre{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:7.1pt;line-height:1.17;white-space:pre-wrap;overflow-wrap:anywhere;background:#f6f8fa;border:1px solid #d5d9df;border-radius:1.2mm;padding:2mm;margin:0;color:#24292f}pre code{font-family:inherit}.hljs-comment,.hljs-quote{color:#6a737d}.hljs-keyword,.hljs-selector-tag,.hljs-built_in{color:#cf222e}.hljs-title,.hljs-title.function_,.hljs-type{color:#8250df}.hljs-string,.hljs-attr,.hljs-literal{color:#0a3069}.hljs-number{color:#0550ae}.hljs-meta{color:#953800}
+</style></head><body><section class="toc"><h1>目录</h1><ol class="toc-tree">${toc}</ol></section>${sections.join('')}</body></html>`
 }
 
 function escapeRtf(value: string): string {
