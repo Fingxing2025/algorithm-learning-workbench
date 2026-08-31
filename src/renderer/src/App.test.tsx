@@ -352,6 +352,24 @@ describe('App', () => {
     ).toBeInTheDocument()
   })
 
+  it('switches workspace from the dashboard hero actions', async () => {
+    installDesktopMock(workspaceFixture)
+    const chooseWorkspace = vi.mocked(window.desktop.workspace.choose)
+    chooseWorkspace.mockResolvedValue(workspaceFixture)
+    const user = userEvent.setup()
+    render(<App />)
+
+    await screen.findByRole('heading', { level: 1, name: '工作台' })
+    await user.click(screen.getByRole('button', { name: '模板库' }))
+    await screen.findByRole('heading', { level: 1, name: '模板库' })
+    await user.click(screen.getByRole('button', { name: '工作台' }))
+    await screen.findByRole('heading', { level: 1, name: '工作台' })
+    await user.click(screen.getByRole('button', { name: '切换工作区' }))
+
+    expect(chooseWorkspace).toHaveBeenCalledWith({ intent: 'open' })
+    expect(await screen.findByRole('heading', { level: 1, name: '工作台' })).toBeInTheDocument()
+  })
+
   it('switches the complete interface to English and restores the saved locale', async () => {
     installDesktopMock(workspaceFixture, [problemFixture])
     const user = userEvent.setup()

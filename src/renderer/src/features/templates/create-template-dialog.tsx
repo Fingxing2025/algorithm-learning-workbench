@@ -484,7 +484,7 @@ export function CreateTemplateDialog({
                         }}
                         size="compact"
                         type="button"
-                        variant="ghost"
+                        variant="outline"
                       >
                         <FilePlus2 className="size-3.5" />
                         {t('批量导入 C++')}

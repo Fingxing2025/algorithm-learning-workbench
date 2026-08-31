@@ -128,12 +128,17 @@ function AppContent() {
   }, [notice])
 
   const handleChooseWorkspace = async (request: ChooseWorkspaceRequest) => {
+    // Keep the page that initiated an in-session workspace switch. First-run
+    // onboarding still opens the template library so the user can add the
+    // first template immediately; switches started from other pages preserve
+    // the existing template-library destination.
+    const returnToDashboard = currentView === 'dashboard' && workspace?.available === true
     const value = await chooseWorkspace(request)
     if (value) {
       setSelectedProblemId(null)
       setSelectedTemplateId(null)
       if (workspace?.id === value.id) await problemState.search('')
-      setCurrentView('templates')
+      setCurrentView(returnToDashboard ? 'dashboard' : 'templates')
       setNotice(t('已连接工作区“{name}”', { name: value.name }))
     }
   }

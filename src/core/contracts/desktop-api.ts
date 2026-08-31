@@ -115,6 +115,11 @@ import type {
   TemplateSourceEditPreview,
   WorkspaceSnapshot,
 } from './workspace'
+import type {
+  CancelTemplateExportRequest,
+  TemplateExportRequest,
+  TemplateExportResult,
+} from './template-export'
 
 export interface DesktopApi {
   backgroundTasks: {
@@ -180,6 +185,8 @@ export interface DesktopApi {
       request: PreviewTemplateSourceEditRequest,
     ) => Promise<TemplateSourceEditPreview>
     readSource: (templateId: string) => Promise<TemplateSource>
+    export: (request: TemplateExportRequest) => Promise<TemplateExportResult | null>
+    cancelExport: (request: CancelTemplateExportRequest) => Promise<void>
   }
   templateManagement: {
     applyExistingMetadataCompletion: (

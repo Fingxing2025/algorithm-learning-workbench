@@ -1,4 +1,13 @@
-import { FileCode2, FolderOpen, LoaderCircle, Plus, RefreshCw, Sparkles, X } from 'lucide-react'
+import {
+  Download,
+  FileCode2,
+  FolderOpen,
+  LoaderCircle,
+  Plus,
+  RefreshCw,
+  Sparkles,
+  X,
+} from 'lucide-react'
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 
 import type {
@@ -27,6 +36,7 @@ import { cn } from '@/lib/utils'
 
 import { TemplateTree } from './template-tree'
 import { TemplateMetadataCompletionDialog } from './template-metadata-completion-dialog'
+import { TemplateExportDialog } from './template-export-dialog'
 import { useTemplateSource } from './use-template-source'
 
 const AlgorithmCard = lazy(async () => {
@@ -102,6 +112,8 @@ export function TemplateLibrary({
     initialTemplate: TemplateSummary | null
     returnFocusTo: HTMLElement | null
   } | null>(null)
+  const [exportOpen, setExportOpen] = useState(false)
+  const exportReturnFocusRef = useRef<HTMLElement | null>(null)
   const [metadataRefreshKey, setMetadataRefreshKey] = useState(0)
   relatedTemplateIdRef.current = selectedTemplate?.id ?? null
 
@@ -183,6 +195,19 @@ export function TemplateLibrary({
           >
             <FolderOpen aria-hidden="true" className="size-3.5" />
             {t('切换工作区')}
+          </Button>
+          <Button
+            disabled={isBusy}
+            onClick={() => {
+              exportReturnFocusRef.current = activeElementOrNull()
+              setExportOpen(true)
+            }}
+            size="compact"
+            type="button"
+            variant="subtle"
+          >
+            <Download aria-hidden="true" className="size-3.5" />
+            {t('导出模板册')}
           </Button>
           {scanTask && ['queued', 'running', 'cancelling'].includes(scanTask.state) && (
             <Button onClick={onCancelRescan} size="compact" type="button" variant="outline">
@@ -301,6 +326,12 @@ export function TemplateLibrary({
           returnFocusTo={metadataCompletion.returnFocusTo}
         />
       )}
+      <TemplateExportDialog
+        onOpenChange={setExportOpen}
+        open={exportOpen}
+        returnFocusTo={exportReturnFocusRef.current}
+        templates={workspace.templates}
+      />
     </main>
   )
 }

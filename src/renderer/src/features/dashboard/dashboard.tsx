@@ -86,6 +86,7 @@ function SummaryCard({
 
 export function Dashboard({
   onCreateTemplate,
+  onChangeWorkspace,
   onOpenAi,
   onOpenProblem,
   onOpenProblems,
@@ -97,6 +98,7 @@ export function Dashboard({
   totalRelationCount,
   workspace,
 }: {
+  onChangeWorkspace: () => void
   onCreateTemplate: () => void
   onOpenAi: () => void
   onOpenProblem: (problemId: string) => void
@@ -183,6 +185,16 @@ export function Dashboard({
                 >
                   <FolderOpen aria-hidden="true" className="size-3.5" />
                   {t('浏览模板库')}
+                </Button>
+                <Button
+                  className="dashboard-hero-action"
+                  onClick={onChangeWorkspace}
+                  size="compact"
+                  type="button"
+                  variant="outline"
+                >
+                  <FolderOpen aria-hidden="true" className="size-3.5" />
+                  {t('切换工作区')}
                 </Button>
                 <Button
                   className="border border-white/18 bg-white text-indigo-700 shadow-lg hover:bg-white/90"
