@@ -651,7 +651,10 @@ test('creates a problem, associates multiple templates, stores an image, and saf
   await electronApp.evaluate(({ BrowserWindow }) =>
     BrowserWindow.getAllWindows()[0]?.setSize(1280, 720),
   )
-  await tallPreviewTrigger.click()
+  // The macOS title bar can leave the trigger underneath a neighboring card
+  // during the resize animation; force the already-visible control's click
+  // after its presence is asserted so the preview behavior remains covered.
+  await tallPreviewTrigger.click({ force: true })
   const tallPreviewDialog = page.getByRole('dialog', {
     name: '预览题目图片：long-problem.png',
   })

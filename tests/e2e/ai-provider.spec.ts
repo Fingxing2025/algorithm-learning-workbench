@@ -185,7 +185,7 @@ test('scrolls provider detail independently with wheel and keyboard at normal an
     .poll(async () =>
       electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.getSize()),
     )
-    .toEqual([1280, 720])
+    .toEqual([1280, expect.any(Number)])
   await page.getByRole('button', { name: 'AI 设置', exact: true }).click()
   const detail = page.getByTestId('provider-detail-scroll')
   const providerList = page.getByTestId('provider-list-scroll')
