@@ -1,14 +1,27 @@
 # 智能算法学习助手 V2
 
+[English](README.en.md)
+
 面向所有算法学习者的本地优先桌面工作台。用户可以从空白工作区开始建立自己的模板、题目、关联关系和多供应商 AI 配置。
 
 ## 当前状态
 
-V2 `0.1.3` RC1 已进入候选验证：从全新应用数据目录开始，用户可以创建可直接复制的自包含工作区，在当前工作区内管理模板、题目和多对多关系，配置五类 AI 协议及 DeepSeek/阿里云百炼快捷预设，并通过可预览、可撤销的计划整理整个模板库。
+V2 [`0.1.3 RC3 Preview`](https://github.com/Fingxing2025/algorithm-learning-workbench/releases/tag/v0.1.3-rc.3) 已公开发布。这是 G1 模板导出预发布版本，不是稳定版：macOS 仅支持 Apple Silicon（arm64，macOS 12+），Windows 本轮未重新构建；请仅从 Release 页面下载并先校验 `SHA256SUMS.txt`。
 
-`0.1.3` RC1 源码门禁已通过：49 个 Vitest 文件/375 项、8 项发布脚本测试和 57 项常规 Electron E2E 全部通过。macOS arm64 与 Windows x64 Preview 均已在原生平台生成，架构、版本、SHA-256、SBOM、隐私检查和各平台 packaged smoke 2/2 通过。核心产品流程、当前工作区深拷贝备份恢复、五协议 AI 稳定性和大型工作区性能已闭环，公开发布仍被 macOS 签名/公证与 Windows Authenticode 阻塞。完整进度和风险见 [项目状态与交接](docs/PROJECT_STATUS_AND_HANDOFF.md)。
+本次新增从当前工作区选择模板并导出 `.tex`、紧凑目录/高亮 PDF 和可选 `.doc` 的完整桌面流程。PDF 优先使用 Electron 内置打印引擎，不要求本机安装 TeX；`.doc` 是 RTF 兼容容器。源码门禁、真实 Electron E2E、macOS arm64 制品和隐私扫描结果见 Release 页面。
 
-macOS arm64 与 Windows x64 已建立可重复候选流程：精确选择当前版本产物，生成 SHA-256、CycloneDX SBOM、构建元数据、隐私报告和发布说明草稿。当前没有 Developer ID/notarization 凭据，macOS 只能作为开发预览；Windows `0.1.3` RC1 安装器已生成并通过 CI 打包态验证，但未签名，且尚未产生该候选的真实安装/升级/卸载与跨平台备份往返证据。详见 [发布说明](docs/RELEASE.md) 和 [用户指南](docs/USER_GUIDE.md)。
+当前包未使用 macOS Developer ID/notarization 或 Windows Authenticode 签名；没有自动更新。详见 [发布说明](docs/RELEASE.md) 和 [用户指南](docs/USER_GUIDE.md)。
+
+### macOS 命令安装（Apple Silicon）
+
+```bash
+curl -fLO https://github.com/Fingxing2025/algorithm-learning-workbench/releases/download/v0.1.3-rc.3/install-macos-preview.sh
+curl -fLO https://github.com/Fingxing2025/algorithm-learning-workbench/releases/download/v0.1.3-rc.3/SHA256SUMS.txt
+grep 'install-macos-preview.sh$' SHA256SUMS.txt | shasum -a 256 -c -
+sh install-macos-preview.sh
+```
+
+脚本只安装并打开已校验的 Preview App；遇到同名 App 会停止，不会覆盖。它不能替代 macOS 正式签名或公证。
 
 ## 已确定技术方向
 

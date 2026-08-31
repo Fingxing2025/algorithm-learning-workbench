@@ -1,13 +1,13 @@
 #!/bin/sh
 
-# Installs the exact macOS arm64 DMG published with the 0.1.3 RC2 Preview.
+# Installs the exact macOS arm64 DMG published with the 0.1.3 RC3 Preview.
 # This is for evaluation only: the App is unsigned and not notarized.
 
 set -eu
 
-release_tag='v0.1.3-rc.2'
+release_tag='v0.1.3-rc.3'
 dmg_url="https://github.com/Fingxing2025/algorithm-learning-workbench/releases/download/${release_tag}/algorithm-learning-workbench-0.1.3-mac-arm64.dmg"
-expected_dmg_sha256='5eb15e642a9232fb7d9ecfa06476662ba74598b1c0b7ec6c1d3ac6ddcbb5bd79'
+expected_dmg_sha256='7e36c7b3e798834398146d14f40dfe3d4da8a51ce231db839b8b59d5396b5e6f'
 default_install_dir="$HOME/Applications"
 install_dir="${ALGORITHM_WORKBENCH_INSTALL_DIR:-$default_install_dir}"
 work_dir=''
