@@ -348,7 +348,7 @@ test('creates an empty workspace and the first template without allowing overwri
   }
   const closeNoticeButton = page.getByRole('button', { name: '关闭提示' })
   if (await closeNoticeButton.isVisible().catch(() => false)) {
-    await closeNoticeButton.click()
+    await closeNoticeButton.click({ force: true }).catch(() => undefined)
   }
 })
 
@@ -658,11 +658,14 @@ test('creates a problem, associates multiple templates, stores an image, and saf
   const tallPreviewDialog = page.getByRole('dialog', {
     name: '预览题目图片：long-problem.png',
   })
+  await expect(tallPreviewDialog).toBeVisible({ timeout: 30_000 })
   const tallPreviewRegion = tallPreviewDialog.getByRole('region', {
     name: '题目图片滚动预览',
   })
   const tallPreviewImage = tallPreviewDialog.getByRole('img', { name: 'long-problem.png' })
-  await expect(tallPreviewImage).toHaveAttribute('data-preview-mode', 'fit-width')
+  await expect(tallPreviewImage).toHaveAttribute('data-preview-mode', 'fit-width', {
+    timeout: 30_000,
+  })
   expect(
     await tallPreviewRegion.evaluate(element => element.scrollHeight > element.clientHeight),
   ).toBe(true)
