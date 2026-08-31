@@ -754,7 +754,10 @@ test('creates a problem, associates multiple templates, stores an image, and saf
   await expect(tallPreviewTrigger).toBeFocused()
   await expect(page.locator('.dialog-overlay')).toHaveCount(0)
 
-  await tallPreviewTrigger.click()
+  // Re-open through keyboard activation as well; the resize can still leave
+  // the trigger's pointer hit target covered by the neighboring card.
+  await tallPreviewTrigger.focus()
+  await page.keyboard.press('Enter')
   await page.keyboard.press('Escape')
   await expect(tallPreviewTrigger).toBeFocused()
   await electronApp.evaluate(({ BrowserWindow }) =>
