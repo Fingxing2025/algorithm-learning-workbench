@@ -203,7 +203,9 @@ test('scrolls provider detail independently with wheel and keyboard at normal an
   const bounds = await detail.boundingBox()
   expect(bounds).not.toBeNull()
   await page.mouse.move(bounds!.x + bounds!.width / 2, bounds!.y + bounds!.height / 2)
-  await page.mouse.wheel(0, 520)
+  // Leave enough scrollable content for the following PageDown assertion on
+  // macOS, where the native title bar reduces the content viewport height.
+  await page.mouse.wheel(0, 240)
   await expect.poll(() => detail.evaluate(element => element.scrollTop)).toBeGreaterThan(0)
   const afterWheel = await detail.evaluate(element => element.scrollTop)
   expect(await providerList.evaluate(element => element.scrollTop)).toBe(listScrollTop)
