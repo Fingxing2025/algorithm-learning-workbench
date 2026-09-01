@@ -6,22 +6,21 @@
 
 ## 当前状态
 
-V2 [`0.1.3 RC3 Preview`](https://github.com/Fingxing2025/algorithm-learning-workbench/releases/tag/v0.1.3-rc.3) 已公开发布。这是 G1 模板导出预发布版本，不是稳定版：macOS 仅支持 Apple Silicon（arm64，macOS 12+），Windows 本轮未重新构建；请仅从 Release 页面下载并先校验 `SHA256SUMS.txt`。
+V2 [`0.1.3 RC5 Preview`](https://github.com/Fingxing2025/algorithm-learning-workbench/releases/tag/v0.1.3-rc.5) 已公开发布。这是 G1 模板导出预发布版本，不是稳定版：macOS 仅支持 Apple Silicon（arm64，macOS 12+），Windows 提供 x64 预览安装器；请仅从 Release 页面下载并先校验 `SHA256SUMS.txt`。
 
 本次新增从当前工作区选择模板并导出 `.tex`、紧凑目录/高亮 PDF 和可选 `.doc` 的完整桌面流程。PDF 优先使用 Electron 内置打印引擎，不要求本机安装 TeX；`.doc` 是 RTF 兼容容器。源码门禁、真实 Electron E2E、macOS arm64 制品和隐私扫描结果见 Release 页面。
 
 当前包未使用 macOS Developer ID/notarization 或 Windows Authenticode 签名；没有自动更新。详见 [发布说明](docs/RELEASE.md) 和 [用户指南](docs/USER_GUIDE.md)。
 
-### macOS 命令安装（Apple Silicon）
+### macOS 下载与校验（Apple Silicon）
 
 ```bash
-curl -fLO https://github.com/Fingxing2025/algorithm-learning-workbench/releases/download/v0.1.3-rc.3/install-macos-preview.sh
-curl -fLO https://github.com/Fingxing2025/algorithm-learning-workbench/releases/download/v0.1.3-rc.3/SHA256SUMS.txt
-grep 'install-macos-preview.sh$' SHA256SUMS.txt | shasum -a 256 -c -
-sh install-macos-preview.sh
+curl -fLO https://github.com/Fingxing2025/algorithm-learning-workbench/releases/download/v0.1.3-rc.5/algorithm-learning-workbench-0.1.3-mac-arm64.dmg
+curl -fLO https://github.com/Fingxing2025/algorithm-learning-workbench/releases/download/v0.1.3-rc.5/SHA256SUMS.txt
+grep 'algorithm-learning-workbench-0.1.3-mac-arm64.dmg$' SHA256SUMS.txt | shasum -a 256 -c -
 ```
 
-脚本只安装并打开已校验的 Preview App；遇到同名 App 会停止，不会覆盖。它不能替代 macOS 正式签名或公证。
+校验通过后再打开 DMG 并将 App 拖入“应用程序”。该预览版不能替代 macOS 正式签名或公证。
 
 ## 已确定技术方向
 
