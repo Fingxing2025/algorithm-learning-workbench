@@ -10,10 +10,7 @@ import { useI18n } from '@/lib/i18n'
 import { useTemplateMetadata } from './use-template-metadata'
 
 const emptyFields: TemplateMetadataFields = {
-  commonMistakes: '',
-  constraints: '',
   notes: '',
-  prerequisites: '',
   solves: '',
   spaceComplexity: null,
   tags: [],
@@ -38,10 +35,7 @@ export function TemplateMetadataCard({
   useEffect(() => {
     const value = state.metadata ?? emptyFields
     setFields({
-      commonMistakes: value.commonMistakes,
-      constraints: value.constraints,
       notes: value.notes,
-      prerequisites: value.prerequisites,
       solves: value.solves,
       spaceComplexity: value.spaceComplexity,
       tags: value.tags,
@@ -151,9 +145,6 @@ export function TemplateMetadataCard({
           {(
             [
               ['solves', '解决的问题'],
-              ['constraints', '适用约束'],
-              ['prerequisites', '前置条件'],
-              ['commonMistakes', '常见错误'],
               ['notes', '用户笔记'],
             ] as const
           ).map(([key, label]) => (
@@ -164,6 +155,13 @@ export function TemplateMetadataCard({
                 className="mt-1.5 min-h-16 w-full resize-y rounded-lg border border-border bg-background px-3 py-2 text-xs leading-5 outline-none focus:ring-2 focus:ring-ring"
                 onChange={event =>
                   setFields(current => ({ ...current, [key]: event.target.value }))
+                }
+                placeholder={
+                  key === 'solves'
+                    ? t(
+                        '解决的问题：说明模板解决的子问题和算法模型。\n输入：说明输入内容、数据结构、参数和形式。\n输出：说明输出内容、返回值或调用结果的形式。',
+                      )
+                    : undefined
                 }
                 value={fields[key]}
               />
@@ -205,9 +203,6 @@ export function TemplateMetadataCard({
           {(
             [
               ['解决的问题', state.metadata.solves],
-              ['适用约束', state.metadata.constraints],
-              ['前置条件', state.metadata.prerequisites],
-              ['常见错误', state.metadata.commonMistakes],
               ['用户笔记', state.metadata.notes],
             ] satisfies Array<[string, string | null | undefined]>
           ).map(([label, value]) => (

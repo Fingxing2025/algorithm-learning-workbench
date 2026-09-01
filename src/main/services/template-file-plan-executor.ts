@@ -4,8 +4,8 @@ import { dirname, join } from 'node:path'
 
 import {
   applyFileChangePlanRequestSchema,
-  fileChangeOperationSchema,
-  templateMetadataFieldsSchema,
+  parseStoredFileChangeOperation,
+  parseStoredTemplateMetadataFields,
   type FileChangeMutationResult,
   type FileChangeOperation,
   type TemplateMetadataFields,
@@ -134,10 +134,7 @@ export class TemplateFilePlanExecutor {
           operation,
           previousMetadata: metadata
             ? {
-                commonMistakes: metadata.commonMistakes,
-                constraints: metadata.constraints,
                 notes: metadata.notes,
-                prerequisites: metadata.prerequisites,
                 solves: metadata.solves,
                 spaceComplexity: metadata.spaceComplexity,
                 tags: metadata.tags,
@@ -279,11 +276,19 @@ export class TemplateFilePlanExecutor {
         previousMetadata: unknown
       }>
       stored = raw.map(item => ({
-        operation: fileChangeOperationSchema.parse(item.operation),
+        operation: (() => {
+          const parsed = parseStoredFileChangeOperation(item.operation)
+          if (!parsed) throw new Error('invalid operation')
+          return parsed
+        })(),
         previousMetadata:
           item.previousMetadata === null
             ? null
-            : templateMetadataFieldsSchema.parse(item.previousMetadata),
+            : (() => {
+                const parsed = parseStoredTemplateMetadataFields(item.previousMetadata)
+                if (!parsed) throw new Error('invalid metadata')
+                return parsed
+              })(),
       }))
     } catch {
       throw new PublicError('DATABASE_ERROR', '执行记录损坏，无法安全撤销。')

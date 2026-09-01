@@ -40,9 +40,6 @@ function operationGroupLabel(operation: FileChangeOperation): string {
 
 const metadataFieldLabels: Array<[keyof TemplateMetadataFields, string]> = [
   ['solves', '解决问题'],
-  ['constraints', '适用约束'],
-  ['prerequisites', '前置条件'],
-  ['commonMistakes', '常见错误'],
   ['timeComplexity', '时间复杂度'],
   ['spaceComplexity', '空间复杂度'],
   ['tags', '标签'],

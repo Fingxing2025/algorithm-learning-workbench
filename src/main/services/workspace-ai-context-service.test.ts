@@ -33,10 +33,7 @@ function template(id: string, relativePath: string, name: string): TemplateSumma
 
 function metadata(templateId: string, solves: string, notes: string): TemplateMetadata {
   return {
-    commonMistakes: '检查过期状态',
-    constraints: '边权非负',
     notes,
-    prerequisites: '优先队列',
     solves,
     spaceComplexity: 'O(n + m)',
     tags: ['图论', '最短路'],
@@ -273,9 +270,6 @@ describe('WorkspaceAiContextService', () => {
     })
     fallbackMetadata = {
       ...fallbackMetadata,
-      commonMistakes: '错误'.repeat(2_000),
-      constraints: '约束'.repeat(2_000),
-      prerequisites: '前置'.repeat(2_000),
       solves: '能力摘要'.repeat(2_000),
       tags: Array.from({ length: 20 }, (_, index) => `超长标签-${index}-${'标'.repeat(30)}`),
     }

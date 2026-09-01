@@ -47,6 +47,7 @@ import {
 import type { BackgroundTaskProgress } from '@core/contracts/background-task'
 import {
   fileChangeOperationSchema,
+  parseStoredFileChangeOperation,
   parseStoredFileChangePlanPayload,
 } from '@core/contracts/template-management'
 
@@ -1896,7 +1897,8 @@ export class DataManagementService {
     } catch {
       throw new PublicError('INVALID_REQUEST', '备份中的文件计划记录已损坏。')
     }
-    if (!parseStoredFileChangePlanPayload(stored)) {
+    const parsedPayload = parseStoredFileChangePlanPayload(stored)
+    if (!parsedPayload) {
       throw new PublicError('INVALID_REQUEST', '备份中的文件计划记录不兼容。')
     }
     const remapOperation = (operation: unknown) => {
@@ -1908,8 +1910,8 @@ export class DataManagementService {
       return { ...parsed, templateId }
     }
     return JSON.stringify({
-      ...(stored as Record<string, unknown>),
-      operations: ((stored as { operations: unknown[] }).operations ?? []).map(remapOperation),
+      ...parsedPayload,
+      operations: parsedPayload.operations.map(remapOperation),
     })
   }
 
@@ -1925,7 +1927,8 @@ export class DataManagementService {
           if (!item || typeof item !== 'object' || !('operation' in item)) {
             throw new Error('execution operation is invalid')
           }
-          const parsed = fileChangeOperationSchema.parse(item.operation)
+          const parsed = parseStoredFileChangeOperation(item.operation)
+          if (!parsed) throw new Error('execution operation is invalid')
           const templateId = templateIdMap.get(parsed.templateId)
           if (!templateId) throw new Error('execution template is outside the backup')
           return { ...item, operation: { ...parsed, templateId } }

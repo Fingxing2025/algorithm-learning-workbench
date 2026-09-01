@@ -70,9 +70,7 @@ describe('AI JSON response parsing', () => {
       alternatives: [],
       categoryPath: ['字符串算法', 'BWT', '逆变换'],
       classificationReason: '模型未提供分类理由，请在保存前重点核对建议目录。',
-      commonMistakes: '',
       confidence: 0.92,
-      constraints: undefined,
       fileName: 'BWT变换.cpp',
       placement: {
         existingParentPath: '字符串算法',
@@ -81,7 +79,6 @@ describe('AI JSON response parsing', () => {
         reason: '放置方式已根据当前工作区真实目录在本地推导。',
         targetDirectory: '字符串算法/BWT/逆变换',
       },
-      prerequisites: undefined,
       solves: '从 BWT 末列恢复原字符串。',
       spaceComplexity: 'O(n)',
       tags: ['字符串', 'BWT', '逆变换'],

@@ -17,10 +17,7 @@ const template: TemplateSummary = {
 }
 
 const emptyMetadata = {
-  commonMistakes: '',
-  constraints: '',
   notes: '用户笔记',
-  prerequisites: '',
   solves: '',
   spaceComplexity: null,
   tags: [],

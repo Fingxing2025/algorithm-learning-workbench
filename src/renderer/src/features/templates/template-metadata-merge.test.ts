@@ -72,7 +72,6 @@ describe('template metadata merge', () => {
     const current = {
       metadata: {
         ...classification.metadata,
-        constraints: '用户后续手动修改',
         solves: '用户原始问题',
         tags: ['用户标签'],
       },
@@ -84,7 +83,6 @@ describe('template metadata merge', () => {
     ).toEqual({
       metadata: {
         ...emptyTemplateMetadata,
-        constraints: '用户后续手动修改',
         solves: '用户原始问题',
         tags: ['用户标签'],
       },

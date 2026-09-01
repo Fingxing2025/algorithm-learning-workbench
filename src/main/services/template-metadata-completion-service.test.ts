@@ -12,10 +12,7 @@ import {
 } from './template-metadata-completion-service'
 
 const current: TemplateMetadataFields = {
-  commonMistakes: '',
-  constraints: '用户已经确认的约束',
   notes: '私密用户笔记',
-  prerequisites: '',
   solves: '',
   spaceComplexity: null,
   tags: ['用户标签'],
@@ -23,9 +20,6 @@ const current: TemplateMetadataFields = {
 }
 
 const generated = {
-  commonMistakes: '注意下标范围',
-  constraints: 'AI 不得覆盖的约束',
-  prerequisites: '需要掌握最短路',
   solves: '解决非负权最短路',
   spaceComplexity: 'O(n + m)',
   tags: ['图论', '最短路'],
@@ -50,10 +44,7 @@ function template(fileName: string): TemplateSummary {
 
 function completeMetadata(templateId: string): TemplateMetadata {
   return {
-    commonMistakes: '注意下标范围',
-    constraints: '适用于非负边权',
     notes: '不会发送的私密笔记',
-    prerequisites: '图论基础',
     solves: '非负权最短路',
     spaceComplexity: 'O(n + m)',
     tags: ['图论'],
@@ -212,14 +203,7 @@ describe('existing template metadata completion merge', () => {
   it('fills only empty fields and always preserves existing values and notes', () => {
     const proposal = buildExistingMetadataProposal(current, generated)
 
-    expect(proposal.changedFields).toEqual([
-      'commonMistakes',
-      'prerequisites',
-      'solves',
-      'spaceComplexity',
-      'timeComplexity',
-    ])
-    expect(proposal.metadata.constraints).toBe('用户已经确认的约束')
+    expect(proposal.changedFields).toEqual(['solves', 'spaceComplexity', 'timeComplexity'])
     expect(proposal.metadata.tags).toEqual(['用户标签'])
     expect(proposal.metadata.notes).toBe('私密用户笔记')
   })
@@ -233,7 +217,6 @@ describe('existing template metadata completion merge', () => {
 
     expect(applied.solves).toBe('解决非负权最短路')
     expect(applied.timeComplexity).toBe('O((n + m) log n)')
-    expect(applied.commonMistakes).toBe('')
     expect(applied.notes).toBe('私密用户笔记')
   })
 })
@@ -260,7 +243,6 @@ describe('TemplateMetadataCompletionService guarded workflow', () => {
       totalCount: 2,
     })
     for (const item of draft.items) {
-      expect(item.proposedMetadata.constraints).toBe('用户已经确认的约束')
       expect(item.proposedMetadata.tags).toEqual(['用户标签'])
       expect(item.proposedMetadata.notes).toBe('私密用户笔记')
     }
@@ -276,7 +258,6 @@ describe('TemplateMetadataCompletionService guarded workflow', () => {
     expect(fixture.upsertMetadataBatch).toHaveBeenCalledWith(
       fixture.templates.map(item => ({
         fields: expect.objectContaining({
-          constraints: '用户已经确认的约束',
           notes: '私密用户笔记',
           solves: '解决非负权最短路',
           tags: ['用户标签'],

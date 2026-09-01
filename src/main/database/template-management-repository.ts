@@ -371,10 +371,7 @@ export class TemplateManagementRepository {
       .get()
     if (!record) return null
     return {
-      commonMistakes: record.commonMistakes,
-      constraints: record.constraints,
       notes: record.notes,
-      prerequisites: record.prerequisites,
       solves: record.solves,
       spaceComplexity: record.spaceComplexity,
       tags: parseTags(record.tagsJson),
@@ -406,10 +403,7 @@ export class TemplateManagementRepository {
         .all()
       for (const record of records) {
         result.set(record.templateId, {
-          commonMistakes: record.commonMistakes,
-          constraints: record.constraints,
           notes: record.notes,
-          prerequisites: record.prerequisites,
           solves: record.solves,
           spaceComplexity: record.spaceComplexity,
           tags: parseTags(record.tagsJson),
@@ -771,14 +765,20 @@ export class TemplateManagementRepository {
     this.database.orm
       .insert(templateMetadata)
       .values({
-        ...fields,
+        notes: fields.notes,
+        solves: fields.solves,
+        spaceComplexity: fields.spaceComplexity,
+        timeComplexity: fields.timeComplexity,
         tagsJson: JSON.stringify(fields.tags),
         templateId,
         updatedAt,
       })
       .onConflictDoUpdate({
         set: {
-          ...fields,
+          notes: fields.notes,
+          solves: fields.solves,
+          spaceComplexity: fields.spaceComplexity,
+          timeComplexity: fields.timeComplexity,
           tagsJson: JSON.stringify(fields.tags),
           updatedAt,
         },
@@ -844,16 +844,13 @@ export class TemplateManagementRepository {
     this.database.client
       .prepare(
         `INSERT INTO template_metadata
-          (template_id, tags_json, time_complexity, space_complexity, solves, constraints_text, prerequisites, common_mistakes, notes, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          (template_id, tags_json, time_complexity, space_complexity, solves, notes, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(template_id) DO UPDATE SET
           tags_json = excluded.tags_json,
           time_complexity = excluded.time_complexity,
           space_complexity = excluded.space_complexity,
           solves = excluded.solves,
-          constraints_text = excluded.constraints_text,
-          prerequisites = excluded.prerequisites,
-          common_mistakes = excluded.common_mistakes,
           notes = excluded.notes,
           updated_at = excluded.updated_at`,
       )
@@ -863,9 +860,6 @@ export class TemplateManagementRepository {
         fields.timeComplexity,
         fields.spaceComplexity,
         fields.solves,
-        fields.constraints,
-        fields.prerequisites,
-        fields.commonMistakes,
         fields.notes,
         updatedAt,
       )

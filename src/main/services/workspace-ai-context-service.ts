@@ -19,7 +19,6 @@ const MAX_RELATED_TEMPLATES = 24
 const MAX_RELATED_SOURCE_PER_TEMPLATE_CHARS = 2_000
 const MAX_SUMMARY_CHARS = 320
 const SHORT_SUMMARY_CHARS = 120
-const MAX_CATALOG_FIELD_CHARS = 400
 const MAX_CATALOG_TAGS = 8
 const MAX_DIRECTORY_TAGS = 20
 
@@ -35,13 +34,10 @@ interface TemplateContextRecord {
 }
 
 export interface TemplateCatalogEntry {
-  commonMistakes?: string
-  constraints?: string
   id: string
   language: string
   name: string
   path: string
-  prerequisites?: string
   spaceComplexity?: string | null
   summary: string
   tags?: string[]
@@ -145,9 +141,6 @@ function metadataText(metadata: TemplateMetadata | null): string {
   return [
     ...metadata.tags,
     metadata.solves,
-    metadata.constraints,
-    metadata.prerequisites,
-    metadata.commonMistakes,
     metadata.timeComplexity ?? '',
     metadata.spaceComplexity ?? '',
   ].join(' ')
@@ -175,9 +168,6 @@ function compactOptionalComplexity(value: string | null): string | null {
 function metadataForVersion(metadata: TemplateMetadata | null) {
   if (!metadata) return null
   return {
-    commonMistakes: metadata.commonMistakes,
-    constraints: metadata.constraints,
-    prerequisites: metadata.prerequisites,
     solves: metadata.solves,
     spaceComplexity: metadata.spaceComplexity,
     tags: metadata.tags,
@@ -199,9 +189,6 @@ function catalogEntry(
   if (!options.includeSupplementalMetadata) return entry
   return {
     ...entry,
-    commonMistakes: compactText(template.metadata?.commonMistakes, MAX_CATALOG_FIELD_CHARS),
-    constraints: compactText(template.metadata?.constraints, MAX_CATALOG_FIELD_CHARS),
-    prerequisites: compactText(template.metadata?.prerequisites, MAX_CATALOG_FIELD_CHARS),
     spaceComplexity: compactOptionalComplexity(template.metadata?.spaceComplexity ?? null),
     tags: (template.metadata?.tags ?? [])
       .map(tag => compactText(tag, 40))

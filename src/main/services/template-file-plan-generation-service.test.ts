@@ -44,10 +44,7 @@ async function createFixture(rootPath: string, options: FixtureOptions = {}) {
       sizeBytes: stats.size,
     })
     metadata.set(id, {
-      commonMistakes: `错误 ${index + 1}`,
-      constraints: `约束 ${index + 1}`,
       notes: options.notes?.[index] ?? '',
-      prerequisites: `前置 ${index + 1}`,
       solves: `用途 ${index + 1}`,
       spaceComplexity: 'O(1)',
       tags: ['fixture'],
@@ -271,9 +268,6 @@ function metadataSuggestion(templateId: string, tags: string[]) {
     evidence: ['源码中包含对应的数据结构或语言特性'],
     kind: 'update-metadata' as const,
     metadata: {
-      commonMistakes: '注意边界条件与索引范围。',
-      constraints: '适用于需要维护区间信息的场景。',
-      prerequisites: '需要理解基础数据结构。',
       solves: '用于高效维护和查询数据。',
       tags,
     },
@@ -672,8 +666,6 @@ describe('TemplateFilePlanGenerationService preview snapshots', () => {
       'C++17',
       'Bitmask DP',
     ])
-    technicalMetadataSuggestion.metadata.constraints = 'n <= 20'
-    technicalMetadataSuggestion.metadata.prerequisites = 'Bitmask DP'
     fixture.runTask.mockResolvedValueOnce({
       model: fixture.target.model,
       providerName: fixture.target.providerName,

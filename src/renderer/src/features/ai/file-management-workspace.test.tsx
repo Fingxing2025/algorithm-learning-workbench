@@ -106,10 +106,7 @@ const operations: FileChangeOperation[] = [
     id: metadataOperationId,
     kind: 'update-metadata',
     metadata: {
-      commonMistakes: '新错误',
-      constraints: '新约束',
       notes: '新笔记',
-      prerequisites: '新前置',
       solves: '新用途',
       spaceComplexity: 'O(n)',
       tags: ['新标签'],
@@ -117,10 +114,7 @@ const operations: FileChangeOperation[] = [
     },
     precondition: null,
     previousMetadata: {
-      commonMistakes: '旧错误',
-      constraints: '旧约束',
       notes: '旧笔记',
-      prerequisites: '旧前置',
       solves: '旧用途',
       spaceComplexity: 'O(1)',
       tags: ['旧标签'],
@@ -739,9 +733,6 @@ describe('FileManagementWorkspace plan review', () => {
     expect(screen.getByText('− 副本/并查集-copy.cpp')).toBeInTheDocument()
     for (const [oldValue, newValue] of [
       ['旧用途', '新用途'],
-      ['旧约束', '新约束'],
-      ['旧前置', '新前置'],
-      ['旧错误', '新错误'],
       ['O(n²)', 'O(n log n)'],
       ['O(1)', 'O(n)'],
       ['旧标签', '新标签'],

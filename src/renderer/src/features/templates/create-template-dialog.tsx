@@ -700,10 +700,11 @@ export function CreateTemplateDialog({
 
                   {(
                     [
-                      ['solves', '解决的问题', '描述这份模板解决的核心问题…'],
-                      ['constraints', '适用约束', '适用的数据范围、边权或输入条件…'],
-                      ['prerequisites', '前置条件', '需要掌握的数据结构或算法概念…'],
-                      ['commonMistakes', '常见错误', '容易写错或遗漏的边界条件…'],
+                      [
+                        'solves',
+                        '解决的问题',
+                        '解决的问题：说明模板解决的子问题和算法模型。\n输入：说明输入内容、数据结构、参数和形式。\n输出：说明输出内容、返回值或调用结果的形式。',
+                      ],
                       ['notes', '模板用户笔记', '仅保存在本机的个人备注…'],
                     ] as const
                   ).map(([key, label, placeholder]) => (

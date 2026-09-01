@@ -89,9 +89,12 @@ export const templates = sqliteTable(
 )
 
 export const templateMetadata = sqliteTable('template_metadata', {
+  /** @deprecated Retained for old workspace/backup compatibility; never exposed in new contracts. */
   commonMistakes: text('common_mistakes').notNull().default(''),
+  /** @deprecated Retained for old workspace/backup compatibility; never exposed in new contracts. */
   constraints: text('constraints_text').notNull().default(''),
   notes: text('notes').notNull().default(''),
+  /** @deprecated Retained for old workspace/backup compatibility; never exposed in new contracts. */
   prerequisites: text('prerequisites').notNull().default(''),
   solves: text('solves').notNull().default(''),
   spaceComplexity: text('space_complexity'),

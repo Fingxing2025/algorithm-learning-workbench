@@ -3,9 +3,6 @@ import { describe, expect, it } from 'vitest'
 import { validateClassificationLanguage } from './template-management-service'
 
 const chineseMetadata = {
-  commonMistakes: '忘记过滤过期距离。',
-  constraints: '边权非负。',
-  prerequisites: '掌握邻接表和优先队列。',
   solves: '单源最短路。',
   tags: ['图论', '最短路', 'Dijkstra'],
 }
@@ -25,9 +22,6 @@ describe('template classification language validation', () => {
   it('accepts BWT as a conventional abbreviation in a Chinese classification', () => {
     expect(() =>
       validateClassificationLanguage('zh-CN', ['字符串算法', 'BWT', '逆变换'], 'BWT变换.cpp', {
-        commonMistakes: '注意哨兵字符和下标范围。',
-        constraints: '输入字符串包含唯一哨兵字符。',
-        prerequisites: '掌握后缀排序。',
         solves: '从末列恢复原字符串。',
         tags: ['字符串', 'BWT', '逆变换'],
       }),
@@ -41,9 +35,6 @@ describe('template classification language validation', () => {
         ['字符串算法', 'Burrows-Wheeler Transform', 'LF-mapping'],
         'Burrows-Wheeler Transform.cpp',
         {
-          commonMistakes: '注意哨兵字符与下标范围。',
-          constraints: '输入包含唯一哨兵字符。',
-          prerequisites: '掌握后缀排序与 LF-mapping。',
           solves: '从 BWT 末列恢复原字符串。',
           tags: ['字符串', 'Burrows-Wheeler Transform', 'LF-mapping'],
         },
@@ -114,16 +105,13 @@ describe('template classification language validation', () => {
         'en',
         ['Graph Theory', 'Shortest Path', 'Dijkstra'],
         'dijkstra.cpp',
-        { ...chineseMetadata, commonMistakes: 'Stale queue entries.' },
+        { ...chineseMetadata, solves: 'Stale queue entries.' },
       ),
     ).toThrow(/AI 返回的英文元数据/)
   })
 
   it('does not reject user-provided fields merely because they use another language', () => {
     const englishUserMetadata = {
-      commonMistakes: 'Check the prefix boundaries.',
-      constraints: 'The grid contains at most one million cells.',
-      prerequisites: 'Binary search and prefix sums.',
       solves: 'Find the first update that makes a cell negative.',
       tags: ['binary search', '3D difference array'],
     }

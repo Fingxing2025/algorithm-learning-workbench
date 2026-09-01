@@ -365,9 +365,7 @@ test('merges pasted-source AI metadata without overwriting user fields', async (
 
   await expect
     .poll(() => lastTemplateMetadataSystem)
-    .toContain(
-      'Use English for categoryPath, fileName, tags, and every natural-language metadata field',
-    )
+    .toContain('Use English for categoryPath, fileName, tags, and solves')
 
   await expect(page.getByRole('heading', { name: '确认元数据冲突' })).toBeVisible()
   expect(templateMetadataBodies.at(-2)?.response_format).toBeDefined()
@@ -703,10 +701,7 @@ test('completes existing template metadata individually and in one guarded batch
     const metadata = await window.desktop.templateManagement.getMetadata(templateId)
     if (!metadata) throw new Error('fixture metadata missing')
     await window.desktop.templateManagement.updateMetadata({
-      commonMistakes: metadata.commonMistakes,
-      constraints: metadata.constraints,
       notes: '这是不会发送给 AI 的现有用户笔记。',
-      prerequisites: metadata.prerequisites,
       solves: '',
       spaceComplexity: metadata.spaceComplexity,
       tags: [],
@@ -791,10 +786,7 @@ test('completes existing template metadata individually and in one guarded batch
       for (const target of targets) {
         const metadata = await window.desktop.templateManagement.getMetadata(target.id)
         await window.desktop.templateManagement.updateMetadata({
-          commonMistakes: metadata?.commonMistakes || '已有常见错误',
-          constraints: metadata?.constraints || '已有适用约束',
           notes: metadata?.notes ?? '',
-          prerequisites: metadata?.prerequisites || '已有前置知识',
           solves: '',
           spaceComplexity: metadata?.spaceComplexity || 'O(1)',
           tags: metadata?.tags.length ? metadata.tags : ['已有标签'],
@@ -817,10 +809,7 @@ test('completes existing template metadata individually and in one guarded batch
     const metadata = await window.desktop.templateManagement.getMetadata(templateId)
     if (!metadata) throw new Error('fixture metadata missing')
     await window.desktop.templateManagement.updateMetadata({
-      commonMistakes: metadata.commonMistakes,
-      constraints: metadata.constraints,
       notes: `${metadata.notes}外部变更`,
-      prerequisites: metadata.prerequisites,
       solves: metadata.solves,
       spaceComplexity: metadata.spaceComplexity,
       tags: metadata.tags,

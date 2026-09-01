@@ -17,10 +17,7 @@ import { WorkspaceService } from './workspace-service'
 
 const templateId = 'a'.repeat(64)
 const metadataFields: TemplateMetadataFields = {
-  commonMistakes: '',
-  constraints: '',
   notes: 'source-edit-metadata-fixture',
-  prerequisites: '',
   solves: '',
   spaceComplexity: null,
   tags: ['fixture'],

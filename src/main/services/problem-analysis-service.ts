@@ -139,7 +139,7 @@ export class ProblemAnalysisService {
         'status 只能是 unattempted。templateCandidates 每项包含 templateId, confidence(0到1), reason, role, evidence, applicableWhen, notApplicableWhen, matchedCapabilities, warnings。',
         'role 只能是 direct-solution、subproblem、prerequisite、optimization 或 alternative-solution。相关证据支持多个不同方向时返回多个候选，不得固定只返回一个模板。',
         '必须全面比较 workspaceCatalog 中的全部目录和模板；不得只从 relatedTemplates 的局部集合中选择。',
-        '推荐时综合模板名称、目录路径、summary、tags、constraints、prerequisites、commonMistakes、复杂度和可用的相关源码片段。',
+        '推荐时综合模板名称、目录路径、summary、tags、solves、复杂度和可用的相关源码片段。',
         '只能推荐 workspaceCatalog 中真实存在的 templateId，最多返回 8 个最终候选；没有可靠候选时返回空数组。',
         'notes 只记录用户输入中明确出现的个人备注，否则返回空字符串。',
         request.outputLanguage === 'en'

@@ -1139,6 +1139,8 @@ Object.assign(english, {
   '退出专注模式（Esc）': 'Exit focus mode (Esc)',
   专注模式: 'Focus mode',
   解决的问题: 'Problem solved',
+  '解决的问题：说明模板解决的子问题和算法模型。\n输入：说明输入内容、数据结构、参数和形式。\n输出：说明输出内容、返回值或调用结果的形式。':
+    'Problem solved: describe the subproblem and algorithm model.\nInput: describe input content, data structures, parameters, and form.\nOutput: describe output content, return values, or call-result form.',
   '描述这份模板解决的核心问题…': 'Describe the core problem this template solves…',
   适用约束: 'Applicable constraints',
   '适用的数据范围、边权或输入条件…': 'Data ranges, edge weights, or input conditions…',

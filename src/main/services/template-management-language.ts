@@ -166,25 +166,14 @@ export function validateClassificationLanguage(
   outputLanguage: ClassifyTemplateRequest['outputLanguage'],
   categoryPath: string[],
   fileName: string,
-  fields: Pick<
-    TemplateMetadataFields,
-    'commonMistakes' | 'constraints' | 'prerequisites' | 'solves' | 'tags'
-  >,
+  fields: Pick<TemplateMetadataFields, 'solves' | 'tags'>,
   existing?: {
     fileName: string
-    fields: Pick<
-      TemplateMetadataFields,
-      'commonMistakes' | 'constraints' | 'prerequisites' | 'solves' | 'tags'
-    >
+    fields: Pick<TemplateMetadataFields, 'solves' | 'tags'>
   },
   existingCategoryPaths: ReadonlySet<string> = new Set(),
 ): void {
-  const narratives = [
-    [fields.solves, existing?.fields.solves],
-    [fields.constraints, existing?.fields.constraints],
-    [fields.prerequisites, existing?.fields.prerequisites],
-    [fields.commonMistakes, existing?.fields.commonMistakes],
-  ] as const
+  const narratives = [[fields.solves, existing?.fields.solves]] as const
   const generatedNarratives = narratives.flatMap(([value, existingValue]) =>
     existingValue?.trim() ? [] : [value],
   )

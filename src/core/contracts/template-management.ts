@@ -22,11 +22,8 @@ const relativePathSchema = z
 
 export const templateMetadataFieldsSchema = z
   .object({
-    commonMistakes: z.string().max(10_000),
-    constraints: z.string().max(10_000),
     notes: z.string().max(100_000),
-    prerequisites: z.string().max(10_000),
-    solves: z.string().max(10_000),
+    solves: z.string().max(20_000),
     spaceComplexity: z.string().trim().max(120).nullable(),
     tags: z.array(z.string().trim().min(1).max(40)).max(20),
     timeComplexity: z.string().trim().max(120).nullable(),
@@ -215,9 +212,6 @@ export const templateClassificationSchema = z
 export type TemplateClassification = z.infer<typeof templateClassificationSchema>
 
 export const completableTemplateMetadataFieldSchema = z.enum([
-  'commonMistakes',
-  'constraints',
-  'prerequisites',
   'solves',
   'spaceComplexity',
   'tags',
@@ -262,10 +256,7 @@ export type GenerateExistingTemplateMetadataCompletionRequest = z.infer<
 
 export const modelExistingTemplateMetadataCompletionSchema = z
   .object({
-    commonMistakes: z.string().max(10_000),
-    constraints: z.string().max(10_000),
-    prerequisites: z.string().max(10_000),
-    solves: z.string().max(10_000),
+    solves: z.string().max(20_000),
     spaceComplexity: z.string().trim().max(120).nullable(),
     tags: z.array(z.string().trim().min(1).max(40)).max(20),
     timeComplexity: z.string().trim().max(120).nullable(),
@@ -572,9 +563,67 @@ export const fileChangePlanPayloadSchema = z
   .strict()
 export type FileChangePlanPayload = z.infer<typeof fileChangePlanPayloadSchema>
 
+function sanitizeLegacyMetadata(value: unknown): unknown {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return value
+  const source = value as Record<string, unknown>
+  return {
+    notes: typeof source.notes === 'string' ? source.notes : '',
+    solves: typeof source.solves === 'string' ? source.solves : '',
+    spaceComplexity:
+      typeof source.spaceComplexity === 'string' || source.spaceComplexity === null
+        ? source.spaceComplexity
+        : null,
+    tags: Array.isArray(source.tags) ? source.tags : [],
+    timeComplexity:
+      typeof source.timeComplexity === 'string' || source.timeComplexity === null
+        ? source.timeComplexity
+        : null,
+  }
+}
+
+function sanitizeLegacyOperation(value: unknown): unknown {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return value
+  const item = value as Record<string, unknown>
+  return item.kind === 'update-metadata'
+    ? {
+        ...item,
+        metadata: sanitizeLegacyMetadata(item.metadata),
+        previousMetadata: sanitizeLegacyMetadata(item.previousMetadata),
+      }
+    : item
+}
+
+/** Main-only compatibility parser for a single stored operation. */
+export function parseStoredTemplateMetadataFields(stored: unknown): TemplateMetadataFields | null {
+  const current = templateMetadataFieldsSchema.safeParse(stored)
+  if (current.success) return current.data
+  const legacy = templateMetadataFieldsSchema.safeParse(sanitizeLegacyMetadata(stored))
+  return legacy.success ? legacy.data : null
+}
+
+export function parseStoredFileChangeOperation(stored: unknown): FileChangeOperation | null {
+  const current = fileChangeOperationSchema.safeParse(stored)
+  if (current.success) return current.data
+  const legacy = fileChangeOperationSchema.safeParse(sanitizeLegacyOperation(stored))
+  return legacy.success ? legacy.data : null
+}
+
 export function parseStoredFileChangePlanPayload(stored: unknown): FileChangePlanPayload | null {
   const versionedPayload = fileChangePlanPayloadSchema.safeParse(stored)
-  return versionedPayload.success ? versionedPayload.data : null
+  if (versionedPayload.success) return versionedPayload.data
+
+  // Legacy plans may contain the removed metadata fields. Parse them only in
+  // this Main-side compatibility boundary and strip deprecated values before
+  // exposing the payload to the rest of the application.
+  if (!stored || typeof stored !== 'object' || Array.isArray(stored)) return null
+  const candidate = stored as Record<string, unknown>
+  if (!Array.isArray(candidate.operations)) return null
+  const operations = candidate.operations.map(operation => {
+    return sanitizeLegacyOperation(operation)
+  })
+  const sanitized = { ...candidate, operations }
+  const legacyParsed = fileChangePlanPayloadSchema.safeParse(sanitized)
+  return legacyParsed.success ? legacyParsed.data : null
 }
 
 export const previewFilePlanRequestSchema = z
@@ -858,11 +907,8 @@ export const modelTemplateClassificationSchema = z
       .optional(),
     categoryPath: z.array(z.string().trim().min(1).max(80)).min(2).max(5),
     classificationReason: z.string().max(2_000),
-    commonMistakes: z.string().max(10_000).optional(),
     confidence: z.number().min(0).max(1),
-    constraints: z.string().max(10_000).optional(),
-    prerequisites: z.string().max(10_000).optional(),
-    solves: z.string().max(10_000).optional(),
+    solves: z.string().max(20_000).optional(),
     spaceComplexity: z.string().max(120).nullable().optional(),
     fileName: z.string().trim().min(1).max(255),
     placement: z.object({
@@ -878,11 +924,8 @@ export const modelTemplateClassificationSchema = z
   .strict()
 
 const modelTemplateMetadataPatchSchema = z.object({
-  commonMistakes: z.string().max(10_000).optional(),
-  constraints: z.string().max(10_000).optional(),
   notes: z.string().max(100_000).optional(),
-  prerequisites: z.string().max(10_000).optional(),
-  solves: z.string().max(10_000).optional(),
+  solves: z.string().max(20_000).optional(),
   spaceComplexity: z.string().trim().max(120).nullable().optional(),
   tags: z.array(z.string().trim().min(1).max(40)).max(20).optional(),
   timeComplexity: z.string().trim().max(120).nullable().optional(),

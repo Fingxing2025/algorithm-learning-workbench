@@ -14,6 +14,7 @@ import {
   fileChangePlanPayloadSchema,
   inspectBatchTemplateImportResultSchema,
   parseStoredFileChangePlanPayload,
+  parseStoredFileChangeOperation,
   previewExistingTemplateMetadataCompletionRequestSchema,
   previewTemplateClassificationRequestSchema,
 } from './template-management'
@@ -66,10 +67,7 @@ describe('template AI draft contracts', () => {
     content: 'void template_source() {}',
     fileName: 'template.cpp',
     metadata: {
-      commonMistakes: '',
-      constraints: '',
       notes: '',
-      prerequisites: '',
       solves: '',
       spaceComplexity: null,
       tags: [],
@@ -101,6 +99,49 @@ describe('template AI draft contracts', () => {
         fileName: String.raw`C:\private\template.cpp`,
       }),
     ).toThrow()
+  })
+})
+
+describe('legacy template metadata compatibility', () => {
+  it('strips deprecated fields from stored file-plan operations', () => {
+    const operation = parseStoredFileChangeOperation({
+      alternatives: [],
+      applicability: [],
+      confidence: 0.5,
+      evidence: [],
+      id: '40000000-0000-4000-8000-000000000031',
+      kind: 'update-metadata',
+      metadata: {
+        commonMistakes: 'legacy',
+        constraints: 'legacy',
+        notes: '',
+        prerequisites: 'legacy',
+        solves: '解决的问题：保留原文',
+        spaceComplexity: null,
+        tags: [],
+        timeComplexity: null,
+      },
+      previousMetadata: {
+        commonMistakes: 'legacy old',
+        constraints: 'legacy old',
+        notes: '',
+        prerequisites: 'legacy old',
+        solves: '旧解决的问题',
+        spaceComplexity: null,
+        tags: [],
+        timeComplexity: null,
+      },
+      reason: '兼容旧计划',
+      risk: 'low',
+      selectedByDefault: false,
+      source: 'ai',
+      sourcePath: '图论/模板.cpp',
+      templateId: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    })
+    expect(operation?.kind).toBe('update-metadata')
+    if (operation?.kind !== 'update-metadata') return
+    expect(operation.metadata).not.toHaveProperty('constraints')
+    expect(operation.metadata.solves).toBe('解决的问题：保留原文')
   })
 })
 

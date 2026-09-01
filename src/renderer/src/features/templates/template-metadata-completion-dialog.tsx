@@ -22,9 +22,6 @@ import { runTrackedOperation } from '@/lib/background-task'
 type BusyMode = 'apply' | 'generate' | 'preview' | null
 
 const fieldLabels: Record<CompletableTemplateMetadataField, string> = {
-  commonMistakes: '常见错误',
-  constraints: '适用约束',
-  prerequisites: '前置条件',
   solves: '解决的问题',
   spaceComplexity: '空间复杂度',
   tags: '标签',

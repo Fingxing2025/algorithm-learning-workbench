@@ -8,10 +8,7 @@ import { normalizeTemplateRelativePath } from '../security/template-path'
 
 export function metadataFields(metadata: TemplateMetadata | null): TemplateMetadataFields {
   return {
-    commonMistakes: metadata?.commonMistakes ?? '',
-    constraints: metadata?.constraints ?? '',
     notes: metadata?.notes ?? '',
-    prerequisites: metadata?.prerequisites ?? '',
     solves: metadata?.solves ?? '',
     spaceComplexity: metadata?.spaceComplexity ?? null,
     tags: metadata?.tags ?? [],

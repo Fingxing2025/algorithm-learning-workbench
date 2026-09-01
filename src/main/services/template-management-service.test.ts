@@ -254,9 +254,7 @@ describe('TemplateManagementService feature contracts', () => {
             alternatives: [],
             categoryPath: ['罕见分类', '正确目录'],
             classificationReason: '完整目录中已有语义匹配的位置。',
-            commonMistakes: '',
             confidence: 0.96,
-            constraints: '',
             fileName: 'new-template.cpp',
             placement: {
               existingParentPath: '罕见分类/正确目录',
@@ -265,7 +263,6 @@ describe('TemplateManagementService feature contracts', () => {
               reason: '复用完整目录中的现有位置。',
               targetDirectory: '罕见分类/正确目录',
             },
-            prerequisites: '',
             solves: '用户已填写的用途',
             spaceComplexity: null,
             tags: ['用户标签'],
@@ -336,10 +333,7 @@ describe('TemplateManagementService feature contracts', () => {
       content: 'void new_template() {}',
       fileName: 'new-template.cpp',
       metadata: {
-        commonMistakes: '',
-        constraints: '',
         notes: '绝对不能进入 AI 请求的用户笔记',
-        prerequisites: '',
         solves: '用户已填写的用途',
         spaceComplexity: null,
         tags: ['用户标签'],

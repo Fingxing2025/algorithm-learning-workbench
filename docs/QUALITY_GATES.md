@@ -369,7 +369,7 @@ Session F 已正式结束，不再执行第十一切片或继续维护性拆分�
 - 总体文件请求统一按最终序列化 payload 预算；先缩短摘要、省略附加元数据和可选源码，再省略非审计详细候选。审计必需候选或最小完整目录仍超 96,000 输入 Token 安全预算时，在网络前返回 `AI_CONTEXT_TOO_LARGE`，不发送残缺目录。
 - `previewFilePlan` 创建 Main 内存中 5 分钟 TTL、一次性消费的 `previewId` 快照；`generateFilePlan` 只消费该快照。发送前复检工作区、Provider/模型、catalog、候选 SHA-256/mtime/size 与 metadata 版本；预览过期、重复消费、跨工作区或外部修改均拒绝发送。
 - 用户笔记默认不发送；显式开启后才进入候选元数据、字符/Token 预算和预览统计。SHA-256、mtime、大小、绝对路径、数据库/备份路径、API Key、密钥引用和自定义鉴权头只留在 Main，不进入 Provider payload。
-- 计划审查显示 `solves`、`constraints`、`prerequisites`、`commonMistakes`、`timeComplexity`、`spaceComplexity`、`tags`、`notes` 的旧值到新值；notes 标记高风险，当前 `update-metadata` 计划必须包含 `previousMetadata`。所有删除默认不选，高度相似删除显示本地保留项证据。
+- 计划审查显示 `solves`、`timeComplexity`、`spaceComplexity`、`tags`、`notes` 的旧值到新值；notes 标记高风险，当前 `update-metadata` 计划必须包含 `previousMetadata`。所有删除默认不选，高度相似删除显示本地保留项证据。旧版 deprecated 元数据列只在 Main 兼容解析中读取。
 - 定向 Vitest 最终为 4 个文件/33 项通过；`npm run check` 通过 TypeScript、ESLint 0 warnings、Prettier、40 个 Vitest 文件/270 项和 8 项发布脚本测试。受影响的文件管理、题目分析、模板入库 Electron 规格合计 18/18 通过。
 - 最终单次 `npm run test:e2e` 为 57 项常规真实 Electron E2E 通过，2 项 packaged 因未设置 `PACKAGED_APP_PATH` 条件跳过。首次沙箱运行的 Electron `EPERM` 属环境限制；完整套件曾检出一处重复英文翻译覆盖，修复并定向通过后再次全量运行无失败。
 - 文件计划新增 9 张截图：notes 开/关预览、1440×900 亮/暗、1280×720、1024×640、完整元数据 Diff 与二次确认。已人工复核完整目录统计、预算退化提示、删除默认态、滚动、焦点和固定操作区；原有模板/题目完整目录 8 张截图继续有效。
@@ -379,7 +379,7 @@ Session F 已正式结束，不再执行第十一切片或继续维护性拆分�
 ## 已有模板 AI 元数据补全门禁（2026-07-24）
 
 - 单份与批量入口必须先展示 AI 发送预览；用户确认生成前不得发起 Provider 请求，确认保存前不得写入 SQLite 或模板文件。
-- 只允许建议 `commonMistakes`、`constraints`、`prerequisites`、`solves`、`spaceComplexity`、`tags`、`timeComplexity`；非空字段和 `notes` 必须由 Main 强制保留，`notes` 不得进入 Provider payload。
+- 只允许建议 `solves`、`spaceComplexity`、`tags`、`timeComplexity`；非空字段和 `notes` 必须由 Main 强制保留，`notes` 不得进入 Provider payload。
 - 一批最多 20 份；没有空字段的模板不得调用 Provider。用户可逐模板、逐字段取消建议，零选择时保存按钮禁用。
 - 预览/草稿必须绑定当前工作区、Provider/模型、完整目录版本、源码 SHA-256 和元数据版本；过期、重复消费、工作区切换或版本变化失败关闭。
 - 批量确认必须只调用一次事务式 `upsertMetadataBatch`；任一源码或元数据变化时零写入。取消活动请求后迟到响应不得生成可保存草稿。

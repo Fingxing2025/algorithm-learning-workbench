@@ -351,13 +351,7 @@ function validateFilePlanOutputLanguage(
   for (const operation of plan.operations) {
     if (operation.kind === 'move') paths.push(operation.targetPath)
     if (operation.kind === 'update-metadata') {
-      narratives.push(
-        operation.metadata.commonMistakes ?? '',
-        operation.metadata.constraints ?? '',
-        operation.metadata.notes ?? '',
-        operation.metadata.prerequisites ?? '',
-        operation.metadata.solves ?? '',
-      )
+      narratives.push(operation.metadata.notes ?? '', operation.metadata.solves ?? '')
       tags.push(...(operation.metadata.tags ?? []))
     }
   }

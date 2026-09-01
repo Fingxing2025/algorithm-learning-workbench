@@ -19,10 +19,7 @@ export interface TemplateDraftSnapshot {
 }
 
 export const emptyTemplateMetadata: TemplateMetadataFields = {
-  commonMistakes: '',
-  constraints: '',
   notes: '',
-  prerequisites: '',
   solves: '',
   spaceComplexity: null,
   tags: [],
@@ -30,10 +27,7 @@ export const emptyTemplateMetadata: TemplateMetadataFields = {
 }
 
 const fieldLabels: Record<TemplateMergeKey, string> = {
-  commonMistakes: '常见错误',
-  constraints: '适用约束',
   notes: '用户笔记',
-  prerequisites: '前置条件',
   relativePath: '保存路径',
   solves: '解决的问题',
   spaceComplexity: '空间复杂度',
@@ -108,18 +102,7 @@ export function mergeTemplateClassification(
 
   return {
     metadata: {
-      commonMistakes: choose(
-        'commonMistakes',
-        metadata.commonMistakes,
-        classification.metadata.commonMistakes,
-      ),
-      constraints: choose('constraints', metadata.constraints, classification.metadata.constraints),
       notes: choose('notes', metadata.notes, classification.metadata.notes),
-      prerequisites: choose(
-        'prerequisites',
-        metadata.prerequisites,
-        classification.metadata.prerequisites,
-      ),
       solves: choose('solves', metadata.solves, classification.metadata.solves),
       spaceComplexity: choose(
         'spaceComplexity',
@@ -153,25 +136,10 @@ export function restoreDraftBeforeClassificationLanguageChange(
 
   return {
     metadata: {
-      commonMistakes: restore(
-        current.metadata.commonMistakes,
-        baseline.metadata.commonMistakes,
-        classification.metadata.commonMistakes,
-      ),
-      constraints: restore(
-        current.metadata.constraints,
-        baseline.metadata.constraints,
-        classification.metadata.constraints,
-      ),
       notes: restore(
         current.metadata.notes,
         baseline.metadata.notes,
         classification.metadata.notes,
-      ),
-      prerequisites: restore(
-        current.metadata.prerequisites,
-        baseline.metadata.prerequisites,
-        classification.metadata.prerequisites,
       ),
       solves: restore(
         current.metadata.solves,

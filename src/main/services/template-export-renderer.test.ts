@@ -23,10 +23,7 @@ describe('template export renderer', () => {
       [
         {
           metadata: {
-            commonMistakes: 'secret note',
-            constraints: 'n <= 10',
             notes: 'must not leak',
-            prerequisites: '',
             solves: '区间查询',
             spaceComplexity: 'O(n)',
             tags: ['树状数组'],
@@ -71,10 +68,7 @@ describe('template export renderer', () => {
     const documents = [
       {
         metadata: {
-          commonMistakes: '',
-          constraints: '',
           notes: 'private note',
-          prerequisites: '',
           solves: 'A & B',
           spaceComplexity: 'O(1)',
           tags: ['标签'],

@@ -223,9 +223,7 @@ export function normalizeTemplateClassificationEnvelope(
     alternatives,
     categoryPath,
     classificationReason,
-    commonMistakes: optionalText(firstDefined(record, ['commonMistakes', 'common_mistakes'])),
     confidence: normalizeConfidence(record.confidence),
-    constraints: optionalText(record.constraints),
     fileName,
     placement: {
       existingParentPath,
@@ -239,7 +237,6 @@ export function normalizeTemplateClassificationEnvelope(
       reason: placementReason,
       targetDirectory,
     },
-    prerequisites: optionalText(record.prerequisites),
     solves: optionalText(firstDefined(record, ['solves', 'solvedProblem', 'solved_problem'])),
     spaceComplexity: optionalComplexity(
       firstDefined(record, ['spaceComplexity', 'space_complexity']),
