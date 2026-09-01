@@ -19,6 +19,36 @@ import { analyzeTemplateFileName } from './template-file-name-analysis'
 import { MAX_SIMILARITY_CANDIDATE_PAIRS, MAX_SOURCE_BYTES } from './template-management-constants'
 import { decodeTemplateSourceBuffer } from './template-source-codec'
 
+/**
+ * Classifies directory names conservatively.  Batch import often creates
+ * semantically equivalent branches such as "字符串"/"字符串算法" or
+ * "算法"/"算法基础".  We only remove well-known descriptive affixes and
+ * punctuation; arbitrary fuzzy matching would risk merging real categories.
+ */
+function canonicalDirectorySegment(segment: string): string {
+  let value = segment
+    .normalize('NFKC')
+    .trim()
+    .toLocaleLowerCase('zh-CN')
+    .replace(/[\s_\-—–·./\\]+/gu, '')
+  if (value.length > 2) {
+    value = value.replace(/^(基础|通用|常用|basics?)|基础$|basics?$/u, '')
+    const withoutAffix = value.replace(/(算法|模板|分类|algorithms?|templates?|categories?)$/u, '')
+    if (withoutAffix.length >= 2) value = withoutAffix
+    if (value.length > 2) value = value.replace(/路径$/u, '路')
+  }
+  return value || segment.normalize('NFKC').trim().toLocaleLowerCase('zh-CN')
+}
+
+function canonicalDirectoryPath(path: string): string {
+  return path.split('/').map(canonicalDirectorySegment).join('/')
+}
+
+function directoryPathOf(relativePath: string): string {
+  const separator = relativePath.lastIndexOf('/')
+  return separator < 0 ? '' : relativePath.slice(0, separator)
+}
+
 export interface WorkspaceAuditOptions {
   onProgress?: (progress: {
     currentItem?: string | null
@@ -45,6 +75,7 @@ export class TemplateWorkspaceAuditService {
     const issues: WorkspaceAudit['issues'] = []
     let omittedIssueCount = 0
     let pathTruncatedIssueCount = 0
+    let categoryPathTruncatedIssueCount = 0
     const addIssue = (issue: WorkspaceAudit['issues'][number]) => {
       if (issues.length < 500) issues.push(issue)
       else omittedIssueCount += 1
@@ -99,6 +130,64 @@ export class TemplateWorkspaceAuditService {
         processedCount: index + 1,
         totalCount: templates.length,
       })
+    }
+
+    // Detect semantically duplicated directory branches introduced by
+    // independent batch classifications.  This is intentionally local and
+    // conservative: only equivalent canonical segment chains are grouped,
+    // and the shortest/most-used existing branch is kept as the destination.
+    const templatesByDirectory = new Map<string, typeof templates>()
+    for (const template of templates) {
+      const directory = directoryPathOf(template.relativePath)
+      if (!directory) continue
+      const segments = directory.split('/')
+      for (let depth = 1; depth <= segments.length; depth += 1) {
+        const ancestor = segments.slice(0, depth).join('/')
+        const entries = templatesByDirectory.get(ancestor) ?? []
+        entries.push(template)
+        templatesByDirectory.set(ancestor, entries)
+      }
+    }
+    const directoriesByCanonical = new Map<string, string[]>()
+    for (const directory of templatesByDirectory.keys()) {
+      const separator = directory.lastIndexOf('/')
+      const parent = separator < 0 ? '' : directory.slice(0, separator)
+      const segment = separator < 0 ? directory : directory.slice(separator + 1)
+      const canonical = `${canonicalDirectoryPath(parent)}\u0000${canonicalDirectorySegment(segment)}`
+      const paths = directoriesByCanonical.get(canonical) ?? []
+      paths.push(directory)
+      directoriesByCanonical.set(canonical, paths)
+    }
+    const coveredAffectedPaths = new Set<string>()
+    for (const [, directories] of directoriesByCanonical) {
+      const distinctDirectories = [...new Set(directories)]
+      if (distinctDirectories.length < 2) continue
+      const ordered = [...distinctDirectories].sort((left, right) => {
+        const leftCount = templatesByDirectory.get(left)?.length ?? 0
+        const rightCount = templatesByDirectory.get(right)?.length ?? 0
+        return rightCount - leftCount || left.length - right.length || left.localeCompare(right)
+      })
+      const keeper = ordered[0]!
+      const affectedPaths = ordered
+        .slice(1)
+        .flatMap(directory => templatesByDirectory.get(directory) ?? [])
+        .map(template => template.relativePath)
+        .filter(path => !coveredAffectedPaths.has(path))
+        .sort((left, right) => left.localeCompare(right))
+      if (affectedPaths.length === 0) continue
+      for (const path of affectedPaths) coveredAffectedPaths.add(path)
+      const shownPaths = affectedPaths.slice(0, 20)
+      const shownDirectories = ordered.slice(0, 4).join('、')
+      addIssue({
+        detail: `目录分类疑似重复（${shownDirectories}${ordered.length > 4 ? ' 等' : ''}）；建议统一到 ${keeper}，AI 将根据源码与元数据重新规划子目录。`,
+        id: randomUUID(),
+        kind: 'path-inconsistency',
+        pathCount: affectedPaths.length,
+        paths: shownPaths,
+        pathsTruncated: affectedPaths.length > shownPaths.length,
+        severity: 'warning',
+      })
+      if (affectedPaths.length > shownPaths.length) categoryPathTruncatedIssueCount += 1
     }
     for (const paths of pathsByHash.values()) {
       if (paths.length > 1) {
@@ -285,6 +374,9 @@ export class TemplateWorkspaceAuditService {
       candidatePairsTruncated ? '高相似候选过多，已停止继续比较以保持应用可响应。' : null,
       pathTruncatedIssueCount > 0
         ? `${pathTruncatedIssueCount} 个重复或相似组的路径超过 20 条，已在组内明确标记截断。`
+        : null,
+      categoryPathTruncatedIssueCount > 0
+        ? `${categoryPathTruncatedIssueCount} 个重复分类组的路径超过 20 条，已在组内明确标记截断。`
         : null,
       omittedIssueCount > 0 ? '还有更多建议未在当前结果中展开。' : null,
     ].filter((value): value is string => Boolean(value))

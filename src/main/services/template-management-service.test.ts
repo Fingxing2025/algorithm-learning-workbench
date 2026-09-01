@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -130,6 +130,56 @@ describe('TemplateManagementService feature contracts', () => {
     expect(audit.truncatedReason).toContain(
       '1 个重复或相似组的路径超过 20 条，已在组内明确标记截断。',
     )
+  })
+
+  it('detects semantically duplicated category branches for AI file planning', async () => {
+    const rootPath = await mkdtemp(join(tmpdir(), 'template-management-service-'))
+    try {
+      await mkdir(join(rootPath, '字符串', '模式匹配'), { recursive: true })
+      await mkdir(join(rootPath, '字符串算法', '回文串'), { recursive: true })
+      await mkdir(join(rootPath, '算法', '二分查找'), { recursive: true })
+      await mkdir(join(rootPath, '算法基础', '二分查找'), { recursive: true })
+      await writeFile(join(rootPath, '字符串', '模式匹配', 'kmp.cpp'), 'int kmp() { return 1; }\n')
+      await writeFile(
+        join(rootPath, '字符串算法', '回文串', 'kmp2.cpp'),
+        'int kmp2() { return 2; }\n',
+      )
+      await writeFile(
+        join(rootPath, '算法', '二分查找', 'answer.cpp'),
+        'int answer() { return 3; }\n',
+      )
+      await writeFile(
+        join(rootPath, '算法基础', '二分查找', 'answer2.cpp'),
+        'int answer2() { return 4; }\n',
+      )
+      const service = createService(rootPath, [
+        createTemplate('a', '字符串/模式匹配/kmp.cpp', 'hash-a'),
+        createTemplate('b', '字符串算法/回文串/kmp2.cpp', 'hash-b'),
+        createTemplate('c', '算法/二分查找/answer.cpp', 'hash-c'),
+        createTemplate('d', '算法基础/二分查找/answer2.cpp', 'hash-d'),
+      ])
+
+      const audit = await service.auditWorkspace()
+      const issues = audit.issues.filter(issue => issue.kind === 'path-inconsistency')
+
+      expect(issues).toHaveLength(2)
+      expect(issues).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            detail: expect.stringContaining('字符串算法'),
+            kind: 'path-inconsistency',
+            paths: ['字符串算法/回文串/kmp2.cpp'],
+          }),
+          expect.objectContaining({
+            detail: expect.stringContaining('算法基础'),
+            kind: 'path-inconsistency',
+            paths: ['算法基础/二分查找/answer2.cpp'],
+          }),
+        ]),
+      )
+    } finally {
+      await rm(rootPath, { force: true, recursive: true })
+    }
   })
 
   it('reports decoding artifacts separately from ordinary naming inconsistencies', async () => {

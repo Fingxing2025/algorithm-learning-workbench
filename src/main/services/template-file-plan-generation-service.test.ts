@@ -236,6 +236,19 @@ function addInvalidNameIssue(audit: WorkspaceAudit, template: TemplateSummary): 
   })
 }
 
+function addPathInconsistencyIssue(audit: WorkspaceAudit, template: TemplateSummary): void {
+  audit.issues.push({
+    detail:
+      '目录分类疑似重复（字符串、字符串算法）；建议统一到 字符串，AI 将根据源码与元数据重新规划子目录。',
+    id: crypto.randomUUID(),
+    kind: 'path-inconsistency',
+    pathCount: 1,
+    paths: [template.relativePath],
+    pathsTruncated: false,
+    severity: 'warning',
+  })
+}
+
 function moveSuggestion(templateId: string, targetPath: string) {
   return {
     alternatives: ['保留原路径'],
@@ -1008,6 +1021,38 @@ describe('TemplateFilePlanGenerationService preview snapshots', () => {
     })
     expect(fixture.runTask).toHaveBeenCalledTimes(1)
     expect(fixture.createPlan).not.toHaveBeenCalled()
+  })
+
+  it('requires AI to move every template in a duplicated category branch', async () => {
+    rootPath = await mkdtemp(join(tmpdir(), 'file-plan-snapshot-'))
+    const fixture = await createFixture(rootPath)
+    addPathInconsistencyIssue(fixture.audit, fixture.templates[0]!)
+    fixture.runTask.mockResolvedValueOnce({
+      model: fixture.target.model,
+      providerName: fixture.target.providerName,
+      text: JSON.stringify({
+        operations: [moveSuggestion(fixture.templates[0]!.id, '字符串/模式匹配/模板一.cpp')],
+        summary: '合并重复分类目录',
+      }),
+    })
+
+    const preview = await fixture.service.previewFilePlan({
+      includeNotes: false,
+      outputLanguage: 'zh-CN',
+      requestId: crypto.randomUUID(),
+    })
+    const plan = await fixture.service.generateFilePlan({ previewId: preview.filePlan.previewId })
+
+    expect(plan.operations).toEqual([
+      expect.objectContaining({
+        kind: 'move',
+        sourcePath: fixture.templates[0]!.relativePath,
+        targetPath: '字符串/模式匹配/模板一.cpp',
+      }),
+    ])
+    expect(fixture.runTask.mock.calls[0]![1].system).toContain(
+      '每个 path-inconsistency 审计项列出的模板都必须输出 move',
+    )
   })
 
   it.each([

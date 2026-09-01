@@ -15,6 +15,7 @@ const auditIssueLabels: Record<AuditIssue['kind'], string> = {
   'duplicate-content': '完全重复',
   'empty-file': '空文件',
   'invalid-name': '命名异常',
+  'path-inconsistency': '分类路径重复',
   'missing-metadata': '缺失元数据',
   'similar-content': '高度相似',
   'stale-relation': '失效关联',
@@ -35,6 +36,17 @@ function auditIssueDetail(
     return t('这些模板源码高度相似；建议仅保留 {path}，执行前请查看源码确认。', {
       path: issue.paths[0] ?? '',
     })
+  if (issue.kind === 'path-inconsistency') {
+    const match = issue.detail.match(
+      /^目录分类疑似重复（(.+)）；建议统一到 (.+)，AI 将根据源码与元数据重新规划子目录。$/u,
+    )
+    return match
+      ? t('目录分类疑似重复：{paths}；建议统一到 {keeper}，AI 将根据源码与元数据重新规划子目录。', {
+          keeper: match[2] ?? '',
+          paths: match[1] ?? '',
+        })
+      : issue.detail
+  }
   return t('模板关联指向当前不可用的模板。')
 }
 
