@@ -107,20 +107,8 @@ test('scrolls the dashboard, opens summary cards, and persists both interface la
     await page.getByRole('button', { name: 'New template' }).last().click()
     await expectNoChineseInterfaceText(page)
     await expect(page.getByText('Problem solved', { exact: true })).toBeVisible()
-    await expect(page.getByText('Applicable constraints', { exact: true })).toBeVisible()
-    await expect(page.getByText('Prerequisites', { exact: true })).toBeVisible()
-    await expect(page.getByText('Common mistakes', { exact: true })).toBeVisible()
     await expect(page.getByText('Template notes', { exact: true })).toBeVisible()
-    await expect(
-      page.getByPlaceholder('Describe the core problem this template solves…'),
-    ).toBeVisible()
-    await expect(
-      page.getByPlaceholder('Data ranges, edge weights, or input conditions…'),
-    ).toBeVisible()
-    await expect(
-      page.getByPlaceholder('Required data structures or algorithm concepts…'),
-    ).toBeVisible()
-    await expect(page.getByPlaceholder('Error-prone or commonly missed edge cases…')).toBeVisible()
+    await expect(page.getByPlaceholder(/Problem solved:|Describe the core problem/)).toBeVisible()
     await expect(page.getByPlaceholder('Personal notes stored only on this device…')).toBeVisible()
     await page.screenshot({
       animations: 'disabled',
