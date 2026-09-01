@@ -61,15 +61,19 @@ jobs:
         run: node ./node_modules/@playwright/test/cli.js test tests/e2e/packaged.spec.ts
         env:
           PACKAGED_APP_PATH: release/mac-arm64/算法学习工作台.app/Contents/MacOS/算法学习工作台
-      - name: Export application version
-        run: echo "APP_VERSION=$(node -p \"require('./package.json').version\")" >> "$GITHUB_ENV"
+      - name: Stage exact macOS candidate artifacts
+        run: |
+          version="$(node -p 'require("./package.json").version')"
+          product_name="$(node -p 'require("./package.json").build.productName')"
+          staging_directory="release/github-artifact"
+          mkdir -p "$staging_directory"
+          cp "release/${product_name}-${version}-mac-arm64.dmg" "$staging_directory/"
+          cp "release/${product_name}-${version}-mac-arm64.zip" "$staging_directory/"
+          cp -R "release/candidates/${version}-mac-arm64-${{ inputs.mode }}" "$staging_directory/candidate"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: algorithm-workbench-${{ inputs.mode }}-mac-arm64
-          path: |
-            release/*-${{ env.APP_VERSION }}-mac-arm64.dmg
-            release/*-${{ env.APP_VERSION }}-mac-arm64.zip
-            release/candidates/${{ env.APP_VERSION }}-mac-arm64-${{ inputs.mode }}/**
+          path: release/github-artifact/**
           if-no-files-found: error
           retention-days: 14
       - name: Remove temporary Apple API key
@@ -96,15 +100,19 @@ jobs:
         run: node ./node_modules/@playwright/test/cli.js test tests/e2e/packaged.spec.ts
         env:
           PACKAGED_APP_PATH: release/win-unpacked/算法学习工作台.exe
-      - name: Export application version
-        shell: bash
-        run: echo "APP_VERSION=$(node -p \"require('./package.json').version\")" >> "$GITHUB_ENV"
+      - name: Stage exact Windows candidate artifacts
+        shell: pwsh
+        run: |
+          $version = node -p 'require("./package.json").version'
+          $productName = node -p 'require("./package.json").build.productName'
+          $stagingDirectory = 'release/github-artifact'
+          New-Item -ItemType Directory -Force -Path $stagingDirectory | Out-Null
+          Copy-Item "release/$productName-$version-win-x64.exe" $stagingDirectory
+          Copy-Item "release/candidates/$version-win-x64-${{ inputs.mode }}" "$stagingDirectory/candidate" -Recurse
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: algorithm-workbench-${{ inputs.mode }}-win-x64
-          path: |
-            release/*-${{ env.APP_VERSION }}-win-x64.exe
-            release/candidates/${{ env.APP_VERSION }}-win-x64-${{ inputs.mode }}/**
+          path: release/github-artifact/**
           if-no-files-found: error
           retention-days: 14
 
