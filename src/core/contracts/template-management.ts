@@ -403,6 +403,7 @@ export const workspaceAuditIssueSchema = z
       'similar-content',
       'empty-file',
       'invalid-name',
+      'path-inconsistency',
       'missing-metadata',
       'stale-relation',
     ]),

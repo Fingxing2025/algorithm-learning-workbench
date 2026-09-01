@@ -1162,6 +1162,7 @@ Object.assign(english, {
   '连接成功，模型返回了有效文本。': 'Connection successful. The model returned valid text.',
   缺失元数据: 'Missing metadata',
   命名异常: 'Naming issue',
+  分类路径重复: 'Duplicate category path',
   空文件: 'Empty file',
   完全重复: 'Exact duplicate',
   高度相似: 'Highly similar',
@@ -1176,6 +1177,8 @@ Object.assign(english, {
     'These templates are identical after normalization. Keep only {path}.',
   '这些模板源码高度相似；建议仅保留 {path}，执行前请查看源码确认。':
     'These templates are highly similar. Consider keeping only {path}; inspect the source before applying changes.',
+  '目录分类疑似重复：{paths}；建议统一到 {keeper}，AI 将根据源码与元数据重新规划子目录。':
+    'Category branches may be duplicates: {paths}. Consolidate them under {keeper}; AI will re-plan subdirectories from source and metadata.',
   '模板关联指向当前不可用的模板。':
     'The relation points to a template that is currently unavailable.',
   '所选位置不是可用的文件夹。': 'The selected location is not an available folder.',

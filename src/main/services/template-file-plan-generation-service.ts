@@ -146,6 +146,8 @@ function buildSystem(outputLanguage: PreviewFilePlanRequest['outputLanguage']): 
     '完全重复文件由本地审计处理，不要为 duplicate-content 输出操作。',
     '除已由 duplicate-content 本地确定性删除的文件外，每个 invalid-name 审计项都必须输出 move；必须根据源码、元数据和目录语义恢复可读文件名，不得只描述异常或改元数据。',
     'invalid-name 的 move 必须保留扩展名、使用工作区相对路径、避开已有目标且不能修改源码。',
+    '每个 path-inconsistency 审计项列出的模板都必须输出 move；目标应优先复用该组建议保留的现有目录，并根据源码与元数据选择合理的子目录，不得把重复的“算法/算法基础”“字符串/字符串算法”等分支继续保留。',
+    'path-inconsistency 的 move 必须保留扩展名、使用工作区相对路径、避开已有目标且不能修改源码；如果无法可靠判断子目录，使用审计项 detail 中的保留目录并在 reason/alternatives 中说明。',
     '高度相似不是删除结论；如建议 delete，evidence 必须指出保留项和需人工确认的差异。',
     '用户笔记只能在有明确算法或事实错误时作为 update-metadata 建议；必须给出证据，不得仅做文风改写。',
     '保持输出简洁：summary 不超过 300 字，每项 evidence 和 alternatives 只保留最关键的 1–3 条，不重复输入内容。',
@@ -168,6 +170,12 @@ function mandatoryRenamePaths(audit: WorkspaceAudit): Set<string> {
       .filter(issue => issue.kind === 'invalid-name')
       .flatMap(issue => issue.paths)
       .filter(path => !deletedAsExactDuplicate.has(path)),
+  )
+}
+
+function mandatoryPathMovePaths(audit: WorkspaceAudit): Set<string> {
+  return new Set(
+    audit.issues.filter(issue => issue.kind === 'path-inconsistency').flatMap(issue => issue.paths),
   )
 }
 
@@ -485,6 +493,8 @@ export class TemplateFilePlanGenerationService {
     const templateById = new Map(templates.map(template => [template.id, template]))
     const deterministicDeletePaths = exactDuplicateDeletePaths(audit)
     const requiredRenamePaths = mandatoryRenamePaths(audit)
+    const requiredPathMovePaths = mandatoryPathMovePaths(audit)
+    const requiredMovePaths = new Set([...requiredRenamePaths, ...requiredPathMovePaths])
     const requiredIds: string[] = []
     const requiredSet = new Set<string>()
     for (const issue of audit.issues) {
@@ -499,11 +509,11 @@ export class TemplateFilePlanGenerationService {
     const localOperationCount = audit.issues
       .filter(issue => issue.kind === 'duplicate-content')
       .reduce((count, issue) => count + Math.max(0, issue.paths.length - 1), 0)
-    const minimumRequiredOperationCount = localOperationCount + requiredRenamePaths.size
+    const minimumRequiredOperationCount = localOperationCount + requiredMovePaths.size
     if (minimumRequiredOperationCount > 100) {
       throw new PublicError(
         'INVALID_REQUEST',
-        `本地审计至少需要 ${localOperationCount} 项确定性删除和 ${requiredRenamePaths.size} 项命名异常改名，共 ${minimumRequiredOperationCount} 项，超过单计划 100 项上限。请先按顶层目录处理一批再重新审计；没有操作被静默删除。`,
+        `本地审计至少需要 ${localOperationCount} 项确定性删除和 ${requiredMovePaths.size} 项必须移动（命名异常 ${requiredRenamePaths.size} 项、重复分类 ${requiredPathMovePaths.size} 项），共 ${minimumRequiredOperationCount} 项，超过单计划 100 项上限。请先按顶层目录处理一批再重新审计；没有操作被静默删除。`,
       )
     }
 
@@ -515,7 +525,7 @@ export class TemplateFilePlanGenerationService {
     const requiredCandidateByPath = new Map(
       requiredCandidates.map(candidate => [candidate.template.relativePath, candidate]),
     )
-    const unavailableRequiredPaths = new Set([...requiredRenamePaths, ...deterministicDeletePaths])
+    const unavailableRequiredPaths = new Set([...requiredMovePaths, ...deterministicDeletePaths])
     for (const path of unavailableRequiredPaths) {
       if (!requiredCandidateByPath.get(path)?.precondition) {
         throw new PublicError(
@@ -1218,6 +1228,7 @@ export class TemplateFilePlanGenerationService {
       )
       const exactDuplicatePaths = exactDuplicateDeletePaths(snapshot.audit)
       const requiredRenamePaths = mandatoryRenamePaths(snapshot.audit)
+      const requiredPathMovePaths = mandatoryPathMovePaths(snapshot.audit)
       const similarDeletePaths = new Set(
         snapshot.audit.issues
           .filter(issue => issue.kind === 'similar-content')
@@ -1378,6 +1389,22 @@ export class TemplateFilePlanGenerationService {
         throw new PublicError(
           'INVALID_REQUEST',
           `AI 未为 ${missingRequiredRenames.length} 个命名异常文件提供安全有效的改名操作：${shownPaths}${omittedCount > 0 ? ` 等（另有 ${omittedCount} 个）` : ''}。请重新生成；本次没有创建计划或修改文件。`,
+        )
+      }
+      const plannedMoveSources = new Set(
+        operations
+          .filter(operation => operation.kind === 'move')
+          .map(operation => operation.sourcePath),
+      )
+      const missingRequiredPathMoves = [...requiredPathMovePaths].filter(
+        path => !plannedMoveSources.has(path),
+      )
+      if (missingRequiredPathMoves.length > 0) {
+        const shownPaths = missingRequiredPathMoves.slice(0, 5).join('、')
+        const omittedCount = Math.max(0, missingRequiredPathMoves.length - 5)
+        throw new PublicError(
+          'INVALID_REQUEST',
+          `AI 未为 ${missingRequiredPathMoves.length} 个重复分类路径提供安全有效的整理操作：${shownPaths}${omittedCount > 0 ? ` 等（另有 ${omittedCount} 个）` : ''}。请重新生成；本次没有创建计划或修改文件。`,
         )
       }
       if (operations.length > 100) {
