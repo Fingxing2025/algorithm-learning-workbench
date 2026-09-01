@@ -6,17 +6,17 @@
 
 ## 当前状态
 
-V2 [`0.1.3 RC3 Preview`](https://github.com/Fingxing2025/algorithm-learning-workbench/releases/tag/v0.1.3-rc.3) 已公开发布。这是 G1 模板导出预发布版本，不是稳定版：macOS 仅支持 Apple Silicon（arm64，macOS 12+），Windows 本轮未重新构建；请仅从 Release 页面下载并先校验 `SHA256SUMS.txt`。
+V2 [`0.1.3 RC4 Preview`](https://github.com/Fingxing2025/algorithm-learning-workbench/releases/tag/v0.1.3-rc.4) 已公开发布。这是未签名预发布版本，不是稳定版：macOS 仅支持 Apple Silicon（arm64，macOS 12+），Windows 仅支持 x64；请仅从 Release 页面下载并先校验 `SHA256SUMS.txt`。
 
-本次新增从当前工作区选择模板并导出 `.tex`、紧凑目录/高亮 PDF 和可选 `.doc` 的完整桌面流程。PDF 优先使用 Electron 内置打印引擎，不要求本机安装 TeX；`.doc` 是 RTF 兼容容器。源码门禁、真实 Electron E2E、macOS arm64 制品和隐私扫描结果见 Release 页面。
+本次包含从当前工作区选择模板并导出 `.tex`、紧凑目录/高亮 PDF 和可选 `.doc` 的完整桌面流程；PDF 优先使用 Electron 内置打印引擎，不要求本机安装 TeX，`.doc` 是 RTF 兼容容器。AI 管理还会审计“字符串 / 字符串算法”等语义重复分类，生成可预览、确认和回滚的整理计划。模板元数据则收敛为解决的问题、时间/空间复杂度、标签和用户笔记；“解决的问题”统一描述问题、输入与输出。
 
 当前包未使用 macOS Developer ID/notarization 或 Windows Authenticode 签名；没有自动更新。详见 [发布说明](docs/RELEASE.md) 和 [用户指南](docs/USER_GUIDE.md)。
 
 ### macOS 命令安装（Apple Silicon）
 
 ```bash
-curl -fLO https://github.com/Fingxing2025/algorithm-learning-workbench/releases/download/v0.1.3-rc.3/install-macos-preview.sh
-curl -fLO https://github.com/Fingxing2025/algorithm-learning-workbench/releases/download/v0.1.3-rc.3/SHA256SUMS.txt
+curl -fLO https://github.com/Fingxing2025/algorithm-learning-workbench/releases/download/v0.1.3-rc.4/install-macos-preview.sh
+curl -fLO https://github.com/Fingxing2025/algorithm-learning-workbench/releases/download/v0.1.3-rc.4/SHA256SUMS.txt
 grep 'install-macos-preview.sh$' SHA256SUMS.txt | shasum -a 256 -c -
 sh install-macos-preview.sh
 ```
@@ -61,4 +61,4 @@ npm run release:mac:preview
 npm run release:mac:signed
 ```
 
-Windows 候选必须在原生 Windows 主机或 runner 生成；CI 构建不等于实机安装验收。工程、数据、AI、文件计划和发布边界记录在 `docs/decisions/` 中的 ADR-0001 至 ADR-0031。威胁模型见 [安全威胁模型](docs/智能算法学习助手-v2-threat-model.md)，审查结论见 [安全最佳实践审查](docs/SECURITY_REVIEW.md)。
+Windows 候选必须在原生 Windows 主机或 runner 生成；CI 构建不等于实机安装验收。工程、数据、AI、文件计划和发布边界记录在 `docs/decisions/` 中的 ADR-0001 至 ADR-0035。威胁模型见 [安全威胁模型](docs/智能算法学习助手-v2-threat-model.md)，审查结论见 [安全最佳实践审查](docs/SECURITY_REVIEW.md)。

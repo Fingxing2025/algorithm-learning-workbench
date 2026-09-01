@@ -6,13 +6,14 @@
 
 暂无。
 
-## [0.1.3] - 2026-07-28（RC1 Preview）
+## [0.1.3] - 2026-09-01（RC4 Preview）
 
 ### Added
 
 - 模板库新增从当前工作区选择单份、多份或分类导出模板册的完整桌面流程，支持只导出代码或附带基础元数据，并生成稳定可复现的 LaTeX。
 - 导出可选生成紧凑双栏目录和代码高亮 PDF（优先使用 Electron 内置打印引擎，无需本机安装 TeX），以及 Word/Office 可打开的 `.doc`（RTF 容器）。
 - PDF 目录改为分类/子目录到模板的嵌套树形结构，便于在多层模板库中快速定位。
+- 总体文件 AI 新增语义重复分类审计，可保守识别“字符串 / 字符串算法”“算法 / 算法基础”等重复目录，并要求计划覆盖全部必要的安全移动。
 
 - 工作区统一为可直接复制的自包含文件夹：`workspace.awb.json`、`templates/`、题目图片和工作区 SQLite/撤销数据都位于同一根目录；普通模板文件夹可在确认后安全升级为该格式。
 - 已有模板支持单份或批量 AI 补全空白元数据；无效文件执行记录可在 AI 管理中预览、复检并安全删除。
@@ -24,6 +25,8 @@
 - `.awb-backup v2` 固定深拷贝当前工作区的完整源码和业务数据；正确备份可原地恢复到任意当前工作区，目标文件夹名称、路径和 UUID 保持不变，来源身份只用于溯源。
 - 中文源码统一支持 UTF-8、UTF-16LE/BE BOM 与 GB18030/GBK/CP936；跨平台备份保持源码原始字节、UTF-8/EFS 文件名和 NFC 路径。
 - 恢复预备份暂存改到系统临时目录并使用紧凑 ZIP 文件名，降低 Windows 长路径失败风险。
+- 模板元数据收敛为“解决的问题”、时间/空间复杂度、标签和用户笔记；“解决的问题”统一承载问题、输入和输出描述，AI 只补全空白核心字段。
+- 新增 `0008` 契约迁移：旧元数据列、旧备份和旧文件计划仍可安全读取，但废弃字段不再进入新 UI、AI 输出、搜索或导出。
 
 ### Compatibility
 
@@ -37,7 +40,7 @@
 - 该反馈没有配套 `windows-acceptance-evidence.json`，不能据此逐项宣称安装升级、快捷方式、卸载和数据保留脚本全部通过；Windows Authenticode 仍未完成。
 - `0.1.3` RC1 macOS arm64 Preview 已从干净提交 `797700e` 生成并通过架构、版本、DMG、ZIP、SHA-256、SBOM、隐私与 packaged smoke 2/2 验证。
 - `0.1.3` RC1 Windows x64 Preview 已在原生 Windows runner 从产品基线 `b69cab2` 生成；安装器 SHA-256 为 `fd3f3b11faa48edba2087f89041146a1de12e3c65fe48b34cc4b339c05268064`，主程序与 `better_sqlite3.node` 均为 x64，隐私扫描和 packaged smoke 2/2 通过。该候选未签名，真实 Windows 安装/升级/卸载与 Mac→Windows→Mac 往返仍需实机验收。
-- `0.1.3` RC3 G1 模板导出已通过 TypeScript、ESLint、Vitest（51 个文件/382 项）和真实 Electron 导出 E2E；macOS arm64 Preview 的 `.app`、DMG、ZIP、SBOM、SHA-256 与隐私检查以发布候选元数据为准。
+- RC4 源码门禁通过 TypeScript、ESLint、Prettier、51 个 Vitest 文件/386 项与 8 项发布脚本测试；模板入库/元数据 Electron E2E 8/8 通过。macOS arm64 与 Windows x64 Preview 的制品、SBOM、SHA-256 与隐私检查以本次 Release 附件为准。
 
 ## [0.1.2] - 2026-07-18
 
