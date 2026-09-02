@@ -19,13 +19,15 @@ The release includes SHA-256 checksums, a CycloneDX SBOM, and an artifact-verifi
 
 Apple Silicon users can download and verify the DMG from the command line before opening it:
 
+Copy the raw commands below, not Markdown link syntax such as `[ ]( )`. If the connection drops, rerun the first command to resume the existing partial download.
+
 ```bash
-curl -fLO https://github.com/Fingxing2025/algorithm-learning-workbench/releases/download/v0.1.3-rc.5/algorithm-learning-workbench-0.1.3-mac-arm64.dmg
+while ! curl --fail --location --continue-at - --output algorithm-learning-workbench-0.1.3-mac-arm64.dmg https://github.com/Fingxing2025/algorithm-learning-workbench/releases/download/v0.1.3-rc.5/algorithm-learning-workbench-0.1.3-mac-arm64.dmg; do sleep 2; done
 curl -fLO https://github.com/Fingxing2025/algorithm-learning-workbench/releases/download/v0.1.3-rc.5/SHA256SUMS.txt
 grep 'algorithm-learning-workbench-0.1.3-mac-arm64.dmg$' SHA256SUMS.txt | shasum -a 256 -c -
 ```
 
-After verification, open the DMG and drag the App to Applications. This preview does not replace macOS code signing or notarization.
+The final command must report `OK`. Only then open the DMG and drag the App to Applications. This preview does not replace macOS code signing or notarization.
 
 ## What it does
 

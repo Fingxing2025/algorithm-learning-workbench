@@ -14,13 +14,15 @@ V2 [`0.1.3 RC5 Preview`](https://github.com/Fingxing2025/algorithm-learning-work
 
 ### macOS 下载与校验（Apple Silicon）
 
+请直接复制下面的纯命令；不要把 README 的 Markdown 链接符号（`[ ]( )`）一并复制到终端。若网络中断，重复执行第一条命令即可从已下载的位置续传。
+
 ```bash
-curl -fLO https://github.com/Fingxing2025/algorithm-learning-workbench/releases/download/v0.1.3-rc.5/algorithm-learning-workbench-0.1.3-mac-arm64.dmg
+while ! curl --fail --location --continue-at - --output algorithm-learning-workbench-0.1.3-mac-arm64.dmg https://github.com/Fingxing2025/algorithm-learning-workbench/releases/download/v0.1.3-rc.5/algorithm-learning-workbench-0.1.3-mac-arm64.dmg; do sleep 2; done
 curl -fLO https://github.com/Fingxing2025/algorithm-learning-workbench/releases/download/v0.1.3-rc.5/SHA256SUMS.txt
 grep 'algorithm-learning-workbench-0.1.3-mac-arm64.dmg$' SHA256SUMS.txt | shasum -a 256 -c -
 ```
 
-校验通过后再打开 DMG 并将 App 拖入“应用程序”。该预览版不能替代 macOS 正式签名或公证。
+最后一行必须显示 `OK`；只有校验通过后才能打开 DMG 并将 App 拖入“应用程序”。该预览版不能替代 macOS 正式签名或公证。
 
 ## 已确定技术方向
 
