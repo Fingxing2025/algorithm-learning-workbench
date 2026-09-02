@@ -15,19 +15,66 @@ A local-first Electron desktop workbench for building and maintaining a personal
 
 The release includes SHA-256 checksums, a CycloneDX SBOM, and an artifact-verification report. It is not signed or notarized for macOS, and it has no Windows Authenticode signature. See the release notes for the full verification scope and known limitations.
 
-### macOS download and verification
+### One-command macOS installation (Apple Silicon)
 
-Apple Silicon users can download and verify the DMG from the command line before opening it:
-
-Copy the raw commands below, not Markdown link syntax such as `[ ]( )`. If the connection drops, rerun the first command to resume the existing partial download.
+Copy and run the entire command below without Markdown link syntax. It resumes interrupted downloads, verifies the fixed RC5 DMG SHA-256, installs to `~/Applications`, removes quarantine only after verification, and launches the App. It stops rather than replacing an existing App.
 
 ```bash
-while ! curl --fail --location --continue-at - --output algorithm-learning-workbench-0.1.3-mac-arm64.dmg https://github.com/Fingxing2025/algorithm-learning-workbench/releases/download/v0.1.3-rc.5/algorithm-learning-workbench-0.1.3-mac-arm64.dmg; do sleep 2; done
-curl -fLO https://github.com/Fingxing2025/algorithm-learning-workbench/releases/download/v0.1.3-rc.5/SHA256SUMS.txt
-grep 'algorithm-learning-workbench-0.1.3-mac-arm64.dmg$' SHA256SUMS.txt | shasum -a 256 -c -
+bash <<'INSTALL'
+set -eu
+
+release_tag='v0.1.3-rc.5'
+dmg_name='algorithm-learning-workbench-0.1.3-mac-arm64.dmg'
+dmg_url="https://github.com/Fingxing2025/algorithm-learning-workbench/releases/download/${release_tag}/${dmg_name}"
+expected_dmg_sha256='adf9c9ec37305c857259c299b7eff34750302cf681053680fbf57abfadf85196'
+install_dir="${ALGORITHM_WORKBENCH_INSTALL_DIR:-$HOME/Applications}"
+work_dir=''
+mount_dir=''
+
+fail() { printf '%s\n' "Error: $*" >&2; exit 1; }
+cleanup() {
+  [ -z "$mount_dir" ] || hdiutil detach "$mount_dir" -quiet >/dev/null 2>&1 || true
+  [ -z "$work_dir" ] || rm -rf "$work_dir"
+}
+trap cleanup EXIT HUP INT TERM
+
+[ "$(uname -s)" = 'Darwin' ] || fail 'This installer runs only on macOS.'
+if [ "$(uname -m)" != 'arm64' ] && [ "$(sysctl -n sysctl.proc_translated 2>/dev/null || true)" != '1' ]; then
+  fail 'This preview supports Apple Silicon Macs only.'
+fi
+
+work_dir="$(mktemp -d "${TMPDIR:-/tmp}/algorithm-learning-workbench.XXXXXX")"
+dmg_path="$work_dir/$dmg_name"
+while ! curl --fail --location --continue-at - --output "$dmg_path" "$dmg_url"; do
+  printf '%s\n' 'Download interrupted; retrying from the completed byte range in 2 seconds...' >&2
+  sleep 2
+done
+
+actual_dmg_sha256="$(shasum -a 256 "$dmg_path" | awk '{ print $1 }')"
+[ "$actual_dmg_sha256" = "$expected_dmg_sha256" ] || fail "DMG SHA-256 mismatch: $actual_dmg_sha256"
+
+mount_dir="$work_dir/mount"
+mkdir "$mount_dir"
+mkdir -p "$install_dir"
+hdiutil attach -nobrowse -readonly -mountpoint "$mount_dir" "$dmg_path" >/dev/null
+app_source=''
+for app_candidate in "$mount_dir"/*.app; do
+  [ -d "$app_candidate" ] && app_source="$app_candidate" && break
+done
+[ -n "$app_source" ] || fail 'The verified DMG did not contain an application bundle.'
+
+destination="$install_dir/$(basename "$app_source")"
+[ ! -e "$destination" ] || fail "Stopped without replacing the existing app: $destination"
+ditto "$app_source" "$destination"
+hdiutil detach "$mount_dir" -quiet
+mount_dir=''
+xattr -dr com.apple.quarantine "$destination"
+open "$destination"
+printf '%s\n' "Installed and verified: $destination"
+INSTALL
 ```
 
-The final command must report `OK`. Only then open the DMG and drag the App to Applications. This preview does not replace macOS code signing or notarization.
+This is an unsigned, unnotarized preview. SHA-256 verification and removing quarantine do not replace macOS code signing or notarization.
 
 ## What it does
 

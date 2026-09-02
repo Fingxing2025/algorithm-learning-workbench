@@ -12,17 +12,66 @@ V2 [`0.1.3 RC5 Preview`](https://github.com/Fingxing2025/algorithm-learning-work
 
 当前包未使用 macOS Developer ID/notarization 或 Windows Authenticode 签名；没有自动更新。详见 [发布说明](docs/RELEASE.md) 和 [用户指南](docs/USER_GUIDE.md)。
 
-### macOS 下载与校验（Apple Silicon）
+### macOS 一键安装（Apple Silicon）
 
-请直接复制下面的纯命令；不要把 README 的 Markdown 链接符号（`[ ]( )`）一并复制到终端。若网络中断，重复执行第一条命令即可从已下载的位置续传。
+完整复制并执行以下命令（不要附带 README 的 Markdown 链接符号）。它会自动断点续传、校验固定 RC5 DMG 的 SHA-256、安装到 `~/Applications`、仅在校验成功后移除该 App 的隔离标记并启动。已有同名 App 时会停止，不会覆盖。
 
 ```bash
-while ! curl --fail --location --continue-at - --output algorithm-learning-workbench-0.1.3-mac-arm64.dmg https://github.com/Fingxing2025/algorithm-learning-workbench/releases/download/v0.1.3-rc.5/algorithm-learning-workbench-0.1.3-mac-arm64.dmg; do sleep 2; done
-curl -fLO https://github.com/Fingxing2025/algorithm-learning-workbench/releases/download/v0.1.3-rc.5/SHA256SUMS.txt
-grep 'algorithm-learning-workbench-0.1.3-mac-arm64.dmg$' SHA256SUMS.txt | shasum -a 256 -c -
+bash <<'INSTALL'
+set -eu
+
+release_tag='v0.1.3-rc.5'
+dmg_name='algorithm-learning-workbench-0.1.3-mac-arm64.dmg'
+dmg_url="https://github.com/Fingxing2025/algorithm-learning-workbench/releases/download/${release_tag}/${dmg_name}"
+expected_dmg_sha256='adf9c9ec37305c857259c299b7eff34750302cf681053680fbf57abfadf85196'
+install_dir="${ALGORITHM_WORKBENCH_INSTALL_DIR:-$HOME/Applications}"
+work_dir=''
+mount_dir=''
+
+fail() { printf '%s\n' "Error: $*" >&2; exit 1; }
+cleanup() {
+  [ -z "$mount_dir" ] || hdiutil detach "$mount_dir" -quiet >/dev/null 2>&1 || true
+  [ -z "$work_dir" ] || rm -rf "$work_dir"
+}
+trap cleanup EXIT HUP INT TERM
+
+[ "$(uname -s)" = 'Darwin' ] || fail 'This installer runs only on macOS.'
+if [ "$(uname -m)" != 'arm64' ] && [ "$(sysctl -n sysctl.proc_translated 2>/dev/null || true)" != '1' ]; then
+  fail 'This preview supports Apple Silicon Macs only.'
+fi
+
+work_dir="$(mktemp -d "${TMPDIR:-/tmp}/algorithm-learning-workbench.XXXXXX")"
+dmg_path="$work_dir/$dmg_name"
+while ! curl --fail --location --continue-at - --output "$dmg_path" "$dmg_url"; do
+  printf '%s\n' 'Download interrupted; retrying from the completed byte range in 2 seconds...' >&2
+  sleep 2
+done
+
+actual_dmg_sha256="$(shasum -a 256 "$dmg_path" | awk '{ print $1 }')"
+[ "$actual_dmg_sha256" = "$expected_dmg_sha256" ] || fail "DMG SHA-256 mismatch: $actual_dmg_sha256"
+
+mount_dir="$work_dir/mount"
+mkdir "$mount_dir"
+mkdir -p "$install_dir"
+hdiutil attach -nobrowse -readonly -mountpoint "$mount_dir" "$dmg_path" >/dev/null
+app_source=''
+for app_candidate in "$mount_dir"/*.app; do
+  [ -d "$app_candidate" ] && app_source="$app_candidate" && break
+done
+[ -n "$app_source" ] || fail 'The verified DMG did not contain an application bundle.'
+
+destination="$install_dir/$(basename "$app_source")"
+[ ! -e "$destination" ] || fail "Stopped without replacing the existing app: $destination"
+ditto "$app_source" "$destination"
+hdiutil detach "$mount_dir" -quiet
+mount_dir=''
+xattr -dr com.apple.quarantine "$destination"
+open "$destination"
+printf '%s\n' "Installed and verified: $destination"
+INSTALL
 ```
 
-最后一行必须显示 `OK`；只有校验通过后才能打开 DMG 并将 App 拖入“应用程序”。该预览版不能替代 macOS 正式签名或公证。
+这是未签名、未公证的预览版；SHA-256 校验和移除隔离标记不等于 macOS 正式签名或公证。
 
 ## 已确定技术方向
 
