@@ -72,7 +72,14 @@ AI 只产生草稿。正式模板库变更必须经过 Diff、用户确认、版
 ## 进度与证据
 
 - S0：现场已备份，长期分支已创建，执行规范已建立。
-- S1/S2/S3：已请求创建独立任务，待确认工作树与运行状态。
+- 长期分支已推送并跟踪 `origin/codex/template-organization-next`，根目录当前就在此分支。
+- S1：`01a09de6-c427-7261-b934-c7fa612ea46d`，独立分支 `codex/s1-dynamic-staging-integration`，运行中。
+- S2：`01a09de6-c427-7261-b934-c7d0cbfda7c1`，独立分支 `codex/template-organization-s2`，运行中。
+- S3：`01a09de6-c429-7a61-adee-069d7a71c9f3`，独立分支 `codex/s3-classification-evidence`，运行中。
 - S4/S5：等待前置成果。
+- 整合前基线：TypeScript、lint、51 个 Vitest 文件 / 386 项、9 项 release 脚本测试通过。尚未重跑 Electron。
+- 仓库外归档的 89 份文件已逐项验证 SHA-256；原工作树状态保留。
 - 真实 AI 分类准确率：未运行；尚无可宣称的基线分数。
 - 最终集成测试：未运行；历史分支测试不能相加视作组合通过。
+
+补充必须覆盖的回归：暂存审计不得因目录名含“背包问题”而强制移动到“01 背包”；多重、完全、01 背包应分别判断。空 AI 计划不能触发错误的本地子类猜测。暂存应用进程退出后必须有可达的恢复入口，不能仅依赖异常 catch。
