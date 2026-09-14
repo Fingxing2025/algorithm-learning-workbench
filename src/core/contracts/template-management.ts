@@ -135,6 +135,7 @@ export type PreviewTemplateClassificationRequest = z.infer<
 >
 export const classifyTemplateRequestSchema = previewTemplateClassificationRequestSchema.extend({
   requestId: aiRequestIdSchema,
+  stagingId: z.string().uuid().nullable().optional(),
 })
 export type ClassifyTemplateRequest = z.infer<typeof classifyTemplateRequestSchema>
 export const previewTemplateClassificationResultSchema = aiRequestPreviewSchema.extend({
@@ -153,6 +154,27 @@ export type PreviewBatchTemplateClassificationRequest = z.infer<
 export const previewBatchTemplateClassificationResultSchema = aiRequestPreviewSchema.extend({
   outputLanguage: aiOutputLanguageSchema,
 })
+
+/**
+ * Read-only preview for classification against an evolving staging branch.
+ * The staging identifier is required so Main can build context from the
+ * branch's current catalog rather than the active workspace alone.
+ */
+export const previewBatchStagingClassificationRequestSchema = z
+  .object({
+    outputLanguage: templateMetadataLanguageSchema,
+    sources: z.array(batchTemplateImportSourceSchema).min(1).max(100),
+    stagingId: z.string().uuid(),
+  })
+  .strict()
+export type PreviewBatchStagingClassificationRequest = z.infer<
+  typeof previewBatchStagingClassificationRequestSchema
+>
+export const previewBatchStagingClassificationResultSchema =
+  previewBatchTemplateClassificationResultSchema
+export type PreviewBatchStagingClassificationResult = z.infer<
+  typeof previewBatchStagingClassificationResultSchema
+>
 
 export const templateClassificationSchema = z
   .object({
@@ -210,6 +232,153 @@ export const templateClassificationSchema = z
   })
   .strict()
 export type TemplateClassification = z.infer<typeof templateClassificationSchema>
+
+/**
+ * A durable, application-internal branch used by the dynamic batch importer.
+ * The public contract deliberately contains no absolute paths or source text.
+ */
+export const batchTemplateStagingStatusSchema = z.enum([
+  'processing',
+  'failed',
+  'ready',
+  'applying',
+  'applied',
+  'discarded',
+])
+export type BatchTemplateStagingStatus = z.infer<typeof batchTemplateStagingStatusSchema>
+
+export const batchTemplateStagingItemStatusSchema = z.enum([
+  'pending',
+  'processing',
+  'completed',
+  'failed',
+  'skipped',
+])
+export type BatchTemplateStagingItemStatus = z.infer<typeof batchTemplateStagingItemStatusSchema>
+
+export const createBatchTemplateStagingRequestSchema = z
+  .object({
+    outputLanguage: templateMetadataLanguageSchema,
+    sources: z.array(batchTemplateImportSourceSchema).min(1).max(100),
+  })
+  .strict()
+export type CreateBatchTemplateStagingRequest = z.infer<
+  typeof createBatchTemplateStagingRequestSchema
+>
+
+export const batchTemplateStagingIdRequestSchema = z
+  .object({ stagingId: z.string().uuid() })
+  .strict()
+export type BatchTemplateStagingIdRequest = z.infer<typeof batchTemplateStagingIdRequestSchema>
+
+export const processBatchTemplateStagingRequestSchema = z
+  .object({
+    requestId: aiRequestIdSchema.optional(),
+    runAi: z.boolean().default(true),
+    stagingId: z.string().uuid(),
+  })
+  .strict()
+export type ProcessBatchTemplateStagingRequest = z.infer<
+  typeof processBatchTemplateStagingRequestSchema
+>
+export const continueBatchTemplateStagingRequestSchema = processBatchTemplateStagingRequestSchema
+export type ContinueBatchTemplateStagingRequest = ProcessBatchTemplateStagingRequest
+export const retryBatchTemplateStagingRequestSchema = processBatchTemplateStagingRequestSchema
+export type RetryBatchTemplateStagingRequest = ProcessBatchTemplateStagingRequest
+
+export const updateBatchTemplateStagingItemRequestSchema = z
+  .object({
+    action: z.enum(['include', 'skip']),
+    sourceId: z.string().uuid(),
+    stagingId: z.string().uuid(),
+    targetRelativePath: relativePathSchema.nullable(),
+  })
+  .strict()
+export type UpdateBatchTemplateStagingItemRequest = z.infer<
+  typeof updateBatchTemplateStagingItemRequestSchema
+>
+
+export const applyBatchTemplateStagingRequestSchema = z
+  .object({
+    confirmed: z.literal(true),
+    stagingId: z.string().uuid(),
+  })
+  .strict()
+export type ApplyBatchTemplateStagingRequest = z.infer<
+  typeof applyBatchTemplateStagingRequestSchema
+>
+
+export const discardBatchTemplateStagingRequestSchema = z
+  .object({
+    confirmed: z.literal(true),
+    stagingId: z.string().uuid(),
+  })
+  .strict()
+export type DiscardBatchTemplateStagingRequest = z.infer<
+  typeof discardBatchTemplateStagingRequestSchema
+>
+
+export const batchTemplateStagingItemSchema = z
+  .object({
+    classification: templateClassificationSchema.nullable(),
+    displayPath: relativePathSchema,
+    error: z.string().max(500).nullable(),
+    fileName: z.string().min(1).max(255),
+    ordinal: z.number().int().nonnegative(),
+    sourceEncoding: templateSourceEncodingSchema,
+    sourceId: z.string().uuid(),
+    status: batchTemplateStagingItemStatusSchema,
+    targetRelativePath: relativePathSchema.nullable(),
+  })
+  .strict()
+export type BatchTemplateStagingItem = z.infer<typeof batchTemplateStagingItemSchema>
+
+export const batchTemplateStagingSchema = z
+  .object({
+    baseTreeHash: z.string().regex(/^[a-f0-9]{64}$/),
+    baseWorkspaceVersion: z.string().regex(/^[a-f0-9]{64}$/),
+    canResume: z.boolean(),
+    createdAt: z.string().datetime(),
+    currentItem: z.string().max(500).nullable(),
+    error: z.string().max(500).nullable(),
+    id: z.string().uuid(),
+    items: z.array(batchTemplateStagingItemSchema).max(100),
+    outputLanguage: aiOutputLanguageSchema,
+    processedCount: z.number().int().nonnegative(),
+    status: batchTemplateStagingStatusSchema,
+    totalCount: z.number().int().nonnegative(),
+    updatedAt: z.string().datetime(),
+    version: z.number().int().nonnegative(),
+    workspaceId: z.string().uuid(),
+  })
+  .strict()
+export type BatchTemplateStaging = z.infer<typeof batchTemplateStagingSchema>
+
+export const batchTemplateStagingListSchema = z.array(batchTemplateStagingSchema).max(20)
+
+export const applyBatchTemplateStagingResultSchema = z
+  .object({
+    applied: z.boolean(),
+    stagingId: z.string().uuid(),
+    workspace: workspaceSnapshotSchema,
+  })
+  .strict()
+export type ApplyBatchTemplateStagingResult = z.infer<typeof applyBatchTemplateStagingResultSchema>
+
+/** A target is selected by the user; Main never accepts an arbitrary path. */
+export const templateAiPlanTargetSchema = z.enum(['main', 'staging'])
+export type TemplateAiPlanTarget = z.infer<typeof templateAiPlanTargetSchema>
+
+export const previewTemplateAiPlanRequestSchema = z
+  .object({
+    includeNotes: z.boolean().default(false),
+    outputLanguage: aiOutputLanguageSchema,
+    requestId: aiRequestIdSchema,
+    stagingId: z.string().uuid().nullable().default(null),
+    target: templateAiPlanTargetSchema,
+  })
+  .strict()
+export type PreviewTemplateAiPlanRequest = z.infer<typeof previewTemplateAiPlanRequestSchema>
 
 export const completableTemplateMetadataFieldSchema = z.enum([
   'solves',
@@ -460,6 +629,157 @@ export const fileChangeOperationSchema = z.discriminatedUnion('kind', [
 ])
 export type FileChangeOperation = z.infer<typeof fileChangeOperationSchema>
 export type FileChangeOperationInput = z.input<typeof fileChangeOperationSchema>
+
+/**
+ * Read-only file-plan artifacts for a dynamic batch staging tree.  These are
+ * deliberately separate from `fileChangeOperationSchema`: a staging plan is
+ * never executable against the active workspace and carries the staging
+ * source ID rather than a main-workspace template ID.
+ */
+export const stagingDiffKindSchema = z.enum(['add', 'delete', 'move', 'review', 'update-metadata'])
+export type StagingDiffKind = z.infer<typeof stagingDiffKindSchema>
+
+const stagingEvidenceFields = {
+  alternatives: z.array(z.string().trim().min(1).max(500)).max(5).default([]),
+  applicability: z.array(z.string().trim().min(1).max(500)).max(10).default([]),
+  confidence: z.number().min(0).max(1),
+  evidence: z.array(z.string().trim().min(1).max(500)).max(12).default([]),
+}
+
+export const stagingAuditDiffSchema = z
+  .object({
+    ...stagingEvidenceFields,
+    kind: stagingDiffKindSchema,
+    metadata: templateMetadataFieldsSchema.nullable(),
+    previousMetadata: templateMetadataFieldsSchema.nullable(),
+    reason: z.string().trim().min(1).max(500),
+    requiresConfirmation: z.literal(true),
+    source: z.enum(['ai', 'local-audit']),
+    sourceId: z.string().uuid(),
+    sourcePath: relativePathSchema,
+    targetPath: relativePathSchema.nullable(),
+  })
+  .strict()
+export type StagingAuditDiff = z.infer<typeof stagingAuditDiffSchema>
+
+export const stagingCatalogTemplateSchema = z
+  .object({
+    id: templateIdSchema,
+    language: z.string().min(1).max(80),
+    name: z.string().min(1).max(255),
+    path: relativePathSchema,
+    sourceId: z.string().uuid(),
+    spaceComplexity: z.string().max(120).nullable(),
+    summary: z.string().max(320),
+    tags: z.array(z.string().trim().min(1).max(40)).max(8),
+    timeComplexity: z.string().max(120).nullable(),
+  })
+  .strict()
+export type StagingCatalogTemplate = z.infer<typeof stagingCatalogTemplateSchema>
+
+export const stagingCatalogSchema = z
+  .object({
+    directories: z.array(relativePathSchema).max(500),
+    schemaVersion: z.literal(1),
+    stagingId: z.string().uuid(),
+    stagingVersion: z.number().int().nonnegative(),
+    templateCount: z.number().int().nonnegative().max(100),
+    templates: z.array(stagingCatalogTemplateSchema).max(100),
+    workspaceContextVersion: z.string().regex(/^[a-f0-9]{64}$/),
+  })
+  .strict()
+export type StagingCatalog = z.infer<typeof stagingCatalogSchema>
+
+export const stagingAiPlanOperationSchema = stagingAuditDiffSchema
+  .extend({
+    id: z.string().uuid(),
+    risk: filePlanRiskSchema,
+    selectedByDefault: z.boolean(),
+  })
+  .strict()
+export type StagingAiPlanOperation = z.infer<typeof stagingAiPlanOperationSchema>
+
+export const stagingAiPlanPreviewSchema = aiRequestPreviewSchema
+  .extend({
+    audit: workspaceAuditSchema,
+    diff: z.array(stagingAuditDiffSchema).max(100),
+    filePlan: z
+      .object({
+        auditIssueCount: z.number().int().nonnegative(),
+        batchCount: z.number().int().positive().max(100),
+        candidateCount: z.number().int().nonnegative().max(100),
+        expiresAt: z.string().datetime(),
+        inputCharacters: z.number().int().nonnegative(),
+        inputHash: z.string().regex(/^[a-f0-9]{64}$/),
+        previewId: z.string().uuid(),
+        sourceCharacters: z.number().int().nonnegative(),
+        sourceReadFailureCount: z.number().int().nonnegative(),
+        sourceSnippetCount: z.number().int().nonnegative(),
+        stagingId: z.string().uuid(),
+        stagingVersion: z.number().int().nonnegative(),
+      })
+      .strict(),
+    staging: z
+      .object({
+        baseTreeHash: z.string().regex(/^[a-f0-9]{64}$/),
+        baseWorkspaceVersion: z.string().regex(/^[a-f0-9]{64}$/),
+        id: z.string().uuid(),
+        status: batchTemplateStagingStatusSchema,
+        version: z.number().int().nonnegative(),
+      })
+      .strict(),
+    stagingCatalog: stagingCatalogSchema,
+    target: z.literal('staging'),
+    workspaceCatalog: workspaceCatalogPreviewSchema,
+  })
+  .strict()
+export type StagingAiPlanPreview = z.infer<typeof stagingAiPlanPreviewSchema>
+
+export const stagingAiPlanDraftSchema = z
+  .object({
+    audit: workspaceAuditSchema,
+    createdAt: z.string().datetime(),
+    diff: z.array(stagingAiPlanOperationSchema).max(100),
+    draftId: z.string().uuid(),
+    expiresAt: z.string().datetime(),
+    model: z.string().min(1).max(160),
+    operations: z.array(stagingAiPlanOperationSchema).max(100),
+    outputLanguage: aiOutputLanguageSchema,
+    previewId: z.string().uuid(),
+    providerName: z.string().min(1).max(80),
+    reviewOnly: z.literal(true),
+    stagingId: z.string().uuid(),
+    stagingVersion: z.number().int().nonnegative(),
+    status: z.literal('draft'),
+    summary: z.string().max(4_000),
+    target: z.literal('staging'),
+  })
+  .strict()
+export type StagingAiPlanDraft = z.infer<typeof stagingAiPlanDraftSchema>
+
+export const applyStagingAiPlanRequestSchema = z
+  .object({
+    confirmed: z.literal(true),
+    draftId: z.string().uuid(),
+    operationIds: z.array(z.string().uuid()).min(1).max(100),
+  })
+  .strict()
+export type ApplyStagingAiPlanRequest = z.infer<typeof applyStagingAiPlanRequestSchema>
+
+export const applyStagingAiPlanResultSchema = z
+  .object({
+    appliedOperationCount: z.number().int().nonnegative(),
+    staging: batchTemplateStagingSchema,
+  })
+  .strict()
+export type ApplyStagingAiPlanResult = z.infer<typeof applyStagingAiPlanResultSchema>
+
+/** Main-only identifiers used to retrieve or discard a staging review draft. */
+export const stagingAiPlanDraftRequestSchema = z.object({ draftId: z.string().uuid() }).strict()
+export type StagingAiPlanDraftRequest = z.infer<typeof stagingAiPlanDraftRequestSchema>
+
+export const discardStagingAiPlanDraftRequestSchema = stagingAiPlanDraftRequestSchema
+export type DiscardStagingAiPlanDraftRequest = StagingAiPlanDraftRequest
 
 export const filePlanDiagnosticSchema = z
   .object({
@@ -966,3 +1286,22 @@ export const modelFileChangePlanSchema = z
     summary: z.string().max(4_000),
   })
   .strict()
+
+export const batchStagingRecoverySchema = z
+  .object({
+    stagingId: z.string().uuid(),
+    operationId: z.string().uuid(),
+    createdAt: z.string().datetime(),
+    action: z.enum(['rollback', 'finish']),
+  })
+  .strict()
+export const batchStagingRecoveryListSchema = z.array(batchStagingRecoverySchema)
+export const recoverBatchStagingRequestSchema = z
+  .object({
+    stagingId: z.string().uuid(),
+    operationId: z.string().uuid(),
+    confirmed: z.literal(true),
+  })
+  .strict()
+export type BatchStagingRecovery = z.infer<typeof batchStagingRecoverySchema>
+export type RecoverBatchStagingRequest = z.infer<typeof recoverBatchStagingRequestSchema>

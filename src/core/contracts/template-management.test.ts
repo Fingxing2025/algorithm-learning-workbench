@@ -17,6 +17,8 @@ import {
   parseStoredFileChangeOperation,
   previewExistingTemplateMetadataCompletionRequestSchema,
   previewTemplateClassificationRequestSchema,
+  stagingAiPlanOperationSchema,
+  stagingAuditDiffSchema,
 } from './template-management'
 
 describe('existing template metadata completion contracts', () => {
@@ -99,6 +101,48 @@ describe('template AI draft contracts', () => {
         fileName: String.raw`C:\private\template.cpp`,
       }),
     ).toThrow()
+  })
+})
+
+describe('staging AI audit contracts', () => {
+  const sourceId = '42000000-0000-4000-8000-000000000001'
+  const baseDiff = {
+    alternatives: ['保留当前暂存路径'],
+    applicability: ['用户确认后应用'],
+    confidence: 0.9,
+    evidence: ['分类结果与源码目录一致'],
+    kind: 'move' as const,
+    metadata: {
+      notes: '',
+      solves: '处理图上的最短路径问题',
+      spaceComplexity: 'O(n)',
+      tags: ['图论'],
+      timeComplexity: 'O(n log n)',
+    },
+    previousMetadata: null,
+    reason: '统一暂存目录',
+    requiresConfirmation: true as const,
+    source: 'ai' as const,
+    sourceId,
+    sourcePath: 'incoming/dijkstra.cpp',
+    targetPath: '图论/最短路/dijkstra.cpp',
+  }
+
+  it('requires and preserves evidence fields for staging operations', () => {
+    expect(stagingAuditDiffSchema.parse(baseDiff)).toMatchObject({
+      alternatives: ['保留当前暂存路径'],
+      applicability: ['用户确认后应用'],
+      evidence: ['分类结果与源码目录一致'],
+    })
+    expect(
+      stagingAiPlanOperationSchema.parse({
+        ...baseDiff,
+        id: '42000000-0000-4000-8000-000000000002',
+        risk: 'low',
+        selectedByDefault: true,
+      }).evidence,
+    ).toEqual(['分类结果与源码目录一致'])
+    expect(() => stagingAuditDiffSchema.parse({ ...baseDiff, evidence: 'not-an-array' })).toThrow()
   })
 })
 

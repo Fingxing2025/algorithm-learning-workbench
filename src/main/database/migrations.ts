@@ -9,6 +9,7 @@ import bugfixWorkflowsMigration from '../../../drizzle/0005_bugfix_workflows.sql
 import performanceIndexingMigration from '../../../drizzle/0006_performance_indexing.sql?raw'
 import problemWorkspaceScopeMigration from '../../../drizzle/0007_problem_workspace_scope.sql?raw'
 import templateMetadataContractCleanupMigration from '../../../drizzle/0008_template_metadata_contract_cleanup.sql?raw'
+import batchTemplateStagingMigration from '../../../drizzle/0009_batch_template_staging.sql?raw'
 
 const migrations = [
   { id: '0000_initial', sql: initialMigration },
@@ -20,6 +21,7 @@ const migrations = [
   { id: '0006_performance_indexing', sql: performanceIndexingMigration },
   { id: '0007_problem_workspace_scope', sql: problemWorkspaceScopeMigration },
   { id: '0008_template_metadata_contract_cleanup', sql: templateMetadataContractCleanupMigration },
+  { id: '0009_batch_template_staging', sql: batchTemplateStagingMigration },
 ] as const
 
 export function runMigrations(client: BetterSqlite3.Database): void {

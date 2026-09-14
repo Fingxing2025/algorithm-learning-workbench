@@ -49,6 +49,81 @@ export const workspaces = sqliteTable(
   table => [uniqueIndex('workspaces_root_path_unique').on(table.rootPath)],
 )
 
+/**
+ * Durable state for a dynamic batch-template import.  The source tree lives
+ * in the Main-owned staging directory; these rows intentionally keep only
+ * bounded metadata, hashes and redacted errors so a renderer can never use
+ * the database as an arbitrary file-system handle.
+ */
+export const batchTemplateStagingSessions = sqliteTable(
+  'batch_template_staging_sessions',
+  {
+    baseTreeHash: text('base_tree_hash').notNull(),
+    baseWorkspaceVersion: text('base_workspace_version').notNull(),
+    createdAt: text('created_at').notNull(),
+    currentIndex: integer('current_index').notNull().default(0),
+    error: text('error'),
+    id: text('id').primaryKey(),
+    outputLanguage: text('output_language').notNull(),
+    processedCount: integer('processed_count').notNull().default(0),
+    rootRelativePath: text('root_relative_path').notNull(),
+    stagingVersion: integer('staging_version').notNull().default(0),
+    status: text('status').notNull().default('processing'),
+    totalCount: integer('total_count').notNull(),
+    updatedAt: text('updated_at').notNull(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+  },
+  table => [
+    index('batch_template_staging_sessions_workspace_status_index').on(
+      table.workspaceId,
+      table.status,
+      table.updatedAt,
+      table.id,
+    ),
+  ],
+)
+
+export const batchTemplateStagingItems = sqliteTable(
+  'batch_template_staging_items',
+  {
+    classificationJson: text('classification_json'),
+    displayPath: text('display_path').notNull(),
+    error: text('error'),
+    fileName: text('file_name').notNull(),
+    ordinal: integer('ordinal').notNull(),
+    sourceEncoding: text('source_encoding').notNull(),
+    sourceHash: text('source_hash').notNull(),
+    sourceId: text('source_id').notNull(),
+    sourceRelativePath: text('source_relative_path').notNull(),
+    stagingId: text('staging_id')
+      .notNull()
+      .references(() => batchTemplateStagingSessions.id, { onDelete: 'cascade' }),
+    status: text('status').notNull().default('pending'),
+    targetRelativePath: text('target_relative_path'),
+    updatedAt: text('updated_at').notNull(),
+  },
+  table => [
+    primaryKey({ columns: [table.stagingId, table.sourceId] }),
+    uniqueIndex('batch_template_staging_items_staging_ordinal_unique').on(
+      table.stagingId,
+      table.ordinal,
+    ),
+    index('batch_template_staging_items_staging_status_ordinal_index').on(
+      table.stagingId,
+      table.status,
+      table.ordinal,
+      table.sourceId,
+    ),
+  ],
+)
+
+// Short aliases keep call sites readable while retaining the explicit table
+// name used by the migration and backup tooling.
+export const batchTemplateStaging = batchTemplateStagingSessions
+export const batchTemplateStagingItem = batchTemplateStagingItems
+
 export const templates = sqliteTable(
   'templates',
   {
@@ -232,6 +307,8 @@ export const databaseSchema = {
   aiProviderProfiles,
   aiTaskRoutes,
   appState,
+  batchTemplateStagingItems,
+  batchTemplateStagingSessions,
   fileChangeExecutions,
   fileChangePlans,
   problemImages,
