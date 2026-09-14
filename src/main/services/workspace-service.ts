@@ -135,6 +135,12 @@ function buildSourceEditDiff(before: string, after: string): TemplateSourceEditD
 }
 
 export class WorkspaceService {
+  private stagingRecoveryCheck?: () => Promise<boolean>
+
+  setStagingRecoveryCheck(check: () => Promise<boolean>): void {
+    this.stagingRecoveryCheck = check
+  }
+
   private readonly sourceEditPreviews = new Map<string, StoredTemplateSourceEditPreview>()
 
   constructor(
@@ -204,6 +210,8 @@ export class WorkspaceService {
       )
       this.repository.setActiveWorkspace(workspace.id)
     }
+    // Preserve the original index until interrupted publication is explicitly recovered.
+    if (await this.stagingRecoveryCheck?.()) return this.getCurrentWorkspace()
     return this.scanAndSnapshot(workspace)
   }
 

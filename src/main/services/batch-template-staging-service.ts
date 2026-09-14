@@ -224,7 +224,13 @@ const applyJournalSchema = z
   })
   .strict()
 
-function testCrash(stage: string): void {
+async function testCrash(stage: string): Promise<void> {
+  if (
+    process.env.NODE_ENV === 'test' &&
+    process.env.E2E_USER_DATA_DIR &&
+    process.env.E2E_BATCH_STAGING_HOLD_STAGE === stage
+  )
+    await new Promise<void>(() => undefined)
   if (
     process.env.NODE_ENV === 'test' &&
     process.env.E2E_USER_DATA_DIR &&
@@ -2908,11 +2914,11 @@ export class BatchTemplateStagingService {
         )
           throw new PublicError('FILE_UNAVAILABLE', '备份期间文件或元数据已变化，未应用暂存批次。')
         await rename(mainRoot, movedMain)
-        testCrash('after-main-move')
+        await testCrash('after-main-move')
         journal = { ...journal, mainMoved: true, phase: 'main-moved' }
         await this.writeApplyJournal(journalPath, journal)
         await rename(stageTemplates, mainRoot)
-        testCrash('after-file-swap')
+        await testCrash('after-file-swap')
         journal = { ...journal, phase: 'stage-published', publishedStage: true }
         await this.writeApplyJournal(journalPath, journal)
         if (
@@ -2970,7 +2976,7 @@ export class BatchTemplateStagingService {
             }),
         )
         databaseCommitted = true
-        testCrash('after-database-commit')
+        await testCrash('after-database-commit')
         journal = { ...journal, phase: 'committed' }
         await this.writeApplyJournal(journalPath, journal)
         await rm(stageRoot, { force: true, recursive: true }).catch(() => undefined)

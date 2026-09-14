@@ -305,6 +305,11 @@ test('exports and verifies a blank user data backup, then rejects tampering', as
     stat(join(extractedBackupPath, 'data', 'sqlite', 'algorithm-workbench.sqlite')),
   ).resolves.toBeTruthy()
   await expect(stat(join(extractedBackupPath, 'secrets'))).rejects.toThrow()
+  expect(
+    (await readdir(extractedBackupPath, { recursive: true })).some(name =>
+      name.includes('runtime-ownership.sqlite'),
+    ),
+  ).toBe(false)
 
   await expect(page.getByLabel('包含模板源码')).toHaveCount(0)
   await expect(page.getByText('完整深拷贝')).toBeVisible()

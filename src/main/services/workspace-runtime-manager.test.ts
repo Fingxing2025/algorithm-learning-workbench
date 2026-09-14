@@ -4,12 +4,13 @@ import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createDatabaseAtPath, WorkspaceDatabaseManager } from '../database/database'
 import { WorkspaceRepository } from '../database/workspace-repository'
 import { WorkspaceRuntimeManager } from './workspace-runtime-manager'
 import { WorkspaceStorageManager } from './workspace-storage'
+import { acquireWorkspaceOwnership, WORKSPACE_OWNERSHIP_FILE } from './workspace-runtime-ownership'
 
 describe('WorkspaceRuntimeManager current workspace format', () => {
   let databaseManager: WorkspaceDatabaseManager
@@ -137,5 +138,52 @@ describe('WorkspaceRuntimeManager current workspace format', () => {
     await expect(runtime.storage.inspect(containerRoot)).rejects.toMatchObject({
       code: 'INVALID_REQUEST',
     })
+  })
+
+  it('keeps old database and ownership after a failed switch or candidate initialization', async () => {
+    const first = join(temporaryRoot, 'first')
+    const second = join(temporaryRoot, 'second')
+    await mkdir(first)
+    await mkdir(second)
+    await runtime.activateContainer(first, { intent: 'create' })
+    const oldPath = databaseManager.path
+    const held = acquireWorkspaceOwnership(await realpath(second))
+    await expect(runtime.activateContainer(second, { intent: 'create' })).rejects.toMatchObject({
+      code: 'TASK_CONFLICT',
+    })
+    expect(databaseManager.path).toBe(oldPath)
+    expect(() => acquireWorkspaceOwnership(first)).toThrow()
+    held.release()
+    const candidate = acquireWorkspaceOwnership(await realpath(second))
+    expect(() =>
+      databaseManager.open(join(second, 'candidate.sqlite'), candidate, () => {
+        throw new Error('initialization failed')
+      }),
+    ).toThrow('initialization failed')
+    candidate.release()
+    expect(databaseManager.path).toBe(oldPath)
+    expect(databaseManager.database.client.prepare('SELECT 1').pluck().get()).toBe(1)
+    expect(() => acquireWorkspaceOwnership(first)).toThrow()
+    // Only the successful switch releases the original owner.
+    await runtime.activateContainer(second, { intent: 'open' })
+    const released = acquireWorkspaceOwnership(first)
+    released.release()
+  })
+
+  it('retains its stable control file through failed creation and allows a safe retry', async () => {
+    const target = join(temporaryRoot, 'retry')
+    await mkdir(target)
+    const internals = runtime as unknown as {
+      createWorkspaceDatabase: (path: string, marker: unknown) => Promise<void>
+    }
+    const spy = vi
+      .spyOn(internals, 'createWorkspaceDatabase')
+      .mockRejectedValueOnce(new Error('disk failure'))
+    await expect(runtime.activateContainer(target, { intent: 'create' })).rejects.toThrow()
+    spy.mockRestore()
+    expect((await readFile(join(target, WORKSPACE_OWNERSHIP_FILE))).length).toBeGreaterThan(0)
+    await runtime.activateContainer(target, { intent: 'create' })
+    expect(databaseManager.ownsContainer(await realpath(target))).toBe(true)
+    await expect(readFile(join(target, 'templates', WORKSPACE_OWNERSHIP_FILE))).rejects.toThrow()
   })
 })

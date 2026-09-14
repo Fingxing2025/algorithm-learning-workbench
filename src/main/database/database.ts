@@ -6,6 +6,7 @@ import { drizzle, type BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
 
 import { runMigrations } from './migrations'
 import { databaseSchema } from './schema'
+import type { WorkspaceOwnership } from '../services/workspace-runtime-ownership'
 
 export interface AppDatabase {
   client: BetterSqlite3.Database
@@ -21,10 +22,15 @@ export function createAppDatabase(userDataPath: string): AppDatabase {
 export function createDatabaseAtPath(databasePath: string): AppDatabase {
   mkdirSync(dirname(databasePath), { recursive: true })
   const client = new BetterSqlite3(databasePath)
-  client.pragma('foreign_keys = ON')
-  client.pragma('journal_mode = WAL')
-  client.pragma('busy_timeout = 5000')
-  runMigrations(client)
+  try {
+    client.pragma('foreign_keys = ON')
+    client.pragma('journal_mode = WAL')
+    client.pragma('busy_timeout = 5000')
+    runMigrations(client)
+  } catch (error) {
+    client.close()
+    throw error
+  }
 
   return {
     client,
@@ -37,6 +43,7 @@ export function createDatabaseAtPath(databasePath: string): AppDatabase {
 export class WorkspaceDatabaseManager {
   private active: AppDatabase | null = null
   private activePath: string | null = null
+  private ownership: WorkspaceOwnership | null = null
 
   readonly database: AppDatabase
 
@@ -60,18 +67,45 @@ export class WorkspaceDatabaseManager {
     return this.activePath === databasePath
   }
 
-  open(databasePath: string): AppDatabase {
-    if (this.isOpenAt(databasePath)) return this.requireActive()
-    this.close()
-    this.active = createDatabaseAtPath(databasePath)
+  ownsContainer(containerRoot: string): boolean {
+    return this.ownership?.containerRoot === containerRoot
+  }
+
+  open(databasePath: string, ownership?: WorkspaceOwnership, initialize?: () => void): AppDatabase {
+    if (this.isOpenAt(databasePath)) {
+      initialize?.()
+      return this.requireActive()
+    }
+    // Keep the prior database and ownership alive until the complete switch
+    // succeeds. A migration/initialization failure must leave old services safe.
+    const next = createDatabaseAtPath(databasePath)
+    const previous = { database: this.active, path: this.activePath, ownership: this.ownership }
+    this.active = next
     this.activePath = databasePath
-    return this.active
+    this.ownership = ownership ?? null
+    try {
+      initialize?.()
+    } catch (error) {
+      this.active = previous.database
+      this.activePath = previous.path
+      this.ownership = previous.ownership
+      next.close()
+      throw error
+    }
+    previous.database?.close()
+    previous.ownership?.release()
+    return next
   }
 
   close(): void {
-    this.active?.close()
-    this.active = null
-    this.activePath = null
+    try {
+      this.active?.close()
+    } finally {
+      this.active = null
+      this.activePath = null
+      this.ownership?.release()
+      this.ownership = null
+    }
   }
 
   private requireActive(): AppDatabase {

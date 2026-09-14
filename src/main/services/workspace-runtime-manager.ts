@@ -1,11 +1,17 @@
 import { createHash, randomUUID } from 'node:crypto'
 import type { Dirent } from 'node:fs'
 import { lstat, mkdir, readdir, readFile, rename, rm, rmdir } from 'node:fs/promises'
-import { basename, join, resolve } from 'node:path'
+import { basename, join } from 'node:path'
 
 import { createDatabaseAtPath, WorkspaceDatabaseManager } from '../database/database'
 import { WorkspaceRepository, type WorkspaceRecord } from '../database/workspace-repository'
 import { PublicError } from '../errors/public-error'
+import { resolveAuthorizedRoot } from '../security/path-guard'
+import {
+  acquireWorkspaceOwnership,
+  WORKSPACE_OWNERSHIP_ENTRIES,
+  type WorkspaceOwnership,
+} from './workspace-runtime-ownership'
 import {
   containerForTemplateRoot,
   type WorkspaceMarker,
@@ -116,7 +122,23 @@ export class WorkspaceRuntimeManager {
     containerPath: string,
     options: { intent: 'create' | 'open'; name?: string },
   ): Promise<WorkspaceRecord> {
-    const containerRoot = resolve(containerPath)
+    const containerRoot = await resolveAuthorizedRoot(containerPath)
+    if (this.workspaceDatabases.ownsContainer(containerRoot))
+      return this.activateOwnedContainer(containerRoot, options)
+    const ownership = acquireWorkspaceOwnership(containerRoot)
+    try {
+      return await this.activateOwnedContainer(containerRoot, options, ownership)
+    } catch (error) {
+      ownership.release()
+      throw error
+    }
+  }
+
+  private async activateOwnedContainer(
+    containerRoot: string,
+    options: { intent: 'create' | 'open'; name?: string },
+    ownership?: WorkspaceOwnership,
+  ): Promise<WorkspaceRecord> {
     let paths = await this.storage.inspect(containerRoot)
     if (!paths) {
       const marker: WorkspaceMarker = {
@@ -151,10 +173,12 @@ export class WorkspaceRuntimeManager {
       name: paths.marker.name,
       rootPath: paths.templateRoot,
     })
-    this.workspaceDatabases.open(paths.databasePath)
-    this.workspaceRepository.ensureWorkspaceDatabaseRecord(workspace)
-    this.storage.activate(paths)
-    this.workspaceRepository.setActiveWorkspace(workspace.id)
+    this.workspaceDatabases.open(paths.databasePath, ownership, () => {
+      this.workspaceRepository.ensureWorkspaceDatabaseRecord(workspace)
+      this.workspaceRepository.syncWorkspaceSummaryFromDatabase(workspace.id)
+      this.workspaceRepository.setActiveWorkspace(workspace.id)
+      this.storage.activate(paths)
+    })
     return workspace
   }
 
@@ -163,7 +187,11 @@ export class WorkspaceRuntimeManager {
     marker: WorkspaceMarker,
     intent: 'create' | 'open',
   ): Promise<WorkspaceStoragePaths> {
-    const initialEntries = await readdir(containerRoot, { withFileTypes: true })
+    // The validated, currently held ownership file and SQLite companions are
+    // control files, never user templates or evidence of a nonempty workspace.
+    const initialEntries = (await readdir(containerRoot, { withFileTypes: true })).filter(
+      entry => !WORKSPACE_OWNERSHIP_ENTRIES.has(entry.name),
+    )
     if (intent === 'create' && initialEntries.length > 0) {
       throw new PublicError(
         'INVALID_REQUEST',

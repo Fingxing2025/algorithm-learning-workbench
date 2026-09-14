@@ -117,7 +117,7 @@ test.beforeEach(async () => {
       requests.push(body)
       const name = body.includes('second_source') ? '第二份.cpp' : '第一份.cpp'
       const classification = {
-        categoryPath: ['基础算法', '示例分类'],
+        categoryPath: ['基础算法', '通用技巧', '算法基础'],
         fileName: name,
         classificationReason: '本地测试草稿，需要人工核对。',
         confidence: 0.75,
@@ -129,8 +129,8 @@ test.beforeEach(async () => {
         placement: {
           existingParentPath: '',
           mode: 'create-category-chain',
-          newDirectories: ['基础算法', '示例分类'],
-          targetDirectory: '基础算法/示例分类',
+          newDirectories: ['基础算法', '通用技巧', '算法基础'],
+          targetDirectory: '基础算法/通用技巧/算法基础',
           reason: '测试目录',
         },
       }
@@ -199,11 +199,14 @@ test('uses the desktop entry, stages AI results per item, restarts, and applies 
   await page.getByRole('button', { name: 'AI 补全所选模板' }).click()
   await page.getByRole('button', { name: '确认发送并生成' }).click()
   await expect(page.getByLabel('工作区保存路径 one.cpp')).toHaveValue(
-    '基础算法/示例分类/第一份.cpp',
+    '基础算法/通用技巧/算法基础/第一份.cpp',
   )
   await expect(page.getByLabel('工作区保存路径 two.cpp')).toHaveValue(
-    '基础算法/示例分类/第二份.cpp',
+    '基础算法/通用技巧/算法基础/第二份.cpp',
   )
+  await expect(page.getByRole('button', { name: '确认应用 2 份', exact: true })).toBeDisabled()
+  const confirms = page.getByRole('button', { name: '确认此分类', exact: true })
+  while (await confirms.count()) await confirms.first().click()
   await expect(page.getByRole('button', { name: '确认应用 2 份', exact: true })).toBeEnabled()
   expect(await readdir(join(workspace, 'templates'))).toEqual([])
   expect(requests.length).toBe(2)
@@ -211,6 +214,8 @@ test('uses the desktop entry, stages AI results per item, restarts, and applies 
   await screenshots('staging-review')
   const before = await page.evaluate(() => window.desktop.templateManagement.listBatchStagings())
   expect(before[0]?.processedCount).toBe(2)
+  expect(before[0]?.items[0]?.classification?.sourceCoverage?.complete).toBe(true)
+  expect(before[0]?.items[0]?.classification?.reviewReasons).toContain('missing-source-evidence')
   const backupErrors = await page.evaluate(async () => {
     const attempts = [
       () => window.desktop.dataManagement.exportBackup({ includeTemplateSources: true }),
@@ -232,11 +237,14 @@ test('uses the desktop entry, stages AI results per item, restarts, and applies 
   await launch()
   await openBatch()
   await page.getByRole('button', { name: '恢复批次', exact: true }).click()
+  await expect(page.getByRole('button', { name: '确认应用 2 份', exact: true })).toBeDisabled()
+  const resumedConfirms = page.getByRole('button', { name: '确认此分类', exact: true })
+  while (await resumedConfirms.count()) await resumedConfirms.first().click()
   await expect(page.getByRole('button', { name: '确认应用 2 份', exact: true })).toBeEnabled()
   await page.getByRole('button', { name: '确认应用 2 份', exact: true }).click()
   await expect(page.getByRole('heading', { name: '批量导入 C++ 模板' })).toHaveCount(0)
   expect(
-    await readFile(join(workspace, 'templates/基础算法/示例分类/第一份.cpp'), 'utf8'),
+    await readFile(join(workspace, 'templates/基础算法/通用技巧/算法基础/第一份.cpp'), 'utf8'),
   ).toContain('first_source')
   expect(await readFile(paths[1]!, 'utf8')).toBe('int second_source() {return 2;}\n')
   const result = await page.evaluate(() => window.desktop.workspace.getCurrent())
@@ -344,3 +352,112 @@ for (const crash of ['after-main-move', 'after-file-swap', 'after-database-commi
     expect(await readFile(join(workspace, 'templates/import.cpp'), 'utf8')).toContain('imported')
   })
 }
+
+test('excludes a second userData instance during publication and permits explicit recovery after SIGKILL', async () => {
+  test.setTimeout(120_000)
+  await page.evaluate(() =>
+    window.desktop.templates.create({ fileName: 'base.cpp', content: 'int base = 1;\n' }),
+  )
+  const first = await readyBatch('first.cpp')
+  const second = await readyBatch('second.cpp')
+  expect(first.id).not.toBe(second.id)
+  await app.close()
+  await launch({ E2E_BATCH_STAGING_HOLD_STAGE: 'after-file-swap' })
+  const pendingApply = page
+    .evaluate(
+      id => window.desktop.templateManagement.applyBatchStaging({ confirmed: true, stagingId: id }),
+      first.id,
+    )
+    .catch(() => undefined)
+  await expect
+    .poll(async () => readFile(join(workspace, 'templates/first.cpp'), 'utf8').catch(() => ''))
+    .toContain('imported')
+
+  const otherData = join(root, 'other-data')
+  await mkdir(otherData)
+  let other: ElectronApplication | null = await electron.launch({
+    args: [resolve('.')],
+    env: { ...process.env, NODE_ENV: 'test', E2E_USER_DATA_DIR: otherData },
+  })
+  try {
+    const otherPage = await other.firstWindow()
+    await otherPage.waitForLoadState('domcontentloaded')
+    await dismissGettingStartedGuideIfNeeded(otherPage)
+    await other.evaluate(({ dialog }, path) => {
+      dialog.showOpenDialog = (async () => ({
+        canceled: false,
+        filePaths: [path],
+      })) as typeof dialog.showOpenDialog
+    }, workspace)
+    const denied = await otherPage.evaluate(async id => {
+      const actions = [
+        () => window.desktop.workspace.choose({ intent: 'open' }),
+        () =>
+          window.desktop.templateManagement.applyBatchStaging({ confirmed: true, stagingId: id }),
+        () =>
+          window.desktop.templates.create({ fileName: 'intruder.cpp', content: 'must not write' }),
+      ]
+      const failures = []
+      for (const action of actions) {
+        try {
+          await action()
+          failures.push(null)
+        } catch (error) {
+          failures.push((error as Error).message)
+        }
+      }
+      return failures
+    }, second.id)
+    expect(denied[0]).toContain('另一个应用实例')
+    expect(denied.every(Boolean)).toBe(true)
+    await expect(readFile(join(workspace, 'templates/intruder.cpp'))).rejects.toThrow()
+    const killed = new Promise<void>(done => app.process().once('exit', () => done()))
+    app.process().kill('SIGKILL')
+    await killed
+    await pendingApply
+    const opened = await otherPage.evaluate(() =>
+      window.desktop.workspace.choose({ intent: 'open' }),
+    )
+    expect(opened?.summary.templateCount).toBe(1)
+    const records = await otherPage.evaluate(() =>
+      window.desktop.templateManagement.inspectBatchStagingRecoveries(),
+    )
+    expect(records).toHaveLength(1)
+    expect(records[0]?.action).toBe('rollback')
+    // Acquisition only opened the workspace; no implicit recovery or reindex.
+    expect(await readFile(join(workspace, 'templates/first.cpp'), 'utf8')).toContain('imported')
+    await otherPage.evaluate(
+      record =>
+        window.desktop.templateManagement.recoverBatchStaging({ ...record, confirmed: true }),
+      { stagingId: first.id, operationId: records[0]!.operationId },
+    )
+    await expect(readFile(join(workspace, 'templates/first.cpp'))).rejects.toThrow()
+    expect(await readFile(join(workspace, 'templates/base.cpp'), 'utf8')).toBe('int base = 1;\n')
+    await other.close()
+    other = null
+
+    // Both userData registries now remember this physical workspace. An
+    // automatic reopen must explain the occupancy without a misleading retry.
+    await launch()
+    const attempted = await electron
+      .launch({
+        args: [resolve('.')],
+        env: {
+          ...process.env,
+          NODE_ENV: 'test',
+          E2E_USER_DATA_DIR: otherData,
+          E2E_EXPECT_OWNERSHIP_CONFLICT: '1',
+        },
+      })
+      .catch(() => null)
+    try {
+      await expect
+        .poll(async () => readFile(join(otherData, 'startup-error.txt'), 'utf8').catch(() => ''))
+        .toContain('另一个应用实例')
+    } finally {
+      if (attempted) await attempted.close().catch(() => undefined)
+    }
+  } finally {
+    await other?.close().catch(() => undefined)
+  }
+})

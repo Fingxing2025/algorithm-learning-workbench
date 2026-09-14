@@ -1,5 +1,6 @@
 import { app, BrowserWindow, dialog } from 'electron'
-import { realpathSync } from 'node:fs'
+import { realpathSync, writeFileSync } from 'node:fs'
+import { PublicError } from './errors/public-error'
 import { isAbsolute, relative, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
 
@@ -134,6 +135,9 @@ async function bootstrap(): Promise<void> {
     workspaceService,
     workspaceStorage,
   })
+  workspaceService.setStagingRecoveryCheck(
+    async () => (await batchTemplateStagingService.inspectRecoveries()).length > 0,
+  )
   dataManagementService.setStagingRecoveryCheck(
     async () => (await batchTemplateStagingService.inspectRecoveries()).length > 0,
   )
@@ -222,6 +226,16 @@ app.on('before-quit', event => {
 configureTestUserData()
 void bootstrap().catch(error => {
   console.error('[bootstrap] local data initialization failed', error)
-  dialog.showErrorBox('无法启动应用', '本地数据初始化失败，请重新启动应用。')
+  const message =
+    error instanceof PublicError && error.code === 'TASK_CONFLICT'
+      ? '该工作区正在另一个应用实例中使用，请先关闭其工作区再重试。'
+      : '本地数据初始化失败，请重新启动应用。'
+  if (
+    process.env.NODE_ENV === 'test' &&
+    process.env.E2E_USER_DATA_DIR &&
+    process.env.E2E_EXPECT_OWNERSHIP_CONFLICT === '1'
+  )
+    writeFileSync(resolve(app.getPath('userData'), 'startup-error.txt'), message, { mode: 0o600 })
+  else dialog.showErrorBox('无法启动应用', message)
   app.quit()
 })
