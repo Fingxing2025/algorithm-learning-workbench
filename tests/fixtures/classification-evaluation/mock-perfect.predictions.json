@@ -1,0 +1,1096 @@
+{
+  "datasetId": "classification-evaluation-provisional-v1",
+  "predictions": [
+    {
+      "batchId": "development-canonical",
+      "categoryId": "basic.search.binary",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "binary-search-lower-bound-canonical",
+      "sourceSha256": "5d9991a594f99b0ea523b6401d79cdd8b2acabedf94a6f7daa7df5a10403a280"
+    },
+    {
+      "batchId": "development-renamed",
+      "categoryId": "basic.search.binary",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "binary-search-lower-bound-renamed",
+      "sourceSha256": "e68afd92bfd7e4310ec021bce9f9f1ee600ec4ebddb3f6a39578f7c5c28be68b"
+    },
+    {
+      "batchId": "development-misleading-name",
+      "categoryId": "basic.search.binary",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "binary-search-lower-bound-misleading-name",
+      "sourceSha256": "da7a337d5193e9dc61f0d7f4b7aae1df0edb73fa2d59612d4c147a53be4d145c"
+    },
+    {
+      "batchId": "development-long-middle",
+      "categoryId": "basic.search.binary",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "binary-search-lower-bound-long-middle",
+      "sourceSha256": "665ba9347ed8091218afafe32976143206daecd8ed95e80b4de51066fc741125"
+    },
+    {
+      "batchId": "development-batch-repeat",
+      "categoryId": "basic.search.binary",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "binary-search-lower-bound-batch-repeat",
+      "sourceSha256": "5d9991a594f99b0ea523b6401d79cdd8b2acabedf94a6f7daa7df5a10403a280"
+    },
+    {
+      "batchId": "development-canonical",
+      "categoryId": "basic.prefix",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "prefix-range-sum-canonical",
+      "sourceSha256": "65582f99da5be2ad799b2a2f02e5daa8719ea383ef898e54254d259e7096f628"
+    },
+    {
+      "batchId": "development-renamed",
+      "categoryId": "basic.prefix",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "prefix-range-sum-renamed",
+      "sourceSha256": "9ace9e2ceb794b9b6b1d2b38a52c454c73cae09bbc48ab76e61bf228ee54391d"
+    },
+    {
+      "batchId": "development-misleading-name",
+      "categoryId": "basic.prefix",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "prefix-range-sum-misleading-name",
+      "sourceSha256": "65b790b11000e4574fccde00aca41f6fdf41ee832f0b80f598112e537a7c4ba5"
+    },
+    {
+      "batchId": "development-misleading-comment",
+      "categoryId": "basic.prefix",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "prefix-range-sum-misleading-comment",
+      "sourceSha256": "bd89094994a3790a922f40ff3c59cfcb1f31327fb7612b392bd36044c63bf763"
+    },
+    {
+      "batchId": "development-batch-repeat",
+      "categoryId": "basic.prefix",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "prefix-range-sum-batch-repeat",
+      "sourceSha256": "65582f99da5be2ad799b2a2f02e5daa8719ea383ef898e54254d259e7096f628"
+    },
+    {
+      "batchId": "development-canonical",
+      "categoryId": "basic.discretization.coordinate-compression",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "coordinate-compression-canonical",
+      "sourceSha256": "0d9f420abb8d25afba4865efa9e081d5ab8468b92bf39a7b1e8a142a01bd26c6"
+    },
+    {
+      "batchId": "development-renamed",
+      "categoryId": "basic.discretization.coordinate-compression",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "coordinate-compression-renamed",
+      "sourceSha256": "2edb4b467e560533b6e07e4d1b7c8a58983e339f6db587fc5aaf87f5673f240e"
+    },
+    {
+      "batchId": "development-misleading-name",
+      "categoryId": "basic.discretization.coordinate-compression",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "coordinate-compression-misleading-name",
+      "sourceSha256": "5ab259c86d46b35430909149a37cdf6dd182a0f878901971ac85f6257a05c01f"
+    },
+    {
+      "batchId": "development-misleading-comment",
+      "categoryId": "basic.discretization.coordinate-compression",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "coordinate-compression-misleading-comment",
+      "sourceSha256": "ce347f575f66bd1a98266c2364e5ef08846cb82c33b69ecd2abe350b3cb330e5"
+    },
+    {
+      "batchId": "development-batch-repeat",
+      "categoryId": "basic.discretization.coordinate-compression",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "coordinate-compression-batch-repeat",
+      "sourceSha256": "0d9f420abb8d25afba4865efa9e081d5ab8468b92bf39a7b1e8a142a01bd26c6"
+    },
+    {
+      "batchId": "development-canonical",
+      "categoryId": "graph.shortest-path.single-source",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "dijkstra-priority-queue-canonical",
+      "sourceSha256": "772e938fff1772512ece732f235313774458e681581f0fc8c185a57ba55a8ea2"
+    },
+    {
+      "batchId": "development-renamed",
+      "categoryId": "graph.shortest-path.single-source",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "dijkstra-priority-queue-renamed",
+      "sourceSha256": "b5c77194c48e500de2a6462eb697f2d32bc6adf6fbfc4451ffaa7c7388d6b33d"
+    },
+    {
+      "batchId": "development-misleading-name",
+      "categoryId": "graph.shortest-path.single-source",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "dijkstra-priority-queue-misleading-name",
+      "sourceSha256": "e344b277b6b3fd6d3a9f0f79bc964346f5a9418b6a6d86db661b4d6d08b1f8f9"
+    },
+    {
+      "batchId": "development-long-middle",
+      "categoryId": "graph.shortest-path.single-source",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "dijkstra-priority-queue-long-middle",
+      "sourceSha256": "377f8d0505218a4881d5468cc00f03385a00cc9116e1e3c9fc004b28ebdb1360"
+    },
+    {
+      "batchId": "development-batch-repeat",
+      "categoryId": "graph.shortest-path.single-source",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "dijkstra-priority-queue-batch-repeat",
+      "sourceSha256": "772e938fff1772512ece732f235313774458e681581f0fc8c185a57ba55a8ea2"
+    },
+    {
+      "batchId": "development-canonical",
+      "categoryId": "graph.mst",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "kruskal-edge-sort-canonical",
+      "sourceSha256": "d545b53f71930648970a42542d38632caf7d895a9c95bed8c2405b1c63a82c58"
+    },
+    {
+      "batchId": "development-renamed",
+      "categoryId": "graph.mst",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "kruskal-edge-sort-renamed",
+      "sourceSha256": "ad0f1ae5222a7b4ac293f5eb325fc0c5b081a8fd7697fcf7a41c989473e29834"
+    },
+    {
+      "batchId": "development-misleading-name",
+      "categoryId": "graph.mst",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "kruskal-edge-sort-misleading-name",
+      "sourceSha256": "7745c67ce2714f4d4d71b985df5c5a32de8b18737b3321ffe0c2d4f9b61b82dc"
+    },
+    {
+      "batchId": "development-misleading-comment",
+      "categoryId": "graph.mst",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "kruskal-edge-sort-misleading-comment",
+      "sourceSha256": "141696d7680160e529d238554662e3bf42a53e9578feeda06d8480fbb1f9c23d"
+    },
+    {
+      "batchId": "development-batch-repeat",
+      "categoryId": "graph.mst",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "kruskal-edge-sort-batch-repeat",
+      "sourceSha256": "d545b53f71930648970a42542d38632caf7d895a9c95bed8c2405b1c63a82c58"
+    },
+    {
+      "batchId": "development-canonical",
+      "categoryId": "data-structure.fenwick",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "fenwick-point-add-range-sum-canonical",
+      "sourceSha256": "13c0f729d10388b1315d5be3726c45cfa314727d44968b391c274c8fbb92aede"
+    },
+    {
+      "batchId": "development-renamed",
+      "categoryId": "data-structure.fenwick",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "fenwick-point-add-range-sum-renamed",
+      "sourceSha256": "38b39e560b664f38224c15fb8d983e8e9d841f642c4208b13adf2b79ba697ae6"
+    },
+    {
+      "batchId": "development-misleading-name",
+      "categoryId": "data-structure.fenwick",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "fenwick-point-add-range-sum-misleading-name",
+      "sourceSha256": "561494ab7a729c60af8fb33fc966a12ba7446957d5cc7e1a0cd328c23fe89768"
+    },
+    {
+      "batchId": "development-misleading-comment",
+      "categoryId": "data-structure.fenwick",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "fenwick-point-add-range-sum-misleading-comment",
+      "sourceSha256": "17df4111dd87074429689ec323698c0b8892a41384024fe09d5a0560183f53d5"
+    },
+    {
+      "batchId": "development-batch-repeat",
+      "categoryId": "data-structure.fenwick",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "fenwick-point-add-range-sum-batch-repeat",
+      "sourceSha256": "13c0f729d10388b1315d5be3726c45cfa314727d44968b391c274c8fbb92aede"
+    },
+    {
+      "batchId": "development-canonical",
+      "categoryId": "data-structure.segment-tree",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "segment-tree-lazy-sum-canonical",
+      "sourceSha256": "65bf91984f681e6ceaa2926d02d7daf423ce3e9963da724a3a62b611f2d3adc5"
+    },
+    {
+      "batchId": "development-renamed",
+      "categoryId": "data-structure.segment-tree",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "segment-tree-lazy-sum-renamed",
+      "sourceSha256": "026e4e8c7f658ec14a80e7af19ac0621b3232a492d6812c3033e3607bc54c1fa"
+    },
+    {
+      "batchId": "development-misleading-name",
+      "categoryId": "data-structure.segment-tree",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "segment-tree-lazy-sum-misleading-name",
+      "sourceSha256": "303abff7a4091777504f826e562e719fa7c50bad176dd1e2d1e878bbc53ec412"
+    },
+    {
+      "batchId": "development-long-middle",
+      "categoryId": "data-structure.segment-tree",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "segment-tree-lazy-sum-long-middle",
+      "sourceSha256": "6d68d4ff1f92fcb3f6d7593cf9319e08f3af16ed88670a7763fb501824f9fbe6"
+    },
+    {
+      "batchId": "development-batch-repeat",
+      "categoryId": "data-structure.segment-tree",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "segment-tree-lazy-sum-batch-repeat",
+      "sourceSha256": "65bf91984f681e6ceaa2926d02d7daf423ce3e9963da724a3a62b611f2d3adc5"
+    },
+    {
+      "batchId": "development-canonical",
+      "categoryId": "string.pattern.kmp",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "kmp-prefix-function-canonical",
+      "sourceSha256": "2f0c065e7a59331546df3b7009b30e453217de5af59488c0991f160965dd78e9"
+    },
+    {
+      "batchId": "development-renamed",
+      "categoryId": "string.pattern.kmp",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "kmp-prefix-function-renamed",
+      "sourceSha256": "56c8e5f458fa6b35a563858b48944bcc192935521e5dff7bd5b0c40f652e1f0c"
+    },
+    {
+      "batchId": "development-misleading-name",
+      "categoryId": "string.pattern.kmp",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "kmp-prefix-function-misleading-name",
+      "sourceSha256": "57de0f39a35676bf69e3d26f56d8c113f6b5fbdc5071e7defdff94d463ad6ce8"
+    },
+    {
+      "batchId": "development-misleading-comment",
+      "categoryId": "string.pattern.kmp",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "kmp-prefix-function-misleading-comment",
+      "sourceSha256": "9d0c6b8703de2c2413c945f0fc2a765df5075c62727fadec1ffa3f73eea733c3"
+    },
+    {
+      "batchId": "development-batch-repeat",
+      "categoryId": "string.pattern.kmp",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "kmp-prefix-function-batch-repeat",
+      "sourceSha256": "2f0c065e7a59331546df3b7009b30e453217de5af59488c0991f160965dd78e9"
+    },
+    {
+      "batchId": "development-canonical",
+      "categoryId": "string.pattern.ac-automaton",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "aho-corasick-matcher-canonical",
+      "sourceSha256": "6c19fcaeba3f8e6ae04cc1ae07fb3e06edac488373c9aaa51e27d160a330b741"
+    },
+    {
+      "batchId": "development-renamed",
+      "categoryId": "string.pattern.ac-automaton",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "aho-corasick-matcher-renamed",
+      "sourceSha256": "81f3f8327c5ab81e5efe70a0470d4826832a766595d2aefc0e5819ed360f9a4d"
+    },
+    {
+      "batchId": "development-misleading-name",
+      "categoryId": "string.pattern.ac-automaton",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "aho-corasick-matcher-misleading-name",
+      "sourceSha256": "cbea003b0c08a909041b2d25dca3a14f31c6f4e79ef5c7c71906585b38bcb8f0"
+    },
+    {
+      "batchId": "development-misleading-comment",
+      "categoryId": "string.pattern.ac-automaton",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "aho-corasick-matcher-misleading-comment",
+      "sourceSha256": "d79998d9e229d555246f3be43b6fce86648fafcd1a46fd1f326828faa5d60075"
+    },
+    {
+      "batchId": "development-batch-repeat",
+      "categoryId": "string.pattern.ac-automaton",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "aho-corasick-matcher-batch-repeat",
+      "sourceSha256": "6c19fcaeba3f8e6ae04cc1ae07fb3e06edac488373c9aaa51e27d160a330b741"
+    },
+    {
+      "batchId": "development-canonical",
+      "categoryId": "dp.knapsack.01",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "zero-one-knapsack-descending-canonical",
+      "sourceSha256": "6d5e97325e7d5df63a0002ba689763fb4ed4f122dc900145577c4bd81ed4990c"
+    },
+    {
+      "batchId": "development-renamed",
+      "categoryId": "dp.knapsack.01",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "zero-one-knapsack-descending-renamed",
+      "sourceSha256": "a97cbde6720bdabea22c9779b5e625c6be0809e6ea626279ee80149e6782e017"
+    },
+    {
+      "batchId": "development-misleading-name",
+      "categoryId": "dp.knapsack.01",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "zero-one-knapsack-descending-misleading-name",
+      "sourceSha256": "41461d91c0af8337d2283d87ab6232192d52f1b312240087c43d16c97d6ca876"
+    },
+    {
+      "batchId": "development-long-middle",
+      "categoryId": "dp.knapsack.01",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "zero-one-knapsack-descending-long-middle",
+      "sourceSha256": "a475cd905c20a3f31790d94c038113ca42bf2bd6c2c1863472ba5a1f3705e18b"
+    },
+    {
+      "batchId": "development-batch-repeat",
+      "categoryId": "dp.knapsack.01",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "zero-one-knapsack-descending-batch-repeat",
+      "sourceSha256": "6d5e97325e7d5df63a0002ba689763fb4ed4f122dc900145577c4bd81ed4990c"
+    },
+    {
+      "batchId": "development-canonical",
+      "categoryId": "dp.knapsack.unbounded",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "unbounded-knapsack-ascending-canonical",
+      "sourceSha256": "756a7fc5be0c5f425c6f5b8c65bedf0c2b366bfb686b6aefd8e474c838e6dc53"
+    },
+    {
+      "batchId": "development-renamed",
+      "categoryId": "dp.knapsack.unbounded",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "unbounded-knapsack-ascending-renamed",
+      "sourceSha256": "5ac0280d4ad53544208bc2aa9ff28e0de1f04517cf0d862818fc193db6265ad7"
+    },
+    {
+      "batchId": "development-misleading-name",
+      "categoryId": "dp.knapsack.unbounded",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "unbounded-knapsack-ascending-misleading-name",
+      "sourceSha256": "6d1db713fc97b2dcc7a2027fda57ddc2d9313b9533c8dc0ace014b56544fdcd6"
+    },
+    {
+      "batchId": "development-misleading-comment",
+      "categoryId": "dp.knapsack.unbounded",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "unbounded-knapsack-ascending-misleading-comment",
+      "sourceSha256": "28fa945fa3067938d7216a1388780be3a7ae47bc1cd34b37749764e52dca7938"
+    },
+    {
+      "batchId": "development-batch-repeat",
+      "categoryId": "dp.knapsack.unbounded",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "unbounded-knapsack-ascending-batch-repeat",
+      "sourceSha256": "756a7fc5be0c5f425c6f5b8c65bedf0c2b366bfb686b6aefd8e474c838e6dc53"
+    },
+    {
+      "batchId": "development-canonical",
+      "categoryId": "math.number-theory.prime",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "euler-linear-sieve-canonical",
+      "sourceSha256": "ba0f42c76ef45835221efa6ab6503d90df1b2781e58935014788d27962e6a622"
+    },
+    {
+      "batchId": "development-renamed",
+      "categoryId": "math.number-theory.prime",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "euler-linear-sieve-renamed",
+      "sourceSha256": "6d5cdf87a9e94f19ae347fc264bfc79a2d45749aa3397b9c76da8a866d418903"
+    },
+    {
+      "batchId": "development-misleading-name",
+      "categoryId": "math.number-theory.prime",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "euler-linear-sieve-misleading-name",
+      "sourceSha256": "e8a92ebafb4f16d2dc754c235e9fd9cbd200db6572ca166f00896f6f1c87d018"
+    },
+    {
+      "batchId": "development-misleading-comment",
+      "categoryId": "math.number-theory.prime",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "euler-linear-sieve-misleading-comment",
+      "sourceSha256": "90c76ced04bc7aba600727202e6cd46296d23954a3c84d90da20630b084b7041"
+    },
+    {
+      "batchId": "development-batch-repeat",
+      "categoryId": "math.number-theory.prime",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "euler-linear-sieve-batch-repeat",
+      "sourceSha256": "ba0f42c76ef45835221efa6ab6503d90df1b2781e58935014788d27962e6a622"
+    },
+    {
+      "batchId": "development-canonical",
+      "categoryId": "cpp.integer.int128",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "int128-decimal-io-canonical",
+      "sourceSha256": "31df0c6f7676048e08532bb7bd2b4ad01e2eedacd5a96779039484cf5bddc3bf"
+    },
+    {
+      "batchId": "development-renamed",
+      "categoryId": "cpp.integer.int128",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "int128-decimal-io-renamed",
+      "sourceSha256": "25df6dd14471762d903ec3854f1864663e5716410960664bc7bc63cb428f719f"
+    },
+    {
+      "batchId": "development-misleading-name",
+      "categoryId": "cpp.integer.int128",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "int128-decimal-io-misleading-name",
+      "sourceSha256": "cdea499bfdca0618d3e819056da4bc5ac9122a1824e317bd57dce1ef2b79c3ed"
+    },
+    {
+      "batchId": "development-long-middle",
+      "categoryId": "cpp.integer.int128",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "int128-decimal-io-long-middle",
+      "sourceSha256": "a5506828409b45bbf312b530299a356b49b06eee829ac7a8372b8a9c5e455fef"
+    },
+    {
+      "batchId": "development-batch-repeat",
+      "categoryId": "cpp.integer.int128",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "int128-decimal-io-batch-repeat",
+      "sourceSha256": "31df0c6f7676048e08532bb7bd2b4ad01e2eedacd5a96779039484cf5bddc3bf"
+    },
+    {
+      "batchId": "development-canonical",
+      "categoryId": "contest.io.fast",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "fast-buffered-input-canonical",
+      "sourceSha256": "d1feed490b6864d24163cf5e17e464fe713066ddf915ff2ff64b0065ef56c888"
+    },
+    {
+      "batchId": "development-renamed",
+      "categoryId": "contest.io.fast",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "fast-buffered-input-renamed",
+      "sourceSha256": "7f89bd4e733585056de7122f0d63d4e341aff060c39ab58d42fcb22c17ca3f2d"
+    },
+    {
+      "batchId": "development-misleading-name",
+      "categoryId": "contest.io.fast",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "fast-buffered-input-misleading-name",
+      "sourceSha256": "83a8ff8365cb90ad9b220199eb6f4a59ff8ec669128ff89f69b783b899b98f7f"
+    },
+    {
+      "batchId": "development-misleading-comment",
+      "categoryId": "contest.io.fast",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "fast-buffered-input-misleading-comment",
+      "sourceSha256": "68731d70784f933cdb6f21e8ca5044f8d78dd59ca5f5d5d29c97c5a9ad8783e7"
+    },
+    {
+      "batchId": "development-batch-repeat",
+      "categoryId": "contest.io.fast",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "fast-buffered-input-batch-repeat",
+      "sourceSha256": "d1feed490b6864d24163cf5e17e464fe713066ddf915ff2ff64b0065ef56c888"
+    },
+    {
+      "batchId": "development-canonical",
+      "categoryId": null,
+      "confidence": 0.5,
+      "decision": "review",
+      "sampleId": "dijkstra-with-disjoint-set-canonical",
+      "sourceSha256": "f7e1fd94f8c66674ca65b57e8bff85054461afa301a538e5e533458da4c77b80"
+    },
+    {
+      "batchId": "development-renamed",
+      "categoryId": null,
+      "confidence": 0.5,
+      "decision": "review",
+      "sampleId": "dijkstra-with-disjoint-set-renamed",
+      "sourceSha256": "728b26d6d78076b5fd65b08c187343923ab4c4b3f193a6e8ab46f798f11661e2"
+    },
+    {
+      "batchId": "development-misleading-name",
+      "categoryId": null,
+      "confidence": 0.5,
+      "decision": "review",
+      "sampleId": "dijkstra-with-disjoint-set-misleading-name",
+      "sourceSha256": "c3327b742dad94089ffe5da5d0e6081186c16d2de49c48ff46c173c8bd123096"
+    },
+    {
+      "batchId": "development-misleading-comment",
+      "categoryId": null,
+      "confidence": 0.5,
+      "decision": "review",
+      "sampleId": "dijkstra-with-disjoint-set-misleading-comment",
+      "sourceSha256": "01e74d4b175304e393bc88e71ecd2ca03c9283ba5e9a87258e889d74375b2c83"
+    },
+    {
+      "batchId": "development-batch-repeat",
+      "categoryId": null,
+      "confidence": 0.5,
+      "decision": "review",
+      "sampleId": "dijkstra-with-disjoint-set-batch-repeat",
+      "sourceSha256": "f7e1fd94f8c66674ca65b57e8bff85054461afa301a538e5e533458da4c77b80"
+    },
+    {
+      "batchId": "development-canonical",
+      "categoryId": null,
+      "confidence": 0.5,
+      "decision": "review",
+      "sampleId": "dinic-max-flow-canonical",
+      "sourceSha256": "deda55a9c0c7b54accb7a96730bb67ee0139b82d46112a606351297b16479758"
+    },
+    {
+      "batchId": "development-renamed",
+      "categoryId": null,
+      "confidence": 0.5,
+      "decision": "review",
+      "sampleId": "dinic-max-flow-renamed",
+      "sourceSha256": "9b3217562e521a03e682b371df78ccf9a74ec7e51b38dd33d6f5e6160a4ccda1"
+    },
+    {
+      "batchId": "development-misleading-name",
+      "categoryId": null,
+      "confidence": 0.5,
+      "decision": "review",
+      "sampleId": "dinic-max-flow-misleading-name",
+      "sourceSha256": "afcb088d525669f9a07c426421b0a06124e5ac047da5aecbb16e3905ddbf7470"
+    },
+    {
+      "batchId": "development-long-middle",
+      "categoryId": null,
+      "confidence": 0.5,
+      "decision": "review",
+      "sampleId": "dinic-max-flow-long-middle",
+      "sourceSha256": "9c452d32dfa7d5b55181e70c8c3f5e2187184d36e47e746b4ba789caa5687d91"
+    },
+    {
+      "batchId": "development-batch-repeat",
+      "categoryId": null,
+      "confidence": 0.5,
+      "decision": "review",
+      "sampleId": "dinic-max-flow-batch-repeat",
+      "sourceSha256": "deda55a9c0c7b54accb7a96730bb67ee0139b82d46112a606351297b16479758"
+    },
+    {
+      "batchId": "holdout-canonical",
+      "categoryId": "graph.shortest-path.single-source",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "bellman-ford-edge-relaxation-canonical",
+      "sourceSha256": "0c65dc8a5369b8d941821905b15e183f60e200a0ca71f22740c855588ac4f736"
+    },
+    {
+      "batchId": "holdout-renamed",
+      "categoryId": "graph.shortest-path.single-source",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "bellman-ford-edge-relaxation-renamed",
+      "sourceSha256": "65e93a978887af114b9f1085de5345a2baf8205fc6f9c99edad67e24f193c70d"
+    },
+    {
+      "batchId": "holdout-misleading-name",
+      "categoryId": "graph.shortest-path.single-source",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "bellman-ford-edge-relaxation-misleading-name",
+      "sourceSha256": "5b22448326f2aec754521dea202dd2f32dde1ac165de3fbcf26c4bbd9ddf40c4"
+    },
+    {
+      "batchId": "holdout-misleading-comment",
+      "categoryId": "graph.shortest-path.single-source",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "bellman-ford-edge-relaxation-misleading-comment",
+      "sourceSha256": "69f06721e8bc5baa6ee04844cb60fa05383010a0066f189cef8b394cf3bd5e32"
+    },
+    {
+      "batchId": "holdout-batch-repeat",
+      "categoryId": "graph.shortest-path.single-source",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "bellman-ford-edge-relaxation-batch-repeat",
+      "sourceSha256": "0c65dc8a5369b8d941821905b15e183f60e200a0ca71f22740c855588ac4f736"
+    },
+    {
+      "batchId": "holdout-canonical",
+      "categoryId": "graph.mst",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "prim-dense-matrix-canonical",
+      "sourceSha256": "7ae7bcf6615d4dbd85b345d336f4ef7c7200b4a447bc4afef62dc8efda4b8767"
+    },
+    {
+      "batchId": "holdout-renamed",
+      "categoryId": "graph.mst",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "prim-dense-matrix-renamed",
+      "sourceSha256": "8ab8352bf8ae34e4aac5c8eb723308310949f3cb26ef98f2d9e7f69b172241e7"
+    },
+    {
+      "batchId": "holdout-misleading-name",
+      "categoryId": "graph.mst",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "prim-dense-matrix-misleading-name",
+      "sourceSha256": "ddd2bb5e6384bde3ae6053d56eb9cd68f2412286cfb091576123f45abc23f732"
+    },
+    {
+      "batchId": "holdout-misleading-comment",
+      "categoryId": "graph.mst",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "prim-dense-matrix-misleading-comment",
+      "sourceSha256": "0ff6c05212217859be1f2ac919e36cbbbb5fa47ee125b6ca99bf580471453bb8"
+    },
+    {
+      "batchId": "holdout-batch-repeat",
+      "categoryId": "graph.mst",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "prim-dense-matrix-batch-repeat",
+      "sourceSha256": "7ae7bcf6615d4dbd85b345d336f4ef7c7200b4a447bc4afef62dc8efda4b8767"
+    },
+    {
+      "batchId": "holdout-canonical",
+      "categoryId": "data-structure.range-query.sparse-table",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "sparse-table-range-min-canonical",
+      "sourceSha256": "3c08851ab99603b8425be1b94e04c01e8a8e051455d7b0db924167cf028f4eda"
+    },
+    {
+      "batchId": "holdout-renamed",
+      "categoryId": "data-structure.range-query.sparse-table",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "sparse-table-range-min-renamed",
+      "sourceSha256": "da46a30e0ad856ede7d5c0930f8c3cac53bc1ce684e799da6aed0f6f57838a4d"
+    },
+    {
+      "batchId": "holdout-misleading-name",
+      "categoryId": "data-structure.range-query.sparse-table",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "sparse-table-range-min-misleading-name",
+      "sourceSha256": "528fdf60aae2412f90e5dbd2bd6bb8b4755983470948d6837e99f3bfe7b1018e"
+    },
+    {
+      "batchId": "holdout-long-middle",
+      "categoryId": "data-structure.range-query.sparse-table",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "sparse-table-range-min-long-middle",
+      "sourceSha256": "1c3703e0511a4924bc7a1bc343458ad4b811382db8d0af5149bbc891052eb734"
+    },
+    {
+      "batchId": "holdout-batch-repeat",
+      "categoryId": "data-structure.range-query.sparse-table",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "sparse-table-range-min-batch-repeat",
+      "sourceSha256": "3c08851ab99603b8425be1b94e04c01e8a8e051455d7b0db924167cf028f4eda"
+    },
+    {
+      "batchId": "holdout-canonical",
+      "categoryId": "data-structure.union-find",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "union-find-rank-compression-canonical",
+      "sourceSha256": "30fe39890b3b21f4f44b7c833fc6a1242c0d0e9dd7d45b17d53ff77041510bd2"
+    },
+    {
+      "batchId": "holdout-renamed",
+      "categoryId": "data-structure.union-find",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "union-find-rank-compression-renamed",
+      "sourceSha256": "d24c77a1d3bc6afe3fa2211926bb2c688b244dfbd3e2f72e59f05adabc8a360d"
+    },
+    {
+      "batchId": "holdout-misleading-name",
+      "categoryId": "data-structure.union-find",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "union-find-rank-compression-misleading-name",
+      "sourceSha256": "6e8197608dee0db0c652afba7b995a1be246a2f5c3d5c2ce3b2034bebd33ddbf"
+    },
+    {
+      "batchId": "holdout-misleading-comment",
+      "categoryId": "data-structure.union-find",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "union-find-rank-compression-misleading-comment",
+      "sourceSha256": "e025d31803d262836ceeb7add0dff4a13bea733315ef068372db7ba9db698f65"
+    },
+    {
+      "batchId": "holdout-batch-repeat",
+      "categoryId": "data-structure.union-find",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "union-find-rank-compression-batch-repeat",
+      "sourceSha256": "30fe39890b3b21f4f44b7c833fc6a1242c0d0e9dd7d45b17d53ff77041510bd2"
+    },
+    {
+      "batchId": "holdout-canonical",
+      "categoryId": "string.trie",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "trie-prefix-counter-canonical",
+      "sourceSha256": "2f6dac469b18ed1a26ef06c38064af5171429763bfef1c24d744ee8d284413af"
+    },
+    {
+      "batchId": "holdout-renamed",
+      "categoryId": "string.trie",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "trie-prefix-counter-renamed",
+      "sourceSha256": "969d53fd00f2a0e7df5a9ece0585001d17621d3e3a343d008c1ca0cdf0a5264f"
+    },
+    {
+      "batchId": "holdout-misleading-name",
+      "categoryId": "string.trie",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "trie-prefix-counter-misleading-name",
+      "sourceSha256": "237720e9747e2965b27a05dc00100ff75af7e0cc152d0f424ce240e7cd0f8944"
+    },
+    {
+      "batchId": "holdout-misleading-comment",
+      "categoryId": "string.trie",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "trie-prefix-counter-misleading-comment",
+      "sourceSha256": "8c9787bb221d8ab06cb2667b8f5a7c6a9ab0694008a7638ffabd835a8225ac58"
+    },
+    {
+      "batchId": "holdout-batch-repeat",
+      "categoryId": "string.trie",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "trie-prefix-counter-batch-repeat",
+      "sourceSha256": "2f6dac469b18ed1a26ef06c38064af5171429763bfef1c24d744ee8d284413af"
+    },
+    {
+      "batchId": "holdout-canonical",
+      "categoryId": "string.palindrome.manacher",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "manacher-radius-array-canonical",
+      "sourceSha256": "b6a26abde630ec74b35335c1066c8a2610128f8742359e1534a1bfe37a6516c9"
+    },
+    {
+      "batchId": "holdout-renamed",
+      "categoryId": "string.palindrome.manacher",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "manacher-radius-array-renamed",
+      "sourceSha256": "48a0ed6f6b4822f6bb9518378ff58d73330b0667e831e29f8e018c8e9b7bf4fb"
+    },
+    {
+      "batchId": "holdout-misleading-name",
+      "categoryId": "string.palindrome.manacher",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "manacher-radius-array-misleading-name",
+      "sourceSha256": "9dc79c4c0c6f86419a46a7df9f1b6caf632858c7cbbefc00e61f099cc0285f08"
+    },
+    {
+      "batchId": "holdout-long-middle",
+      "categoryId": "string.palindrome.manacher",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "manacher-radius-array-long-middle",
+      "sourceSha256": "a90408002fe986c59f3bf65b93dfa30af21f8a30ab583268b329d48eca9977cd"
+    },
+    {
+      "batchId": "holdout-batch-repeat",
+      "categoryId": "string.palindrome.manacher",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "manacher-radius-array-batch-repeat",
+      "sourceSha256": "b6a26abde630ec74b35335c1066c8a2610128f8742359e1534a1bfe37a6516c9"
+    },
+    {
+      "batchId": "holdout-canonical",
+      "categoryId": "dp.sequence.lis",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "lis-patience-sorting-canonical",
+      "sourceSha256": "76a906a2491af24563db3ce8ebd35784b82d44fe2ca99de06414686a5a4552a6"
+    },
+    {
+      "batchId": "holdout-renamed",
+      "categoryId": "dp.sequence.lis",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "lis-patience-sorting-renamed",
+      "sourceSha256": "152550034aa66002eb9287ed3c04a3a652cd53b1e51e3e69a507a45e0d2c53de"
+    },
+    {
+      "batchId": "holdout-misleading-name",
+      "categoryId": "dp.sequence.lis",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "lis-patience-sorting-misleading-name",
+      "sourceSha256": "615963eb9d2781854d24172c877302597b88d913b61807dad744709afa75c309"
+    },
+    {
+      "batchId": "holdout-misleading-comment",
+      "categoryId": "dp.sequence.lis",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "lis-patience-sorting-misleading-comment",
+      "sourceSha256": "dee348e61e4d1691249669b9df956c94e77ef83af85d73c55cc6a35dde9f317b"
+    },
+    {
+      "batchId": "holdout-batch-repeat",
+      "categoryId": "dp.sequence.lis",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "lis-patience-sorting-batch-repeat",
+      "sourceSha256": "76a906a2491af24563db3ce8ebd35784b82d44fe2ca99de06414686a5a4552a6"
+    },
+    {
+      "batchId": "holdout-canonical",
+      "categoryId": "math.polynomial.ntt",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "ntt-polynomial-convolution-canonical",
+      "sourceSha256": "b03e5004b48225b9d10a68525f0e6ba5198c65f70343def402f6120c5380f2f3"
+    },
+    {
+      "batchId": "holdout-renamed",
+      "categoryId": "math.polynomial.ntt",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "ntt-polynomial-convolution-renamed",
+      "sourceSha256": "6f10d155b7a25323713909f51c894cabca4e11273f1f6626526959b5cba4156f"
+    },
+    {
+      "batchId": "holdout-misleading-name",
+      "categoryId": "math.polynomial.ntt",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "ntt-polynomial-convolution-misleading-name",
+      "sourceSha256": "7b82078ec383cc01924f23c9533caebcd4c9151dfcd9a44d5dc0437120b8faf2"
+    },
+    {
+      "batchId": "holdout-misleading-comment",
+      "categoryId": "math.polynomial.ntt",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "ntt-polynomial-convolution-misleading-comment",
+      "sourceSha256": "061d007250de0bcffc498a907f2bd9ad8bd9de7ccb768e16896a5f296f9a8579"
+    },
+    {
+      "batchId": "holdout-batch-repeat",
+      "categoryId": "math.polynomial.ntt",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "ntt-polynomial-convolution-batch-repeat",
+      "sourceSha256": "b03e5004b48225b9d10a68525f0e6ba5198c65f70343def402f6120c5380f2f3"
+    },
+    {
+      "batchId": "holdout-canonical",
+      "categoryId": "datetime.calendar.convert",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "gregorian-day-number-canonical",
+      "sourceSha256": "ddf4ddf9ca9bd83ce92eb97d654917179c2f0eef7e8e04e59f6513114fefedb6"
+    },
+    {
+      "batchId": "holdout-renamed",
+      "categoryId": "datetime.calendar.convert",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "gregorian-day-number-renamed",
+      "sourceSha256": "36f3e2bba9bf5c577e1d4f967504520b9196f56dd5dca421fd5aa4a726d78e86"
+    },
+    {
+      "batchId": "holdout-misleading-name",
+      "categoryId": "datetime.calendar.convert",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "gregorian-day-number-misleading-name",
+      "sourceSha256": "7133900f01899f76e27377033c740b3225a728c19400923f4b1d9207fda79f68"
+    },
+    {
+      "batchId": "holdout-long-middle",
+      "categoryId": "datetime.calendar.convert",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "gregorian-day-number-long-middle",
+      "sourceSha256": "f22f02a00b6f891f1cac7238f8f43e2d4aa9610694f8e4000304f5d64f6bef1a"
+    },
+    {
+      "batchId": "holdout-batch-repeat",
+      "categoryId": "datetime.calendar.convert",
+      "confidence": 0.99,
+      "decision": "classify",
+      "sampleId": "gregorian-day-number-batch-repeat",
+      "sourceSha256": "ddf4ddf9ca9bd83ce92eb97d654917179c2f0eef7e8e04e59f6513114fefedb6"
+    },
+    {
+      "batchId": "holdout-canonical",
+      "categoryId": null,
+      "confidence": 0.5,
+      "decision": "review",
+      "sampleId": "kmp-with-fenwick-canonical",
+      "sourceSha256": "0dd85b9d25b556379c9864f89a186767fc64b2924e6bee26a0f762a7e9ba8521"
+    },
+    {
+      "batchId": "holdout-renamed",
+      "categoryId": null,
+      "confidence": 0.5,
+      "decision": "review",
+      "sampleId": "kmp-with-fenwick-renamed",
+      "sourceSha256": "70fd1dd424ed5a3b9a88b4332c2a719e78682b7681c2fb70dfcd556032ead101"
+    },
+    {
+      "batchId": "holdout-misleading-name",
+      "categoryId": null,
+      "confidence": 0.5,
+      "decision": "review",
+      "sampleId": "kmp-with-fenwick-misleading-name",
+      "sourceSha256": "fe4470b018d6d756c4b3dc24dacc63811c317d0501932a4f7071ec124087bdc3"
+    },
+    {
+      "batchId": "holdout-misleading-comment",
+      "categoryId": null,
+      "confidence": 0.5,
+      "decision": "review",
+      "sampleId": "kmp-with-fenwick-misleading-comment",
+      "sourceSha256": "8413d8570d635adc9f96ae145b5a24149a18d310f37155d496dc3a54e19a24e5"
+    },
+    {
+      "batchId": "holdout-batch-repeat",
+      "categoryId": null,
+      "confidence": 0.5,
+      "decision": "review",
+      "sampleId": "kmp-with-fenwick-batch-repeat",
+      "sourceSha256": "0dd85b9d25b556379c9864f89a186767fc64b2924e6bee26a0f762a7e9ba8521"
+    },
+    {
+      "batchId": "holdout-canonical",
+      "categoryId": null,
+      "confidence": 0.5,
+      "decision": "review",
+      "sampleId": "suffix-automaton-distinct-substrings-canonical",
+      "sourceSha256": "fc8f36637a90fe6b1c0e50df1c4f0ed100f2eb0bf302e3b5088f2ccc10bc30a9"
+    },
+    {
+      "batchId": "holdout-renamed",
+      "categoryId": null,
+      "confidence": 0.5,
+      "decision": "review",
+      "sampleId": "suffix-automaton-distinct-substrings-renamed",
+      "sourceSha256": "68c7da2e75de53e732c527f515077ff75e58a96e32474b6978314b780448c173"
+    },
+    {
+      "batchId": "holdout-misleading-name",
+      "categoryId": null,
+      "confidence": 0.5,
+      "decision": "review",
+      "sampleId": "suffix-automaton-distinct-substrings-misleading-name",
+      "sourceSha256": "4722f8b2c2c5a7a7eb1c1fa31427ed58fd0cd629fca400d66c947c45c7463c3e"
+    },
+    {
+      "batchId": "holdout-misleading-comment",
+      "categoryId": null,
+      "confidence": 0.5,
+      "decision": "review",
+      "sampleId": "suffix-automaton-distinct-substrings-misleading-comment",
+      "sourceSha256": "c7892c9f26da946495bec40c85e01b4cc8b5646c76e3932c031a745ff0ecee66"
+    },
+    {
+      "batchId": "holdout-batch-repeat",
+      "categoryId": null,
+      "confidence": 0.5,
+      "decision": "review",
+      "sampleId": "suffix-automaton-distinct-substrings-batch-repeat",
+      "sourceSha256": "fc8f36637a90fe6b1c0e50df1c4f0ed100f2eb0bf302e3b5088f2ccc10bc30a9"
+    }
+  ],
+  "run": {
+    "classificationServiceVersion": "mock-pipeline-only",
+    "completedAt": "2026-09-14T00:00:00.000Z",
+    "mode": "mock",
+    "model": null,
+    "promptVersion": "mock-no-prompt",
+    "provider": null,
+    "runId": "mock-perfect-pipeline"
+  },
+  "schemaVersion": 1,
+  "taxonomyVersion": 2
+}
