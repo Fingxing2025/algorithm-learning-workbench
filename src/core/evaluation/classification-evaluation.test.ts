@@ -6,6 +6,7 @@ import { resolve } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
+import { canonicalTaxonomy, TEMPLATE_TAXONOMY_VERSION } from '../domain/template-taxonomy'
 import {
   ClassificationEvaluationError,
   createClassificationServiceInputExport,
@@ -32,6 +33,20 @@ const loadSources = (dataset: typeof manifest): Map<string, string> =>
   )
 
 describe('classification evaluation dataset', () => {
+  it('keeps the evaluation catalog exactly bound to the canonical taxonomy v2 export', () => {
+    const dataset = validateClassificationEvaluationDataset(manifest)
+    const evaluationCategoryIds = dataset.categories.map(category => category.categoryId).sort()
+    const canonicalCategoryIds = canonicalTaxonomy.categories
+      .map(category => category.categoryId)
+      .sort()
+
+    expect(dataset.taxonomyVersion).toBe(TEMPLATE_TAXONOMY_VERSION)
+    expect(evaluationCategoryIds).toEqual(canonicalCategoryIds)
+    expect(
+      dataset.categories.every(category => category.family === category.categoryId.split('.')[0]),
+    ).toBe(true)
+  })
+
   it('validates 135 standalone-source samples while keeping 27 base implementations split', () => {
     const dataset = validateClassificationEvaluationDataset(manifest, {
       sha256,

@@ -19,6 +19,11 @@
 - `tests/fixtures/classification-evaluation/mock-perfect.predictions.json`：只用于验证评分管线的 mock；它从预期标签生成，绝不是真实预测。
 - `scripts/classification-evaluation/generate-fixtures.mjs`：确定性重建上述数据集。
 
+评测目录不是另一份 taxonomy：专项回归会把 manifest 的全部 `categoryId` 与
+`src/core/domain/template-taxonomy.ts` 导出的 canonical taxonomy v2 做精确集合比对，并同时
+校验 `taxonomyVersion`。taxonomy 演进时必须先更新评测生成器和标签，再接受该回归；不得保留
+已从业务 taxonomy 移除的中间类别。
+
 重建会覆盖这个仓库内的 fixture 目录：
 
 ```bash
