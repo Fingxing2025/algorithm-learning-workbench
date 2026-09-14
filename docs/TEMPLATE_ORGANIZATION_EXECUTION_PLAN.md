@@ -79,7 +79,7 @@ S2/S3 因模型容量错误切换到上述后备模型，保持原任务、代�
 - S2：`01a09de6-c427-7261-b934-c7d0cbfda7c1`，独立分支 `codex/template-organization-s2`。成果 `ad5ee5e` 已纳入长期分支 `943d04c`；135 份源码来自 27 个基础实现的 5 种变体，开发/留出按基础实现隔离；15 项评分测试、2 项读取边界测试、135 份 C++ 语法检查通过。标签为 AI 草拟待人工校核，Mock 分数仅验证评分器。
 - S3：`01a09de6-c429-7a61-adee-069d7a71c9f3`，独立分支 `codex/s3-classification-evidence`。`c54c1cf` 已完成，113 项定向 Vitest、14 项 Electron、六张亮暗三尺寸截图复核通过；交 S1 组合。
 - S4：`01a09e08-0ef7-79b1-9f12-94f8cf1adfb5`，独立分支 `codex/s4-durable-classification-confirmation`。ADR-0040 边界与独立确认表方案已明确，等待组合代码后实现；不得把准备完成视为功能完成。
-- S5：等待前置成果。
+- S5：`01a09e18-4caf-71e0-bb80-599c30d4a310`，独立分支 `codex/s5-final-classification-verification`。先行只读审查已定位跨实例工作区写入互斥缺口与 C++ 证据词法边界，分别交 S1/S3 修复；最终验收等待 S4 及组合提交。
 - 整合前基线：TypeScript、lint、51 个 Vitest 文件 / 386 项、9 项 release 脚本测试通过。尚未重跑 Electron。
 - 仓库外归档的 89 份文件已逐项验证 SHA-256；原工作树状态保留。
 - 真实 AI 分类准确率：未运行；尚无可宣称的基线分数。
