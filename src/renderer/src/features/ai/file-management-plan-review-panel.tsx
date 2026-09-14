@@ -1,3 +1,4 @@
+import { ClassificationEvidenceReview } from '../templates/classification-evidence-review'
 import { Download, FileClock, Play } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
@@ -184,6 +185,7 @@ export function FileManagementPlanReviewPanel({
                         {!operation.selectedByDefault && (
                           <Badge tone="accent">{t('需手动选择')}</Badge>
                         )}
+                        {operation.needsReview && <Badge tone="warning">{t('需复核')}</Badge>}
                       </span>
                       {operation.kind === 'move' && (
                         <span className="mt-2 block rounded-lg bg-muted px-3 py-2 font-mono text-[11px]">
@@ -219,6 +221,7 @@ export function FileManagementPlanReviewPanel({
                       <span className="mt-2 block text-[11px] leading-5 text-muted-foreground">
                         {operation.reason}
                       </span>
+                      <ClassificationEvidenceReview value={operation} />
                       {operation.evidence.length > 0 && (
                         <span className="mt-2 block text-[11px] leading-5">
                           <strong>{t('证据')}：</strong> {operation.evidence.join('；')}

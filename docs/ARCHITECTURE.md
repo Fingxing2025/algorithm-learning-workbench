@@ -147,6 +147,10 @@ tests/
 - `docs/decisions/0031-single-current-workspace-format.md`
 - `docs/decisions/0032-semantic-category-consolidation.md`
 - `docs/decisions/0033-template-export-format-and-build.md`
+- `docs/decisions/0034-canonical-template-taxonomy.md`
+- `docs/decisions/0035-template-metadata-core-fields.md`
+- `docs/decisions/0036-global-classification-proposals.md`
+- `docs/decisions/0037-classification-evidence-and-review.md`
 
 ## Session E 大型工作区架构
 

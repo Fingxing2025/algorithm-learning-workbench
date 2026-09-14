@@ -190,7 +190,14 @@ describe('TemplateStagingAuditService', () => {
       target: 'staging',
       status: 'draft',
     })
-    expect(draft.operations[0]).toMatchObject({ kind: 'move', sourceId: sourceOne })
+    expect(draft.operations[0]).toMatchObject({
+      kind: 'move',
+      sourceId: sourceOne,
+      needsReview: true,
+      selectedByDefault: false,
+      sourceCoverage: { complete: true },
+      reviewReasons: ['missing-source-evidence'],
+    })
     expect(await readFile(join(root, 'incoming', 'one.cpp'), 'utf8')).toBe(before)
     expect(fixture.runTask).toHaveBeenCalled()
     expect(fixture.runTask.mock.calls[0]?.[1]?.system).toContain(

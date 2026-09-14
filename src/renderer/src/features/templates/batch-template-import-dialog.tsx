@@ -34,7 +34,7 @@ import { TaskProgressIndicator } from '@/components/task-progress-indicator'
 import { runTrackedOperation } from '@/lib/background-task'
 import { useI18n } from '@/lib/i18n'
 
-import { emptyTemplateMetadata } from './template-metadata-merge'
+import { ClassificationEvidenceReview } from './classification-evidence-review'
 import { formatTemplateSourceEncoding } from './template-source-encoding'
 
 type BusyMode = 'choose' | 'classify' | 'import' | 'preview' | 'ai-plan' | null
@@ -151,6 +151,9 @@ function sourceViewFromStagingItem(item: BatchTemplateStagingItem): BatchSourceV
     sourceEncoding: item.sourceEncoding,
   }
 }
+type SourceClassificationState =
+  'pending' | 'processing' | 'classified' | 'needs-review' | 'failed' | 'cancelled'
+const CLASSIFICATION_DETAIL_BATCH_SIZE = 4
 
 const conflictMessages: Record<BatchTemplateImportConflict['kind'], string> = {
   'batch-duplicate': '本批次中有多个模板使用相同目标路径，请跳过或修改文件名。',
@@ -196,11 +199,14 @@ export function BatchTemplateImportDialog({
   const [selectedStagingAiOperationIds, setSelectedStagingAiOperationIds] = useState<Set<string>>(
     new Set(),
   )
+  const [reviewAcknowledged, setReviewAcknowledged] = useState<Set<string>>(new Set())
+  const [sourceStates, setSourceStates] = useState<Record<string, SourceClassificationState>>({})
   const [targetPaths, setTargetPaths] = useState<Record<string, string>>({})
   const activeStagingRequestId = useRef<string | null>(null)
   const liveHydratedProcessedCount = useRef(0)
   const syncedStagingItems = useRef<Record<string, string>>({})
   const closingStagingId = useRef<string | null>(null)
+  const stagingReviewFingerprints = useRef<Record<string, string>>({})
 
   const selectedSources = useMemo(
     () => sources.filter(source => selectedSourceIds.has(source.id)),
@@ -217,7 +223,20 @@ export function BatchTemplateImportDialog({
       })),
     [selectedSources],
   )
-  const completedCount = selectedSources.filter(source => classifications[source.id]).length
+  const unlockedSources = selectedSources.filter(source => !reviewAcknowledged.has(source.id))
+  const completedCount = selectedSources.filter(source => {
+    if (importFlow === 'staging') return Boolean(classifications[source.id])
+    const state = sourceStates[source.id]
+    return state === 'classified' || state === 'needs-review'
+  }).length
+  const hasRetryableSources = selectedSources.some(source => {
+    const state = sourceStates[source.id]
+    return state === 'failed' || state === 'cancelled'
+  })
+  const visibleProcessedCount = Math.max(
+    progress.completed,
+    taskStatus?.progress.processedCount ?? 0,
+  )
   const importSources = selectedSources.filter(source => conflictChoices[source.id] !== 'skip')
   const unresolvedConflicts = conflicts.filter(conflict => {
     if (!selectedSourceIds.has(conflict.sourceId)) return false
@@ -229,7 +248,11 @@ export function BatchTemplateImportDialog({
   const readyToImport =
     importSources.length > 0 &&
     unresolvedConflicts.length === 0 &&
-    importSources.every(source => targetPaths[source.id]?.trim())
+    importSources.every(
+      source =>
+        targetPaths[source.id]?.trim() &&
+        (!classifications[source.id]?.needsReview || reviewAcknowledged.has(source.id)),
+    )
   const totalCharacters = useMemo(
     () => selectedSources.reduce((total, source) => total + source.content.length, 0),
     [selectedSources],
@@ -242,10 +265,24 @@ export function BatchTemplateImportDialog({
     staging?.status === 'ready' &&
     stagingIncludedItems.length > 0 &&
     stagingIncludedItems.every(
-      item => item.status === 'completed' && Boolean(item.targetRelativePath),
+      item =>
+        item.status === 'completed' &&
+        Boolean(item.targetRelativePath) &&
+        (!item.classification?.needsReview || reviewAcknowledged.has(item.sourceId)),
     )
 
   const hydrateStaging = (nextStaging: BatchTemplateStaging) => {
+    const fingerprints = Object.fromEntries(
+      nextStaging.items.map(item => [
+        item.sourceId,
+        JSON.stringify([nextStaging.id, item.targetRelativePath, item.classification, item.status]),
+      ]),
+    )
+    const previous = stagingReviewFingerprints.current
+    setReviewAcknowledged(
+      current => new Set([...current].filter(id => previous[id] === fingerprints[id])),
+    )
+    stagingReviewFingerprints.current = fingerprints
     setStaging(nextStaging)
     setStagingSessions(current =>
       current.some(session => session.id === nextStaging.id)
@@ -339,20 +376,30 @@ export function BatchTemplateImportDialog({
     onOpenChange(false)
   }
 
+  const classificationBatchCount = Math.max(
+    1,
+    Math.ceil(selectedSources.length / CLASSIFICATION_DETAIL_BATCH_SIZE),
+  )
+
   useEffect(() => {
-    if (open) {
-      return
-    }
-    cancelRequested.current = false
+    if (open) return
+    cancelRequested.current = true
+    const requestId = activeClassificationRequestId.current ?? activeStagingRequestId.current
+    activeClassificationRequestId.current = null
+    activeStagingRequestId.current = null
+    if (stagingAiRequestId) void stagingApi().cancelBatchStagingAiPlan?.(stagingAiRequestId)
+    if (requestId) void window.desktop.templateManagement.cancelClassification(requestId)
     setBusyMode(null)
     setTaskStatus(null)
     setClassifications({})
+    setReviewAcknowledged(new Set())
     setConflictChoices({})
     setConflicts([])
     setError(null)
     setOutputLanguage(locale)
     setPreview(null)
     setProgress({ completed: 0, total: 0 })
+    setReviewAcknowledged(new Set())
     setSources([])
     setSelectedSourceIds(new Set())
     setImportFlow(null)
@@ -364,12 +411,14 @@ export function BatchTemplateImportDialog({
     setStagingAiDraft(null)
     setStagingAiRequestId(null)
     setSelectedStagingAiOperationIds(new Set())
+    setSourceStates({})
     setTargetPaths({})
     activeStagingRequestId.current = null
+    stagingReviewFingerprints.current = {}
     liveHydratedProcessedCount.current = 0
     syncedStagingItems.current = {}
     closingStagingId.current = null
-  }, [locale, open])
+  }, [locale, open, stagingAiRequestId])
 
   useEffect(() => {
     if (!open) return
@@ -413,8 +462,10 @@ export function BatchTemplateImportDialog({
     setConflictChoices({})
     setConflicts([])
     setSelectedSourceIds(new Set(nextSources.map(source => source.id)))
+    setSourceStates(Object.fromEntries(nextSources.map(source => [source.id, 'pending'])))
     setTargetPaths(Object.fromEntries(nextSources.map(source => [source.id, source.displayPath])))
     setProgress({ completed: 0, total: nextSources.length })
+    setReviewAcknowledged(new Set())
   }
 
   const createStaging = async (nextSources: BatchTemplateImportSource[]) => {
@@ -782,7 +833,7 @@ export function BatchTemplateImportDialog({
     if (
       importFlow !== 'staging' ||
       !currentStaging ||
-      currentStaging.status !== 'ready' ||
+      !stagingReadyToApply ||
       typeof api.applyBatchStaging !== 'function'
     ) {
       return
@@ -868,7 +919,7 @@ export function BatchTemplateImportDialog({
         currentItem: null,
         phase: 'preparing',
         processedCount: 0,
-        totalCount: selectedSources.length,
+        totalCount: unlockedSources.length,
       },
       result: null,
       startedAt,
@@ -898,7 +949,7 @@ export function BatchTemplateImportDialog({
       setPreview(
         await window.desktop.templateManagement.previewBatchClassification({
           outputLanguage,
-          sources: selectedSourcePayload,
+          sources: selectedSourcePayload.filter(source => !reviewAcknowledged.has(source.id)),
         }),
       )
     } catch (caught) {
@@ -913,10 +964,20 @@ export function BatchTemplateImportDialog({
     setPreview(null)
     setBusyMode('classify')
     setError(null)
-    setClassifications({})
+    setClassifications(current =>
+      Object.fromEntries(
+        Object.entries(current).filter(([id]) => !unlockedSources.some(source => source.id === id)),
+      ),
+    )
+    setSourceStates(current => ({
+      ...current,
+      ...Object.fromEntries(
+        unlockedSources.map((source, index) => [source.id, index === 0 ? 'processing' : 'pending']),
+      ),
+    }))
     setConflictChoices({})
     setConflicts([])
-    setProgress({ completed: 0, total: selectedSources.length })
+    setProgress({ completed: 0, total: unlockedSources.length })
     cancelRequested.current = false
     const taskId = crypto.randomUUID()
     const startedAt = new Date().toISOString()
@@ -926,67 +987,84 @@ export function BatchTemplateImportDialog({
       id: taskId,
       kind: 'batch-operation',
       progress: {
-        currentItem: selectedSources[0]?.displayPath ?? null,
+        currentItem: unlockedSources[0]?.displayPath ?? null,
         phase: 'requesting-ai',
         processedCount: 0,
-        totalCount: selectedSources.length,
+        totalCount: unlockedSources.length,
       },
       result: null,
       startedAt,
       state: 'running',
     })
     try {
-      for (let index = 0; index < selectedSources.length; index += 1) {
-        if (cancelRequested.current) {
-          setError(t('批量 AI 补全已停止；尚未向工作区写入文件。'))
-          return
-        }
-        const source = selectedSources[index]!
-        setTaskStatus(current =>
-          current
-            ? {
-                ...current,
-                progress: {
-                  currentItem: source.displayPath,
-                  phase: 'requesting-ai',
-                  processedCount: index,
-                  totalCount: selectedSources.length,
-                },
-              }
-            : current,
-        )
-        const requestId = crypto.randomUUID()
-        activeClassificationRequestId.current = requestId
-        const result = await window.desktop.templateManagement.classify({
-          content: source.content,
-          fileName: source.fileName,
-          metadata: emptyTemplateMetadata,
-          outputLanguage,
-          requestId,
-        })
-        if (cancelRequested.current || activeClassificationRequestId.current !== requestId) {
-          setError(t('批量 AI 补全已停止；尚未向工作区写入文件。'))
-          return
-        }
-        activeClassificationRequestId.current = null
-        setClassifications(current => ({ ...current, [source.id]: result }))
-        setTargetPaths(current => ({ ...current, [source.id]: result.suggestedRelativePath }))
-        setProgress({ completed: index + 1, total: selectedSources.length })
-        setTaskStatus(current =>
-          current
-            ? {
-                ...current,
-                progress: {
-                  currentItem: source.displayPath,
-                  phase: 'processing',
-                  processedCount: index + 1,
-                  totalCount: selectedSources.length,
-                },
-              }
-            : current,
-        )
+      // Use the tracked task id as request id so the renderer can observe the
+      // global-facts phase and each bounded detail batch through the common
+      // background-task status channel.
+      const requestId = taskId
+      activeClassificationRequestId.current = requestId
+      const result = await runTrackedOperation(
+        requestId,
+        () =>
+          window.desktop.templateManagement.classifyBatch({
+            outputLanguage,
+            requestId,
+            sources: unlockedSources,
+          }),
+        setTaskStatus,
+      )
+      if (cancelRequested.current || activeClassificationRequestId.current !== requestId) {
+        setError(t('批量 AI 补全已停止；尚未向工作区写入文件。'))
+        return
       }
+      const nextClassifications = Object.fromEntries(
+        result.classifications.map(({ classification, sourceId }) => [sourceId, classification]),
+      ) as Record<string, TemplateClassification>
+      setClassifications(current => ({ ...current, ...nextClassifications }))
+      setSourceStates(current => ({
+        ...current,
+        ...Object.fromEntries(
+          unlockedSources.map(source => [
+            source.id,
+            nextClassifications[source.id]?.needsReview ? 'needs-review' : 'classified',
+          ]),
+        ),
+      }))
+      setTargetPaths(next => ({
+        ...next,
+        ...Object.fromEntries(
+          Object.entries(nextClassifications).map(([id, value]) => [
+            id,
+            value.suggestedRelativePath,
+          ]),
+        ),
+      }))
+      setProgress({ completed: unlockedSources.length, total: unlockedSources.length })
+      setTaskStatus(current =>
+        current
+          ? {
+              ...current,
+              progress: {
+                currentItem: unlockedSources.at(-1)?.displayPath ?? null,
+                phase: 'processing',
+                processedCount: unlockedSources.length,
+                totalCount: unlockedSources.length,
+              },
+            }
+          : current,
+      )
     } catch (caught) {
+      setSourceStates(current =>
+        Object.fromEntries(
+          sources.map(source => [
+            source.id,
+            unlockedSources.some(candidate => candidate.id === source.id)
+              ? cancelRequested.current
+                ? 'cancelled'
+                : 'failed'
+              : (current[source.id] ?? 'pending'),
+          ]),
+        ),
+      )
       setError(
         cancelRequested.current
           ? t('批量 AI 补全已停止；尚未向工作区写入文件。')
@@ -1461,6 +1539,7 @@ export function BatchTemplateImportDialog({
                 {sources.map(source => {
                   const classification = classifications[source.id]
                   const stagingItem = staging?.items.find(item => item.sourceId === source.id)
+                  const sourceState = sourceStates[source.id] ?? 'pending'
                   const conflict = conflicts.find(item => item.sourceId === source.id)
                   const selected = selectedSourceIds.has(source.id)
                   const itemBusy = Boolean(busyMode) || Boolean(stagingAction)
@@ -1512,12 +1591,12 @@ export function BatchTemplateImportDialog({
                           }}
                           type="checkbox"
                         />
-                        {classification ? (
+                        {sourceState === 'classified' || sourceState === 'needs-review' ? (
                           <CheckCircle2 className="size-4 shrink-0 text-success" />
-                        ) : busyMode === 'classify' &&
-                          progress.completed ===
-                            selectedSources.findIndex(item => item.id === source.id) ? (
+                        ) : sourceState === 'processing' ? (
                           <LoaderCircle className="size-4 shrink-0 animate-spin text-primary" />
+                        ) : sourceState === 'failed' ? (
+                          <AlertTriangle className="size-4 shrink-0 text-warning" />
                         ) : (
                           <FileCode2 className="size-4 shrink-0 text-muted-foreground" />
                         )}
@@ -1538,7 +1617,10 @@ export function BatchTemplateImportDialog({
                             {t(
                               stagingItem.status === 'completed' && !classification
                                 ? '暂存项：已准备（未分类）'
-                                : itemLabels[stagingItem.status],
+                                : stagingItem.status === 'completed' &&
+                                    reviewAcknowledged.has(source.id)
+                                  ? '已暂存（分类已确认）'
+                                  : itemLabels[stagingItem.status],
                             )}
                           </Badge>
                         )}
@@ -1547,6 +1629,32 @@ export function BatchTemplateImportDialog({
                             {Math.round(classification.confidence * 100)}%
                           </Badge>
                         )}
+                        {!stagingItem && (
+                          <Badge
+                            tone={
+                              sourceState === 'needs-review' || sourceState === 'failed'
+                                ? 'warning'
+                                : sourceState === 'classified'
+                                  ? 'success'
+                                  : 'neutral'
+                            }
+                          >
+                            {t(
+                              sourceState === 'classified'
+                                ? '已分类'
+                                : sourceState === 'needs-review'
+                                  ? '待复核'
+                                  : sourceState === 'processing'
+                                    ? '处理中'
+                                    : sourceState === 'failed'
+                                      ? '失败'
+                                      : sourceState === 'cancelled'
+                                        ? '已取消'
+                                        : '待处理',
+                            )}
+                          </Badge>
+                        )}
+                        {classification?.needsReview && <Badge tone="warning">{t('需复核')}</Badge>}
                       </div>
                       {busyMode === 'classify' && selected && liveTotalCount > 0 && (
                         <p
@@ -1581,6 +1689,11 @@ export function BatchTemplateImportDialog({
                               className="mt-1 h-9 w-full rounded-lg border border-border bg-background px-3 font-mono text-xs text-foreground outline-none focus:ring-2 focus:ring-ring"
                               disabled={itemBusy}
                               onChange={event => {
+                                setReviewAcknowledged(current => {
+                                  const next = new Set(current)
+                                  next.delete(source.id)
+                                  return next
+                                })
                                 setTargetPaths(current => ({
                                   ...current,
                                   [source.id]: event.target.value,
@@ -1610,6 +1723,22 @@ export function BatchTemplateImportDialog({
                             <>
                               <div className="self-end text-right text-[10px] text-muted-foreground">
                                 <p>{classification.categoryPath.join(' / ')}</p>
+                                {classification.categoryId && (
+                                  <p>canonicalId: {classification.categoryId}</p>
+                                )}
+                                {classification.categoryAlias && (
+                                  <p className="text-amber-700 dark:text-amber-300">
+                                    {t('已归并别名')}：{classification.categoryAlias}
+                                  </p>
+                                )}
+                                {classification.categoryDecision === 'propose-new' && (
+                                  <p className="text-amber-700 dark:text-amber-300">
+                                    {t('AI 提议新分类，需确认后导入')}
+                                    {classification.newCategoryProposal
+                                      ? `：${classification.newCategoryProposal.categoryPath.join(' / ')}`
+                                      : ''}
+                                  </p>
+                                )}
                                 <p className="mt-1">
                                   {classification.providerName} · {classification.model}
                                 </p>
@@ -1618,6 +1747,40 @@ export function BatchTemplateImportDialog({
                                 {classification.metadata.tags.join('、') || t('无标签')} ·{' '}
                                 {classification.classificationReason}
                               </p>
+                              {classification.evidence && classification.evidence.length > 0 && (
+                                <p className="text-[10px] leading-4 text-muted-foreground sm:col-span-2">
+                                  {t('分类依据')}：{classification.evidence.join('；')}
+                                </p>
+                              )}
+                              <ClassificationEvidenceReview value={classification} />
+                              {
+                                <div className="flex items-center justify-between gap-2 rounded-lg border border-amber-500/30 bg-amber-500/8 px-2 py-1.5 text-[10px] text-amber-800 dark:text-amber-200 sm:col-span-2">
+                                  <span>
+                                    {t(
+                                      '核对后可锁定本次分类；后续 AI 补全跳过锁定项，修改路径会解除锁定。',
+                                    )}
+                                  </span>
+                                  <Button
+                                    disabled={itemBusy}
+                                    aria-pressed={reviewAcknowledged.has(source.id)}
+                                    onClick={() =>
+                                      setReviewAcknowledged(current => {
+                                        const next = new Set(current)
+                                        if (next.has(source.id)) next.delete(source.id)
+                                        else next.add(source.id)
+                                        return next
+                                      })
+                                    }
+                                    size="compact"
+                                    type="button"
+                                    variant="outline"
+                                  >
+                                    {reviewAcknowledged.has(source.id)
+                                      ? t('已锁定，点击解锁')
+                                      : t('确认此分类')}
+                                  </Button>
+                                </div>
+                              }
                             </>
                           ) : (
                             <p className="self-end text-right text-[10px] text-muted-foreground">
@@ -1713,6 +1876,7 @@ export function BatchTemplateImportDialog({
                 onChange={event => {
                   setOutputLanguage(event.target.value as TemplateMetadataLanguage)
                   setClassifications({})
+                  setSourceStates(Object.fromEntries(sources.map(source => [source.id, 'pending'])))
                   setConflictChoices({})
                   setConflicts([])
                   setTargetPaths(
@@ -1727,7 +1891,16 @@ export function BatchTemplateImportDialog({
             </label>
             {busyMode === 'classify' && (
               <span className="text-xs text-muted-foreground">
-                {t('正在补全 {completed}/{total}', progress)}
+                {selectedSources.length > 8
+                  ? t('全局事实 + 详细元数据 {batches} 批 · 已处理 {completed}/{total}', {
+                      batches: classificationBatchCount,
+                      completed: visibleProcessedCount,
+                      total: progress.total,
+                    })
+                  : t('正在补全 {completed}/{total}', {
+                      completed: visibleProcessedCount,
+                      total: progress.total,
+                    })}
               </span>
             )}
             <div className="ml-auto flex items-center gap-2">
@@ -1771,7 +1944,7 @@ export function BatchTemplateImportDialog({
                 disabled={
                   Boolean(busyMode) ||
                   Boolean(stagingAction) ||
-                  selectedSources.length === 0 ||
+                  unlockedSources.length === 0 ||
                   (importFlow === 'staging' &&
                     (!staging || staging.status === 'ready' || staging.status === 'applying'))
                 }
@@ -1784,7 +1957,11 @@ export function BatchTemplateImportDialog({
                 ) : (
                   <Sparkles className="size-4" />
                 )}
-                {completedCount > 0 ? t('重新生成所选元数据') : t('AI 补全所选模板')}
+                {hasRetryableSources
+                  ? t('重试 AI 补全')
+                  : completedCount > 0
+                    ? t('重新生成所选元数据')
+                    : t('AI 补全所选模板')}
               </Button>
               <Button
                 disabled={

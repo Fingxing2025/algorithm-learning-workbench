@@ -40,7 +40,11 @@ import {
 import { normalizeTemplateRelativePath } from '../security/template-path'
 import type { AiProviderService } from './ai-provider-service'
 import type { AiTaskRun, AiTaskRunRegistry } from './ai-task-run-registry'
-import { compactAiSource } from './ai-input-budget'
+import {
+  buildClassificationSourceContext,
+  validateSourceEvidence,
+  type ClassificationSourceContext,
+} from './template-classification-evidence'
 import { normalizeFilePlanEnvelope } from './ai-response-json'
 import { analyzeTemplateFileName } from './template-file-name-analysis'
 import { getLanguageForExtension } from './template-scanner'
@@ -150,6 +154,7 @@ interface Candidate {
   sourcePath: string
   sourceSizeBytes: number
   sourceSnippet: string
+  sourceContext: ClassificationSourceContext
   sourceText: string
   sourceId: string
   status: string
@@ -158,6 +163,7 @@ interface Candidate {
 }
 
 interface Batch {
+  sourceContexts: Record<string, ClassificationSourceContext>
   candidateIds: string[]
   issues: WorkspaceAudit['issues']
   inputCharacters: number
@@ -652,6 +658,7 @@ function serializeAuditPayload(
 ): string {
   return JSON.stringify({
     audit,
+    batchScope: { actionableTemplateIds: candidates.map(candidate => candidate.aiId) },
     stagingCatalog: catalog,
     templates: candidates.map(candidate => ({
       id: candidate.aiId,
@@ -659,6 +666,7 @@ function serializeAuditPayload(
       metadata: compactMetadata(candidate.metadata, includeNotes),
       path: candidate.targetPath,
       sourceSnippet: candidate.sourceSnippet,
+      sourceCoverage: candidate.sourceContext.coverage,
       sourceUnavailable: !candidate.sourceAvailable,
     })),
   })
@@ -676,6 +684,7 @@ function systemPrompt(outputLanguage: AiOutputLanguage): string {
     '目标是生成可人工审查的 Diff；任何删除、移动或元数据变更都必须保留证据并等待用户确认。',
     '不要把暂存项当前的 targetPath、目录名或分类结果当成正确答案；对每个可读取候选都要独立复核源码、文件名、元数据和算法范式，主动发现明显不合理的归类并提出改进操作。',
     '即使本地 audit.issues 没有列出问题，只要源码语义与当前路径明显不一致，也必须输出 move，并在 evidence 中说明依据；只有确实没有可靠改进时才返回空 operations。',
+    'sourceSnippet 保留原源码行号；为操作提供 sourceEvidence 数组，每项包含 startLine/endLine/quote/claim。缺失或未覆盖的实现证据必须待复核，不得以注释或名称代替。',
     '目录名称仅是待复核线索；必须以源码为依据区分具体算法与变体。不得根据背包问题等宽泛目录推断01、完全或多重背包；证据不足时可以返回空操作。',
     language,
   ].join('\n')
@@ -701,14 +710,15 @@ function makeBatches(
       .filter(issue => issue.paths.some(path => paths.has(path)))
       .slice(0, MAX_BATCH_ISSUES)
     let sourceLimit = MAX_SOURCE_CHARS
-    let text = serializeAuditPayload({ ...audit, issues }, catalog, chunk, includeNotes)
+    let sentCandidates = chunk
+    let text = serializeAuditPayload({ ...audit, issues }, catalog, sentCandidates, includeNotes)
     while (stableLength + text.length > budget && sourceLimit > 0) {
       sourceLimit = Math.floor(sourceLimit * 0.65)
-      const trimmed = chunk.map(candidate => ({
-        ...candidate,
-        sourceSnippet: candidate.sourceText.slice(0, sourceLimit),
-      }))
-      text = serializeAuditPayload({ ...audit, issues }, catalog, trimmed, includeNotes)
+      sentCandidates = chunk.map(candidate => {
+        const sourceContext = buildClassificationSourceContext(candidate.sourceText, sourceLimit)
+        return { ...candidate, sourceContext, sourceSnippet: sourceContext.content }
+      })
+      text = serializeAuditPayload({ ...audit, issues }, catalog, sentCandidates, includeNotes)
     }
     if (stableLength + text.length > budget) {
       throw new PublicError(
@@ -718,11 +728,13 @@ function makeBatches(
     }
     batches.push({
       candidateIds: chunk.map(candidate => candidate.aiId),
+      sourceContexts: Object.fromEntries(
+        sentCandidates.map(candidate => [candidate.aiId, candidate.sourceContext]),
+      ),
       issues,
       inputCharacters: stableLength + text.length,
-      sourceTruncated: chunk.some(
-        candidate =>
-          candidate.sourceAvailable && candidate.sourceText.length > candidate.sourceSnippet.length,
+      sourceTruncated: sentCandidates.some(
+        candidate => candidate.sourceAvailable && candidate.sourceContext.truncated,
       ),
       text,
     })
@@ -731,6 +743,7 @@ function makeBatches(
     const text = serializeAuditPayload(audit, catalog, [], includeNotes)
     batches.push({
       candidateIds: [],
+      sourceContexts: {},
       issues: audit.issues.slice(0, MAX_BATCH_ISSUES),
       inputCharacters: stableLength + text.length,
       sourceTruncated: false,
@@ -807,8 +820,27 @@ function operationDiff(
   suggestion: z.infer<typeof modelFileChangePlanSchema>['operations'][number],
   candidate: Candidate,
   includeNotes: boolean,
+  sourceContext: ClassificationSourceContext,
 ): StagingAiPlanOperation | null {
+  const sourceEvidence = validateSourceEvidence(
+    candidate.sourceText,
+    sourceContext,
+    suggestion.kind === 'move' ? suggestion.sourceEvidence : undefined,
+  )
+  const reviewReasons = [
+    ...(!sourceContext.coverage.complete ? ['partial-source-coverage'] : []),
+    ...(!sourceEvidence.length ? ['missing-source-evidence'] : []),
+    ...(sourceEvidence.some(item => !item.verified) ? ['invalid-source-evidence'] : []),
+    ...(sourceEvidence.length && !sourceEvidence.some(item => item.containsImplementation)
+      ? ['missing-implementation-evidence']
+      : []),
+    ...(suggestion.confidence < 0.65 ? ['low-confidence'] : []),
+  ]
   const base = {
+    sourceCoverage: sourceContext.coverage,
+    sourceEvidence,
+    reviewReasons,
+    needsReview: reviewReasons.length > 0,
     alternatives: suggestion.alternatives,
     applicability: suggestion.applicability,
     confidence: suggestion.confidence,
@@ -830,7 +862,7 @@ function operationDiff(
       id: randomUUID(),
       kind: 'move',
       risk: suggestion.risk,
-      selectedByDefault: suggestion.risk !== 'high',
+      selectedByDefault: suggestion.risk !== 'high' && !base.needsReview,
       targetPath,
     }
   }
@@ -858,7 +890,10 @@ function operationDiff(
     metadata: next.data,
     previousMetadata: candidate.metadata,
     risk: includeNotes && next.data.notes !== candidate.metadata.notes ? 'high' : suggestion.risk,
-    selectedByDefault: suggestion.risk !== 'high' && next.data.notes === candidate.metadata.notes,
+    selectedByDefault:
+      suggestion.risk !== 'high' &&
+      !base.needsReview &&
+      next.data.notes === candidate.metadata.notes,
   }
 }
 
@@ -1010,7 +1045,12 @@ export class TemplateStagingAuditService {
         sourceAvailable = false
       }
       if (!sourceHash) sourceHash = stableHash({ sourceId: item.sourceId, sourcePath })
+      const sourceContext = buildClassificationSourceContext(
+        sourceText,
+        sourceAvailable ? MAX_SOURCE_CHARS : 0,
+      )
       result.push({
+        sourceContext,
         aiId: aiCandidateId(item.sourceId, sourceHash),
         classification,
         language: getLanguageForExtension(extname(sourcePath).toLowerCase()) ?? 'C++',
@@ -1020,7 +1060,7 @@ export class TemplateStagingAuditService {
         sourceHash,
         sourcePath,
         sourceSizeBytes,
-        sourceSnippet: sourceAvailable ? compactAiSource(sourceText, MAX_SOURCE_CHARS).content : '',
+        sourceSnippet: sourceContext.content,
         sourceText,
         sourceId: item.sourceId,
         status: item.status,
@@ -1356,7 +1396,13 @@ export class TemplateStagingAuditService {
             )
           )
             continue
-          const operation = operationDiff(suggestion, candidate, snapshot.request.includeNotes)
+          const operation = operationDiff(
+            suggestion,
+            candidate,
+            snapshot.request.includeNotes,
+            batch.sourceContexts[candidate.aiId] ??
+              buildClassificationSourceContext(candidate.sourceText, 0),
+          )
           if (!operation) continue
           if (operation.kind === 'move') {
             const target = operation.targetPath

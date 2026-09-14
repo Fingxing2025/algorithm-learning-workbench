@@ -18,6 +18,15 @@ describe('analyzeTemplateFileName', () => {
     })
   })
 
+  it.each(['dijkstra+链式前向星..cpp', '默认.cpp', 'template.cpp'])(
+    'flags malformed or placeholder names that cannot be retrieved semantically: %s',
+    fileName => {
+      expect(analyzeTemplateFileName(fileName)).toMatchObject({
+        kind: 'naming-inconsistency',
+      })
+    },
+  )
+
   it.each(['树状数组.cpp', 'Dijkstra.cpp', 'Aho–Corasick.cpp', 'café.cpp'])(
     'does not classify a valid algorithm file name as mojibake: %s',
     fileName => {

@@ -18,6 +18,11 @@ import {
 import { analyzeTemplateFileName } from './template-file-name-analysis'
 import { MAX_SIMILARITY_CANDIDATE_PAIRS, MAX_SOURCE_BYTES } from './template-management-constants'
 import { decodeTemplateSourceBuffer } from './template-source-codec'
+import {
+  normalizeTaxonomyAlias,
+  resolveCanonicalDirectory,
+  taxonomyAliasCandidates,
+} from '@core/domain/template-taxonomy'
 
 /**
  * Classifies directory names conservatively.  Batch import often creates
@@ -26,18 +31,36 @@ import { decodeTemplateSourceBuffer } from './template-source-codec'
  * punctuation; arbitrary fuzzy matching would risk merging real categories.
  */
 function canonicalDirectorySegment(segment: string): string {
-  let value = segment
-    .normalize('NFKC')
-    .trim()
-    .toLocaleLowerCase('zh-CN')
-    .replace(/[\s_\-—–·./\\]+/gu, '')
-  if (value.length > 2) {
-    value = value.replace(/^(基础|通用|常用|basics?)|基础$|basics?$/u, '')
-    const withoutAffix = value.replace(/(算法|模板|分类|algorithms?|templates?|categories?)$/u, '')
-    if (withoutAffix.length >= 2) value = withoutAffix
-    if (value.length > 2) value = value.replace(/路径$/u, '路')
+  const fallback = normalizeTaxonomyAlias(segment)
+  let value = fallback
+  const withoutPrefix = value.replace(/^(基础|通用|常用|basics?)/u, '')
+  if (withoutPrefix.length >= 2) value = withoutPrefix
+  if (value === '路径') value = '路'
+  else if (value.endsWith('路径') && value.length > 2) value = `${value.slice(0, -2)}路`
+  for (const suffix of [
+    'categories',
+    'category',
+    'templates',
+    'template',
+    'algorithms',
+    'algorithm',
+    '分类',
+    '模板',
+    '算法',
+    '基础',
+  ]) {
+    if (!value.endsWith(suffix)) continue
+    const withoutSuffix = value.slice(0, -suffix.length)
+    if (withoutSuffix.length >= 2) {
+      value = withoutSuffix
+      break
+    }
   }
-  return value || segment.normalize('NFKC').trim().toLocaleLowerCase('zh-CN')
+  return value || fallback
+}
+
+function compareDirectoryKey(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0
 }
 
 function canonicalDirectoryPath(path: string): string {
@@ -141,7 +164,8 @@ export class TemplateWorkspaceAuditService {
     for (let index = 0; index < templates.length; index += 1) {
       throwIfCancelled()
       const template = templates[index]!
-      if (!metadata.has(template.id)) {
+      const templateMetadata = metadata.get(template.id) ?? null
+      if (!templateMetadata) {
         addIssue({
           detail: '算法卡片尚未补充结构化元数据。',
           id: randomUUID(),
@@ -199,7 +223,7 @@ export class TemplateWorkspaceAuditService {
       }
     }
     const directoriesByCanonical = new Map<string, string[]>()
-    for (const directory of templatesByDirectory.keys()) {
+    for (const directory of [...templatesByDirectory.keys()].sort()) {
       const separator = directory.lastIndexOf('/')
       const parent = separator < 0 ? '' : directory.slice(0, separator)
       const segment = separator < 0 ? directory : directory.slice(separator + 1)
@@ -208,28 +232,53 @@ export class TemplateWorkspaceAuditService {
       paths.push(directory)
       directoriesByCanonical.set(canonical, paths)
     }
+    // Alias-based grouping catches cross-parent branches such as
+    // “背包问题” vs “动态规划/背包” and “搜索算法” vs “基础算法/搜索”.
+    // Only exact taxonomy aliases are considered; unknown folders remain untouched.
+    for (const directory of [...templatesByDirectory.keys()].sort()) {
+      const candidates = taxonomyAliasCandidates(directory)
+      const leafCandidates = taxonomyAliasCandidates(directory.split('/').at(-1) ?? '')
+      if (candidates.length !== 1 && leafCandidates.length !== 1) continue
+      const match = resolveCanonicalDirectory(directory)
+      if (!match) continue
+      const key = `taxonomy:${match.category.categoryId}`
+      const paths = directoriesByCanonical.get(key) ?? []
+      paths.push(directory)
+      directoriesByCanonical.set(key, paths)
+    }
     const coveredAffectedPaths = new Set<string>()
-    for (const [, directories] of directoriesByCanonical) {
-      const distinctDirectories = [...new Set(directories)]
+    for (const [, directories] of [...directoriesByCanonical.entries()].sort(([left], [right]) =>
+      compareDirectoryKey(left, right),
+    )) {
+      const distinctDirectories = [...new Set(directories)].filter(
+        directory =>
+          !directories.some(other => other !== directory && directory.startsWith(`${other}/`)),
+      )
       if (distinctDirectories.length < 2) continue
       const ordered = [...distinctDirectories].sort((left, right) => {
         const leftCount = templatesByDirectory.get(left)?.length ?? 0
         const rightCount = templatesByDirectory.get(right)?.length ?? 0
-        return rightCount - leftCount || left.length - right.length || left.localeCompare(right)
+        return (
+          rightCount - leftCount || left.length - right.length || compareDirectoryKey(left, right)
+        )
       })
       const keeper = ordered[0]!
-      const affectedPaths = ordered
-        .slice(1)
-        .flatMap(directory => templatesByDirectory.get(directory) ?? [])
-        .map(template => template.relativePath)
-        .filter(path => !coveredAffectedPaths.has(path))
-        .sort((left, right) => left.localeCompare(right))
+      const affectedPaths = [
+        ...new Set(
+          ordered
+            .slice(1)
+            .flatMap(directory => templatesByDirectory.get(directory) ?? [])
+            .map(template => template.relativePath)
+            .filter(path => !coveredAffectedPaths.has(path)),
+        ),
+      ].sort((left, right) => compareDirectoryKey(left, right))
       if (affectedPaths.length === 0) continue
       for (const path of affectedPaths) coveredAffectedPaths.add(path)
       const shownPaths = affectedPaths.slice(0, 20)
       const shownDirectories = ordered.slice(0, 4).join('、')
+      const detail = `目录分类疑似重复（${shownDirectories}${ordered.length > 4 ? ' 等' : ''}）；建议统一到 ${keeper}，AI 将根据源码与元数据重新规划子目录。`
       addIssue({
-        detail: `目录分类疑似重复（${shownDirectories}${ordered.length > 4 ? ' 等' : ''}）；建议统一到 ${keeper}，AI 将根据源码与元数据重新规划子目录。`,
+        detail: detail.length <= 500 ? detail : `${detail.slice(0, 499)}…`,
         id: randomUUID(),
         kind: 'path-inconsistency',
         pathCount: affectedPaths.length,
@@ -293,7 +342,7 @@ export class TemplateWorkspaceAuditService {
           return (
             leftNameIssue - rightNameIssue ||
             left.length - right.length ||
-            left.localeCompare(right)
+            compareDirectoryKey(left, right)
           )
         })
         addIssue({
@@ -426,7 +475,7 @@ export class TemplateWorkspaceAuditService {
     for (const paths of similarGroups.values()) {
       if (paths.length < 2) continue
       const ordered = [...paths].sort(
-        (left, right) => left.length - right.length || left.localeCompare(right),
+        (left, right) => left.length - right.length || compareDirectoryKey(left, right),
       )
       addIssue({
         detail: `这些模板源码高度相似；建议仅保留 ${ordered[0]}，执行前请查看源码确认。`,

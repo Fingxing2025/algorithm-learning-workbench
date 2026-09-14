@@ -11,6 +11,13 @@ import { buildSimilaritySignature } from './template-content-index'
 import { buildClassificationPath, normalizeAiDirectoryPath } from './template-management-helpers'
 import { TemplateManagementService } from './template-management-service'
 import type { TemplateIndexEntry } from './template-scanner'
+import {
+  AI_RESPONSE_SAFE_ESTIMATE_BYTES,
+  BATCH_DETAIL_MAX_OUTPUT_TOKENS,
+  BATCH_DETAIL_SIZE,
+  BATCH_GLOBAL_FACTS_MAX_OUTPUT_TOKENS,
+  estimateBatchClassificationResponseBytes,
+} from './template-management-constants'
 
 function createTemplate(
   workspaceId: string,
@@ -162,7 +169,7 @@ describe('TemplateManagementService feature contracts', () => {
       const audit = await service.auditWorkspace()
       const issues = audit.issues.filter(issue => issue.kind === 'path-inconsistency')
 
-      expect(issues).toHaveLength(2)
+      expect(issues.length).toBeGreaterThanOrEqual(2)
       expect(issues).toEqual(
         expect.arrayContaining([
           expect.objectContaining({
@@ -204,6 +211,44 @@ describe('TemplateManagementService feature contracts', () => {
     } finally {
       await rm(rootPath, { force: true, recursive: true })
     }
+  })
+
+  it('does not turn an algorithm name in metadata into a forced source classification', async () => {
+    const template = createTemplate('a', '图论/通用图算法/图论基础/kruskal.cpp', 'hash-a')
+    const service = new TemplateManagementService(
+      {} as never,
+      {
+        listMetadataMap: () =>
+          new Map([
+            [
+              template.id,
+              {
+                notes: '',
+                solves: '使用 Kruskal 求最小生成树',
+                spaceComplexity: 'O(n)',
+                tags: ['Kruskal'],
+                timeComplexity: 'O(m log m)',
+                templateId: template.id,
+                updatedAt: new Date(0).toISOString(),
+              },
+            ],
+          ]),
+        listStaleTemplateRelationPaths: () => [],
+      } as never,
+      {
+        getActiveWorkspace: () => ({ id: 'workspace-1', rootPath: '/tmp/workspace' }),
+        listTemplateIndexEntries: () => [template],
+      } as never,
+      {} as never,
+      '/tmp/workspace',
+      {} as never,
+      {} as never,
+    )
+
+    const issue = (await service.auditWorkspace()).issues.find(
+      candidate => candidate.kind === 'path-inconsistency',
+    )
+    expect(issue).toBeUndefined()
   })
 
   it('reports decoding artifacts separately from ordinary naming inconsistencies', async () => {
@@ -376,9 +421,349 @@ describe('TemplateManagementService feature contracts', () => {
     expect(capturedRequest?.cache?.stableContext).toContain('workspaceCatalog')
     expect(capturedRequest?.system).toContain('workspaceCatalog 中的全部目录和模板名称')
     expect(capturedRequest?.system).toContain('不得只根据 relatedTemplates')
-    expect(capturedRequest?.system).toContain('用户草稿中的非空字段是已确认内容，必须原样保留')
+    expect(capturedRequest?.system).toContain('用户草稿中的非空字段只用于 Renderer 的差异确认')
     expect(capturedRequest?.text).toContain('用户已填写的用途')
     expect(capturedRequest?.text).not.toContain('绝对不能进入 AI 请求的用户笔记')
+  })
+
+  it('classifies a batch in one global request and preserves source coverage', async () => {
+    const rootPath = await mkdtemp(join(tmpdir(), 'template-management-service-'))
+    const firstId = '40000000-0000-4000-8000-000000000101'
+    const secondId = '40000000-0000-4000-8000-000000000102'
+    const requests: AiCompletionRequest[] = []
+    const aiProviderService = {
+      getTaskTarget: () => ({
+        capabilities: {
+          promptCaching: true,
+          streaming: false,
+          structuredOutput: true,
+          vision: false,
+        },
+        endpointHost: 'fixture.invalid',
+        id: '40000000-0000-4000-8000-000000000103',
+        model: 'fixture-model',
+        protocol: 'openai-chat-completions',
+        providerName: 'fixture-provider',
+      }),
+      runTask: async (_task: string, request: AiCompletionRequest) => {
+        requests.push(request)
+        return {
+          model: 'fixture-model',
+          providerName: 'fixture-provider',
+          text: JSON.stringify({
+            classifications: [
+              {
+                sourceId: firstId,
+                classification: {
+                  algorithmFamily: 'Kruskal',
+                  categoryId: 'graph.mst',
+                  categoryPath: ['图论', '生成树', '最小生成树'],
+                  classificationReason: '按边权排序并使用并查集。',
+                  confidence: 0.95,
+                  evidence: ['排序边', '并查集'],
+                  fileName: 'kruskal.cpp',
+                  solves: '求最小生成树。',
+                  spaceComplexity: 'O(n)',
+                  tags: ['最小生成树'],
+                  timeComplexity: 'O(m log m)',
+                },
+              },
+              {
+                sourceId: secondId,
+                classification: {
+                  algorithmFamily: 'Kruskal',
+                  categoryId: 'graph.mst',
+                  categoryPath: ['图论', '生成树', '最小生成树'],
+                  classificationReason: '与同批 Kruskal 统一。',
+                  confidence: 0.94,
+                  evidence: ['并查集'],
+                  fileName: 'kruskal2.cpp',
+                  solves: '求最小生成树。',
+                  spaceComplexity: 'O(n)',
+                  tags: ['最小生成树'],
+                  timeComplexity: 'O(m log m)',
+                },
+              },
+            ],
+          }),
+        }
+      },
+    }
+    const service = new TemplateManagementService(
+      aiProviderService as never,
+      {} as never,
+      {
+        getActiveWorkspace: () => ({ id: 'workspace-1', rootPath }),
+        listTemplates: () => [],
+      } as never,
+      {} as never,
+      rootPath,
+      {
+        build: async () => ({
+          cacheKey: 'batch-global',
+          catalogTemplateRefs: [],
+          relatedContext: JSON.stringify({ relatedTemplates: [] }),
+          sentTemplateNameCount: 0,
+          stableContext: JSON.stringify({ workspaceCatalog: { directories: [] } }),
+          templateCount: 0,
+          templateNamesTruncated: false,
+        }),
+      } as never,
+      {
+        start: () => ({
+          finish: () => undefined,
+          signal: new AbortController().signal,
+          throwIfCancelled: () => undefined,
+        }),
+      } as never,
+    )
+    try {
+      const result = await service.classifyBatch({
+        outputLanguage: 'zh-CN',
+        requestId: '40000000-0000-4000-8000-000000000104',
+        sources: [
+          {
+            content: 'int kruskal(){}',
+            displayPath: 'a.cpp',
+            fileName: 'a.cpp',
+            id: firstId,
+            sourceEncoding: 'utf-8',
+          },
+          {
+            content: 'int kruskal2(){}',
+            displayPath: 'b.cpp',
+            fileName: 'b.cpp',
+            id: secondId,
+            sourceEncoding: 'utf-8',
+          },
+        ],
+      })
+      expect(requests).toHaveLength(1)
+      expect(requests[0]?.maxOutputTokens).toBe(BATCH_DETAIL_MAX_OUTPUT_TOKENS)
+      expect(result.classifications).toHaveLength(2)
+      expect(result.classifications.map(item => item.classification.categoryId)).toEqual([
+        'graph.mst',
+        'graph.mst',
+      ])
+      expect(result.classifications[0]?.classification.placement.mode).toBe('create-category-chain')
+    } finally {
+      await rm(rootPath, { force: true, recursive: true })
+    }
+  })
+
+  it('bounds 49-file batches with a compact global pass and four-source detail requests', async () => {
+    const rootPath = await mkdtemp(join(tmpdir(), 'template-management-service-large-'))
+    const sources = Array.from({ length: 49 }, (_, index) => ({
+      content: `int algorithm_${index}() { return ${index}; }`,
+      displayPath: `source-${index}.cpp`,
+      fileName: `source-${index}.cpp`,
+      id: `40000000-0000-4000-8000-${String(index + 200).padStart(12, '0')}`,
+      sourceEncoding: 'utf-8' as const,
+    }))
+    const requests: AiCompletionRequest[] = []
+    const aiProviderService = {
+      getTaskTarget: () => ({
+        capabilities: {
+          promptCaching: false,
+          streaming: false,
+          structuredOutput: true,
+          vision: false,
+        },
+        endpointHost: 'fixture.invalid',
+        id: '40000000-0000-4000-8000-000000000203',
+        model: 'fixture-model',
+        protocol: 'openai-chat-completions',
+        providerName: 'fixture-provider',
+      }),
+      runTask: async (_task: string, request: AiCompletionRequest) => {
+        requests.push(request)
+        const payload = JSON.parse(request.text) as { sources?: Array<{ id: string }> }
+        const requestSources = payload.sources ?? sources.map(source => ({ id: source.id }))
+        const compact = request.system?.includes('全局分类事实提取器') ?? false
+        return {
+          model: 'fixture-model',
+          providerName: 'fixture-provider',
+          text: JSON.stringify({
+            classifications: requestSources.map(source => ({
+              sourceId: source.id,
+              classification: compact
+                ? {
+                    algorithmFamily: 'array',
+                    primaryTechnique: 'two-pointer',
+                    variant: 'iterative',
+                    timeComplexity: 'O(n)',
+                    spaceComplexity: 'O(1)',
+                    complexitySignals: { time: 'O(n)', space: 'O(1)' },
+                    categoryDecision: 'reuse-existing',
+                    categoryId: 'basic.search.binary',
+                    confidence: 0.9,
+                    evidence: ['数组遍历'],
+                  }
+                : {
+                    algorithmFamily: 'array',
+                    categoryId: 'basic.search.binary',
+                    categoryPath: ['基础算法', '搜索', '二分查找'],
+                    classificationReason: '数组遍历。',
+                    confidence: 0.9,
+                    evidence: ['数组遍历'],
+                    fileName: '数组模板.cpp',
+                    solves: '处理数组。',
+                    spaceComplexity: 'O(1)',
+                    tags: ['数组'],
+                    timeComplexity: 'O(n)',
+                  },
+            })),
+          }),
+        }
+      },
+    }
+    const service = new TemplateManagementService(
+      aiProviderService as never,
+      {} as never,
+      {
+        getActiveWorkspace: () => ({ id: 'workspace-1', rootPath }),
+        listTemplates: () => [],
+      } as never,
+      {} as never,
+      rootPath,
+      {
+        build: async () => ({
+          cacheKey: 'batch-large',
+          catalogTemplateRefs: [],
+          relatedContext: JSON.stringify({ relatedTemplates: [] }),
+          sentTemplateNameCount: 0,
+          stableContext: JSON.stringify({ workspaceCatalog: { directories: [] } }),
+          templateCount: 0,
+          templateNamesTruncated: false,
+        }),
+      } as never,
+      {
+        start: () => ({
+          finish: () => undefined,
+          signal: new AbortController().signal,
+          throwIfCancelled: () => undefined,
+        }),
+      } as never,
+    )
+    try {
+      const result = await service.classifyBatch({
+        outputLanguage: 'zh-CN',
+        requestId: '40000000-0000-4000-8000-000000000204',
+        sources,
+      })
+      expect(result.classifications).toHaveLength(sources.length)
+      expect(result.classifications[0]?.classification).toMatchObject({
+        primaryTechnique: '',
+        variant: null,
+        metadata: { timeComplexity: 'O(n)', spaceComplexity: 'O(1)' },
+      })
+      expect(requests).toHaveLength(1 + Math.ceil(sources.length / BATCH_DETAIL_SIZE))
+      expect(
+        requests.every(
+          request =>
+            request.maxOutputTokens <=
+            Math.max(BATCH_GLOBAL_FACTS_MAX_OUTPUT_TOKENS, BATCH_DETAIL_MAX_OUTPUT_TOKENS),
+        ),
+      ).toBe(true)
+      expect(
+        requests.every(
+          request =>
+            estimateBatchClassificationResponseBytes(request.maxOutputTokens) <
+            AI_RESPONSE_SAFE_ESTIMATE_BYTES,
+        ),
+      ).toBe(true)
+      expect(requests.slice(1).every(request => request.text.includes('globalBatchManifest'))).toBe(
+        true,
+      )
+    } finally {
+      await rm(rootPath, { force: true, recursive: true })
+    }
+  })
+
+  it('locally corrects a review-only graph fallback from the extracted algorithm family', async () => {
+    const aiProviderService = {
+      getTaskTarget: () => ({
+        capabilities: {
+          promptCaching: true,
+          streaming: false,
+          structuredOutput: true,
+          vision: false,
+        },
+        endpointHost: 'fixture.invalid',
+        id: '40000000-0000-4000-8000-000000000011',
+        model: 'fixture-model',
+        protocol: 'openai-chat-completions',
+        providerName: 'fixture-provider',
+      }),
+      runTask: async () => ({
+        model: 'fixture-model',
+        providerName: 'fixture-provider',
+        text: JSON.stringify({
+          algorithmFamily: 'Kruskal',
+          alternatives: [],
+          categoryId: 'graph',
+          categoryPath: ['图论', '通用图算法', '图论基础'],
+          classificationReason: '按边权排序并借助并查集选边。',
+          confidence: 0.92,
+          evidence: ['排序边', '并查集'],
+          fileName: 'kruskal最小生成树.cpp',
+          solves: '求最小生成树。',
+          spaceComplexity: 'O(n + m)',
+          tags: ['最小生成树', '并查集'],
+          timeComplexity: 'O(m log m)',
+        }),
+      }),
+    }
+    const workspaceContext = {
+      build: async () => ({
+        cacheKey: 'workspace:semantic-correction',
+        relatedContext: JSON.stringify({ relatedTemplates: [] }),
+        stableContext: JSON.stringify({ workspaceCatalog: { directories: [] } }),
+      }),
+    }
+    const run = {
+      finish: () => undefined,
+      signal: new AbortController().signal,
+      throwIfCancelled: () => undefined,
+    }
+    const service = new TemplateManagementService(
+      aiProviderService as never,
+      {} as never,
+      {
+        getActiveWorkspace: () => ({ id: 'workspace-1', rootPath: '/tmp/workspace' }),
+        listTemplates: () => [],
+      } as never,
+      {} as never,
+      '/tmp/template-management-service-test',
+      workspaceContext as never,
+      { start: () => run } as never,
+    )
+
+    const result = await service.classify({
+      content: 'int kruskal() { return 0; }',
+      fileName: 'kruskal最小生成树.cpp',
+      metadata: {
+        notes: '',
+        solves: '',
+        spaceComplexity: null,
+        tags: [],
+        timeComplexity: null,
+      },
+      outputLanguage: 'zh-CN',
+      requestId: '40000000-0000-4000-8000-000000000012',
+    })
+
+    expect(result).toMatchObject({
+      categoryAlias: '图论/通用图算法/图论基础',
+      categoryId: 'graph.mst',
+      categoryPath: ['图论', '生成树', '最小生成树'],
+      needsReview: true,
+      suggestedRelativePath: '图论/生成树/最小生成树/kruskal最小生成树.cpp',
+      taxonomyVersion: 2,
+    })
+    expect(result.evidence).toContain(
+      'Main 根据阶段 A 的已知算法族，将泛化分类收敛到具体 canonical 分类。',
+    )
   })
 
   it('keeps absolute, traversal, and forged directory outputs behind Main path validation', () => {

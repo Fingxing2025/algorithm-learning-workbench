@@ -104,4 +104,31 @@ describe('BackgroundTaskRegistry', () => {
       state: 'completed',
     })
   })
+
+  it('keeps completed counts monotonic across phase resets', async () => {
+    const registry = new BackgroundTaskRegistry()
+    const taskId = randomUUID()
+    let release!: () => void
+    const gate = new Promise<void>(resolve => {
+      release = resolve
+    })
+    const result = registry.track({
+      id: taskId,
+      run: async ({ updateProgress }) => {
+        updateProgress({ phase: 'processing', processedCount: 4, totalCount: 8 })
+        updateProgress({ phase: 'requesting-ai', processedCount: 0, totalCount: 8 })
+        await gate
+        return { ok: true }
+      },
+      scope: 'workspace-1',
+    })
+    await nextTurn()
+    expect(registry.get(taskId).progress).toMatchObject({
+      phase: 'requesting-ai',
+      processedCount: 4,
+      totalCount: 8,
+    })
+    release()
+    await expect(result).resolves.toEqual({ ok: true })
+  })
 })

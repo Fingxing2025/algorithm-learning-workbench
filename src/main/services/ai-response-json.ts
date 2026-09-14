@@ -1,3 +1,5 @@
+import { getCanonicalCategory } from '@core/domain/template-taxonomy'
+
 function extractBalancedJson(text: string): string[] {
   const candidates: string[] = []
   let escaped = false
@@ -148,6 +150,7 @@ export function normalizeTemplateClassificationEnvelope(
 ): unknown {
   const record = unwrapTemplateClassification(value)
   if (!record) return value
+  const categoryId = stringValue(firstDefined(record, ['categoryId', 'category_id']))
 
   const pathValue = stringValue(
     firstDefined(record, [
@@ -165,7 +168,8 @@ export function normalizeTemplateClassificationEnvelope(
     .filter(Boolean)
   const categoryPath =
     normalizeCategoryPath(firstDefined(record, ['categoryPath', 'category_path', 'categories'])) ??
-    (pathSegments && pathSegments.length > 1 ? pathSegments.slice(0, -1) : undefined)
+    (pathSegments && pathSegments.length > 1 ? pathSegments.slice(0, -1) : undefined) ??
+    (categoryId ? getCanonicalCategory(categoryId)?.path : undefined)
   if (!categoryPath) return value
 
   const rawFileName =
@@ -220,10 +224,16 @@ export function normalizeTemplateClassificationEnvelope(
     : []
 
   return {
+    algorithmFamily: stringValue(firstDefined(record, ['algorithmFamily', 'algorithm_family'])),
     alternatives,
+    categoryId,
     categoryPath,
     classificationReason,
     confidence: normalizeConfidence(record.confidence),
+    evidence: normalizeStringList(record.evidence),
+    sourceEvidence: record.sourceEvidence,
+    secondaryFamilies: record.secondaryFamilies,
+    independentAlgorithmGoals: record.independentAlgorithmGoals,
     fileName,
     placement: {
       existingParentPath,
@@ -237,13 +247,156 @@ export function normalizeTemplateClassificationEnvelope(
       reason: placementReason,
       targetDirectory,
     },
+    primaryTechnique: stringValue(firstDefined(record, ['primaryTechnique', 'primary_technique'])),
     solves: optionalText(firstDefined(record, ['solves', 'solvedProblem', 'solved_problem'])),
     spaceComplexity: optionalComplexity(
       firstDefined(record, ['spaceComplexity', 'space_complexity']),
     ),
     tags: normalizeStringList(record.tags),
+    sourceLanguage: stringValue(firstDefined(record, ['sourceLanguage', 'language'])),
     timeComplexity: optionalComplexity(firstDefined(record, ['timeComplexity', 'time_complexity'])),
+    variant: optionalText(record.variant),
+    categoryDecision:
+      firstDefined(record, ['categoryDecision', 'category_decision']) === 'propose-new'
+        ? 'propose-new'
+        : firstDefined(record, ['categoryDecision', 'category_decision']) === 'reuse-existing'
+          ? 'reuse-existing'
+          : undefined,
+    conflicts: normalizeStringList(firstDefined(record, ['conflicts', 'conflict'])),
+    newCategoryProposal: (() => {
+      const proposal = firstDefined(record, ['newCategoryProposal', 'new_category_proposal'])
+      if (!isRecord(proposal)) return proposal === null ? null : undefined
+      const path = normalizeCategoryPath(
+        firstDefined(proposal, ['categoryPath', 'category_path', 'path']),
+      )
+      const rationale = stringValue(firstDefined(proposal, ['rationale', 'reason']))
+      return path && rationale ? { categoryPath: path, rationale } : undefined
+    })(),
   }
+}
+
+/** Normalize a provider's global batch envelope while preserving source IDs. */
+export function normalizeBatchTemplateClassificationEnvelope(
+  value: unknown,
+  options: {
+    existingDirectories: ReadonlySet<string>
+    outputLanguage: 'en' | 'zh-CN'
+    sources: Array<{ fileName: string; id: string }>
+  },
+): unknown {
+  const record = isRecord(value) ? value : null
+  const rawItems = Array.isArray(value)
+    ? value
+    : Array.isArray(record?.classifications)
+      ? record.classifications
+      : Array.isArray(record?.items)
+        ? record.items
+        : null
+  if (!rawItems) return value
+  const sourceById = new Map(options.sources.map(source => [source.id, source]))
+  const classifications = rawItems.flatMap(item => {
+    if (!isRecord(item)) return []
+    const sourceId = stringValue(firstDefined(item, ['sourceId', 'source_id', 'id']))
+    const nested = isRecord(item.classification) ? item.classification : item
+    if (!sourceId || !sourceById.has(sourceId)) return []
+    const source = sourceById.get(sourceId)!
+    const classification = normalizeTemplateClassificationEnvelope(nested, {
+      existingDirectories: options.existingDirectories,
+      fallbackFileName: source.fileName,
+      outputLanguage: options.outputLanguage,
+    })
+    return [{ sourceId, classification }]
+  })
+  return { classifications }
+}
+
+/** Normalize the compact first-pass envelope without manufacturing metadata. */
+export function normalizeBatchTemplateClassificationFactsEnvelope(value: unknown): unknown {
+  const record = isRecord(value) ? value : null
+  const rawItems = Array.isArray(value)
+    ? value
+    : Array.isArray(record?.classifications)
+      ? record.classifications
+      : Array.isArray(record?.facts)
+        ? record.facts
+        : Array.isArray(record?.items)
+          ? record.items
+          : null
+  if (!rawItems) return value
+  const classifications = rawItems.flatMap(item => {
+    if (!isRecord(item)) return []
+    const sourceId = stringValue(firstDefined(item, ['sourceId', 'source_id', 'id']))
+    const nested = isRecord(item.classification)
+      ? item.classification
+      : isRecord(item.fact)
+        ? item.fact
+        : item
+    if (!sourceId) return []
+    const categoryPath = normalizeCategoryPath(
+      firstDefined(nested, ['categoryPath', 'category_path', 'path']),
+    )
+    const proposalValue = firstDefined(nested, ['newCategoryProposal', 'new_category_proposal'])
+    const proposal = isRecord(proposalValue)
+      ? (() => {
+          const proposalPath = normalizeCategoryPath(
+            firstDefined(proposalValue, ['categoryPath', 'category_path', 'path']),
+          )
+          const rationale = stringValue(firstDefined(proposalValue, ['rationale', 'reason']))
+          return proposalPath && rationale ? { categoryPath: proposalPath, rationale } : undefined
+        })()
+      : proposalValue === null
+        ? null
+        : undefined
+    return [
+      {
+        sourceId,
+        classification: {
+          algorithmFamily: stringValue(
+            firstDefined(nested, ['algorithmFamily', 'algorithm_family']),
+          ),
+          primaryTechnique: stringValue(
+            firstDefined(nested, ['primaryTechnique', 'primary_technique', 'technique']),
+          ),
+          variant: optionalText(firstDefined(nested, ['variant', 'implementationVariant'])),
+          sourceLanguage: optionalText(firstDefined(nested, ['sourceLanguage', 'language'])),
+          categoryDecision:
+            firstDefined(nested, ['categoryDecision', 'category_decision']) === 'propose-new'
+              ? 'propose-new'
+              : firstDefined(nested, ['categoryDecision', 'category_decision']) === 'reuse-existing'
+                ? 'reuse-existing'
+                : undefined,
+          categoryId: stringValue(firstDefined(nested, ['categoryId', 'category_id'])) ?? null,
+          ...(categoryPath ? { categoryPath } : {}),
+          confidence: normalizeConfidence(nested.confidence),
+          evidence: normalizeStringList(nested.evidence)?.slice(0, 2),
+          sourceEvidence: nested.sourceEvidence,
+          secondaryFamilies: nested.secondaryFamilies,
+          independentAlgorithmGoals: nested.independentAlgorithmGoals,
+          timeComplexity: optionalComplexity(
+            firstDefined(nested, ['timeComplexity', 'time_complexity', 'time']),
+          ),
+          spaceComplexity: optionalComplexity(
+            firstDefined(nested, ['spaceComplexity', 'space_complexity', 'space']),
+          ),
+          ...(isRecord(nested.complexitySignals)
+            ? {
+                complexitySignals: {
+                  time: optionalComplexity(
+                    firstDefined(nested.complexitySignals, ['time', 'timeComplexity']),
+                  ),
+                  space: optionalComplexity(
+                    firstDefined(nested.complexitySignals, ['space', 'spaceComplexity']),
+                  ),
+                  evidence: normalizeStringList(nested.complexitySignals.evidence)?.slice(0, 4),
+                },
+              }
+            : {}),
+          ...(proposal !== undefined ? { newCategoryProposal: proposal } : {}),
+        },
+      },
+    ]
+  })
+  return { classifications }
 }
 
 export function parseAiJson(text: string): unknown {

@@ -13,6 +13,8 @@ import {
   inspectBatchTemplateImportRequestSchema,
   inspectBatchTemplateImportResultSchema,
   classifyTemplateRequestSchema,
+  classifyBatchTemplateClassificationRequestSchema,
+  batchTemplateClassificationResultSchema,
   importTemplateRequestSchema,
   importTemplateResultSchema,
   previewTemplateClassificationRequestSchema,
@@ -371,6 +373,26 @@ export function registerTemplateManagementIpc(
     outputSchema: previewBatchTemplateClassificationResultSchema,
   })
   registerValidatedHandler({
+    channel: IPC_CHANNELS.templateManagement.classifyBatch,
+    handler: request =>
+      runTracked(
+        request.requestId,
+        service.getActiveWorkspaceId(),
+        ({ signal, updateProgress }) => {
+          // Background-task cancellation and the AI run registry are separate
+          // in-process controls; bridge them so cancelling from either path
+          // stops the current provider request and prevents later batches.
+          const abort = () => service.cancelClassification(request.requestId)
+          signal.addEventListener('abort', abort, { once: true })
+          return service
+            .classifyBatch(request, { onProgress: updateProgress })
+            .finally(() => signal.removeEventListener('abort', abort))
+        },
+      ),
+    inputSchema: classifyBatchTemplateClassificationRequestSchema,
+    outputSchema: batchTemplateClassificationResultSchema,
+  })
+  registerValidatedHandler({
     channel: IPC_CHANNELS.templateManagement.previewFilePlan,
     handler: request => service.previewFilePlan(request),
     inputSchema: previewFilePlanRequestSchema,
@@ -398,11 +420,11 @@ export function registerTemplateManagementIpc(
     channel: IPC_CHANNELS.templateManagement.cancelClassification,
     handler: request => {
       service.cancelClassification(request.requestId)
-      // A staging worker owns its AbortController in the staging service,
-      // while legacy single-template classification is owned by the main
-      // template service.  Cancelling both keeps the existing renderer API
-      // useful during the staging transition; TemplateManagementService
-      // forwards this call when a staging worker is configured.
+      try {
+        backgroundTasks.cancel(request.requestId)
+      } catch {
+        // Direct service calls and previews do not create a background record.
+      }
       return null
     },
     inputSchema: cancelAiRequestSchema,

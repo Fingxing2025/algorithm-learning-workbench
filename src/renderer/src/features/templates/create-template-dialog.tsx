@@ -19,6 +19,7 @@ import type {
   TemplateMetadataLanguage,
   TemplateMetadataFields,
 } from '@core/contracts/template-management'
+import { ClassificationEvidenceReview } from './classification-evidence-review'
 import type { AiRequestPreview } from '@core/contracts/ai-request'
 import type { TemplateSourceEncoding } from '@core/contracts/workspace'
 
@@ -213,6 +214,7 @@ export function CreateTemplateDialog({
     Partial<Record<TemplateMergeKey, TemplateMergeChoice>>
   >({})
   const [conflicts, setConflicts] = useState<TemplateMetadataConflict[]>([])
+  const [classificationConfirmed, setClassificationConfirmed] = useState(false)
   const [content, setContent] = useState('')
   const [fileName, setFileName] = useState('')
   const [localBusy, setLocalBusy] = useState(false)
@@ -231,6 +233,7 @@ export function CreateTemplateDialog({
 
   useEffect(() => {
     if (!open) {
+      setClassificationConfirmed(false)
       setClassification(null)
       setClassificationElapsedSeconds(0)
       setClassificationStartedAt(null)
@@ -267,6 +270,7 @@ export function CreateTemplateDialog({
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault()
+    if (classification?.needsReview && !classificationConfirmed) return
     if (
       await onCreate({
         content,
@@ -287,6 +291,7 @@ export function CreateTemplateDialog({
         setContent(source.content)
         setFileName(source.fileName)
         setImportedSourceEncoding(source.sourceEncoding)
+        setClassificationConfirmed(false)
         setClassification(null)
         setClassificationBaseline(null)
       }
@@ -306,6 +311,7 @@ export function CreateTemplateDialog({
     setFileName(merged.relativePath)
     setMetadata(merged.metadata)
     setTagsText(merged.metadata.tags.join(', '))
+    setClassificationConfirmed(false)
     setClassification(result)
     setPendingClassification(null)
     setConflicts([])
@@ -324,6 +330,7 @@ export function CreateTemplateDialog({
       setMetadata(restored.metadata)
       setTagsText(restored.metadata.tags.join(', '))
     }
+    setClassificationConfirmed(false)
     setClassification(null)
     setClassificationBaseline(null)
     setPendingClassification(null)
@@ -399,6 +406,7 @@ export function CreateTemplateDialog({
   }
 
   const previewClassification = async () => {
+    if (classificationConfirmed) return
     previewReturnFocusRef.current = activeElementOrNull()
     setLocalBusy(true)
     setLocalError(null)
@@ -513,7 +521,10 @@ export function CreateTemplateDialog({
                     className={`${inputClass} h-10`}
                     id="template-file-name"
                     maxLength={160}
-                    onChange={event => setFileName(event.target.value)}
+                    onChange={event => {
+                      setClassificationConfirmed(false)
+                      setFileName(event.target.value)
+                    }}
                     placeholder={t('可暂空，例如 图论/最短路/dijkstra.cpp')}
                     value={fileName}
                   />
@@ -533,6 +544,7 @@ export function CreateTemplateDialog({
                     onChange={event => {
                       setContent(event.target.value)
                       setImportedSourceEncoding(null)
+                      setClassificationConfirmed(false)
                       setClassification(null)
                     }}
                     placeholder={t('粘贴或输入模板源码…')}
@@ -568,7 +580,9 @@ export function CreateTemplateDialog({
                           </select>
                         </label>
                         <Button
-                          disabled={isBusy || localBusy || !content.trim()}
+                          disabled={
+                            isBusy || localBusy || !content.trim() || classificationConfirmed
+                          }
                           onClick={() => void previewClassification()}
                           size="compact"
                           type="button"
@@ -593,6 +607,22 @@ export function CreateTemplateDialog({
                         <p className="mt-1 font-medium text-foreground">
                           {t('精细分类')}：{classification.categoryPath.join(' / ')}
                         </p>
+                        {classification.categoryId && (
+                          <p className="mt-1 text-[10px] text-muted-foreground">
+                            canonicalId：{classification.categoryId} · taxonomy v
+                            {classification.taxonomyVersion ?? 1}
+                          </p>
+                        )}
+                        {classification.sourceLanguage && (
+                          <p className="mt-1 text-[10px] text-muted-foreground">
+                            {t('源码语言')}：{classification.sourceLanguage}
+                          </p>
+                        )}
+                        {classification.categoryAlias && (
+                          <p className="mt-1 text-[10px] text-amber-700 dark:text-amber-300">
+                            {t('已归并别名')}：{classification.categoryAlias}
+                          </p>
+                        )}
                         <p className="mt-1 text-[11px] leading-5 text-muted-foreground">
                           {classification.placement.mode === 'existing-directory'
                             ? t('使用现有目录')
@@ -603,6 +633,34 @@ export function CreateTemplateDialog({
                         <p className="mt-1 text-[11px] leading-5 text-muted-foreground">
                           {classification.classificationReason}
                         </p>
+                        {classification.needsReview && (
+                          <p className="mt-1 font-medium text-amber-700 dark:text-amber-300">
+                            {t('需要人工复核')}：{t('请核对源码证据与分类提案。')}
+                          </p>
+                        )}
+                        <ClassificationEvidenceReview value={classification} />
+                        <Button
+                          type="button"
+                          size="compact"
+                          variant="outline"
+                          aria-pressed={classificationConfirmed}
+                          onClick={() => setClassificationConfirmed(current => !current)}
+                        >
+                          {t(classificationConfirmed ? '已锁定，点击解锁' : '确认此分类')}
+                        </Button>
+                        {classification.evidence && classification.evidence.length > 0 && (
+                          <p className="mt-1 text-[10px] leading-4 text-muted-foreground">
+                            {t('分类依据')}：{classification.evidence.join('；')}
+                          </p>
+                        )}
+                        {classification.alternatives.length > 0 && (
+                          <p className="mt-1 text-[10px] leading-4 text-muted-foreground">
+                            {t('备选分类')}：
+                            {classification.alternatives
+                              .map(alternative => alternative.targetDirectory)
+                              .join(' · ')}
+                          </p>
+                        )}
                         {classification.diagnostic && (
                           <div className="mt-2 rounded-lg border border-border bg-background/55 px-2.5 py-2 text-[10px] leading-4 text-muted-foreground">
                             <p className="font-medium text-foreground">
@@ -734,7 +792,13 @@ export function CreateTemplateDialog({
                     {t('取消')}
                   </Button>
                   <Button
-                    disabled={isBusy || localBusy || !fileName.trim() || !content.trim()}
+                    disabled={
+                      isBusy ||
+                      localBusy ||
+                      !fileName.trim() ||
+                      !content.trim() ||
+                      Boolean(classification?.needsReview && !classificationConfirmed)
+                    }
                     type="submit"
                   >
                     {t('确认创建')}

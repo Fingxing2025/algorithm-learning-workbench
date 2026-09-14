@@ -1,0 +1,223 @@
+[
+  {
+    "name": "__int128_t模板.cpp",
+    "categoryId": "cpp.integer.int128",
+    "path": ["C++ 工具", "数值类型", "__int128"]
+  },
+  {
+    "name": "内存显示（变量在内部的16进制表示）.cpp",
+    "categoryId": "cpp.debug.memory-representation",
+    "path": ["C++ 工具", "调试工具", "内存表示"]
+  },
+  {
+    "name": "高精度类.cpp",
+    "categoryId": "math.precision.big-integer",
+    "path": ["数学", "高精度", "大整数"]
+  },
+  { "name": "01背包.cpp", "categoryId": "dp.knapsack.01", "path": ["动态规划", "背包", "01 背包"] },
+  { "name": "二维01.cpp", "categoryId": "dp.knapsack.01", "path": ["动态规划", "背包", "01 背包"] },
+  {
+    "name": "依赖背包.cpp",
+    "categoryId": "dp.knapsack.dependent",
+    "path": ["动态规划", "背包", "依赖背包"]
+  },
+  {
+    "name": "分组背包.cpp",
+    "categoryId": "dp.knapsack.group",
+    "path": ["动态规划", "背包", "分组背包"]
+  },
+  {
+    "name": "多重背包.cpp",
+    "categoryId": "dp.knapsack.bounded",
+    "path": ["动态规划", "背包", "多重背包"]
+  },
+  {
+    "name": "完全背包.cpp",
+    "categoryId": "dp.knapsack.unbounded",
+    "path": ["动态规划", "背包", "完全背包"]
+  },
+  {
+    "name": "LIS贪心+二分.cpp",
+    "categoryId": "dp.sequence.lis",
+    "path": ["动态规划", "序列 DP", "最长递增子序列"]
+  },
+  {
+    "name": "dijkstra+链式前向星..cpp",
+    "categoryId": "graph.shortest-path.single-source",
+    "path": ["图论", "最短路", "单源最短路"]
+  },
+  {
+    "name": "LCA.cpp",
+    "categoryId": "graph.tree-query.lca",
+    "path": ["图论", "树上查询", "最近公共祖先"]
+  },
+  {
+    "name": "LCA欧拉序RMQ.cpp",
+    "categoryId": "graph.tree-query.lca",
+    "path": ["图论", "树上查询", "最近公共祖先"]
+  },
+  {
+    "name": "floyd+邻接矩阵.cpp",
+    "categoryId": "graph.shortest-path.all-pairs",
+    "path": ["图论", "最短路", "全源最短路"]
+  },
+  {
+    "name": "kruskal最小生成树.cpp",
+    "categoryId": "graph.mst",
+    "path": ["图论", "生成树", "最小生成树"]
+  },
+  {
+    "name": "prim最小生成树.cpp",
+    "categoryId": "graph.mst",
+    "path": ["图论", "生成树", "最小生成树"]
+  },
+  {
+    "name": "拓扑排序-kahn+邻接表.cpp",
+    "categoryId": "graph.topological-sort",
+    "path": ["图论", "有向图", "拓扑排序"]
+  },
+  {
+    "name": "链式前向星.cpp",
+    "categoryId": "graph.representation.forward-star",
+    "path": ["图论", "图存储", "链式前向星"]
+  },
+  {
+    "name": "三维前缀和与差分.cpp",
+    "categoryId": "basic.prefix",
+    "path": ["基础算法", "前缀技巧", "前缀和与差分"]
+  },
+  {
+    "name": "二维前缀和与差分.cpp",
+    "categoryId": "basic.prefix",
+    "path": ["基础算法", "前缀技巧", "前缀和与差分"]
+  },
+  {
+    "name": "二分函数使用.cpp",
+    "categoryId": "basic.search.binary",
+    "path": ["基础算法", "搜索", "二分查找"]
+  },
+  {
+    "name": "离散化.cpp",
+    "categoryId": "basic.discretization.coordinate-compression",
+    "path": ["基础算法", "离散化", "坐标压缩"]
+  },
+  {
+    "name": "简单实数二分答案.cpp",
+    "categoryId": "basic.search.binary",
+    "path": ["基础算法", "搜索", "二分查找"]
+  },
+  {
+    "name": "简单整数二分答案.cpp",
+    "categoryId": "basic.search.binary",
+    "path": ["基础算法", "搜索", "二分查找"]
+  },
+  {
+    "name": "数独模板.cpp",
+    "categoryId": "basic.search.backtracking",
+    "path": ["基础算法", "搜索", "回溯搜索"]
+  },
+  { "name": "KMP.cpp", "categoryId": "string.pattern.kmp", "path": ["字符串", "模式匹配", "KMP"] },
+  {
+    "name": "AC自动机.cpp",
+    "categoryId": "string.pattern.ac-automaton",
+    "path": ["字符串", "模式匹配", "AC 自动机"]
+  },
+  {
+    "name": "Manacher.cpp",
+    "categoryId": "string.palindrome.manacher",
+    "path": ["字符串", "回文", "Manacher"]
+  },
+  { "name": "Trie.cpp", "categoryId": "string.trie", "path": ["字符串", "字典树", "Trie"] },
+  {
+    "name": "Z函数.cpp",
+    "categoryId": "string.pattern.z-function",
+    "path": ["字符串", "模式匹配", "Z 函数"]
+  },
+  {
+    "name": "最小表示法.cpp",
+    "categoryId": "string.rotation.minimal",
+    "path": ["字符串", "循环同构", "最小表示法"]
+  },
+  {
+    "name": "实数三分.cpp",
+    "categoryId": "numeric.root.binary-trinary",
+    "path": ["数值计算", "方程求解", "二分与三分"]
+  },
+  {
+    "name": "整数三分.cpp",
+    "categoryId": "numeric.root.binary-trinary",
+    "path": ["数值计算", "方程求解", "二分与三分"]
+  },
+  {
+    "name": "快速幂与逆元.cpp",
+    "categoryId": "math.number-theory",
+    "path": ["数学", "数论", "数论基础"]
+  },
+  {
+    "name": "扩展欧几里得.cpp",
+    "categoryId": "math.number-theory",
+    "path": ["数学", "数论", "数论基础"]
+  },
+  {
+    "name": "线性筛.cpp",
+    "categoryId": "math.number-theory.prime",
+    "path": ["数学", "数论", "素数与筛法"]
+  },
+  { "name": "ntt.cpp", "categoryId": "math.polynomial.ntt", "path": ["数学", "多项式", "NTT"] },
+  {
+    "name": "线性基.cpp",
+    "categoryId": "math.linear-algebra.xor-basis",
+    "path": ["数学", "线性代数", "异或线性基"]
+  },
+  {
+    "name": "组合数预处理（阶乘与其逆元）.cpp",
+    "categoryId": "math.combinatorics.factorial-inverse",
+    "path": ["数学", "组合数学", "组合数预处理"]
+  },
+  {
+    "name": "区间修改+区间查询.cpp",
+    "categoryId": "data-structure.fenwick",
+    "path": ["数据结构", "树状数组", "Fenwick 树"]
+  },
+  {
+    "name": "区间修改+单点查询.cpp",
+    "categoryId": "data-structure.fenwick",
+    "path": ["数据结构", "树状数组", "Fenwick 树"]
+  },
+  {
+    "name": "单点修改+区间查询.cpp",
+    "categoryId": "data-structure.fenwick",
+    "path": ["数据结构", "树状数组", "Fenwick 树"]
+  },
+  {
+    "name": "带权并查集.cpp",
+    "categoryId": "data-structure.union-find",
+    "path": ["数据结构", "集合结构", "并查集"]
+  },
+  {
+    "name": "并查集模板.cpp",
+    "categoryId": "data-structure.union-find",
+    "path": ["数据结构", "集合结构", "并查集"]
+  },
+  {
+    "name": "线段树区间加乘赋值区间和.cpp",
+    "categoryId": "data-structure.segment-tree",
+    "path": ["数据结构", "树", "线段树"]
+  },
+  {
+    "name": "线段树区间加区间和.cpp",
+    "categoryId": "data-structure.segment-tree",
+    "path": ["数据结构", "树", "线段树"]
+  },
+  {
+    "name": "ST表RMQ.cpp",
+    "categoryId": "data-structure.range-query.sparse-table",
+    "path": ["数据结构", "区间查询", "稀疏表"]
+  },
+  {
+    "name": "日期模板.cpp",
+    "categoryId": "datetime.calendar.convert",
+    "path": ["日期与时间", "日历计算", "日期转换"]
+  },
+  { "name": "默认.cpp", "categoryId": "contest.io", "path": ["竞赛框架", "代码组织", "输入输出"] }
+]

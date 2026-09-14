@@ -176,12 +176,94 @@ export type PreviewBatchStagingClassificationResult = z.infer<
   typeof previewBatchStagingClassificationResultSchema
 >
 
+/** One global request classifies the whole import set against the complete
+ * workspace taxonomy.  The requestId is also used by Main cancellation. */
+export const classifyBatchTemplateClassificationRequestSchema = z
+  .object({
+    outputLanguage: templateMetadataLanguageSchema,
+    requestId: aiRequestIdSchema,
+    sources: z.array(batchTemplateImportSourceSchema).min(1).max(100),
+  })
+  .strict()
+export type ClassifyBatchTemplateClassificationRequest = z.infer<
+  typeof classifyBatchTemplateClassificationRequestSchema
+>
+
+export const sourceEvidenceSchema = z
+  .object({
+    startLine: z.number().int().positive(),
+    endLine: z.number().int().positive(),
+    quote: z.string().min(1).max(2_000),
+    claim: z.string().trim().min(1).max(500),
+  })
+  .strict()
+export const sourceCoverageSchema = z
+  .object({
+    totalLines: z.number().int().nonnegative(),
+    coveredLines: z.number().int().nonnegative(),
+    omittedLines: z.number().int().nonnegative(),
+    complete: z.boolean(),
+    ranges: z
+      .array(
+        z
+          .object({ startLine: z.number().int().positive(), endLine: z.number().int().positive() })
+          .strict(),
+      )
+      .max(256),
+  })
+  .strict()
+export const classificationProposalVersionSchema = z
+  .object({
+    version: z.number().int().positive(),
+    source: z.enum(['global-summary', 'detailed-source']),
+    categoryId: z.string().nullable(),
+    categoryPath: z.array(z.string()).max(5),
+    algorithmFamily: z.string(),
+    primaryTechnique: z.string(),
+    variant: z.string().nullable(),
+    sourceLanguage: z.string().nullable(),
+    timeComplexity: z.string().nullable(),
+    spaceComplexity: z.string().nullable(),
+    confidence: z.number().min(0).max(1),
+    sourceCoverage: sourceCoverageSchema,
+    sourceEvidence: z
+      .array(
+        sourceEvidenceSchema
+          .extend({ verified: z.boolean(), containsImplementation: z.boolean().optional() })
+          .strict(),
+      )
+      .max(8),
+  })
+  .strict()
+export type SourceEvidence = z.infer<typeof sourceEvidenceSchema>
+export type SourceCoverage = z.infer<typeof sourceCoverageSchema>
+export type ClassificationProposalVersion = z.infer<typeof classificationProposalVersionSchema>
+
 export const templateClassificationSchema = z
   .object({
+    algorithmFamily: z.string().trim().max(120).optional(),
+    secondaryFamilies: z.array(z.string().trim().min(1).max(120)).max(8).optional(),
+    independentAlgorithmGoals: z.boolean().optional(),
+    sourceEvidence: z
+      .array(
+        sourceEvidenceSchema
+          .extend({ verified: z.boolean(), containsImplementation: z.boolean().optional() })
+          .strict(),
+      )
+      .max(8)
+      .optional(),
+    sourceCoverage: sourceCoverageSchema.optional(),
+    reviewReasons: z.array(z.string().min(1).max(80)).max(24).optional(),
+    proposalHistory: z.array(classificationProposalVersionSchema).max(4).optional(),
     alternatives: z
       .array(
         z
           .object({
+            categoryId: z
+              .string()
+              .regex(/^[a-z][a-z0-9.-]+$/)
+              .nullable()
+              .optional(),
             confidence: z.number().min(0).max(1),
             reason: z.string().max(1_000),
             targetDirectory: z.string().max(4096),
@@ -189,9 +271,17 @@ export const templateClassificationSchema = z
           .strict(),
       )
       .max(3),
+    categoryDecision: z.enum(['reuse-existing', 'propose-new']).optional(),
+    categoryAlias: z.string().max(240).nullable().optional(),
+    categoryId: z
+      .string()
+      .regex(/^[a-z][a-z0-9.-]+$/)
+      .nullable()
+      .optional(),
     categoryPath: z.array(z.string().trim().min(1).max(80)).min(2).max(5),
     classificationReason: z.string().max(2_000),
     confidence: z.number().min(0).max(1),
+    evidence: z.array(z.string().trim().min(1).max(500)).max(8).optional(),
     diagnostic: z
       .object({
         outputTokenBudgets: z.array(z.number().int().positive()).max(20),
@@ -218,6 +308,15 @@ export const templateClassificationSchema = z
       .optional(),
     metadata: templateMetadataFieldsSchema,
     model: z.string().min(1).max(160),
+    needsReview: z.boolean().optional(),
+    newCategoryProposal: z
+      .object({
+        categoryPath: z.array(z.string().trim().min(1).max(80)).min(3).max(4),
+        rationale: z.string().max(1_000),
+      })
+      .strict()
+      .nullable()
+      .optional(),
     placement: z
       .object({
         existingParentPath: z.string().max(4096),
@@ -228,7 +327,12 @@ export const templateClassificationSchema = z
       })
       .strict(),
     providerName: z.string().min(1).max(80),
+    primaryTechnique: z.string().trim().max(120).optional(),
+    sourceLanguage: z.string().trim().max(40).nullable().optional(),
     suggestedRelativePath: relativePathSchema,
+    taxonomyVersion: z.literal(2).optional(),
+    variant: z.string().trim().max(120).nullable().optional(),
+    conflicts: z.array(z.string().trim().min(1).max(500)).max(8).optional(),
   })
   .strict()
 export type TemplateClassification = z.infer<typeof templateClassificationSchema>
@@ -556,6 +660,12 @@ export type BatchImportTemplateResult = z.infer<typeof batchImportTemplateResult
 
 export const workspaceAuditIssueSchema = z
   .object({
+    algorithmFamily: z.string().trim().max(120).nullable().optional(),
+    categoryId: z
+      .string()
+      .regex(/^[a-z][a-z0-9.-]+$/)
+      .nullable()
+      .optional(),
     detail: z.string().max(500),
     id: z.string().uuid(),
     kind: z.enum([
@@ -600,9 +710,25 @@ export const filePlanPreconditionSchema = z
   .strict()
 
 const planOperationBase = {
+  needsReview: z.boolean().optional(),
+  sourceEvidence: z
+    .array(
+      sourceEvidenceSchema
+        .extend({ verified: z.boolean(), containsImplementation: z.boolean().optional() })
+        .strict(),
+    )
+    .max(8)
+    .optional(),
+  sourceCoverage: sourceCoverageSchema.optional(),
+  reviewReasons: z.array(z.string().max(80)).max(24).optional(),
   alternatives: z.array(z.string().trim().min(1).max(500)).max(5).default([]),
   applicability: z.array(z.string().trim().min(1).max(500)).max(10).default([]),
   confidence: z.number().min(0).max(1).default(0.5),
+  categoryId: z
+    .string()
+    .regex(/^[a-z][a-z0-9.-]+$/)
+    .optional(),
+  categoryPath: z.array(z.string().trim().min(1).max(80)).min(3).max(4).optional(),
   evidence: z.array(z.string().trim().min(1).max(500)).max(12).default([]),
   id: z.string().uuid(),
   precondition: filePlanPreconditionSchema.nullable().default(null),
@@ -640,6 +766,10 @@ export const stagingDiffKindSchema = z.enum(['add', 'delete', 'move', 'review', 
 export type StagingDiffKind = z.infer<typeof stagingDiffKindSchema>
 
 const stagingEvidenceFields = {
+  needsReview: z.boolean().optional(),
+  sourceCoverage: sourceCoverageSchema.optional(),
+  sourceEvidence: templateClassificationSchema.shape.sourceEvidence,
+  reviewReasons: templateClassificationSchema.shape.reviewReasons,
   alternatives: z.array(z.string().trim().min(1).max(500)).max(5).default([]),
   applicability: z.array(z.string().trim().min(1).max(500)).max(10).default([]),
   confidence: z.number().min(0).max(1),
@@ -1215,6 +1345,10 @@ export type FileChangeMutationResult = z.infer<typeof fileChangeMutationResultSc
 
 export const modelTemplateClassificationSchema = z
   .object({
+    sourceEvidence: z.array(sourceEvidenceSchema).max(8).optional(),
+    algorithmFamily: z.string().trim().max(120).optional(),
+    secondaryFamilies: z.array(z.string().trim().min(1).max(120)).max(8).optional(),
+    independentAlgorithmGoals: z.boolean().optional(),
     alternatives: z
       .array(
         z.object({
@@ -1225,23 +1359,132 @@ export const modelTemplateClassificationSchema = z
       )
       .max(3)
       .optional(),
-    categoryPath: z.array(z.string().trim().min(1).max(80)).min(2).max(5),
+    categoryDecision: z.enum(['reuse-existing', 'propose-new']).optional(),
+    categoryId: z
+      .string()
+      .regex(/^[a-z][a-z0-9.-]+$/)
+      .optional(),
+    // categoryPath remains accepted for pre-taxonomy providers.  When a categoryId
+    // is present, Main replaces it with the canonical 3–4 level path.
+    categoryPath: z.array(z.string().trim().min(1).max(80)).min(2).max(5).optional(),
     classificationReason: z.string().max(2_000),
     confidence: z.number().min(0).max(1),
+    evidence: z.array(z.string().trim().min(1).max(500)).max(8).optional(),
     solves: z.string().max(20_000).optional(),
     spaceComplexity: z.string().max(120).nullable().optional(),
     fileName: z.string().trim().min(1).max(255),
-    placement: z.object({
-      existingParentPath: z.string().max(4096),
-      mode: z.enum(['existing-directory', 'create-subdirectory', 'create-category-chain']),
-      newDirectories: z.array(z.string().trim().min(1).max(80)).max(5),
-      reason: z.string().max(2_000),
-      targetDirectory: z.string().max(4096),
-    }),
+    conflicts: z.array(z.string().trim().min(1).max(500)).max(8).optional(),
+    newCategoryProposal: z
+      .object({
+        categoryPath: z.array(z.string().trim().min(1).max(80)).min(3).max(4),
+        rationale: z.string().max(1_000),
+      })
+      .strict()
+      .nullable()
+      .optional(),
+    placement: z
+      .object({
+        existingParentPath: z.string().max(4096),
+        mode: z.enum(['existing-directory', 'create-subdirectory', 'create-category-chain']),
+        newDirectories: z.array(z.string().trim().min(1).max(80)).max(5),
+        reason: z.string().max(2_000),
+        targetDirectory: z.string().max(4096),
+      })
+      .optional(),
+    primaryTechnique: z.string().trim().max(120).optional(),
+    sourceLanguage: z.string().trim().max(40).optional(),
     tags: z.array(z.string().trim().min(1).max(40)).max(20).optional(),
     timeComplexity: z.string().max(120).nullable().optional(),
+    variant: z.string().trim().max(120).nullable().optional(),
   })
   .strict()
+
+/** Strict contract for taxonomy-aware providers. Legacy model outputs are
+ * accepted by modelTemplateClassificationSchema and marked for review by Main. */
+export const canonicalTemplateClassificationSchema = modelTemplateClassificationSchema
+  .extend({
+    categoryId: z.string().regex(/^[a-z][a-z0-9.-]+$/),
+    categoryPath: z.array(z.string().trim().min(1).max(80)).min(3).max(4),
+  })
+  .strict()
+export type CanonicalTemplateClassification = z.infer<typeof canonicalTemplateClassificationSchema>
+
+export const batchTemplateClassificationItemSchema = z
+  .object({
+    classification: templateClassificationSchema,
+    sourceId: z.string().uuid(),
+  })
+  .strict()
+export type BatchTemplateClassificationItem = z.infer<typeof batchTemplateClassificationItemSchema>
+
+/** Compact cross-file facts returned by the first pass of a large batch. */
+export const batchTemplateClassificationFactSchema = z
+  .object({
+    sourceEvidence: z.array(sourceEvidenceSchema).max(8).optional(),
+    algorithmFamily: z.string().trim().max(120).optional(),
+    secondaryFamilies: z.array(z.string().trim().min(1).max(120)).max(8).optional(),
+    independentAlgorithmGoals: z.boolean().optional(),
+    primaryTechnique: z.string().trim().max(120).optional(),
+    variant: z.string().trim().max(120).nullable().optional(),
+    sourceLanguage: z.string().trim().max(40).nullable().optional(),
+    categoryDecision: z.enum(['reuse-existing', 'propose-new']).optional(),
+    categoryId: z
+      .string()
+      .regex(/^[a-z][a-z0-9.-]+$/)
+      .nullable()
+      .optional(),
+    categoryPath: z.array(z.string().trim().min(1).max(80)).min(3).max(4).optional(),
+    confidence: z.number().min(0).max(1),
+    evidence: z.array(z.string().trim().min(1).max(500)).max(2).optional(),
+    timeComplexity: z.string().trim().max(120).nullable().optional(),
+    spaceComplexity: z.string().trim().max(120).nullable().optional(),
+    complexitySignals: z
+      .object({
+        time: z.string().trim().max(120).nullable().optional(),
+        space: z.string().trim().max(120).nullable().optional(),
+        evidence: z.array(z.string().trim().min(1).max(300)).max(4).optional(),
+      })
+      .strict()
+      .optional(),
+    newCategoryProposal: z
+      .object({
+        categoryPath: z.array(z.string().trim().min(1).max(80)).min(3).max(4),
+        rationale: z.string().max(1_000),
+      })
+      .strict()
+      .nullable()
+      .optional(),
+  })
+  .strict()
+export type BatchTemplateClassificationFact = z.infer<typeof batchTemplateClassificationFactSchema>
+
+export const batchTemplateClassificationFactItemSchema = z
+  .object({
+    classification: batchTemplateClassificationFactSchema,
+    sourceId: z.string().uuid(),
+  })
+  .strict()
+export type BatchTemplateClassificationFactItem = z.infer<
+  typeof batchTemplateClassificationFactItemSchema
+>
+
+export const batchTemplateClassificationFactsResultSchema = z
+  .object({
+    classifications: z.array(batchTemplateClassificationFactItemSchema).min(1).max(100),
+  })
+  .strict()
+export type BatchTemplateClassificationFactsResult = z.infer<
+  typeof batchTemplateClassificationFactsResultSchema
+>
+
+export const batchTemplateClassificationResultSchema = z
+  .object({
+    classifications: z.array(batchTemplateClassificationItemSchema).min(1).max(100),
+  })
+  .strict()
+export type BatchTemplateClassificationResult = z.infer<
+  typeof batchTemplateClassificationResultSchema
+>
 
 const modelTemplateMetadataPatchSchema = z.object({
   notes: z.string().max(100_000).optional(),
@@ -1269,6 +1512,12 @@ export const modelFileChangePlanSchema = z
           z.object({
             ...modelFilePlanSuggestionBase,
             kind: z.literal('move'),
+            sourceEvidence: z.array(sourceEvidenceSchema).max(8).optional(),
+            categoryId: z
+              .string()
+              .regex(/^[a-z][a-z0-9.-]+$/)
+              .optional(),
+            categoryPath: z.array(z.string().trim().min(1).max(80)).min(3).max(4).optional(),
             targetPath: relativePathSchema,
           }),
           z.object({

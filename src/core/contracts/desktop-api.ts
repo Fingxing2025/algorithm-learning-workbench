@@ -64,6 +64,8 @@ import type {
   InspectBatchTemplateImportRequest,
   InspectBatchTemplateImportResult,
   ClassifyTemplateRequest,
+  ClassifyBatchTemplateClassificationRequest,
+  BatchTemplateClassificationResult,
   ImportTemplateRequest,
   ImportTemplateResult,
   PreviewBatchTemplateClassificationRequest,
@@ -263,6 +265,9 @@ export interface DesktopApi {
     discardBatchStagingAiDraft: (request: DiscardStagingAiPlanDraftRequest) => Promise<void>
     chooseImportSource: () => Promise<TemplateImportSource | null>
     classify: (request: ClassifyTemplateRequest) => Promise<TemplateClassification>
+    classifyBatch: (
+      request: ClassifyBatchTemplateClassificationRequest,
+    ) => Promise<BatchTemplateClassificationResult>
     deleteTemplate: (templateId: string) => Promise<FileChangeMutationResult>
     deleteFileExecutions: (
       request: DeleteFileExecutionsRequest,

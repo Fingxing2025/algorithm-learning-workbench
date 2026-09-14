@@ -128,6 +128,15 @@ function seedInvalidExecutionScenario(input: {
   expect(result.status, result.stderr || result.stdout).toBe(0)
 }
 
+async function selectReviewedMoves() {
+  const operationChoices = page.getByRole('checkbox', { name: /^选择操作 / })
+  await expect(operationChoices.first()).toBeVisible()
+  for (let index = 0; index < (await operationChoices.count()); index += 1) {
+    const choice = operationChoices.nth(index)
+    if ((await choice.locator('..').innerText()).includes('移动 / 重命名')) await choice.check()
+  }
+}
+
 test.beforeAll(async () => {
   mockServer = createServer((request, response) => {
     const chunks: Buffer[] = []
@@ -407,7 +416,7 @@ test('cancels a generated plan without changing files', async () => {
   await expect(mojibakeRename).toBeVisible()
   await expect(mojibakeRename.locator('..')).toContainText('整理/并查集.cpp')
   await expect(page.getByText('删除重复文件').first()).toBeVisible()
-  await expect(page.getByText('需手动选择')).toHaveCount(3)
+  await expect(page.getByText('需手动选择')).toHaveCount(6)
   await page.getByRole('button', { name: '取消计划' }).click()
   await expect(page.getByRole('status').filter({ hasText: '工作区文件未发生变化' })).toBeVisible()
   expect(await pathExists(join(templateRoot, 'Old Name.cpp'))).toBe(true)
@@ -428,6 +437,8 @@ test('rejects the whole batch when a source changes after plan generation', asyn
   await expect(page.getByText('移动 / 重命名', { exact: true }).first()).toBeVisible()
 
   await writeFile(join(templateRoot, 'Old Name.cpp'), 'void changedOutsideApp() {}\n', 'utf8')
+  await page.getByRole('checkbox', { name: '选择操作 Old Name.cpp' }).check()
+  await selectReviewedMoves()
   await page.getByRole('button', { name: '预览并执行' }).focus()
   await page.keyboard.press('Enter')
   await expect(page.getByRole('button', { name: '确认执行' })).toBeFocused()
@@ -491,6 +502,7 @@ test('applies a selected plan with backup, stable relations, and rollback', asyn
     path: resolve('output/playwright/workspace-file-ai-metadata-diff-light-1440x900.png'),
   })
   await page.getByRole('checkbox', { name: '选择操作 keep.cpp' }).check()
+  await selectReviewedMoves()
   await page.getByRole('button', { name: '预览并执行' }).click()
   await page.screenshot({
     animations: 'disabled',
@@ -668,6 +680,7 @@ test('applies a selected plan with backup, stable relations, and rollback', asyn
   await page.getByRole('button', { name: 'AI 管理', exact: true }).click()
   await page.getByRole('button', { name: '生成 AI 计划' }).click()
   await page.getByRole('button', { name: '确认发送并生成' }).click()
+  await selectReviewedMoves()
   await page.getByRole('button', { name: '预览并执行' }).click()
   await page.getByRole('button', { name: '确认执行' }).click()
   await page.getByRole('button', { name: '从备份撤销' }).click()
@@ -703,6 +716,7 @@ test('applies a selected plan with backup, stable relations, and rollback', asyn
 
   await page.getByRole('button', { name: '生成 AI 计划' }).click()
   await page.getByRole('button', { name: '确认发送并生成' }).click()
+  await selectReviewedMoves()
   await page.getByRole('button', { name: '预览并执行' }).click()
   await page.getByRole('button', { name: '确认执行' }).click()
   await expect(page.getByRole('status').filter({ hasText: '保留撤销备份' })).toBeVisible()
@@ -825,6 +839,9 @@ test('shows and cleans a missing-backup execution only in its owning workspace',
   await page.getByRole('button', { name: '模板库', exact: true }).click()
   await setNextSelection(workspaceRoot)
   await page.getByRole('button', { name: '切换工作区' }).click()
+  await expect
+    .poll(() => page.evaluate(() => window.desktop.workspace.getCurrent().then(value => value?.id)))
+    .toBe(currentWorkspace.id)
   await page.getByRole('button', { name: '备份与恢复', exact: true }).click()
   await expect(page.getByText('发现需要处理的数据问题')).toBeVisible()
   await page.getByText('查看检查详情').click()

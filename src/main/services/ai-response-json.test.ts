@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   normalizeFilePlanEnvelope,
   normalizeCommonAiEnvelope,
+  normalizeBatchTemplateClassificationFactsEnvelope,
   normalizeTemplateClassificationEnvelope,
   parseAiJson,
 } from './ai-response-json'
@@ -110,6 +111,38 @@ describe('AI JSON response parsing', () => {
         newDirectories: [],
         targetDirectory: 'String Algorithms/BWT',
       },
+    })
+  })
+
+  it('normalizes compact global facts without requiring detail metadata', () => {
+    expect(
+      normalizeBatchTemplateClassificationFactsEnvelope({
+        facts: [
+          {
+            source_id: '40000000-0000-4000-8000-000000000001',
+            fact: {
+              algorithm_family: 'Kruskal',
+              category_id: 'graph.mst',
+              category_decision: 'reuse-existing',
+              confidence: '91%',
+              evidence: '排序边，并查集',
+            },
+          },
+        ],
+      }),
+    ).toEqual({
+      classifications: [
+        {
+          sourceId: '40000000-0000-4000-8000-000000000001',
+          classification: {
+            algorithmFamily: 'Kruskal',
+            categoryDecision: 'reuse-existing',
+            categoryId: 'graph.mst',
+            confidence: 0.91,
+            evidence: ['排序边', '并查集'],
+          },
+        },
+      ],
     })
   })
 })

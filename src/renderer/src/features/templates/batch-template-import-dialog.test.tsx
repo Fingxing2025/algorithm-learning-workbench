@@ -365,4 +365,35 @@ describe('BatchTemplateImportDialog staging flow', () => {
     expect(onComplete).toHaveBeenCalledWith(expect.objectContaining({ workspace }))
     expect(api.createBatchStaging).toBeUndefined()
   })
+
+  it('requires review for evidence warnings and clears the session confirmation after a path edit', async () => {
+    const ready = staging('ready')
+    ready.items[0]!.classification!.needsReview = true
+    ready.items[0]!.classification!.reviewReasons = ['missing-source-evidence']
+    const api = installDesktop({
+      continueBatchStaging: vi.fn().mockResolvedValue(ready),
+      updateBatchStagingItem: vi
+        .fn()
+        .mockImplementation(async (request: { targetRelativePath: string }) => ({
+          ...ready,
+          version: 2,
+          items: [{ ...ready.items[0], targetRelativePath: request.targetRelativePath }],
+        })),
+    })
+    render(<BatchTemplateImportDialog onComplete={vi.fn()} onOpenChange={vi.fn()} open />)
+    fireEvent.click(screen.getByRole('button', { name: '选择多个 C++ 文件' }))
+    await waitFor(() => expect(api.createBatchStaging).toHaveBeenCalled())
+    fireEvent.click(screen.getByRole('button', { name: '准备暂存 1 份' }))
+    const apply = await screen.findByRole('button', { name: '确认应用 1 份' })
+    expect(apply).toBeDisabled()
+    expect(screen.getByText(/缺少源码引用/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '确认此分类' }))
+    expect(apply).toBeEnabled()
+    const input = screen.getByLabelText('工作区保存路径 来源/main.cpp')
+    fireEvent.change(input, { target: { value: '人工/main.cpp' } })
+    fireEvent.blur(input)
+    await waitFor(() => expect(api.updateBatchStagingItem).toHaveBeenCalled())
+    expect(apply).toBeDisabled()
+    expect(screen.queryByRole('button', { name: '已锁定，点击解锁' })).not.toBeInTheDocument()
+  })
 })

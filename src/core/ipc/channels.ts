@@ -87,6 +87,7 @@ export const IPC_CHANNELS = {
     discardBatchStagingAiDraft: 'template-management:discard-batch-staging-ai-draft',
     chooseImportSource: 'template-management:choose-import-source',
     classify: 'template-management:classify',
+    classifyBatch: 'template-management:classify-batch',
     deleteTemplate: 'template-management:delete-template',
     deleteFileExecutions: 'template-management:delete-file-executions',
     deleteInvalidFileExecutions: 'template-management:delete-invalid-file-executions',

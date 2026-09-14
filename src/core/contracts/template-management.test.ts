@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   applyExistingTemplateMetadataCompletionRequestSchema,
+  canonicalTemplateClassificationSchema,
   batchImportTemplateRequestSchema,
   deleteFileExecutionsRequestSchema,
   deleteFileExecutionsResultSchema,
@@ -101,6 +102,28 @@ describe('template AI draft contracts', () => {
         fileName: String.raw`C:\private\template.cpp`,
       }),
     ).toThrow()
+  })
+
+  it('requires a canonical categoryId and a 3–4 level path for taxonomy-aware output', () => {
+    const result = canonicalTemplateClassificationSchema.safeParse({
+      alternatives: [],
+      categoryId: 'graph.mst',
+      categoryPath: ['图论', '生成树', '最小生成树'],
+      classificationReason: '稳定 taxonomy 分类',
+      confidence: 0.9,
+      fileName: 'kruskal.cpp',
+      placement: undefined,
+    })
+    expect(result.success).toBe(true)
+    expect(
+      canonicalTemplateClassificationSchema.safeParse({
+        alternatives: [],
+        categoryPath: ['算法', '其他'],
+        classificationReason: '',
+        confidence: 0.9,
+        fileName: 'x.cpp',
+      }).success,
+    ).toBe(false)
   })
 })
 

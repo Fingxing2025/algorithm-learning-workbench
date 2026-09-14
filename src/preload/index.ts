@@ -157,6 +157,7 @@ const desktopApi: DesktopApi = {
     },
     chooseImportSource: () => invokeResult(IPC_CHANNELS.templateManagement.chooseImportSource),
     classify: request => invokeResult(IPC_CHANNELS.templateManagement.classify, request),
+    classifyBatch: request => invokeResult(IPC_CHANNELS.templateManagement.classifyBatch, request),
     deleteTemplate: templateId =>
       invokeResult(IPC_CHANNELS.templateManagement.deleteTemplate, { templateId }),
     deleteFileExecutions: request =>

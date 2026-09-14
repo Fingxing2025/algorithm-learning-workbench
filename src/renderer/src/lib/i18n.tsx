@@ -15,6 +15,17 @@ const english: Record<string, string> = {
   正在应用暂存: 'Applying staged import',
   暂存已应用: 'Staged import applied',
   暂存已放弃: 'Staged import discarded',
+  '工作区所有权文件不是普通文件，请保留现场并检查。':
+    'The workspace ownership file is not a regular file. Preserve it and inspect the workspace.',
+  '工作区所有权文件格式未知，请保留现场并检查。':
+    'The workspace ownership file has an unknown format. Preserve it and inspect the workspace.',
+  '该工作区正在另一个应用实例中使用，请先关闭其工作区再重试。':
+    'This workspace is open in another app instance. Close that workspace before retrying.',
+  '无法取得工作区独占访问，请检查权限并保留所有权文件。':
+    'Could not acquire exclusive workspace access. Check permissions and preserve the ownership file.',
+  '完整目录、分类规则与源码块超出单批安全预算，请缩小导入批次；本次未发送网络请求。':
+    'The complete catalog, classification rules, and source blocks exceed the safe batch budget. Reduce the import batch; no network request was sent.',
+  '已暂存（分类已确认）': 'Staged (classification confirmed)',
   '已暂存（分类待确认）': 'Staged (classification awaiting confirmation)',
 
   '另一个暂存应用或恢复正在进行。': 'Another staged import or recovery is in progress.',
@@ -731,6 +742,13 @@ Object.assign(english, {
     'Batch AI completion stopped. No files were written to the workspace.',
   '批量 AI 元数据补全未完成；尚未向工作区写入文件。':
     'Batch AI metadata completion did not finish. No files were written to the workspace.',
+  'AI 提议新分类，需确认后导入': 'AI proposed a new category; confirm it before importing.',
+  '请核对算法族、分类提案和证据；确认后才会加入工作区。':
+    'Review the algorithm family, category proposal, and evidence before adding it to the workspace.',
+  已确认: 'Confirmed',
+  确认此分类: 'Confirm this classification',
+  '批量 AI 分类已改为一次全局规划；同批算法族会统一到同一 canonical 分类。':
+    'Batch AI classification now uses one global plan; the same algorithm family shares one canonical category.',
   '批量导入未完成，请检查目标路径。': 'Batch import did not finish. Check the target paths.',
   '批量导入 C++ 模板': 'Batch import C++ templates',
   已应用暂存批量导入: 'Staged batch import applied',
@@ -865,6 +883,11 @@ Object.assign(english, {
   '默认全选；取消勾选的源码不会发送给 AI，也不会加入工作区。':
     'All are selected by default. Unchecked sources are neither sent to AI nor added to the workspace.',
   选择导入: 'Select for import',
+  已分类: 'Classified',
+  待复核: 'Review required',
+  处理中: 'Processing',
+  待处理: 'Pending',
+  '重试 AI 补全': 'Retry AI completion',
   无标签: 'No tags',
   '未生成 AI 元数据，将按空元数据导入': 'No AI metadata; import with empty metadata',
   目标路径冲突: 'Target path conflict',
@@ -953,9 +976,52 @@ Object.assign(english, {
     'Analyzing audit results, workspace categories, and related source. You can cancel at any time.',
   导出安全诊断: 'Export safe diagnostic',
   需手动选择: 'Manual selection required',
+  详细源码未完整覆盖: 'Detailed source is partially covered',
+  缺少源码引用: 'Missing source citations',
+  '缺少实现代码引用，名称或注释不足以判断':
+    'Missing implementation citations; names and comments are insufficient',
+  源码引用未通过本地核验: 'Source citation could not be verified locally',
+  算法族未知或存在歧义: 'Algorithm family is unknown or ambiguous',
+  包含多个算法族: 'Multiple independent algorithm goals',
+  模型置信度较低: 'Low model confidence',
+  候选分类接近: 'Close category alternatives',
+  新增分类仅为待确认提案: 'New category is a proposal requiring review',
+  模型报告判断冲突: 'Model reported conflicting findings',
+  当前是泛化分类: 'Generic category fallback',
+  算法族与主分类存在分歧: 'Algorithm family and primary category disagree',
+  同算法族的多个来源分类不一致: 'Sources in the same family disagree',
+  全局摘要与详细源码结论存在分歧: 'Global summary and detailed source disagree',
+  全局摘要未完整覆盖源码: 'Global summary has partial source coverage',
+  全局摘要缺少有效源码引用: 'Global proposal lacks valid implementation citations',
+  全局提案置信度较低: 'Low global proposal confidence',
+  实现变体: 'Implementation variant',
+  辅助算法族: 'Supporting algorithm families',
+  待复核原因: 'Review reasons',
+  源码覆盖: 'Source coverage',
+  遗漏: 'Omitted',
+  查看源码证据与提案版本: 'View source evidence and proposal versions',
+  '引用核验只确认文字与位置，不证明算法判断正确。':
+    'Citation checks verify text and location, not algorithm correctness.',
+  源码引用已核对: 'Source citation checked',
+  引用未通过核验: 'Citation not verified',
+  全局初步提案: 'Preliminary global proposal',
+  详细源码提案: 'Detailed source proposal',
+  待分类: 'Unclassified',
+  '已锁定，点击解锁': 'Locked; click to unlock',
+  '核对后可锁定本次分类；后续 AI 补全跳过锁定项，修改路径会解除锁定。':
+    'Lock this classification after review. Later AI runs skip locked items; editing the path unlocks it.',
+  '请核对源码证据与分类提案。': 'Review the source evidence and classification proposal.',
+  需复核: 'Review required',
   证据: 'Evidence',
   置信度: 'Confidence',
   备选方案: 'Alternatives',
+  已归并别名: 'Alias normalized',
+  需要人工复核: 'Manual review required',
+  '低置信度、候选接近或使用旧分类路径。':
+    'Low confidence, close alternatives, or a legacy category path.',
+  分类依据: 'Classification evidence',
+  备选分类: 'Alternative categories',
+  源码语言: 'Source language',
   安全诊断: 'Safe diagnostic',
   'AI 仅接收路径、元数据和受限源码片段；文件操作始终需要二次确认':
     'AI receives only paths, metadata, and limited source snippets. File operations always require confirmation.',
@@ -1447,6 +1513,31 @@ Object.assign(english, {
     'The AI description fields do not match the selected Chinese language. Try again.',
   'AI 返回的分类或文件名包含无效路径字符。':
     'The AI category or file name contains invalid path characters.',
+  'AI 批量分类返回了重复或未知 sourceId。':
+    'The batch classification returned a duplicate or unknown sourceId.',
+  '全局事实 + 详细元数据 {batches} 批 · 已处理 {completed}/{total}':
+    'Global facts + detailed metadata ({batches} batches) · {completed}/{total} processed',
+  'AI 全局分类事实返回了重复或未知 sourceId。':
+    'Global classification facts returned a duplicate or unknown sourceId.',
+  'AI 全局分类事实返回了不存在的 categoryId。':
+    'Global classification facts returned an unknown categoryId.',
+  'AI 全局分类事实未覆盖全部源码。': 'Global classification facts did not cover every source file.',
+  'AI 全局分类事实包含重复 sourceId。':
+    'Global classification facts contained a duplicate sourceId.',
+  'AI 全局分类事实包含未知 categoryId。':
+    'Global classification facts contained an unknown categoryId.',
+  'AI 批量分类返回了未知 sourceId。': 'The batch classification returned an unknown sourceId.',
+  'AI 全局分类事实缺少有效分类路径。':
+    'Global classification facts did not include a valid category path.',
+  'AI 全局分类事实缺少有效文件名。':
+    'Global classification facts did not include a valid file name.',
+  'AI 新分类提案缺少待确认的提案详情。':
+    'The new-category proposal is missing details required for confirmation.',
+  'AI 返回了无效或禁用的分类路径，请重试。':
+    'The AI returned an invalid or forbidden category path. Try again.',
+  'AI 批量分类未覆盖全部源码。': 'The batch classification did not cover every source file.',
+  '无法证明批量分类请求包含完整工作区目录，已在网络发送前停止。':
+    'The batch classification request could not prove it contained the complete workspace catalog, so it was stopped before network transmission.',
   'AI 连续两次未返回可读取的文件计划。工作区未被修改；请在 AI 设置中换用支持结构化输出的模型，或检查模型输出长度。':
     'The AI failed twice to return a readable file plan. The workspace was unchanged. Choose a structured-output model or check its output limit.',
   '文件计划不存在或已结束。': 'The file plan does not exist or has ended.',
@@ -1480,6 +1571,30 @@ Object.assign(english, {
     'The AI template classification is not valid JSON. Choose a structured-output model and try again.',
   'AI 返回的模板分类字段无效，请重试。':
     'The AI returned invalid template-classification fields. Try again.',
+  'AI 返回了不存在的 canonical categoryId，已拒绝该分类。':
+    'The AI returned an unknown canonical categoryId, so the classification was rejected.',
+  'AI 全局分类事实对同一算法族返回了不一致的 categoryId。':
+    'The global AI facts returned inconsistent categoryIds for the same algorithm family.',
+  '审计结果包含未知或禁用的 canonical categoryId，已拒绝生成文件计划。':
+    'The audit contains an unknown or forbidden canonical categoryId, so file-plan generation was rejected.',
+  'AI 返回了未知或禁用的 categoryId，已拒绝整份计划。工作区未被修改。':
+    'The AI returned an unknown or forbidden categoryId, so the entire plan was rejected and the workspace was unchanged.',
+  'AI 返回的 categoryId 与分类路径不一致，已拒绝整份计划。工作区未被修改。':
+    'The AI categoryId does not match its category path, so the entire plan was rejected and the workspace was unchanged.',
+  'AI 返回的分类路径与目标目录冲突，已拒绝整份计划。工作区未被修改。':
+    'The AI category path conflicts with the target directory, so the entire plan was rejected and the workspace was unchanged.',
+  'AI 返回了未知或禁用的分类路径，已拒绝整份计划。工作区未被修改。':
+    'The AI returned an unknown or forbidden category path, so the entire plan was rejected and the workspace was unchanged.',
+  'AI 返回了无效的原地移动操作，已拒绝整份计划。':
+    'The AI returned a no-op move, so the entire plan was rejected.',
+  'AI 移动操作改变了源码扩展名，已拒绝整份计划。':
+    'The AI move changed the source extension, so the entire plan was rejected.',
+  'AI 返回了重复的目标路径，已拒绝整份计划。':
+    'The AI returned a duplicate target path, so the entire plan was rejected.',
+  'AI 移动目标已存在，已拒绝整份计划。':
+    'The AI move target already exists, so the entire plan was rejected.',
+  'AI 未返回有效的 canonical 分类路径，已拒绝该分类。':
+    'The AI did not return a valid canonical category path, so the classification was rejected.',
   'AI 建议的源码扩展名不受支持，已拒绝该分类。':
     'The AI suggested an unsupported source extension, so the classification was rejected.',
   'AI 建议改变了源码扩展名，已拒绝该分类。':

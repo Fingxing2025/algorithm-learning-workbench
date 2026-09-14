@@ -8,6 +8,8 @@ export interface TemplateFileNameIssue {
 }
 
 const namingInconsistencyPattern = /\s|副本|copy(?:\s|\(|_|\d)/i
+const repeatedExtensionSeparatorPattern = /\.\.[^.]+$/u
+const placeholderNamePattern = /^(?:默认|template|untitled)(?:\.[^.]+)?$/iu
 const knownMojibakePattern = /\uFFFD|锟斤拷|ðŸ|ï»¿|ï¿½/u
 const cp1252Bytes = new Map<number, number>([
   [0x20ac, 0x80],
@@ -63,6 +65,19 @@ export function analyzeTemplateFileName(fileName: string): TemplateFileNameIssue
     return {
       detail: '文件名疑似包含乱码或错误解码痕迹；AI 文件计划必须提供安全改名，执行前仍需确认。',
       kind: 'suspected-mojibake',
+    }
+  }
+  if (repeatedExtensionSeparatorPattern.test(fileName)) {
+    return {
+      detail:
+        '文件名在扩展名前包含重复的点，可能导致跨平台识别和搜索不一致；AI 文件计划必须提供安全改名，执行前仍需确认。',
+      kind: 'naming-inconsistency',
+    }
+  }
+  if (placeholderNamePattern.test(fileName)) {
+    return {
+      detail: '文件名是无语义的占位名称；AI 文件计划必须根据源码恢复可检索名称，执行前仍需确认。',
+      kind: 'naming-inconsistency',
     }
   }
   if (namingInconsistencyPattern.test(fileName)) {

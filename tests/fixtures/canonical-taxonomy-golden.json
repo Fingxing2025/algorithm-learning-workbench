@@ -1,0 +1,284 @@
+[
+  {
+    "name": "二分答案.cpp",
+    "categoryId": "basic.search.binary",
+    "path": ["基础算法", "搜索", "二分查找"],
+    "variant": "答案二分"
+  },
+  {
+    "name": "整数三分.cpp",
+    "categoryId": "numeric.root.binary-trinary",
+    "path": ["数值计算", "方程求解", "二分与三分"],
+    "variant": "整数"
+  },
+  {
+    "name": "01背包.cpp",
+    "categoryId": "dp.knapsack.01",
+    "path": ["动态规划", "背包", "01 背包"],
+    "variant": "滚动数组"
+  },
+  {
+    "name": "LCA.cpp",
+    "categoryId": "graph.tree-query.lca",
+    "path": ["图论", "树上查询", "最近公共祖先"],
+    "variant": "倍增"
+  },
+  {
+    "name": "Kruskal.cpp",
+    "categoryId": "graph.mst",
+    "path": ["图论", "生成树", "最小生成树"],
+    "variant": "Kruskal"
+  },
+  {
+    "name": "Prim.cpp",
+    "categoryId": "graph.mst",
+    "path": ["图论", "生成树", "最小生成树"],
+    "variant": "Prim"
+  },
+  {
+    "name": "前缀和.cpp",
+    "categoryId": "basic.prefix",
+    "path": ["基础算法", "前缀技巧", "前缀和与差分"],
+    "variant": "一维"
+  },
+  {
+    "name": "Dijkstra.cpp",
+    "categoryId": "graph.shortest-path.single-source",
+    "path": ["图论", "最短路", "单源最短路"],
+    "variant": "堆优化"
+  },
+  {
+    "name": "vector.cpp",
+    "categoryId": "cpp.stl.containers",
+    "path": ["C++ 工具", "标准库", "容器与算法"],
+    "variant": "vector"
+  },
+  {
+    "name": "日期差.cpp",
+    "categoryId": "datetime.calendar.convert",
+    "path": ["日期与时间", "日历计算", "日期转换"],
+    "variant": "闰年"
+  },
+  {
+    "name": "搜索.cpp",
+    "categoryId": "basic.search",
+    "path": ["基础算法", "搜索", "搜索"],
+    "variant": "DFS"
+  },
+  {
+    "name": "广搜.cpp",
+    "categoryId": "basic.search",
+    "path": ["基础算法", "搜索", "搜索"],
+    "variant": "BFS"
+  },
+  {
+    "name": "差分.cpp",
+    "categoryId": "basic.prefix",
+    "path": ["基础算法", "前缀技巧", "前缀和与差分"],
+    "variant": "二维"
+  },
+  {
+    "name": "区间贪心.cpp",
+    "categoryId": "basic.greedy",
+    "path": ["基础算法", "贪心", "经典贪心"],
+    "variant": "区间"
+  },
+  {
+    "name": "树状数组.cpp",
+    "categoryId": "data-structure.fenwick",
+    "path": ["数据结构", "树状数组", "Fenwick 树"],
+    "variant": "树状数组"
+  },
+  {
+    "name": "线段树-区间修改.cpp",
+    "categoryId": "data-structure.segment-tree",
+    "path": ["数据结构", "树", "线段树"],
+    "variant": "区间修改"
+  },
+  {
+    "name": "线段树-区间更新.cpp",
+    "categoryId": "data-structure.segment-tree",
+    "path": ["数据结构", "树", "线段树"],
+    "variant": "区间更新"
+  },
+  {
+    "name": "并查集.cpp",
+    "categoryId": "data-structure.union-find",
+    "path": ["数据结构", "集合结构", "并查集"],
+    "variant": "路径压缩"
+  },
+  {
+    "name": "堆.cpp",
+    "categoryId": "data-structure",
+    "path": ["数据结构", "通用结构", "基础结构"],
+    "variant": "手写"
+  },
+  {
+    "name": "Bellman-Ford.cpp",
+    "categoryId": "graph.shortest-path.single-source",
+    "path": ["图论", "最短路", "单源最短路"],
+    "variant": "Bellman-Ford"
+  },
+  {
+    "name": "Kruskal-并查集.cpp",
+    "categoryId": "graph.mst",
+    "path": ["图论", "生成树", "最小生成树"],
+    "variant": "Kruskal"
+  },
+  {
+    "name": "Tarjan-LCA.cpp",
+    "categoryId": "graph.tree-query.lca",
+    "path": ["图论", "树上查询", "最近公共祖先"],
+    "variant": "Tarjan"
+  },
+  {
+    "name": "倍增LCA.cpp",
+    "categoryId": "graph.tree-query.lca",
+    "path": ["图论", "树上查询", "最近公共祖先"],
+    "variant": "倍增"
+  },
+  {
+    "name": "拓扑排序.cpp",
+    "categoryId": "graph.topological-sort",
+    "path": ["图论", "有向图", "拓扑排序"],
+    "variant": "入度"
+  },
+  {
+    "name": "强连通.cpp",
+    "categoryId": "graph",
+    "path": ["图论", "通用图算法", "图论基础"],
+    "variant": "Tarjan"
+  },
+  {
+    "name": "Trie.cpp",
+    "categoryId": "string.trie",
+    "path": ["字符串", "字典树", "Trie"],
+    "variant": "Trie"
+  },
+  {
+    "name": "AC自动机.cpp",
+    "categoryId": "string.pattern.ac-automaton",
+    "path": ["字符串", "模式匹配", "AC 自动机"],
+    "variant": "AC 自动机"
+  },
+  {
+    "name": "回文.cpp",
+    "categoryId": "string",
+    "path": ["字符串", "通用处理", "字符串基础"],
+    "variant": "回文"
+  },
+  {
+    "name": "后缀数组.cpp",
+    "categoryId": "string.suffix-array",
+    "path": ["字符串", "后缀结构", "后缀数组"],
+    "variant": "后缀数组"
+  },
+  {
+    "name": "完全背包.cpp",
+    "categoryId": "dp.knapsack.unbounded",
+    "path": ["动态规划", "背包", "完全背包"],
+    "variant": "完全背包"
+  },
+  {
+    "name": "多重背包.cpp",
+    "categoryId": "dp.knapsack.bounded",
+    "path": ["动态规划", "背包", "多重背包"],
+    "variant": "多重背包"
+  },
+  {
+    "name": "区间DP.cpp",
+    "categoryId": "dp",
+    "path": ["动态规划", "状态转移", "动态规划基础"],
+    "variant": "区间"
+  },
+  {
+    "name": "树形DP.cpp",
+    "categoryId": "dp",
+    "path": ["动态规划", "状态转移", "动态规划基础"],
+    "variant": "树形"
+  },
+  {
+    "name": "数位DP.cpp",
+    "categoryId": "dp",
+    "path": ["动态规划", "状态转移", "动态规划基础"],
+    "variant": "数位"
+  },
+  {
+    "name": "最长递增子序列.cpp",
+    "categoryId": "dp.sequence.lis",
+    "path": ["动态规划", "序列 DP", "最长递增子序列"],
+    "variant": "二分优化"
+  },
+  {
+    "name": "快速幂.cpp",
+    "categoryId": "math.number-theory",
+    "path": ["数学", "数论", "数论基础"],
+    "variant": "模运算"
+  },
+  {
+    "name": "欧几里得.cpp",
+    "categoryId": "math.number-theory",
+    "path": ["数学", "数论", "数论基础"],
+    "variant": "GCD"
+  },
+  {
+    "name": "线性筛.cpp",
+    "categoryId": "math.number-theory.prime",
+    "path": ["数学", "数论", "素数与筛法"],
+    "variant": "线性筛"
+  },
+  {
+    "name": "组合数.cpp",
+    "categoryId": "math.combinatorics.factorial-inverse",
+    "path": ["数学", "组合数学", "组合数预处理"],
+    "variant": "组合"
+  },
+  {
+    "name": "实数二分.cpp",
+    "categoryId": "numeric.root.binary-trinary",
+    "path": ["数值计算", "方程求解", "二分与三分"],
+    "variant": "实数"
+  },
+  {
+    "name": "实数三分.cpp",
+    "categoryId": "numeric.root.binary-trinary",
+    "path": ["数值计算", "方程求解", "二分与三分"],
+    "variant": "三分"
+  },
+  {
+    "name": "牛顿迭代.cpp",
+    "categoryId": "numeric.root",
+    "path": ["数值计算", "方程求解", "方程求解"],
+    "variant": "牛顿迭代"
+  },
+  {
+    "name": "map.cpp",
+    "categoryId": "cpp.stl.containers",
+    "path": ["C++ 工具", "标准库", "容器与算法"],
+    "variant": "map"
+  },
+  {
+    "name": "priority_queue.cpp",
+    "categoryId": "cpp.stl",
+    "path": ["C++ 工具", "标准库", "STL"],
+    "variant": "STL"
+  },
+  {
+    "name": "快读.cpp",
+    "categoryId": "contest.io.fast",
+    "path": ["竞赛框架", "代码组织", "快速输入输出"],
+    "variant": "iostream"
+  },
+  {
+    "name": "solve框架.cpp",
+    "categoryId": "contest.io",
+    "path": ["竞赛框架", "代码组织", "输入输出"],
+    "variant": "单文件"
+  },
+  {
+    "name": "闰年.cpp",
+    "categoryId": "datetime.calendar",
+    "path": ["日期与时间", "日历计算", "日历基础"],
+    "variant": "公历"
+  }
+]

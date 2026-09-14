@@ -104,6 +104,16 @@ export class BackgroundTaskRegistry {
           if (record.state === 'running') {
             record.progress = {
               ...progress,
+              // A multi-stage task may report a new phase whose local counter
+              // starts at zero. Preserve the already completed item count so
+              // UI progress never jumps backwards when switching stages.
+              processedCount: Math.max(record.progress.processedCount, progress.processedCount),
+              totalCount:
+                progress.totalCount === null
+                  ? record.progress.totalCount
+                  : record.progress.totalCount === null
+                    ? progress.totalCount
+                    : Math.max(record.progress.totalCount, progress.totalCount),
               currentItem: progress.currentItem?.trim().slice(0, 500) || null,
             }
           }
@@ -182,6 +192,13 @@ export class BackgroundTaskRegistry {
             if (record.state === 'running') {
               record.progress = {
                 ...progress,
+                processedCount: Math.max(record.progress.processedCount, progress.processedCount),
+                totalCount:
+                  progress.totalCount === null
+                    ? record.progress.totalCount
+                    : record.progress.totalCount === null
+                      ? progress.totalCount
+                      : Math.max(record.progress.totalCount, progress.totalCount),
                 currentItem: progress.currentItem?.trim().slice(0, 500) || null,
               }
             }

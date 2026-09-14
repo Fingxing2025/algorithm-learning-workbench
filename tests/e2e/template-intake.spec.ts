@@ -100,6 +100,7 @@ test.beforeAll(async () => {
         ) as { content?: unknown } | undefined
       const userContent =
         typeof lastUserMessage?.content === 'string' ? lastUserMessage.content : ''
+      const evidenceRegression = userContent.includes('S3_EVIDENCE_FIXTURE')
       const existingMetadataCompletion =
         userContent.includes('"existingMetadata"') && userContent.includes('"missingFields"')
       // Dynamic staging adds earlier source snippets to related context.
@@ -117,6 +118,16 @@ test.beforeAll(async () => {
         : currentSource.includes('batch_two')
           ? '批量二.cpp'
           : null
+      const globalBatch =
+        userContent.includes('"sources"') && userContent.includes('"originalCharacters"')
+      const globalBatchSourceIds = [...userContent.matchAll(/"id":"([0-9a-f-]{36})"/g)].map(
+        match => match[1]!,
+      )
+      const detailSourceIds = [
+        ...(userContent.match(/"sources":\[(.*?)\],"workspaceCatalog"/su)?.[1] ?? '').matchAll(
+          /"id":"([0-9a-f-]{36})"/g,
+        ),
+      ].map(match => match[1]!)
       const systemMessage = messages.find(
         message =>
           typeof message === 'object' &&
@@ -125,6 +136,8 @@ test.beforeAll(async () => {
       ) as { content?: unknown } | undefined
       lastTemplateMetadataSystem =
         typeof systemMessage?.content === 'string' ? systemMessage.content : ''
+      const globalFactsBatch =
+        globalBatch && lastTemplateMetadataSystem.includes('全局分类事实提取器')
       if (holdNextTemplateResponse) {
         holdNextTemplateResponse = false
         heldTemplateResponseStarted = true
@@ -160,96 +173,152 @@ test.beforeAll(async () => {
                 content: [
                   {
                     text: JSON.stringify(
-                      existingMetadataCompletion
+                      evidenceRegression
                         ? {
-                            commonMistakes: 'AI 建议检查边界条件。',
-                            constraints: 'AI 建议的适用约束。',
-                            prerequisites: 'AI 建议的前置知识。',
-                            solves: 'AI 补全的用途。',
-                            spaceComplexity: 'O(n + m)',
-                            tags: ['AI补全', '回归测试'],
-                            timeComplexity: 'O((n + m) log n)',
+                            algorithmFamily: 'Fenwick',
+                            categoryId: 'data-structure.fenwick',
+                            categoryPath: ['数据结构', '树状数组', 'Fenwick 树'],
+                            fileName: '累加.cpp',
+                            classificationReason: '从实现引用提取的待复核提案',
+                            confidence: 0.6,
+                            sourceEvidence: [
+                              { startLine: 8, endLine: 8, quote: 'i += i & -i', claim: '低位更新' },
+                            ],
+                            tags: ['前缀'],
+                            solves: '前缀累加',
+                            timeComplexity: 'O(log n)',
+                            spaceComplexity: 'O(n)',
+                            variant: '单点更新',
                           }
-                        : legacyBwtClassification
+                        : globalFactsBatch
                           ? {
-                              result: {
-                                category_path: '字符串算法 > BWT > 逆变换',
-                                common_mistakes: '注意哨兵字符与下标范围。',
-                                confidence: '91%',
-                                constraints: '输入包含唯一哨兵字符。',
-                                prerequisites: '掌握后缀排序与 LF-mapping。',
-                                solves: '从 BWT 末列恢复原字符串。',
-                                space_complexity: 'O(n)',
-                                tags: '字符串，BWT，逆变换',
-                                time_complexity: 'O(n log n)',
-                              },
+                              classifications: [...new Set(globalBatchSourceIds)].map(
+                                (sourceId, index) => ({
+                                  sourceId,
+                                  classification: {
+                                    algorithmFamily: 'Dijkstra',
+                                    categoryDecision: 'reuse-existing',
+                                    categoryId: 'graph.shortest-path.single-source',
+                                    confidence: 0.96,
+                                    evidence: [`全局事实 ${index + 1}`],
+                                  },
+                                }),
+                              ),
                             }
-                          : {
-                              categoryPath: batchFileName
-                                ? ['批量导入', '测试算法']
-                                : english
-                                  ? ['Graph Theory', 'Shortest Path', 'Dijkstra', 'Heap Optimized']
-                                  : ['图论', '最短路', 'Dijkstra', '堆优化'],
-                              commonMistakes: batchFileName
-                                ? '注意测试边界条件。'
-                                : english
-                                  ? 'Forgetting to discard stale priority queue entries.'
-                                  : '优先队列弹出后忘记判断过期距离。',
-                              classificationReason: batchFileName
-                                ? '该源码属于批量导入测试算法。'
-                                : english
-                                  ? 'The implementation belongs with the graph shortest-path taxonomy.'
-                                  : '该实现属于图论最短路分类。',
-                              confidence: 0.96,
-                              constraints: batchFileName
-                                ? '用于本地测试。'
-                                : english
-                                  ? 'Edge weights must be non-negative.'
-                                  : '边权非负。',
-                              fileName: batchFileName ?? 'dijkstra.cpp',
-                              alternatives: [],
-                              placement: {
-                                existingParentPath: '',
-                                mode: 'create-category-chain',
-                                newDirectories: batchFileName
-                                  ? ['批量导入', '测试算法']
-                                  : english
-                                    ? [
-                                        'Graph Theory',
-                                        'Shortest Path',
-                                        'Dijkstra',
-                                        'Heap Optimized',
-                                      ]
-                                    : ['图论', '最短路', 'Dijkstra', '堆优化'],
-                                reason: batchFileName
-                                  ? '为批量导入创建明确分类。'
-                                  : english
-                                    ? 'The workspace is empty, so create a specific category chain.'
-                                    : '工作区当前为空，需要新建明确的分类链。',
-                                targetDirectory: batchFileName
-                                  ? '批量导入/测试算法'
-                                  : english
-                                    ? 'Graph Theory/Shortest Path/Dijkstra/Heap Optimized'
-                                    : '图论/最短路/Dijkstra/堆优化',
-                              },
-                              prerequisites: batchFileName
-                                ? '掌握基础 C++。'
-                                : english
-                                  ? 'Adjacency lists and priority queues.'
-                                  : '邻接表、优先队列。',
-                              solves: batchFileName
-                                ? '验证批量模板导入。'
-                                : english
-                                  ? 'Single-source shortest paths with non-negative weights.'
-                                  : '单源非负权最短路径。',
-                              spaceComplexity: 'O(n + m)',
-                              tags: batchFileName
-                                ? ['批量导入', '测试']
-                                : english
-                                  ? ['Graph Theory', 'Shortest Path', 'Dijkstra']
-                                  : ['图论', '最短路', 'Dijkstra'],
-                              timeComplexity: 'O((n + m) log n)',
-                            },
+                          : globalBatch
+                            ? {
+                                classifications: detailSourceIds.map((sourceId, index) => ({
+                                  sourceId,
+                                  classification: {
+                                    algorithmFamily: 'Dijkstra',
+                                    categoryId: 'graph.shortest-path.single-source',
+                                    categoryPath: ['图论', '最短路', '单源最短路'],
+                                    classificationReason: '该批次源码属于同一测试算法分类。',
+                                    confidence: 0.96,
+                                    fileName: index === 0 ? '批量一.cpp' : '批量二.cpp',
+                                    alternatives: [],
+                                    solves: '验证批量模板导入。',
+                                    spaceComplexity: 'O(1)',
+                                    tags: ['批量导入', '测试'],
+                                    timeComplexity: 'O(1)',
+                                  },
+                                })),
+                              }
+                            : existingMetadataCompletion
+                              ? {
+                                  commonMistakes: 'AI 建议检查边界条件。',
+                                  constraints: 'AI 建议的适用约束。',
+                                  prerequisites: 'AI 建议的前置知识。',
+                                  solves: 'AI 补全的用途。',
+                                  spaceComplexity: 'O(n + m)',
+                                  tags: ['AI补全', '回归测试'],
+                                  timeComplexity: 'O((n + m) log n)',
+                                }
+                              : legacyBwtClassification
+                                ? {
+                                    result: {
+                                      category_path: '字符串算法 > BWT > 逆变换',
+                                      common_mistakes: '注意哨兵字符与下标范围。',
+                                      confidence: '91%',
+                                      constraints: '输入包含唯一哨兵字符。',
+                                      prerequisites: '掌握后缀排序与 LF-mapping。',
+                                      solves: '从 BWT 末列恢复原字符串。',
+                                      space_complexity: 'O(n)',
+                                      tags: '字符串，BWT，逆变换',
+                                      time_complexity: 'O(n log n)',
+                                    },
+                                  }
+                                : {
+                                    categoryPath: batchFileName
+                                      ? ['图论', '最短路', '单源最短路']
+                                      : english
+                                        ? [
+                                            'Graph Theory',
+                                            'Shortest Path',
+                                            'Dijkstra',
+                                            'Heap Optimized',
+                                          ]
+                                        : ['图论', '最短路', 'Dijkstra', '堆优化'],
+                                    commonMistakes: batchFileName
+                                      ? '注意测试边界条件。'
+                                      : english
+                                        ? 'Forgetting to discard stale priority queue entries.'
+                                        : '优先队列弹出后忘记判断过期距离。',
+                                    classificationReason: batchFileName
+                                      ? '该源码属于批量导入测试算法。'
+                                      : english
+                                        ? 'The implementation belongs with the graph shortest-path taxonomy.'
+                                        : '该实现属于图论最短路分类。',
+                                    confidence: 0.96,
+                                    constraints: batchFileName
+                                      ? '用于本地测试。'
+                                      : english
+                                        ? 'Edge weights must be non-negative.'
+                                        : '边权非负。',
+                                    fileName: batchFileName ?? 'dijkstra.cpp',
+                                    alternatives: [],
+                                    placement: {
+                                      existingParentPath: '',
+                                      mode: 'create-category-chain',
+                                      newDirectories: batchFileName
+                                        ? ['图论', '最短路', '单源最短路']
+                                        : english
+                                          ? [
+                                              'Graph Theory',
+                                              'Shortest Path',
+                                              'Dijkstra',
+                                              'Heap Optimized',
+                                            ]
+                                          : ['图论', '最短路', 'Dijkstra', '堆优化'],
+                                      reason: batchFileName
+                                        ? '为批量导入创建明确分类。'
+                                        : english
+                                          ? 'The workspace is empty, so create a specific category chain.'
+                                          : '工作区当前为空，需要新建明确的分类链。',
+                                      targetDirectory: batchFileName
+                                        ? '图论/最短路/单源最短路'
+                                        : english
+                                          ? 'Graph Theory/Shortest Path/Dijkstra/Heap Optimized'
+                                          : '图论/最短路/Dijkstra/堆优化',
+                                    },
+                                    prerequisites: batchFileName
+                                      ? '掌握基础 C++。'
+                                      : english
+                                        ? 'Adjacency lists and priority queues.'
+                                        : '邻接表、优先队列。',
+                                    solves: batchFileName
+                                      ? '验证批量模板导入。'
+                                      : english
+                                        ? 'Single-source shortest paths with non-negative weights.'
+                                        : '单源非负权最短路径。',
+                                    spaceComplexity: 'O(n + m)',
+                                    tags: batchFileName
+                                      ? ['批量导入', '测试']
+                                      : english
+                                        ? ['Graph Theory', 'Shortest Path', 'Dijkstra']
+                                        : ['图论', '最短路', 'Dijkstra'],
+                                    timeComplexity: 'O((n + m) log n)',
+                                  },
                     ),
                     type: 'text',
                   },
@@ -409,6 +478,8 @@ test('merges pasted-source AI metadata without overwriting user fields', async (
   await expect(page.getByText(/模板分类测试.*fixture-metadata/)).toBeVisible()
   await expect(page.getByText(/2 次 Provider 请求.*总耗时/)).toBeVisible()
   await expect(page.getByText(/首次生成.*Schema 降级/)).toBeVisible()
+  await expect(page.getByRole('button', { name: '确认创建' })).toBeDisabled()
+  await page.getByRole('button', { name: '确认此分类' }).click()
   await page.getByRole('button', { name: '确认创建' }).click()
 
   await expect(page.getByRole('heading', { level: 1, name: 'dijkstra' })).toBeVisible()
@@ -521,7 +592,7 @@ test('regenerates untouched AI metadata after switching completion language', as
   await expect(page.getByRole('heading', { name: '新建算法模板' })).toHaveCount(0)
 })
 
-test('accepts a common legacy BWT classification shape from compatible models', async () => {
+test('accepts a common legacy BWT classification shape and canonicalizes its path', async () => {
   await page.getByRole('button', { name: '新建模板' }).click()
   await page.getByLabel(/文件名/).fill('BWT变换.cpp')
   await page
@@ -533,7 +604,7 @@ test('accepts a common legacy BWT classification shape from compatible models', 
   await expect(page.getByRole('heading', { name: '确认元数据冲突' })).toBeVisible()
   await page.getByRole('button', { name: '保存路径 使用 AI 建议' }).click()
   await page.getByRole('button', { name: '确认并应用选择' }).click()
-  await expect(page.getByLabel(/文件名/)).toHaveValue('字符串算法/BWT/逆变换/BWT变换.cpp')
+  await expect(page.getByLabel(/文件名/)).toHaveValue('字符串/字符串变换/BWT/BWT变换.cpp')
   await expect(page.getByLabel('模板标签')).toHaveValue('字符串, BWT, 逆变换')
   await expect(page.getByLabel('解决的问题')).toHaveValue('从 BWT 末列恢复原字符串。')
   await expect(page.getByText('模型未提供分类理由，请在保存前重点核对建议目录。')).toBeVisible()
@@ -630,8 +701,8 @@ test('scans a C++ folder, generates all metadata, and atomically imports copies'
 
   const firstPath = page.getByLabel('工作区保存路径 one.cpp')
   const secondPath = page.getByLabel('工作区保存路径 nested/two.cpp')
-  await expect(firstPath).toHaveValue('批量导入/测试算法/批量一.cpp')
-  await expect(secondPath).toHaveValue('批量导入/测试算法/批量二.cpp')
+  await expect(firstPath).toHaveValue('图论/最短路/单源最短路/批量一.cpp')
+  await expect(secondPath).toHaveValue('图论/最短路/单源最短路/批量二.cpp')
   await page.screenshot({
     animations: 'disabled',
     path: resolve('output/playwright/batch-template-import-light.png'),
@@ -653,22 +724,31 @@ test('scans a C++ folder, generates all metadata, and atomically imports copies'
   })
   await page.locator('html').evaluate(root => root.classList.remove('dark'))
 
-  await secondPath.fill('批量导入/测试算法/批量一.cpp')
+  await expect(page.getByRole('button', { name: '确认应用 2 份' })).toBeDisabled()
+  await secondPath.fill('图论/最短路/单源最短路/批量一.cpp')
   await secondPath.blur()
   await expect(page.getByRole('alert')).toBeVisible()
   await expect(
-    readFile(join(workspaceRoot, 'templates', '批量导入', '测试算法', '批量一.cpp')),
+    readFile(join(workspaceRoot, 'templates', '图论', '最短路', '单源最短路', '批量一.cpp')),
   ).rejects.toThrow()
 
-  await secondPath.fill('批量导入/测试算法/批量二.cpp')
+  await secondPath.fill('图论/最短路/单源最短路/批量二.cpp')
   await secondPath.blur()
+  const confirms = page.getByRole('button', { name: '确认此分类', exact: true })
+  while (await confirms.count()) await confirms.first().click()
   await page.getByRole('button', { name: '确认应用 2 份', exact: true }).click()
   await expect(page.getByRole('heading', { name: '批量导入 C++ 模板' })).toHaveCount(0)
   expect(
-    await readFile(join(workspaceRoot, 'templates', '批量导入', '测试算法', '批量一.cpp'), 'utf8'),
+    await readFile(
+      join(workspaceRoot, 'templates', '图论', '最短路', '单源最短路', '批量一.cpp'),
+      'utf8',
+    ),
   ).toBe(originalOne)
   expect(
-    await readFile(join(workspaceRoot, 'templates', '批量导入', '测试算法', '批量二.cpp'), 'utf8'),
+    await readFile(
+      join(workspaceRoot, 'templates', '图论', '最短路', '单源最短路', '批量二.cpp'),
+      'utf8',
+    ),
   ).toBe(originalTwo)
   expect(await readFile(join(batchSourceRoot, 'one.cpp'), 'utf8')).toBe(originalOne)
   expect(await readFile(join(batchSourceRoot, 'nested', 'two.cpp'), 'utf8')).toBe(originalTwo)
@@ -830,4 +910,56 @@ test('completes existing template metadata individually and in one guarded batch
     )
     expect(metadata?.solves).toBe('AI 补全的用途。')
   }
+})
+
+test('reviews source citations and locks a classification until the draft changes', async () => {
+  const source = await readFile(
+    resolve('tests/fixtures/classification-evidence/fenwick.cpp'),
+    'utf8',
+  )
+  await page.getByRole('button', { name: '新建模板' }).click()
+  await page
+    .getByRole('textbox', { name: '模板源码', exact: true })
+    .fill(`${source}\n// S3_EVIDENCE_FIXTURE`)
+  await page.getByRole('button', { name: '立即补全' }).click()
+  await page.getByRole('button', { name: '确认发送并生成' }).click()
+  await expect(page.getByText('待复核原因', { exact: false })).toBeVisible()
+  await page.getByText('查看源码证据与提案版本', { exact: true }).click()
+  await expect(page.getByText('源码引用已核对', { exact: false })).toBeVisible()
+  await expect(page.getByRole('button', { name: '确认创建' })).toBeDisabled()
+  for (const [width, height] of [
+    [1440, 900],
+    [1280, 720],
+    [1024, 640],
+  ]) {
+    await electronApp.evaluate(
+      ({ BrowserWindow }, size) => BrowserWindow.getAllWindows()[0]?.setSize(size[0]!, size[1]!),
+      [width!, height!],
+    )
+    for (const theme of ['light', 'dark']) {
+      await page
+        .locator('html')
+        .evaluate((root, dark) => root.classList.toggle('dark', dark), theme === 'dark')
+      await page.getByText('查看源码证据与提案版本', { exact: true }).scrollIntoViewIfNeeded()
+      await page.screenshot({
+        animations: 'disabled',
+        path: resolve(`output/playwright/s3-evidence-${theme}-${width}x${height}.png`),
+      })
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth <= globalThis.innerWidth),
+      ).toBe(true)
+    }
+  }
+  await page.getByRole('button', { name: '确认此分类' }).click()
+  await expect(page.getByRole('button', { name: '确认创建' })).toBeEnabled()
+  await expect(page.getByRole('button', { name: '立即补全' })).toBeDisabled()
+  await page.getByLabel(/文件名/).fill('数据结构/树状数组/Fenwick 树/人工路径.cpp')
+  await expect(page.getByRole('button', { name: '确认创建' })).toBeDisabled()
+  await expect(page.getByRole('button', { name: '立即补全' })).toBeEnabled()
+  await page.getByRole('button', { name: '关闭新建模板' }).click()
+  await expect(
+    readFile(
+      join(workspaceRoot, 'templates', '数据结构', '树状数组', 'Fenwick 树', '人工路径.cpp'),
+    ),
+  ).rejects.toThrow()
 })
