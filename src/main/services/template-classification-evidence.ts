@@ -101,11 +101,31 @@ function implementationMask(source: string): string {
   const erase = (from: number, to: number) => {
     for (let i = from; i < to; i++) if (result[i] !== '\n') result[i] = ' '
   }
+  const lineCommentEnd = (from: number) => {
+    let newline = source.indexOf('\n', from + 2)
+    while (newline >= 0) {
+      const splice = source[newline - 1] === '\r' ? newline - 2 : newline - 1
+      if (source[splice] !== '\\') break
+      newline = source.indexOf('\n', newline + 1)
+    }
+    return newline < 0 ? source.length : newline
+  }
+  const isNumericSeparator = (index: number) => {
+    if (
+      source[index] !== "'" ||
+      !/[0-9A-Fa-f]/.test(source[index - 1] ?? '') ||
+      !/[0-9A-Fa-f]/.test(source[index + 1] ?? '')
+    )
+      return false
+    let tokenStart = index - 1
+    while (tokenStart >= 0 && /[A-Za-z0-9_'.]/.test(source[tokenStart]!)) tokenStart--
+    const prefix = source.slice(tokenStart + 1, index)
+    return /^(?:[0-9]|\.[0-9])/.test(prefix)
+  }
   for (let i = 0; i < source.length;) {
     let end = i
     if (source.startsWith('//', i)) {
-      end = source.indexOf('\n', i + 2)
-      if (end < 0) end = source.length
+      end = lineCommentEnd(i)
     } else if (source.startsWith('/*', i)) {
       const closing = source.indexOf('*/', i + 2)
       end = closing < 0 ? source.length : closing + 2
@@ -116,7 +136,7 @@ function implementationMask(source: string): string {
         end = closing < 0 ? source.length : closing + opening[1]!.length + 2
       }
     }
-    if (end === i && (source[i] === '"' || source[i] === "'")) {
+    if (end === i && (source[i] === '"' || (source[i] === "'" && !isNumericSeparator(i)))) {
       const quote = source[i]
       end = i + 1
       while (end < source.length) {

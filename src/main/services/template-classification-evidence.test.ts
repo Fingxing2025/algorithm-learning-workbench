@@ -129,6 +129,87 @@ describe('source evidence and proposal provenance (software contracts, not model
     }
   })
 
+  it.each([
+    [
+      'LF continuation',
+      ['// documented example \\', 'for (int i=0; i<n; ++i) a[i] += 1;'].join('\n'),
+      2,
+      'for (int i=0; i<n; ++i) a[i] += 1;',
+    ],
+    [
+      'CRLF continuation',
+      ['// documented example \\', 'for (int i=0; i<n; ++i) a[i] += 1;'].join('\r\n'),
+      2,
+      'for (int i=0; i<n; ++i) a[i] += 1;',
+    ],
+    [
+      'successive continuations',
+      ['// documented example \\', 'for (int i=0; i<n; ++i) \\', 'return i;'].join('\n'),
+      3,
+      'return i;',
+    ],
+  ])('masks implementation-looking text in a %s line comment', (_, candidate, line, quote) => {
+    const [checked] = validateSourceEvidence(
+      candidate,
+      buildClassificationSourceContext(candidate, 32000),
+      [{ startLine: line, endLine: line, quote, claim: '注释中的伪实现' }],
+    )
+    expect(checked).toMatchObject({ verified: true, containsImplementation: false })
+  })
+
+  it.each(["100'000", "0xDE'AD"])(
+    'keeps real implementation visible after the C++ numeric literal %s',
+    literal => {
+      const candidate = [
+        `constexpr int limit = ${literal};`,
+        'for (int i=0; i<limit; ++i) values[i] += 1;',
+      ].join('\n')
+      const [checked] = validateSourceEvidence(
+        candidate,
+        buildClassificationSourceContext(candidate, 32000),
+        [
+          {
+            startLine: 2,
+            endLine: 2,
+            quote: 'for (int i=0; i<limit; ++i) values[i] += 1;',
+            claim: '真实循环实现',
+          },
+        ],
+      )
+      expect(checked).toMatchObject({ verified: true, containsImplementation: true })
+    },
+  )
+
+  it("does not treat the opening quote in u8'a' as a numeric separator", () => {
+    const candidate = [
+      "constexpr char marker = u8'a';",
+      'for (int i=0; i<limit; ++i) values[i] += 1;',
+    ].join('\n')
+    const [checked] = validateSourceEvidence(
+      candidate,
+      buildClassificationSourceContext(candidate, 32000),
+      [
+        {
+          startLine: 2,
+          endLine: 2,
+          quote: 'for (int i=0; i<limit; ++i) values[i] += 1;',
+          claim: '真实循环实现',
+        },
+      ],
+    )
+    expect(checked).toMatchObject({ verified: true, containsImplementation: true })
+  })
+
+  it('continues masking implementation-looking text inside a character literal', () => {
+    const candidate = "constexpr int marker = 'for';"
+    const [checked] = validateSourceEvidence(
+      candidate,
+      buildClassificationSourceContext(candidate, 32000),
+      [{ startLine: 1, endLine: 1, quote: 'for', claim: '字符常量中的文字' }],
+    )
+    expect(checked).toMatchObject({ verified: true, containsImplementation: false })
+  })
+
   it('does not classify an auxiliary dependency as multiple independent algorithm goals', () => {
     const value = {
       ...draft(),
