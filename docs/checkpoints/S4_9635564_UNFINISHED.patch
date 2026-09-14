@@ -1,0 +1,173 @@
+diff --git a/src/core/contracts/template-classification-confirmation.ts b/src/core/contracts/template-classification-confirmation.ts
+index 0a4735a..8ad885f 100644
+--- a/src/core/contracts/template-classification-confirmation.ts
++++ b/src/core/contracts/template-classification-confirmation.ts
+@@ -113,6 +113,44 @@ export type TemplateClassificationConfirmation = z.infer<
+   typeof templateClassificationConfirmationSchema
+ >
+ 
++export const templateClassificationConfirmationStateSchema = z
++  .object({
++    confirmation: templateClassificationConfirmationSchema.nullable(),
++    reasons: z.array(z.enum(['source-changed', 'taxonomy-changed', 'path-changed'])).max(3),
++    state: z.enum([
++      'unconfirmed',
++      'confirmed',
++      'released',
++      'stale-source',
++      'stale-taxonomy',
++      'path-changed',
++    ]),
++  })
++  .strict()
++export type TemplateClassificationConfirmationState = z.infer<
++  typeof templateClassificationConfirmationStateSchema
++>
++
++export const templateClassificationConfirmationRequestSchema = z
++  .object({ templateId: z.string().min(1).max(160) })
++  .strict()
++export type TemplateClassificationConfirmationRequest = z.infer<
++  typeof templateClassificationConfirmationRequestSchema
++>
++
++/** Renderer submits only a user choice. Main reconstructs path, source and taxonomy bindings. */
++export const confirmTemplateClassificationRequestSchema = z
++  .object({
++    categoryId: categoryIdSchema,
++    confirmed: z.literal(true),
++    expectedRevision: z.number().int().positive().nullable(),
++    templateId: z.string().min(1).max(160),
++  })
++  .strict()
++export type ConfirmTemplateClassificationRequest = z.infer<
++  typeof confirmTemplateClassificationRequestSchema
++>
++
+ export const confirmTemplateClassificationInputSchema = z
+   .object({
+     categoryId: categoryIdSchema,
+@@ -172,10 +210,9 @@ export type StagingClassificationReviewBinding = z.infer<
+   typeof stagingClassificationReviewBindingSchema
+ >
+ 
+-/** Renderer-facing request. Main resolves the active workspace itself. */
++/** Renderer-facing request. Main resolves and fingerprints every binding itself. */
+ export const confirmStagingClassificationReviewRequestSchema = z
+   .object({
+-    binding: stagingClassificationReviewBindingSchema,
+     confirmed: z.literal(true),
+     expectedReviewRevision: z.number().int().nonnegative(),
+     expectedStagingVersion: z.number().int().nonnegative(),
+diff --git a/src/main/database/migrations.ts b/src/main/database/migrations.ts
+index ff77ed3..9fd1275 100644
+--- a/src/main/database/migrations.ts
++++ b/src/main/database/migrations.ts
+@@ -10,6 +10,7 @@ import performanceIndexingMigration from '../../../drizzle/0006_performance_inde
+ import problemWorkspaceScopeMigration from '../../../drizzle/0007_problem_workspace_scope.sql?raw'
+ import templateMetadataContractCleanupMigration from '../../../drizzle/0008_template_metadata_contract_cleanup.sql?raw'
+ import batchTemplateStagingMigration from '../../../drizzle/0009_batch_template_staging.sql?raw'
++import templateClassificationConfirmationsMigration from '../../../drizzle/0010_template_classification_confirmations.sql?raw'
+ 
+ const migrations = [
+   { id: '0000_initial', sql: initialMigration },
+@@ -22,6 +23,10 @@ const migrations = [
+   { id: '0007_problem_workspace_scope', sql: problemWorkspaceScopeMigration },
+   { id: '0008_template_metadata_contract_cleanup', sql: templateMetadataContractCleanupMigration },
+   { id: '0009_batch_template_staging', sql: batchTemplateStagingMigration },
++  {
++    id: '0010_template_classification_confirmations',
++    sql: templateClassificationConfirmationsMigration,
++  },
+ ] as const
+ 
+ export function runMigrations(client: BetterSqlite3.Database): void {
+diff --git a/src/main/database/schema.ts b/src/main/database/schema.ts
+index 764dc79..267aa23 100644
+--- a/src/main/database/schema.ts
++++ b/src/main/database/schema.ts
+@@ -93,6 +93,14 @@ export const batchTemplateStagingItems = sqliteTable(
+     error: text('error'),
+     fileName: text('file_name').notNull(),
+     ordinal: integer('ordinal').notNull(),
++    reviewClassificationFingerprint: text('review_classification_fingerprint'),
++    reviewDecisionJson: text('review_decision_json'),
++    reviewedAt: text('reviewed_at'),
++    reviewRevision: integer('review_revision').notNull().default(0),
++    reviewSourceHash: text('review_source_hash'),
++    reviewStatus: text('review_status').notNull().default('pending'),
++    reviewTargetFingerprint: text('review_target_fingerprint'),
++    reviewTaxonomyFingerprint: text('review_taxonomy_fingerprint'),
+     sourceEncoding: text('source_encoding').notNull(),
+     sourceHash: text('source_hash').notNull(),
+     sourceId: text('source_id').notNull(),
+@@ -181,6 +189,39 @@ export const templateMetadata = sqliteTable('template_metadata', {
+   updatedAt: text('updated_at').notNull(),
+ })
+ 
++export const templateClassificationConfirmations = sqliteTable(
++  'template_classification_confirmations',
++  {
++    categoryId: text('category_id').notNull(),
++    categoryPathJson: text('category_path_json').notNull(),
++    classificationFingerprint: text('classification_fingerprint').notNull(),
++    confirmedAt: text('confirmed_at').notNull(),
++    confirmedRelativePath: text('confirmed_relative_path').notNull(),
++    decisionSnapshotJson: text('decision_snapshot_json').notNull(),
++    pathSemantics: text('path_semantics').notNull(),
++    revision: integer('revision').notNull().default(1),
++    sourceHash: text('source_hash').notNull(),
++    status: text('status').notNull().default('confirmed'),
++    taxonomyFingerprint: text('taxonomy_fingerprint').notNull(),
++    taxonomyVersion: integer('taxonomy_version').notNull(),
++    templateId: text('template_id')
++      .primaryKey()
++      .references(() => templates.id, { onDelete: 'cascade' }),
++    updatedAt: text('updated_at').notNull(),
++  },
++  table => [
++    index('template_classification_confirmations_status_updated_index').on(
++      table.status,
++      table.updatedAt,
++      table.templateId,
++    ),
++    index('template_classification_confirmations_category_index').on(
++      table.categoryId,
++      table.templateId,
++    ),
++  ],
++)
++
+ export const fileChangePlans = sqliteTable(
+   'file_change_plans',
+   {
+@@ -314,6 +355,7 @@ export const databaseSchema = {
+   problemImages,
+   problems,
+   templateProblemRelations,
++  templateClassificationConfirmations,
+   templates,
+   templateMetadata,
+   workspaces,
+diff --git a/src/main/database/template-classification-confirmation-repository.ts b/src/main/database/template-classification-confirmation-repository.ts
+index 1f7c146..9b51490 100644
+--- a/src/main/database/template-classification-confirmation-repository.ts
++++ b/src/main/database/template-classification-confirmation-repository.ts
+@@ -21,12 +21,16 @@ import {
+ } from '../services/template-classification-fingerprint'
+ 
+ type ConfirmStagingClassificationReviewInput = ConfirmStagingClassificationReviewRequest & {
++  binding: StagingClassificationReviewBinding
+   workspaceId: string
+ }
+ 
+ const confirmStagingClassificationReviewInputSchema =
+   confirmStagingClassificationReviewRequestSchema
+-    .extend({ workspaceId: z.string().uuid() })
++    .extend({
++      binding: stagingClassificationReviewBindingSchema,
++      workspaceId: z.string().uuid(),
++    })
+     .strict()
+ 
+ interface ConfirmationRow {
