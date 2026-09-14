@@ -44,43 +44,98 @@ const confirmation: TemplateClassificationConfirmation = {
 }
 
 describe('template classification confirmation contracts and states', () => {
-  it('rejects arbitrary paths and inconsistent classification snapshots', () => {
-    const input = {
-      categoryId: confirmation.categoryId,
-      categoryPath,
-      confirmed: true,
-      confirmedRelativePath: '../outside.cpp',
-      decisionSnapshot: { ...decisionSnapshot, categoryId: 'graph.mst' },
-      expectedRevision: null,
-      pathSemantics: 'canonical',
-      sourceHash: confirmation.sourceHash,
-      taxonomyFingerprint: confirmation.taxonomyFingerprint,
-      taxonomyVersion: 2,
-      templateId: confirmation.templateId,
-      workspaceId: '40000000-0000-4000-8000-000000000001',
-    }
+  const validConfirmationInput = () => ({
+    categoryId: confirmation.categoryId,
+    categoryPath,
+    confirmed: true as const,
+    confirmedRelativePath: confirmation.confirmedRelativePath,
+    decisionSnapshot,
+    expectedRevision: null,
+    pathSemantics: 'canonical' as const,
+    sourceHash: confirmation.sourceHash,
+    taxonomyFingerprint: confirmation.taxonomyFingerprint,
+    taxonomyVersion: 2,
+    templateId: confirmation.templateId,
+  })
 
-    expect(confirmTemplateClassificationInputSchema.safeParse(input).success).toBe(false)
+  it.each(['../outside.cpp', 'C:outside.cpp', 'C:folder/item.cpp'])(
+    'rejects unsafe relative path %s',
+    confirmedRelativePath => {
+      expect(
+        confirmTemplateClassificationInputSchema.safeParse({
+          ...validConfirmationInput(),
+          confirmedRelativePath,
+        }).success,
+      ).toBe(false)
+    },
+  )
+
+  it('rejects a classification snapshot that does not match the selected category', () => {
+    expect(
+      confirmTemplateClassificationInputSchema.safeParse({
+        ...validConfirmationInput(),
+        decisionSnapshot: { ...decisionSnapshot, categoryId: 'graph.mst' },
+      }).success,
+    ).toBe(false)
+  })
+
+  it('rejects extra workspace authority on a template confirmation', () => {
+    expect(
+      confirmTemplateClassificationInputSchema.safeParse({
+        ...validConfirmationInput(),
+        workspaceId: '40000000-0000-4000-8000-000000000001',
+      }).success,
+    ).toBe(false)
+  })
+
+  it('requires an explicit confirmation literal', () => {
+    expect(
+      confirmTemplateClassificationInputSchema.safeParse({
+        ...validConfirmationInput(),
+        confirmed: false,
+      }).success,
+    ).toBe(false)
+  })
+
+  it('accepts a canonical in-workspace path shape', () => {
+    expect(
+      confirmTemplateClassificationInputSchema.safeParse(validConfirmationInput()).success,
+    ).toBe(true)
   })
 
   it('does not let the Renderer select a workspace for staging review', () => {
+    const request = {
+      binding: {
+        classificationFingerprint: hash('a'),
+        decisionSnapshot,
+        sourceHash: hash('b'),
+        targetFingerprint: hash('c'),
+        taxonomyFingerprint: hash('d'),
+      },
+      confirmed: true,
+      expectedReviewRevision: 0,
+      expectedStagingVersion: 0,
+      sourceId: '40000000-0000-4000-8000-000000000001',
+      stagingId: '40000000-0000-4000-8000-000000000002',
+    }
+    expect(confirmStagingClassificationReviewRequestSchema.safeParse(request).success).toBe(true)
     expect(
       confirmStagingClassificationReviewRequestSchema.safeParse({
-        binding: {
-          classificationFingerprint: hash('a'),
-          decisionSnapshot,
-          sourceHash: hash('b'),
-          targetFingerprint: hash('c'),
-          taxonomyFingerprint: hash('d'),
-        },
-        confirmed: true,
-        expectedReviewRevision: 0,
-        expectedStagingVersion: 0,
-        sourceId: '40000000-0000-4000-8000-000000000001',
-        stagingId: '40000000-0000-4000-8000-000000000002',
+        ...request,
         workspaceId: '40000000-0000-4000-8000-000000000003',
       }).success,
     ).toBe(false)
+  })
+
+  it('rejects a category path mismatch independently of other fields', () => {
+    const input = {
+      ...validConfirmationInput(),
+      decisionSnapshot: {
+        ...decisionSnapshot,
+        categoryPath: ['图论', '生成树', '最小生成树'],
+      },
+    }
+    expect(confirmTemplateClassificationInputSchema.safeParse(input).success).toBe(false)
   })
 
   it('derives stale states without mutating the stored confirmation', () => {

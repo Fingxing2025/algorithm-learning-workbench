@@ -9,7 +9,7 @@ const relativePathSchema = z
   .min(1)
   .max(4096)
   .refine(value => !value.startsWith('/') && !value.includes('\\'), '必须使用受控相对路径。')
-  .refine(value => !/^[A-Za-z]:\//u.test(value), '必须使用受控相对路径。')
+  .refine(value => !/^[A-Za-z]:/u.test(value), '必须使用受控相对路径。')
   .refine(
     value => !value.split('/').some(part => !part || part === '.' || part === '..'),
     '相对路径无效。',
