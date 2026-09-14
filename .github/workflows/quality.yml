@@ -3,7 +3,11 @@ name: quality
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, codex/template-organization-next]
+
+concurrency:
+  group: quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
