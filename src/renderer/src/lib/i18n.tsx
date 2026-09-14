@@ -5,6 +5,60 @@ export type AppLocale = 'en' | 'zh-CN'
 const LOCALE_STORAGE_KEY = 'ui:locale'
 
 const english: Record<string, string> = {
+  '暂存状态已变化，请重新加载批次。': 'The staging state changed. Reload the batch.',
+  '暂存审查回滚未完成，请保留暂存目录并停止修改。':
+    'Staging review rollback did not finish. Preserve the staging directory and stop editing.',
+
+  暂存中: 'Staging',
+  '暂存失败，可重试': 'Staging failed; retry available',
+  '暂存就绪，待确认': 'Staging ready for confirmation',
+  正在应用暂存: 'Applying staged import',
+  暂存已应用: 'Staged import applied',
+  暂存已放弃: 'Staged import discarded',
+  '已暂存（分类待确认）': 'Staged (classification awaiting confirmation)',
+
+  '另一个暂存应用或恢复正在进行。': 'Another staged import or recovery is in progress.',
+  '请先在备份与恢复中完成暂存导入恢复。':
+    'Finish the interrupted import in Backup and Restore first.',
+  '备份期间文件或元数据已变化，未应用暂存批次。':
+    'Files or metadata changed during backup. The staged import was not applied.',
+  '应用期间元数据已变化，未提交暂存批次。':
+    'Metadata changed during publishing. The staged import was not committed.',
+
+  '无法检查暂存恢复记录，请保留工作区并重新打开。':
+    'Unable to inspect import recovery records. Preserve the workspace and reopen it.',
+  暂存导入中断恢复: 'Interrupted staged import recovery',
+  '应用尚未提交。恢复将退回原模板树，保留暂存结果以便再次确认。':
+    'The import was not committed. Recovery restores the original templates and keeps staged results for review.',
+  '应用已经提交。恢复将核验已应用文件并完成收尾，原模板备份继续保留。':
+    'The import was committed. Recovery verifies the published files and finishes cleanup while preserving the original backup.',
+  我已了解恢复动作并确认继续: 'I understand the recovery action and confirm',
+  '恢复失败，请保留现场并重试。': 'Recovery failed. Preserve the files and retry.',
+  确认恢复暂存导入: 'Confirm staged import recovery',
+  'AI 未返回可执行修改；请查看上方本地审计结果。若仍有不合理分类，请先修改暂存目标路径后再生成计划。':
+    'AI returned no executable changes. Review the audit above and adjust staged paths before generating another plan if necessary.',
+  '请求 ID 已被另一个暂存任务使用。': 'This request ID is already used by another staged import.',
+  '批量处理已取消。': 'Batch processing was cancelled.',
+  '工作区已切换，已丢弃迟到响应。': 'The workspace changed. The late response was discarded.',
+  '应用后未找到暂存模板。': 'The imported template was not found after publishing.',
+  '暂存恢复记录不是普通目录，请保留现场。':
+    'The import recovery record is not a regular directory. Preserve the files.',
+  '暂存恢复记录过大。': 'The import recovery record is too large.',
+  '暂存恢复记录不完整，请保留现场。':
+    'The import recovery record is incomplete. Preserve the files.',
+  '暂存恢复记录不属于当前工作区。': 'The import recovery record does not belong to this workspace.',
+  '该暂存恢复记录已变化，请重新检查。': 'The import recovery record changed. Inspect it again.',
+  '恢复备份已变化，未修改当前文件，请保留现场。':
+    'The recovery backup changed. Current files were left untouched. Preserve the files.',
+  '已应用文件已变化，未清理恢复证据。': 'Published files changed. Recovery evidence was preserved.',
+  '恢复文件布局已变化，未覆盖任何文件，请保留现场。':
+    'The recovery file layout changed. No files were overwritten. Preserve the files.',
+  '原模板目录缺失，请保留恢复备份。':
+    'The original template directory is missing. Preserve the recovery backup.',
+  '恢复文件校验失败，请保留现场。': 'Recovery file validation failed. Preserve the files.',
+  '当前工作区有未完成的暂存导入，请先恢复、应用或明确放弃该批次，再导出或恢复备份。':
+    'This workspace has an unfinished staged import. Recover, apply, or explicitly discard it before exporting or restoring a backup.',
+
   'AI 文件管理必须先预览': 'AI file management always starts with a preview',
   'AI 设置是可选项': 'AI setup is optional',
   '不配置 Provider 也能浏览模板、管理题目和手动关联。需要 AI 时，再到 AI 设置中添加 Provider、模型和任务路由。':
@@ -679,6 +733,118 @@ Object.assign(english, {
     'Batch AI metadata completion did not finish. No files were written to the workspace.',
   '批量导入未完成，请检查目标路径。': 'Batch import did not finish. Check the target paths.',
   '批量导入 C++ 模板': 'Batch import C++ templates',
+  已应用暂存批量导入: 'Staged batch import applied',
+  '正在读取可恢复的暂存批次…': 'Loading resumable staging batches...',
+  '无法读取可恢复的暂存批次。': 'Unable to load resumable staging batches.',
+  可恢复的暂存批次: 'Resumable staging batches',
+  发现可恢复的暂存批次: 'Resumable staging batches found',
+  '这些批次尚未写入当前工作区；恢复后可继续处理、修改路径或放弃。':
+    'These batches have not changed the current workspace. Resume to continue, edit paths, or discard them.',
+  暂存批次状态: 'Staging batch status',
+  暂存批次: 'Staging batch',
+  恢复批次: 'Resume batch',
+  放弃批次: 'Discard batch',
+  放弃暂存: 'Discard staging',
+  '暂存状态：processing': 'Processing',
+  '暂存状态：failed': 'Failed',
+  '暂存状态：ready': 'Ready to apply',
+  '暂存状态：applying': 'Applying',
+  '暂存状态：applied': 'Applied',
+  '暂存状态：discarded': 'Discarded',
+  等待处理: 'Pending',
+  正在处理: 'Processing',
+  处理失败: 'Failed',
+  已跳过: 'Skipped',
+  '暂存项：pending': 'Pending',
+  '暂存项：processing': 'Processing',
+  '暂存项：completed': 'Completed',
+  '暂存项：已准备（未分类）': 'Prepared (not classified)',
+  '暂存项：failed': 'Failed',
+  '暂存项：skipped': 'Skipped',
+  '暂存批次未能放弃，当前工作区未改变。':
+    'The staging batch could not be discarded. The current workspace was not changed.',
+  '暂存批次创建失败，尚未写入当前工作区。':
+    'The staging batch could not be created. The current workspace was not changed.',
+  '暂存批次已不存在，请重新选择源码。':
+    'The staging batch no longer exists. Select the sources again.',
+  '无法恢复暂存批次，当前工作区未改变。':
+    'The staging batch could not be resumed. The current workspace was not changed.',
+  '工作区保存路径不能为空。': 'A workspace target path is required.',
+  '暂存项更新失败，当前工作区未改变。':
+    'The staging item could not be updated. The current workspace was not changed.',
+  '恢复的暂存批次没有可供页面预览的源码；可直接继续处理。':
+    'A resumed staging batch has no source text available for a page preview. Continue processing directly.',
+  '批量 AI 补全已停止；暂存批次仍可继续。':
+    'Batch AI completion stopped. The staging batch can still be resumed.',
+  '暂存批次处理已停止；仍可继续。': 'Staging batch processing stopped. You can continue it later.',
+  '暂存批次处理失败，暂未写入当前工作区。':
+    'The staging batch failed. The current workspace was not changed.',
+  '暂存批次状态已变化，请重新检查后再应用。':
+    'The staging batch state changed. Check it again before applying.',
+  '暂存批次应用失败，当前工作区已保持不变。':
+    'The staging batch could not be applied. The current workspace was left unchanged.',
+  '暂存分支不可用，请重新创建批量导入。':
+    'The staging branch is unavailable. Create the batch import again.',
+  '暂存目录与审查候选超过单批安全输入预算，请缩小本批次后重试。':
+    'The staging catalog and review candidates exceed the per-batch input safety budget. Reduce this batch and retry.',
+  '暂存审查批次数超过安全上限。': 'The number of staging review batches exceeds the safety limit.',
+  '暂存审查必须明确指定 staging 目标和 stagingId。':
+    'A staging review must explicitly specify the staging target and staging ID.',
+  '暂存会话不存在、已结束或不属于当前工作区。':
+    'The staging session does not exist, has ended, or does not belong to the current workspace.',
+  '暂存目录超过完整目录上下文预算，请缩小暂存批次。':
+    'The staging catalog exceeds the complete catalog context budget. Reduce the staging batch.',
+  '暂存审查预览已过期，请重新预览。': 'The staging review preview expired. Create a new preview.',
+  '暂存审查不属于当前工作区，请重新预览。':
+    'The staging review does not belong to the current workspace. Create a new preview.',
+  '暂存目录或 Provider 配置已变化，请重新生成审查预览。':
+    'The staging catalog or provider configuration changed. Generate the review preview again.',
+  '暂存审查预览不存在、已过期或已消费。':
+    'The staging review preview does not exist, expired, or was already consumed.',
+  '暂存审查请求与预览不匹配。': 'The staging review request does not match its preview.',
+  '该暂存会话已有审查正在生成。': 'A review is already being generated for this staging session.',
+  '暂存审查返回了当前批次之外的模板操作。':
+    'The staging review returned a template operation outside the current batch.',
+  '暂存审查操作超过单次安全上限。':
+    'The staging review operation count exceeds the per-run safety limit.',
+  '暂存 AI 计划仅支持只读审查；请在批量导入确认流程中应用 staging。':
+    'Staging AI plans support read-only review only. Apply staging in the batch-import confirmation flow.',
+  '无法准备暂存区 AI 整理预览。': 'Unable to prepare the staging AI organization preview.',
+  '暂存区 AI 计划生成失败，暂存内容未改变。':
+    'The staging AI plan could not be generated. Staging content was not changed.',
+  '暂存区 AI 整理应用失败，当前工作区未改变。':
+    'The staging AI organization plan could not be applied. The current workspace was not changed.',
+  'AI 整理暂存目录': 'Organize staging with AI',
+  '只修改暂存分支，确认后才会进入当前工作区':
+    'Only the staging branch is changed; it enters the workspace after confirmation.',
+  '暂存区 AI 整理计划': 'Staging AI organization plan',
+  仅对勾选的移动或删除操作生效: 'Only selected move or delete operations will be applied.',
+  '请检查每项路径变化后再应用。': 'Review every path change before applying.',
+  移动: 'Move',
+  删除重复项: 'Delete duplicate',
+  '更新元数据（进入工作区后处理）': 'Update metadata (after entering workspace)',
+  暂不应用: 'Do not apply yet',
+  应用所选整理: 'Apply selected organization',
+  '暂存 AI 计划不存在或已过期，请重新生成。':
+    'The staging AI plan does not exist or has expired. Generate it again.',
+  '该 AI 计划不是暂存区计划。': 'This AI plan is not a staging plan.',
+  '暂存批次尚未准备完成，不能应用整理计划。':
+    'The staging batch is not ready. The organization plan cannot be applied.',
+  '暂存目录已变化，请重新生成 AI 计划。':
+    'The staging directory changed. Generate the AI plan again.',
+  'AI 计划操作不能重复选择。': 'AI plan operations cannot be selected more than once.',
+  'AI 计划包含未知操作，请重新生成。':
+    'The AI plan contains an unknown operation. Generate it again.',
+  '暂存区目前只能应用移动和删除操作；元数据建议请在进入工作区后再确认。':
+    'Staging currently supports only move and delete operations. Confirm metadata suggestions after entering the workspace.',
+  'AI 计划引用的暂存项已不存在。': 'The staging item referenced by the AI plan no longer exists.',
+  'AI 移动操作缺少目标路径。': 'The AI move operation has no target path.',
+  停止处理并保留暂存: 'Stop and keep staging',
+  '重试 AI 处理': 'Retry AI processing',
+  继续手动准备: 'Continue manual preparation',
+  重试并准备暂存: 'Retry and prepare staging',
+  '准备暂存 {count} 份': 'Prepare {count} files in staging',
+  '确认应用 {count} 份': 'Apply {count} staged files',
   '默认全选，可直接导入或按需生成 AI 元数据；确认前不会写入当前工作区。':
     'All sources are selected by default. Import directly or generate AI metadata as needed; nothing is written before confirmation.',
   '读取外部副本，逐份生成 AI 元数据；确认前不会写入当前工作区。':
@@ -720,6 +886,9 @@ Object.assign(english, {
     '{count} path conflicts found. Choose how to handle each item.',
   批量补全语言: 'Batch completion language',
   '正在补全 {completed}/{total}': 'Completing {completed}/{total}',
+  '处理中 {current}/{total}': 'Processing {current}/{total}',
+  '已处理 {current}/{total}': 'Processed {current}/{total}',
+  '等待处理 {current}/{total}': 'Waiting {current}/{total}',
   停止后续补全: 'Stop remaining completion',
   重新生成全部元数据: 'Regenerate all metadata',
   重新生成所选元数据: 'Regenerate selected metadata',
@@ -1350,6 +1519,173 @@ Object.assign(english, {
   '请求参数无效，请重试。': 'The request parameters are invalid. Try again.',
   'AI 服务拒绝了请求（HTTP 400）。请检查模型是否支持当前协议和请求参数。':
     'The AI service rejected the request (HTTP 400). Check whether the model supports the selected protocol and parameters.',
+})
+
+// Main-side staging errors are kept in the same translation registry so a
+// rejected or resumable batch remains actionable when the user switches to
+// English.  Keep these exact source strings: the completeness test also
+// protects errors returned through the validated IPC boundary.
+Object.assign(english, {
+  '授权根目录不能是符号链接。': 'The authorized root directory cannot be a symbolic link.',
+  '工作区根目录不能是符号链接。': 'The workspace root directory cannot be a symbolic link.',
+  '暂存目录不在受控工作区数据目录内。':
+    'The staging directory is outside the controlled workspace data directory.',
+  '暂存目录不是受控的普通文件夹。': 'The staging directory is not a controlled regular folder.',
+  '暂存批次已应用，但收尾日志未完成，请在数据管理中保留恢复证据。':
+    'The staging batch was applied, but finalization logging did not finish. Preserve the recovery evidence in Data Management.',
+  '模板目录包含符号链接，无法创建安全暂存副本。':
+    'The template directory contains a symbolic link; a safe staging copy cannot be created.',
+  '模板目录包含非普通文件，无法创建安全暂存副本。':
+    'The template directory contains a non-regular file; a safe staging copy cannot be created.',
+  '模板目录包含符号链接，未复制该目录。':
+    'The template directory contains a symbolic link; that directory was not copied.',
+  '模板目录包含非普通文件，未复制该目录。':
+    'The template directory contains a non-regular file; that directory was not copied.',
+  '暂存状态记录无效，请检查工作区数据。':
+    'The staging status record is invalid. Check the workspace data.',
+  '暂存项状态记录无效，请检查工作区数据。':
+    'The staging item status record is invalid. Check the workspace data.',
+  '暂存目录不在当前工作区数据目录内。':
+    'The staging directory is outside the current workspace data directory.',
+  '暂存批次不存在或不属于当前工作区。':
+    'The staging batch does not exist or does not belong to the current workspace.',
+  '暂存批次已结束，无法继续分类。':
+    'The staging batch has ended and cannot continue classification.',
+  '当前工作区在暂存期间发生变化，请重新扫描后创建批次。':
+    'The current workspace changed while staging. Rescan it and create the batch again.',
+  '暂存模板路径不是受控的普通文件。': 'The staged template path is not a controlled regular file.',
+  '暂存源码超过安全大小限制。': 'The staged source exceeds the safe size limit.',
+  '暂存源码副本已变化，请重新创建批次。': 'The staged source copy changed. Create the batch again.',
+  '暂存源码副本不可用，请重新创建批次。':
+    'The staged source copy is unavailable. Create the batch again.',
+  '暂存分支与完整工作区目录超过安全输入预算，请拆分批量导入后重试。':
+    'The staging branch and complete workspace catalog exceed the safe input budget. Split the batch and retry.',
+  '暂存或工作区在分类上下文构建期间发生变化，请重试。':
+    'The staging branch or workspace changed while building classification context. Retry.',
+  '暂存批次已结束，无法准备 AI 预览。':
+    'The staging batch has ended, so an AI preview cannot be prepared.',
+  '批量预览中不能重复使用源文件 ID。': 'A source file ID cannot be used twice in a batch preview.',
+  '批量预览包含不属于当前暂存批次的源码。':
+    'The batch preview contains source code outside the current staging batch.',
+  '批量预览不接受空源码。': 'A batch preview cannot contain empty source code.',
+  '批量预览源码与暂存副本不一致，请重新选择源码或恢复批次。':
+    'The preview source differs from the staged copy. Select the source again or resume the batch.',
+  '暂存清单缺失或已损坏，请重新选择源码。':
+    'The staging manifest is missing or damaged. Select the source files again.',
+  '当前工作区模板目录已变化，请重新打开工作区。':
+    'The current workspace template directory changed. Reopen the workspace.',
+  '一次暂存最多包含 100 份源码。': 'A staging batch can contain at most 100 source files.',
+  '当前工作区索引尚未准备好，请先重新扫描。':
+    'The current workspace index is not ready. Rescan it first.',
+  '暂存中不能重复使用源文件 ID。': 'A source file ID cannot be reused in staging.',
+  '批量暂存只接受 .cpp 文件。': 'Batch staging accepts only .cpp files.',
+  '暂存文件名必须是 .cpp 文件名。': 'The staged file name must be a .cpp file name.',
+  '模板源码必须在 2 MiB 以内。': 'Template source must be no larger than 2 MiB.',
+  '无法创建批量暂存副本，当前工作区未改变。':
+    'The batch staging copy could not be created. The current workspace was not changed.',
+  '暂存源码路径无效。': 'The staged source path is invalid.',
+  '暂存目标必须是 .cpp 文件。': 'The staging target must be a .cpp file.',
+  '暂存目标路径无效。': 'The staging target path is invalid.',
+  '暂存清单身份不匹配。': 'The staging manifest identity does not match.',
+  '暂存模板写入校验失败。': 'Staged template write verification failed.',
+  '暂存目标写入失败且恢复未完成，请保留暂存目录后重试。':
+    'The staged target write failed and recovery did not finish. Preserve the staging directory and retry.',
+  '暂存批次进度保存失败，可继续。':
+    'The staging batch progress could not be saved. You can continue it later.',
+  '暂存项更新后无法读取。': 'The staging item could not be read after the update.',
+  '暂存目标路径不是受控的普通文件。': 'The staging target path is not a controlled regular file.',
+  '暂存状态已被其他操作更新，请重新加载批次。':
+    'The staging state was updated by another operation. Reload the batch.',
+  '该暂存批次已结束或正在应用。': 'This staging batch has ended or is being applied.',
+  '该暂存批次已有任务正在运行。': 'A task is already running for this staging batch.',
+  '批量处理已取消，暂存批次仍可继续。':
+    'Batch processing was cancelled. The staging batch can still be resumed.',
+  '批次正在处理，请稍后再修改。': 'The batch is being processed. Edit it later.',
+  '暂存项不存在。': 'The staging item does not exist.',
+  '该暂存项正在处理。': 'This staging item is being processed.',
+  '暂存目标路径不能为空。': 'The staging target path cannot be empty.',
+  '暂存清单基线已变化，请重新创建批次。':
+    'The staging manifest baseline changed. Create the batch again.',
+  '暂存清单与数据库状态不一致，请重新创建批次。':
+    'The staging manifest does not match the database state. Create the batch again.',
+  '暂存清单或源码副本已变化，请重新创建批次。':
+    'The staging manifest or source copy changed. Create the batch again.',
+  '工作区基线清单已变化，请重新创建批次。':
+    'The workspace baseline manifest changed. Create the batch again.',
+  '暂存中的原有模板已变化，请重新创建批次。':
+    'An existing template in staging changed. Create the batch again.',
+  '暂存目标源码已变化，请重新处理该条目。':
+    'The staged target source changed. Process this item again.',
+  '暂存目录包含未登记文件，请重新创建批次。':
+    'The staging directory contains an unregistered file. Create the batch again.',
+  '模板目录包含大小写或 Unicode 等价的重复路径。':
+    'The template directory contains duplicate paths that differ only by case or Unicode normalization.',
+  '模板目录包含文件与目录路径冲突。':
+    'The template directory contains a file-versus-directory path conflict.',
+  '模板目录包含跨平台歧义的文件名。':
+    'The template directory contains a filename that is ambiguous across platforms.',
+  '该暂存批次正在处理。': 'This staging batch is being processed.',
+  '暂存批次正在应用，恢复完成前不能放弃。':
+    'The staging batch is being applied and cannot be discarded until recovery completes.',
+  '暂存批次尚未全部准备完成。': 'The staging batch is not fully prepared yet.',
+  '请先完成所有暂存项并确认目标路径。':
+    'Complete all staging items and confirm their target paths first.',
+  '当前工作区在暂存期间发生变化，未应用暂存批次；请重新预览或创建批次。':
+    'The current workspace changed while staging. The batch was not applied; preview or create it again.',
+  '暂存状态已变化，请重新加载后再应用。': 'The staging state changed. Reload it before applying.',
+  '暂存状态在应用期间丢失。': 'The staging state was lost during application.',
+  '无法提交暂存应用状态。': 'The staging application state could not be committed.',
+  '暂存批次应用失败且自动恢复未完成，请在数据管理中保留恢复证据。':
+    'Applying the staging batch failed and automatic recovery did not finish. Preserve the recovery evidence in Data Management.',
+  '恢复暂存目标已被占用。': 'The recovery target for the staged tree is already occupied.',
+  '已发布的暂存树当前不可用。': 'The published staging tree is currently unavailable.',
+  '暂存批次应用失败，当前工作区已恢复。':
+    'Applying the staging batch failed. The current workspace was restored.',
+  '该暂存批次正在处理，暂时不能放弃。':
+    'This staging batch is being processed and cannot be discarded yet.',
+  '已应用的暂存批次不能再次放弃。': 'An applied staging batch cannot be discarded again.',
+  '暂存状态已变化，未能完成放弃操作。':
+    'The staging state changed, so discard could not be completed.',
+  '暂存批次未能安全放弃，当前工作区未改变。':
+    'The staging batch could not be safely discarded. The current workspace was not changed.',
+  '暂存项状态保存失败，请保留暂存目录并修复权限后重试。':
+    'The staging item state could not be saved. Preserve the staging directory, fix permissions, and retry.',
+  '批量暂存服务尚未初始化，请重新启动应用。':
+    'The batch staging service is not initialized. Restart the application.',
+  '暂存目标路径当前不可用。': 'The staging target path is currently unavailable.',
+  '暂存目标路径不能是符号链接。': 'The staging target path cannot be a symbolic link.',
+  '暂存目标路径不在授权目录内。': 'The staging target path is outside the authorized directory.',
+  '暂存路径不在当前工作区数据目录内。':
+    'The staging path is outside the current workspace data directory.',
+  '暂存路径当前不可用。': 'The staging path is currently unavailable.',
+  '暂存目录当前不可用。': 'The staging directory is currently unavailable.',
+  '恢复目录不在当前工作区数据目录内。':
+    'The recovery directory is outside the current workspace data directory.',
+  '暂存清单基线目录已变化，请重新创建批次。':
+    'The staging manifest baseline directory changed. Create the batch again.',
+  '暂存路径包含符号链接。': 'The staging path contains a symbolic link.',
+  '暂存模板目录不在受控暂存分支内。':
+    'The staging template directory is outside the controlled staging branch.',
+  '该暂存项正在处理，请稍后再预览。': 'This staging item is being processed. Preview it later.',
+  '暂存批次没有待处理的源码。': 'The staging batch has no source files waiting for processing.',
+  '暂存目录结构已变化，请重新创建批次。':
+    'The staging directory structure changed. Create the batch again.',
+  '暂存审查最多支持 100 个暂存项。': 'A staging review supports at most 100 items.',
+  '暂存清单包含无效条目状态。': 'The staging manifest contains an invalid item status.',
+  '暂存清单包含重复顺序。': 'The staging manifest contains a duplicate ordinal.',
+  '暂存清单包含不属于当前会话的条目。':
+    'The staging manifest contains an item from another session.',
+  '暂存清单包含无效源码指纹，请重新创建批量导入。':
+    'The staging manifest contains an invalid source fingerprint. Create the batch import again.',
+  '暂存源码当前不是受控的普通文件。':
+    'The staged source is not currently a controlled regular file.',
+  '暂存会话状态无效，请重新创建批量导入。':
+    'The staging session status is invalid. Create the batch import again.',
+  '暂存会话在预览过程中发生变化，请重新预览。':
+    'The staging session changed during preview. Preview it again.',
+  '暂存审查为同一模板返回了重复操作。':
+    'The staging review returned duplicate operations for the same template.',
+  '暂存审查返回了冲突的目标路径。': 'The staging review returned conflicting target paths.',
 })
 
 Object.assign(english, {

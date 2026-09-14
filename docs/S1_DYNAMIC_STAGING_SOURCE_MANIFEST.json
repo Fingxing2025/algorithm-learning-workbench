@@ -1,0 +1,138 @@
+[
+  {
+    "path": "src/core/contracts/desktop-api.ts",
+    "sha256": "c2be0a16abcdb845e31950ffa051161845a9bd975c9673b642550bef7da5762d"
+  },
+  {
+    "path": "src/core/contracts/template-management.test.ts",
+    "sha256": "ad9a207bbbf122fed3a6d215fa4d372b373553068ced1f3d1708fba152f6da9c"
+  },
+  {
+    "path": "src/core/contracts/template-management.ts",
+    "sha256": "f335e320fecd8e9bd8b5869191ebdae6e9130674d5760f59dd39f6193b07ce75"
+  },
+  {
+    "path": "src/core/ipc/channels.ts",
+    "sha256": "1c445385a14fc1ff943f86f836bcbf8573f263dd25450fcda10de2fddad8058f"
+  },
+  {
+    "path": "src/main/database/migrations.ts",
+    "sha256": "a90cd51c3a689cb01765fa0ebdaa0cc7e49cadd0b987f30be6a9f6ac41f609c6"
+  },
+  {
+    "path": "src/main/database/schema.ts",
+    "sha256": "d38b4f979c102d87cfb6dd2106c0cb8b436aacae090414dfd994363db3bdc936"
+  },
+  {
+    "path": "src/main/database/template-management-repository.ts",
+    "sha256": "8f370bd12803e97d12c2d4e2d62365e5478d382f3095fc7e7674c2f0300dba48"
+  },
+  {
+    "path": "src/main/index.ts",
+    "sha256": "a43da7c987785c331f141f887f15572e423bb934c730ae23e62869c752fafca0"
+  },
+  {
+    "path": "src/main/ipc/register-template-management-ipc.ts",
+    "sha256": "38acf6fe20cef6a7d30ac70e7d266442dff6517a5d093bfb9113467cec7ff332"
+  },
+  {
+    "path": "src/main/security/path-guard.test.ts",
+    "sha256": "b325ee445be55da41f683a5eab345b965c0801b4b4c463d519fb2c155408145f"
+  },
+  {
+    "path": "src/main/security/path-guard.ts",
+    "sha256": "a29ee8715673279fce2e6629a604d4d1364b6597949446bd2231ecc3770c42a3"
+  },
+  {
+    "path": "src/main/security/template-path.test.ts",
+    "sha256": "c52cb00c150fbb1594b62243a4c0a411551e22e62b4af4d2989790b6f0321802"
+  },
+  {
+    "path": "src/main/security/template-path.ts",
+    "sha256": "b90ba085033d11cb611eec6337f53a088958bd1d3d80c1ac83e38fd37f4cc004"
+  },
+  {
+    "path": "src/main/services/data-management-service.ts",
+    "sha256": "612aa758a10836777e27d388239369a35760a88d9fb93925f3173f8377df5f9a"
+  },
+  {
+    "path": "src/main/services/template-file-plan-generation-service.test.ts",
+    "sha256": "8485f27bdf8735d5ef934ddd20694e49041c48b618af485aa055c733e5e48b2f"
+  },
+  {
+    "path": "src/main/services/template-file-plan-generation-service.ts",
+    "sha256": "f0fdc7a014a6dfeb375db29c88472ea4bb3ecc695fd42ff3d86dcb1d7af160f8"
+  },
+  {
+    "path": "src/main/services/template-management-service.test.ts",
+    "sha256": "ec31558c837c7070e4e825836015df035c29e47ac9ca37050198ce758d3086a2"
+  },
+  {
+    "path": "src/main/services/template-management-service.ts",
+    "sha256": "5cb9082c6f2c86fba6c349b90ef30759ff9a08515e3cce61d0a8b8009c711b8c"
+  },
+  {
+    "path": "src/main/services/template-workspace-audit-service.ts",
+    "sha256": "b6c688ef74d09425d144da0c050df3c3837735c6be99763dddf28d467fff60db"
+  },
+  {
+    "path": "src/main/services/workspace-storage.ts",
+    "sha256": "4c47110d4809b631cc7f0309d91b81541bade338e4311308acd35236b45520b5"
+  },
+  {
+    "path": "src/preload/index.ts",
+    "sha256": "222e2c2abd038ff65b160f64cfeee73166679a5b19469b178e4ae2c1b40317cd"
+  },
+  {
+    "path": "src/renderer/src/App.tsx",
+    "sha256": "0ae39e4c49b83af4f2b4fd36b769a6371b33607fe7f5e111efb39f9d5e0773a9"
+  },
+  {
+    "path": "src/renderer/src/features/templates/batch-template-import-dialog.tsx",
+    "sha256": "3c0c4728124f19034aa9bce40fc927bfeb6ab034fcfdac8635a94fd2d1b9e585"
+  },
+  {
+    "path": "src/renderer/src/features/templates/create-template-dialog.tsx",
+    "sha256": "590c2342754b465f77f8996a3c4ca95560fa43a44593e13488152981cc454dd0"
+  },
+  {
+    "path": "src/renderer/src/lib/i18n.tsx",
+    "sha256": "56179195360f83984fdf007face331a4d8c813105209395dc37ffd4b21043390"
+  },
+  {
+    "path": "drizzle/0009_batch_template_staging.sql",
+    "sha256": "023ca5524609647750127eeaf708631daae32ea85e8c1c8a70b16def68c390f0"
+  },
+  {
+    "path": "src/main/database/batch-template-staging-repository.test.ts",
+    "sha256": "06c45a02ecd18541cbc5e7d80111033b3e8e614ba46a95a0dad3055d7241c10e"
+  },
+  {
+    "path": "src/main/database/batch-template-staging-repository.ts",
+    "sha256": "5077c856d874f357a8c128883ecf30188a02368a905c37e3a0c172cbd9d0b13f"
+  },
+  {
+    "path": "src/main/services/batch-template-staging-boundary.test.ts",
+    "sha256": "bd437efb5ff8b672cc5c9cc30b8dd531eeb607e83988a82cb54f755f16744dbd"
+  },
+  {
+    "path": "src/main/services/batch-template-staging-service.test.ts",
+    "sha256": "4e65988aefab572e5a997e15e5e051988ec4218709a4dad5077b7956c7d90155"
+  },
+  {
+    "path": "src/main/services/batch-template-staging-service.ts",
+    "sha256": "c9ec1d21871e76f27a09a35a8e09c3521904ebaf5ef2985e3ca1febfc2bfddaa"
+  },
+  {
+    "path": "src/main/services/template-staging-audit-service.test.ts",
+    "sha256": "c6b58fc17f2bccf1b16fe13ffd19b91602a3e3a141ba511b34ee6a29ba2967f9"
+  },
+  {
+    "path": "src/main/services/template-staging-audit-service.ts",
+    "sha256": "fcf991ff3fd7aa666c680ce167c3eecdebee2ace62522f650c5166265e868879"
+  },
+  {
+    "path": "src/renderer/src/features/templates/batch-template-import-dialog.test.tsx",
+    "sha256": "a3f5ba3d4d2c0428f346ddfb4ed51855f61bd94d7b4478605dbfe9963625827e"
+  }
+]

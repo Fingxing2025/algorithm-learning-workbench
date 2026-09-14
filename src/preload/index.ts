@@ -94,6 +94,14 @@ const desktopApi: DesktopApi = {
     },
   },
   templateManagement: {
+    inspectBatchStagingRecoveries: () =>
+      invokeResult(IPC_CHANNELS.templateManagement.inspectBatchStagingRecoveries),
+    recoverBatchStaging: request =>
+      invokeResult(IPC_CHANNELS.templateManagement.recoverBatchStaging, request),
+    applyBatchStaging: request =>
+      invokeResult(IPC_CHANNELS.templateManagement.applyBatchStaging, request),
+    applyBatchStagingAiPlan: request =>
+      invokeResult(IPC_CHANNELS.templateManagement.applyBatchStagingAiPlan, request),
     applyExistingMetadataCompletion: request =>
       invokeResult(IPC_CHANNELS.templateManagement.applyExistingMetadataCompletion, request),
     applyTemplateRelocation: request =>
@@ -117,6 +125,36 @@ const desktopApi: DesktopApi = {
       invokeResult(IPC_CHANNELS.templateManagement.chooseBatchImportDirectory),
     chooseBatchImportFiles: () =>
       invokeResult(IPC_CHANNELS.templateManagement.chooseBatchImportFiles),
+    createBatchStaging: request =>
+      invokeResult(IPC_CHANNELS.templateManagement.createBatchStaging, request),
+    getBatchStaging: request =>
+      invokeResult(IPC_CHANNELS.templateManagement.getBatchStaging, request),
+    listBatchStagings: () => invokeResult(IPC_CHANNELS.templateManagement.listBatchStagings),
+    continueBatchStaging: request =>
+      invokeResult(IPC_CHANNELS.templateManagement.continueBatchStaging, request),
+    retryBatchStaging: request =>
+      invokeResult(IPC_CHANNELS.templateManagement.retryBatchStaging, request),
+    updateBatchStagingItem: request =>
+      invokeResult(IPC_CHANNELS.templateManagement.updateBatchStagingItem, request),
+    discardBatchStaging: async request => {
+      await invokeResult<null>(IPC_CHANNELS.templateManagement.discardBatchStaging, request)
+    },
+    previewBatchStagingAiPlan: request =>
+      invokeResult(IPC_CHANNELS.templateManagement.previewBatchStagingAiPlan, request),
+    previewBatchStagingClassification: request =>
+      invokeResult(IPC_CHANNELS.templateManagement.previewBatchStagingClassification, request),
+    generateBatchStagingAiPlan: request =>
+      invokeResult(IPC_CHANNELS.templateManagement.generateBatchStagingAiPlan, request),
+    cancelBatchStagingAiPlan: async requestId => {
+      await invokeResult<null>(IPC_CHANNELS.templateManagement.cancelBatchStagingAiPlan, {
+        requestId,
+      })
+    },
+    getBatchStagingAiDraft: request =>
+      invokeResult(IPC_CHANNELS.templateManagement.getBatchStagingAiDraft, request),
+    discardBatchStagingAiDraft: async request => {
+      await invokeResult<null>(IPC_CHANNELS.templateManagement.discardBatchStagingAiDraft, request)
+    },
     chooseImportSource: () => invokeResult(IPC_CHANNELS.templateManagement.chooseImportSource),
     classify: request => invokeResult(IPC_CHANNELS.templateManagement.classify, request),
     deleteTemplate: templateId =>

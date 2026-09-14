@@ -44,6 +44,56 @@ function canonicalDirectoryPath(path: string): string {
   return path.split('/').map(canonicalDirectorySegment).join('/')
 }
 
+/**
+ * Return a conservative topic key for cross-branch duplicate detection.
+ * Numeric variants ("01背包") and problem/topic suffixes ("背包问题")
+ * otherwise create separate branches even though they describe the same
+ * category.  The key is only used to raise a review issue; it never moves a
+ * file by itself.
+ */
+function directoryTopicKey(segment: string): string {
+  return canonicalDirectorySegment(segment).replace(/(?:问题|专题|题型)$/u, '')
+}
+
+function isCrossBranchTopicVariant(segment: string): boolean {
+  const normalized = segment.normalize('NFKC').trim()
+  return /^\d+/u.test(normalized) || /(?:问题|专题|题型)$/u.test(normalized)
+}
+
+const ALGORITHM_CATEGORY_SEGMENTS = new Set([
+  '动态规划',
+  '图论',
+  '数据结构',
+  '字符串',
+  '数学',
+  '数值计算',
+  '基础算法',
+  '搜索',
+  '贪心',
+  '计算几何',
+  '网络流',
+])
+
+function keeperScore(directory: string): number {
+  const parts = directory.split('/')
+  const parent = parts.length > 1 ? (parts[0] ?? '') : ''
+  const normalizedParent = canonicalDirectorySegment(parent)
+  // A topic folder nested under an algorithm paradigm is the semantically
+  // correct home (e.g. 动态规划/01背包), even when a legacy top-level
+  // `背包问题` branch contains more files.
+  return ALGORITHM_CATEGORY_SEGMENTS.has(normalizedParent) ? 100 : 0
+}
+
+function chooseTopicKeeper(directories: readonly string[]): string {
+  return [...directories].sort((left, right) => {
+    return (
+      keeperScore(right) - keeperScore(left) ||
+      left.split('/').length - right.split('/').length ||
+      left.localeCompare(right)
+    )
+  })[0]!
+}
+
 function directoryPathOf(relativePath: string): string {
   const separator = relativePath.lastIndexOf('/')
   return separator < 0 ? '' : relativePath.slice(0, separator)
@@ -180,6 +230,52 @@ export class TemplateWorkspaceAuditService {
       const shownDirectories = ordered.slice(0, 4).join('、')
       addIssue({
         detail: `目录分类疑似重复（${shownDirectories}${ordered.length > 4 ? ' 等' : ''}）；建议统一到 ${keeper}，AI 将根据源码与元数据重新规划子目录。`,
+        id: randomUUID(),
+        kind: 'path-inconsistency',
+        pathCount: affectedPaths.length,
+        paths: shownPaths,
+        pathsTruncated: affectedPaths.length > shownPaths.length,
+        severity: 'warning',
+      })
+      if (affectedPaths.length > shownPaths.length) categoryPathTruncatedIssueCount += 1
+    }
+
+    // Also detect the common cross-branch shape produced by independent AI
+    // classifications, for example `背包问题/` next to
+    // `动态规划/01背包/`.  The existing parent-aware check intentionally
+    // misses this because the parents differ.  Restrict this pass to explicit
+    // numeric/problem variants so broad categories such as `图论/最短路` are
+    // not flattened merely because a similarly named top-level folder exists.
+    const topicDirectories = new Map<string, string[]>()
+    for (const directory of templatesByDirectory.keys()) {
+      const segment = directory.slice(directory.lastIndexOf('/') + 1)
+      if (!isCrossBranchTopicVariant(segment)) continue
+      const topic = directoryTopicKey(segment)
+      if (topic.length < 2) continue
+      const paths = topicDirectories.get(topic) ?? []
+      paths.push(directory)
+      topicDirectories.set(topic, paths)
+    }
+    for (const [topic, directories] of topicDirectories) {
+      const distinctDirectories = [...new Set(directories)]
+      const matching = distinctDirectories.filter(directory => {
+        const segment = directory.slice(directory.lastIndexOf('/') + 1)
+        return directoryTopicKey(segment) === topic
+      })
+      if (matching.length < 2) continue
+      const keeper = chooseTopicKeeper(matching)
+      const ordered = [keeper, ...matching.filter(directory => directory !== keeper)]
+      const affectedPaths = ordered
+        .slice(1)
+        .flatMap(directory => templatesByDirectory.get(directory) ?? [])
+        .map(template => template.relativePath)
+        .filter(path => !coveredAffectedPaths.has(path))
+        .sort((left, right) => left.localeCompare(right))
+      if (affectedPaths.length === 0) continue
+      for (const path of affectedPaths) coveredAffectedPaths.add(path)
+      const shownPaths = affectedPaths.slice(0, 20)
+      addIssue({
+        detail: `目录分类疑似重复（${ordered.slice(0, 4).join('、')}）；建议统一到 ${keeper}，AI 将根据源码与元数据重新规划子目录。`,
         id: randomUUID(),
         kind: 'path-inconsistency',
         pathCount: affectedPaths.length,

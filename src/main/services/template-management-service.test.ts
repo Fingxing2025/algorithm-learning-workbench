@@ -182,6 +182,30 @@ describe('TemplateManagementService feature contracts', () => {
     }
   })
 
+  it('does not equate a generic knapsack directory with the 01 subtype', async () => {
+    const rootPath = await mkdtemp(join(tmpdir(), 'template-management-service-'))
+    try {
+      await mkdir(join(rootPath, '背包问题'), { recursive: true })
+      await mkdir(join(rootPath, '动态规划', '01背包', '二维01背包'), { recursive: true })
+      await writeFile(join(rootPath, '背包问题', '多重背包.cpp'), 'int multiple() { return 1; }\n')
+      await writeFile(join(rootPath, '背包问题', '完全背包.cpp'), 'int complete() { return 2; }\n')
+      await writeFile(
+        join(rootPath, '动态规划', '01背包', '二维01背包', 'two-dimensional.cpp'),
+        'int two() { return 3; }\n',
+      )
+      const service = createService(rootPath, [
+        createTemplate('a', '背包问题/多重背包.cpp', 'hash-a'),
+        createTemplate('b', '背包问题/完全背包.cpp', 'hash-b'),
+        createTemplate('c', '动态规划/01背包/二维01背包/two-dimensional.cpp', 'hash-c'),
+      ])
+
+      const audit = await service.auditWorkspace()
+      expect(audit.issues.filter(issue => issue.kind === 'path-inconsistency')).toEqual([])
+    } finally {
+      await rm(rootPath, { force: true, recursive: true })
+    }
+  })
+
   it('reports decoding artifacts separately from ordinary naming inconsistencies', async () => {
     const service = createService('/tmp/template-management-service-test', [
       createTemplate('a', '锟斤拷.cpp', 'hash-a'),

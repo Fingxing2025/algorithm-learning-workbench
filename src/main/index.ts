@@ -8,6 +8,7 @@ import { AiProviderRepository } from './database/ai-provider-repository'
 import { ProblemRepository } from './database/problem-repository'
 import { WorkspaceRepository } from './database/workspace-repository'
 import { TemplateManagementRepository } from './database/template-management-repository'
+import { BatchTemplateStagingRepository } from './database/batch-template-staging-repository'
 import { registerAppIpc } from './ipc/register-app-ipc'
 import { registerAiProviderIpc } from './ipc/register-ai-provider-ipc'
 import { registerDataManagementIpc } from './ipc/register-data-management-ipc'
@@ -31,6 +32,7 @@ import { BackgroundTaskRegistry } from './services/background-task-registry'
 import { WorkspaceStorageManager } from './services/workspace-storage'
 import { WorkspaceRuntimeManager } from './services/workspace-runtime-manager'
 import { TemplateExportService } from './services/template-export-service'
+import { BatchTemplateStagingService } from './services/batch-template-staging-service'
 import { registerTemplateExportIpc } from './ipc/register-template-export-ipc'
 
 let mainWindow: BrowserWindow | null = null
@@ -110,7 +112,32 @@ async function bootstrap(): Promise<void> {
     workspaceRepository,
     workspaceStorage,
   )
-  const templateManagementService = new TemplateManagementService(
+  // Batch staging delegates each per-item classification back to the
+  // TemplateManagementService so it can reuse the normal Provider adapter and
+  // language/placement validation.  Construct the staging service first with
+  // a guarded lazy closure, then wire the completed template service into that
+  // closure before exposing any IPC handlers.
+  let templateManagementService: TemplateManagementService | null = null
+  const batchTemplateStagingService = new BatchTemplateStagingService({
+    aiProviderService,
+    aiTaskRunRegistry,
+    classify: async request => {
+      if (!templateManagementService) {
+        throw new Error('Template management service is not initialized')
+      }
+      return templateManagementService.classify(request)
+    },
+    metadataRepository: templateManagementRepository,
+    repository: new BatchTemplateStagingRepository(workspaceDatabase),
+    workspaceAiContextService,
+    workspaceRepository,
+    workspaceService,
+    workspaceStorage,
+  })
+  dataManagementService.setStagingRecoveryCheck(
+    async () => (await batchTemplateStagingService.inspectRecoveries()).length > 0,
+  )
+  templateManagementService = new TemplateManagementService(
     aiProviderService,
     templateManagementRepository,
     workspaceRepository,
@@ -121,6 +148,8 @@ async function bootstrap(): Promise<void> {
     dataManagementService.getLifecycleService(),
     dataManagementService.getFileExecutionIntegrityService(),
     workspaceStorage,
+    batchTemplateStagingService,
+    batchTemplateStagingService,
   )
   const templateExportService = new TemplateExportService(
     workspaceRepository,

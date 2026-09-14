@@ -196,6 +196,7 @@ function installDesktopMock({
   Object.defineProperty(window, 'desktop', {
     configurable: true,
     value: {
+      templateManagement: { inspectBatchStagingRecoveries: vi.fn().mockResolvedValue([]) },
       dataManagement: {
         diagnose,
         exportBackup,

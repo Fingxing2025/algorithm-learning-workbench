@@ -14,11 +14,17 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { AiRequestPreview } from '@core/contracts/ai-request'
 import type { BackgroundTaskStatus } from '@core/contracts/background-task'
 import type {
+  ApplyBatchTemplateStagingResult,
+  ApplyStagingAiPlanResult,
   BatchImportTemplateResult,
+  BatchTemplateStaging,
+  BatchTemplateStagingItem,
   BatchTemplateImportConflict,
   BatchTemplateImportSource,
   TemplateClassification,
   TemplateMetadataLanguage,
+  StagingAiPlanDraft,
+  StagingAiPlanPreview,
 } from '@core/contracts/template-management'
 
 import { AiRequestPreviewDialog } from '@/components/ai-request-preview-dialog'
@@ -31,8 +37,120 @@ import { useI18n } from '@/lib/i18n'
 import { emptyTemplateMetadata } from './template-metadata-merge'
 import { formatTemplateSourceEncoding } from './template-source-encoding'
 
-type BusyMode = 'choose' | 'classify' | 'import' | 'preview' | null
+type BusyMode = 'choose' | 'classify' | 'import' | 'preview' | 'ai-plan' | null
 type ConflictChoice = 'overwrite' | 'rename' | 'skip'
+type ImportFlow = 'legacy' | 'staging' | null
+type StagingAction =
+  'apply' | 'create' | 'discard' | 'load' | 'process' | 'update' | 'ai-plan' | null
+
+/**
+ * Old preloads deliberately do not expose staging. Keep the renderer compatible
+ * with those installations and with focused component tests that only mock the
+ * legacy batch API.
+ */
+type BatchStagingApi = {
+  applyBatchStaging?: (request: {
+    confirmed: true
+    stagingId: string
+  }) => Promise<ApplyBatchTemplateStagingResult>
+  applyBatchStagingAiPlan?: (request: {
+    confirmed: true
+    draftId: string
+    operationIds: string[]
+  }) => Promise<ApplyStagingAiPlanResult>
+  continueBatchStaging?: (request: {
+    requestId?: string
+    runAi: boolean
+    stagingId: string
+  }) => Promise<BatchTemplateStaging>
+  previewBatchStagingClassification?: (request: {
+    outputLanguage: TemplateMetadataLanguage
+    sources: BatchTemplateImportSource[]
+    stagingId: string
+  }) => Promise<AiRequestPreview>
+  createBatchStaging?: (request: {
+    outputLanguage: TemplateMetadataLanguage
+    sources: BatchTemplateImportSource[]
+  }) => Promise<BatchTemplateStaging>
+  discardBatchStaging?: (request: { confirmed: true; stagingId: string }) => Promise<void>
+  getBatchStaging?: (request: { stagingId: string }) => Promise<BatchTemplateStaging | null>
+  listBatchStagings?: () => Promise<BatchTemplateStaging[]>
+  retryBatchStaging?: (request: {
+    requestId?: string
+    runAi: boolean
+    stagingId: string
+  }) => Promise<BatchTemplateStaging>
+  updateBatchStagingItem?: (request: {
+    action: 'include' | 'skip'
+    sourceId: string
+    stagingId: string
+    targetRelativePath: string | null
+  }) => Promise<BatchTemplateStaging>
+  previewBatchStagingAiPlan?: (request: {
+    includeNotes: boolean
+    outputLanguage: TemplateMetadataLanguage
+    requestId: string
+    stagingId: string
+    target: 'staging'
+  }) => Promise<StagingAiPlanPreview>
+  generateBatchStagingAiPlan?: (request: {
+    previewId: string
+    requestId: string
+  }) => Promise<StagingAiPlanDraft>
+  cancelBatchStagingAiPlan?: (requestId: string) => Promise<void>
+}
+
+type BatchSourceView = BatchTemplateImportSource & { contentAvailable?: boolean }
+
+const sessionLabels = {
+  processing: '暂存中',
+  failed: '暂存失败，可重试',
+  ready: '暂存就绪，待确认',
+  applying: '正在应用暂存',
+  applied: '暂存已应用',
+  discarded: '暂存已放弃',
+} as const
+const itemLabels = {
+  pending: '等待处理',
+  processing: '正在处理',
+  completed: '已暂存（分类待确认）',
+  failed: '处理失败',
+  skipped: '已跳过',
+} as const
+
+const stagingStatuses = new Set<BatchTemplateStaging['status']>(['processing', 'failed', 'ready'])
+
+function stagingApi(): BatchStagingApi {
+  return window.desktop.templateManagement as unknown as BatchStagingApi
+}
+
+function supportsStaging(api: BatchStagingApi): boolean {
+  return (
+    typeof api.applyBatchStaging === 'function' &&
+    typeof api.continueBatchStaging === 'function' &&
+    typeof api.createBatchStaging === 'function' &&
+    typeof api.discardBatchStaging === 'function' &&
+    typeof api.updateBatchStagingItem === 'function'
+  )
+}
+
+function isStagingIpcUnavailable(caught: unknown): boolean {
+  const message = caught instanceof Error ? caught.message : String(caught ?? '')
+  return /no handler registered|unknown channel|channel.*(?:not found|unavailable)|not implemented|not a function|unsupported.*staging|staging.*unsupported/i.test(
+    message,
+  )
+}
+
+function sourceViewFromStagingItem(item: BatchTemplateStagingItem): BatchSourceView {
+  return {
+    content: '',
+    contentAvailable: false,
+    displayPath: item.displayPath,
+    fileName: item.fileName,
+    id: item.sourceId,
+    sourceEncoding: item.sourceEncoding,
+  }
+}
 
 const conflictMessages: Record<BatchTemplateImportConflict['kind'], string> = {
   'batch-duplicate': '本批次中有多个模板使用相同目标路径，请跳过或修改文件名。',
@@ -45,10 +163,12 @@ const conflictMessages: Record<BatchTemplateImportConflict['kind'], string> = {
 export function BatchTemplateImportDialog({
   onComplete,
   onOpenChange,
+  onStagingApplied,
   open,
 }: {
   onComplete: (result: BatchImportTemplateResult) => void
   onOpenChange: (open: boolean) => void
+  onStagingApplied?: (result: ApplyBatchTemplateStagingResult) => void
   open: boolean
 }) {
   const { locale, t } = useI18n()
@@ -63,13 +183,39 @@ export function BatchTemplateImportDialog({
   const [outputLanguage, setOutputLanguage] = useState<TemplateMetadataLanguage>(locale)
   const [preview, setPreview] = useState<AiRequestPreview | null>(null)
   const [progress, setProgress] = useState({ completed: 0, total: 0 })
-  const [sources, setSources] = useState<BatchTemplateImportSource[]>([])
+  const [sources, setSources] = useState<BatchSourceView[]>([])
   const [selectedSourceIds, setSelectedSourceIds] = useState<Set<string>>(new Set())
+  const [importFlow, setImportFlow] = useState<ImportFlow>(null)
+  const [staging, setStaging] = useState<BatchTemplateStaging | null>(null)
+  const [stagingAction, setStagingAction] = useState<StagingAction>(null)
+  const [stagingLoading, setStagingLoading] = useState(false)
+  const [stagingSessions, setStagingSessions] = useState<BatchTemplateStaging[]>([])
+  const [stagingAiPreview, setStagingAiPreview] = useState<StagingAiPlanPreview | null>(null)
+  const [stagingAiDraft, setStagingAiDraft] = useState<StagingAiPlanDraft | null>(null)
+  const [stagingAiRequestId, setStagingAiRequestId] = useState<string | null>(null)
+  const [selectedStagingAiOperationIds, setSelectedStagingAiOperationIds] = useState<Set<string>>(
+    new Set(),
+  )
   const [targetPaths, setTargetPaths] = useState<Record<string, string>>({})
+  const activeStagingRequestId = useRef<string | null>(null)
+  const liveHydratedProcessedCount = useRef(0)
+  const syncedStagingItems = useRef<Record<string, string>>({})
+  const closingStagingId = useRef<string | null>(null)
 
   const selectedSources = useMemo(
     () => sources.filter(source => selectedSourceIds.has(source.id)),
     [selectedSourceIds, sources],
+  )
+  const selectedSourcePayload = useMemo(
+    () =>
+      selectedSources.map(source => ({
+        content: source.content,
+        displayPath: source.displayPath,
+        fileName: source.fileName,
+        id: source.id,
+        sourceEncoding: source.sourceEncoding,
+      })),
+    [selectedSources],
   )
   const completedCount = selectedSources.filter(source => classifications[source.id]).length
   const importSources = selectedSources.filter(source => conflictChoices[source.id] !== 'skip')
@@ -88,9 +234,115 @@ export function BatchTemplateImportDialog({
     () => selectedSources.reduce((total, source) => total + source.content.length, 0),
     [selectedSources],
   )
+  const stagingIncludedItems = useMemo(
+    () => staging?.items.filter(item => item.status !== 'skipped') ?? [],
+    [staging],
+  )
+  const stagingReadyToApply =
+    staging?.status === 'ready' &&
+    stagingIncludedItems.length > 0 &&
+    stagingIncludedItems.every(
+      item => item.status === 'completed' && Boolean(item.targetRelativePath),
+    )
+
+  const hydrateStaging = (nextStaging: BatchTemplateStaging) => {
+    setStaging(nextStaging)
+    setStagingSessions(current =>
+      current.some(session => session.id === nextStaging.id)
+        ? current.map(session => (session.id === nextStaging.id ? nextStaging : session))
+        : current,
+    )
+    setTargetPaths(
+      Object.fromEntries(
+        nextStaging.items.map(item => [item.sourceId, item.targetRelativePath ?? item.displayPath]),
+      ),
+    )
+    setClassifications(
+      Object.fromEntries(
+        nextStaging.items
+          .filter(
+            (item): item is BatchTemplateStagingItem & { classification: TemplateClassification } =>
+              Boolean(item.classification),
+          )
+          .map(item => [item.sourceId, item.classification]),
+      ),
+    )
+    setSelectedSourceIds(
+      new Set(
+        nextStaging.items.filter(item => item.status !== 'skipped').map(item => item.sourceId),
+      ),
+    )
+    setProgress({ completed: nextStaging.processedCount, total: nextStaging.totalCount })
+    syncedStagingItems.current = Object.fromEntries(
+      nextStaging.items.map(item => [
+        item.sourceId,
+        item.status === 'skipped' ? 'skip:' : `include:${item.targetRelativePath ?? ''}`,
+      ]),
+    )
+    setSources(current => {
+      const known = new Map(current.map(source => [source.id, source]))
+      return nextStaging.items
+        .slice()
+        .sort((left, right) => left.ordinal - right.ordinal)
+        .map(item => known.get(item.sourceId) ?? sourceViewFromStagingItem(item))
+    })
+  }
+
+  const setStagingError = (caught: unknown, fallback: string) => {
+    setError(caught instanceof Error ? caught.message : fallback)
+  }
+
+  const discardStaging = async (closeAfter = true, stagingToDiscard = staging) => {
+    const currentStaging = stagingToDiscard
+    const api = stagingApi()
+    if (
+      !currentStaging ||
+      currentStaging.status === 'discarded' ||
+      currentStaging.status === 'applied' ||
+      typeof api.discardBatchStaging !== 'function'
+    ) {
+      if (closeAfter) onOpenChange(false)
+      return
+    }
+    if (closingStagingId.current === currentStaging.id) return
+    closingStagingId.current = currentStaging.id
+    setStagingAction('discard')
+    setError(null)
+    try {
+      await api.discardBatchStaging({ confirmed: true, stagingId: currentStaging.id })
+      setStagingSessions(current => current.filter(item => item.id !== currentStaging.id))
+      setStaging(null)
+      setSources([])
+      setSelectedSourceIds(new Set())
+      setClassifications({})
+      setTargetPaths({})
+      setProgress({ completed: 0, total: 0 })
+      if (closeAfter) onOpenChange(false)
+    } catch (caught) {
+      setStagingError(caught, t('暂存批次未能放弃，当前工作区未改变。'))
+    } finally {
+      closingStagingId.current = null
+      setStagingAction(null)
+    }
+  }
+
+  const requestClose = () => {
+    if (stagingAction) return
+    cancelRequested.current = true
+    const pendingId = activeStagingRequestId.current ?? activeClassificationRequestId.current
+    if (pendingId) void window.desktop.templateManagement.cancelClassification(pendingId)
+    activeStagingRequestId.current = null
+    if (stagingAiRequestId) void stagingApi().cancelBatchStagingAiPlan?.(stagingAiRequestId)
+    // Closing (Escape, overlay, or the header X) only hides the dialog.  A
+    // staging session is durable and must remain resumable; deletion is
+    // reserved for the explicit “放弃暂存” action in the footer/session list.
+    onOpenChange(false)
+  }
 
   useEffect(() => {
-    if (open) return
+    if (open) {
+      return
+    }
     cancelRequested.current = false
     setBusyMode(null)
     setTaskStatus(null)
@@ -103,18 +355,465 @@ export function BatchTemplateImportDialog({
     setProgress({ completed: 0, total: 0 })
     setSources([])
     setSelectedSourceIds(new Set())
+    setImportFlow(null)
+    setStaging(null)
+    setStagingAction(null)
+    setStagingLoading(false)
+    setStagingSessions([])
+    setStagingAiPreview(null)
+    setStagingAiDraft(null)
+    setStagingAiRequestId(null)
+    setSelectedStagingAiOperationIds(new Set())
     setTargetPaths({})
+    activeStagingRequestId.current = null
+    liveHydratedProcessedCount.current = 0
+    syncedStagingItems.current = {}
+    closingStagingId.current = null
   }, [locale, open])
+
+  useEffect(() => {
+    if (!open) return
+    let disposed = false
+    const api = stagingApi()
+    if (!supportsStaging(api)) {
+      setImportFlow('legacy')
+      return
+    }
+    setImportFlow('staging')
+    setStagingLoading(true)
+    setError(null)
+    const load = async () => {
+      try {
+        const sessions = api.listBatchStagings ? await api.listBatchStagings() : []
+        if (disposed) return
+        setStagingSessions(sessions.filter(session => stagingStatuses.has(session.status)))
+      } catch (caught) {
+        if (disposed) return
+        // A pre-staging main process may expose the methods in the preload but
+        // not have registered their channels yet. In that case retain the old
+        // path so an existing installation remains usable.
+        if (isStagingIpcUnavailable(caught)) setImportFlow('legacy')
+        else setError(t('无法读取可恢复的暂存批次。'))
+        setStagingSessions([])
+      } finally {
+        if (!disposed) setStagingLoading(false)
+      }
+    }
+    void load()
+    return () => {
+      disposed = true
+    }
+  }, [open, t])
 
   const replaceSources = (nextSources: BatchTemplateImportSource[]) => {
     if (nextSources.length === 0) return
-    setSources(nextSources)
+    setSources(nextSources.map(source => ({ ...source, contentAvailable: true })))
+    setStaging(null)
     setClassifications({})
     setConflictChoices({})
     setConflicts([])
     setSelectedSourceIds(new Set(nextSources.map(source => source.id)))
     setTargetPaths(Object.fromEntries(nextSources.map(source => [source.id, source.displayPath])))
     setProgress({ completed: 0, total: nextSources.length })
+  }
+
+  const createStaging = async (nextSources: BatchTemplateImportSource[]) => {
+    const api = stagingApi()
+    // The caller sets `importFlow` immediately before invoking this helper.
+    // React state updates are asynchronous, so checking the captured
+    // `importFlow` value here can incorrectly no-op on the first source
+    // selection while the value is still `null`.  The caller already gates
+    // this path on staging support; only the capability check belongs here.
+    if (typeof api.createBatchStaging !== 'function') return false
+    setStagingAction('create')
+    try {
+      const nextStaging = await api.createBatchStaging({
+        outputLanguage,
+        sources: nextSources,
+      })
+      hydrateStaging(nextStaging)
+      setStagingSessions(current => [
+        nextStaging,
+        ...current.filter(session => session.id !== nextStaging.id),
+      ])
+      return true
+    } catch (caught) {
+      // Keep the old flow available when a renderer is paired with a main
+      // process that predates the staging IPC channels.
+      if (isStagingIpcUnavailable(caught)) setImportFlow('legacy')
+      setStaging(null)
+      setStagingError(caught, t('暂存批次创建失败，尚未写入当前工作区。'))
+      return false
+    } finally {
+      setStagingAction(null)
+    }
+  }
+
+  const resumeStaging = async (session: BatchTemplateStaging) => {
+    const api = stagingApi()
+    setStagingAction('load')
+    setError(null)
+    try {
+      const latest = api.getBatchStaging
+        ? await api.getBatchStaging({ stagingId: session.id })
+        : session
+      if (!latest) {
+        setStagingSessions(current => current.filter(item => item.id !== session.id))
+        setError(t('暂存批次已不存在，请重新选择源码。'))
+        return
+      }
+      setImportFlow('staging')
+      hydrateStaging(latest)
+    } catch (caught) {
+      setStagingError(caught, t('无法恢复暂存批次，当前工作区未改变。'))
+    } finally {
+      setStagingAction(null)
+    }
+  }
+
+  const persistStagingItem = async (
+    sourceId: string,
+    action: 'include' | 'skip',
+    targetRelativePath: string | null,
+  ) => {
+    const currentStaging = staging
+    const api = stagingApi()
+    if (
+      importFlow !== 'staging' ||
+      !currentStaging ||
+      typeof api.updateBatchStagingItem !== 'function'
+    ) {
+      return
+    }
+    const normalizedTarget = action === 'skip' ? null : targetRelativePath?.trim() || null
+    if (action === 'include' && !normalizedTarget) {
+      setError(t('工作区保存路径不能为空。'))
+      return
+    }
+    const signature = `${action}:${normalizedTarget ?? ''}`
+    if (syncedStagingItems.current[sourceId] === signature) return
+    setStagingAction('update')
+    setError(null)
+    try {
+      const nextStaging = await api.updateBatchStagingItem({
+        action,
+        sourceId,
+        stagingId: currentStaging.id,
+        targetRelativePath: normalizedTarget,
+      })
+      hydrateStaging(nextStaging)
+    } catch (caught) {
+      setStagingError(caught, t('暂存项更新失败，当前工作区未改变。'))
+    } finally {
+      setStagingAction(null)
+    }
+  }
+
+  const flushStagingItems = async () => {
+    const currentStaging = staging
+    const api = stagingApi()
+    if (
+      importFlow !== 'staging' ||
+      !currentStaging ||
+      typeof api.updateBatchStagingItem !== 'function'
+    ) {
+      return currentStaging
+    }
+    let latest = currentStaging
+    for (const item of currentStaging.items) {
+      const selected = selectedSourceIds.has(item.sourceId)
+      const target = selected ? targetPaths[item.sourceId]?.trim() || null : null
+      const action = selected ? 'include' : 'skip'
+      // A newly-created item has no persisted target yet.  The input shows
+      // its display path as a provisional value, but that value must not be
+      // flushed before an AI run: doing so would make process() treat it as a
+      // user-confirmed path and ignore the classifier's suggested location.
+      // An explicit blur/edit still goes through persistStagingItem and is
+      // therefore retained normally.
+      if (item.targetRelativePath === null && target === item.displayPath) continue
+      const signature = `${action}:${target ?? ''}`
+      if (syncedStagingItems.current[item.sourceId] === signature) continue
+      if (action === 'include' && !target) {
+        setError(t('工作区保存路径不能为空。'))
+        return null
+      }
+      try {
+        latest = await api.updateBatchStagingItem({
+          action,
+          sourceId: item.sourceId,
+          stagingId: currentStaging.id,
+          targetRelativePath: target,
+        })
+        hydrateStaging(latest)
+      } catch (caught) {
+        setStagingError(caught, t('暂存项更新失败，当前工作区未改变。'))
+        return null
+      }
+    }
+    return latest
+  }
+
+  const persistAllStagingSelections = async (action: 'include' | 'skip') => {
+    if (importFlow !== 'staging' || !staging) return
+    for (const source of sources) {
+      await persistStagingItem(
+        source.id,
+        action,
+        action === 'include' ? (targetPaths[source.id] ?? source.displayPath) : null,
+      )
+    }
+  }
+
+  const processStaging = async (runAi: boolean, retry = false) => {
+    const currentStaging = staging
+    const api = stagingApi()
+    const process = retry
+      ? (api.retryBatchStaging ?? api.continueBatchStaging)
+      : api.continueBatchStaging
+    if (importFlow !== 'staging' || !currentStaging || typeof process !== 'function') {
+      return
+    }
+    const flushed = await flushStagingItems()
+    if (!flushed) return
+    setPreview(null)
+    setBusyMode(runAi ? 'classify' : 'import')
+    setError(null)
+    cancelRequested.current = false
+    const requestId = crypto.randomUUID()
+    activeStagingRequestId.current = requestId
+    liveHydratedProcessedCount.current = currentStaging.processedCount
+    const startedAt = new Date().toISOString()
+    setTaskStatus({
+      error: null,
+      finishedAt: null,
+      id: requestId,
+      kind: 'batch-operation',
+      progress: {
+        currentItem: currentStaging.currentItem,
+        phase: runAi ? 'requesting-ai' : 'writing',
+        processedCount: currentStaging.processedCount,
+        totalCount: currentStaging.totalCount,
+      },
+      result: null,
+      startedAt,
+      state: 'running',
+    })
+    try {
+      const nextStaging = await runTrackedOperation(
+        requestId,
+        () =>
+          process({
+            requestId,
+            runAi,
+            stagingId: currentStaging.id,
+          }),
+        status => {
+          if (activeStagingRequestId.current !== requestId) return
+          setTaskStatus(status)
+          setProgress({
+            completed: status.progress.processedCount,
+            total: status.progress.totalCount ?? currentStaging.totalCount,
+          })
+          const completed = status.progress.processedCount
+          if (
+            completed > liveHydratedProcessedCount.current &&
+            typeof api.getBatchStaging === 'function'
+          ) {
+            liveHydratedProcessedCount.current = completed
+            void api
+              .getBatchStaging({ stagingId: currentStaging.id })
+              .then(latest => {
+                // Multiple progress polls can overlap. Never let a slower,
+                // older snapshot hide a classification already rendered by
+                // a newer completed-item refresh.
+                if (
+                  latest &&
+                  latest.processedCount >= liveHydratedProcessedCount.current &&
+                  activeStagingRequestId.current === requestId
+                ) {
+                  hydrateStaging(latest)
+                }
+              })
+              .catch(() => {
+                // The final business response (or cancellation recovery
+                // refresh) remains authoritative if this best-effort live
+                // card refresh fails.
+              })
+          }
+        },
+      )
+      if (activeStagingRequestId.current !== requestId) return
+      if (cancelRequested.current) {
+        setError(
+          t(runAi ? '批量 AI 补全已停止；暂存批次仍可继续。' : '暂存批次处理已停止；仍可继续。'),
+        )
+      }
+      hydrateStaging(nextStaging)
+      if (nextStaging.status === 'failed') {
+        setError(nextStaging.error ?? t('暂存批次处理失败，暂未写入当前工作区。'))
+      }
+    } catch (caught) {
+      if (activeStagingRequestId.current !== requestId) return
+      setStagingError(
+        caught,
+        cancelRequested.current
+          ? t(runAi ? '批量 AI 补全已停止；暂存批次仍可继续。' : '暂存批次处理已停止；仍可继续。')
+          : t('暂存批次处理失败，暂未写入当前工作区。'),
+      )
+      if (api.getBatchStaging) {
+        try {
+          const latest = await api.getBatchStaging({ stagingId: currentStaging.id })
+          if (latest && activeStagingRequestId.current === requestId) hydrateStaging(latest)
+        } catch {
+          // Keep the original processing error visible when the refresh also fails.
+        }
+      }
+    } finally {
+      if (activeStagingRequestId.current === requestId) {
+        activeStagingRequestId.current = null
+        setBusyMode(null)
+        setTaskStatus(null)
+      }
+    }
+  }
+
+  const previewStagingAiPlan = async () => {
+    const currentStaging = staging
+    const api = stagingApi()
+    if (
+      importFlow !== 'staging' ||
+      !currentStaging ||
+      currentStaging.status !== 'ready' ||
+      typeof api.previewBatchStagingAiPlan !== 'function'
+    )
+      return
+    setStagingAction('ai-plan')
+    setError(null)
+    try {
+      const requestId = crypto.randomUUID()
+      setStagingAiRequestId(requestId)
+      setStagingAiPreview(
+        await api.previewBatchStagingAiPlan({
+          includeNotes: false,
+          outputLanguage,
+          requestId,
+          stagingId: currentStaging.id,
+          target: 'staging',
+        }),
+      )
+    } catch (caught) {
+      setStagingAiRequestId(null)
+      setStagingError(caught, t('无法准备暂存区 AI 整理预览。'))
+    } finally {
+      setStagingAction(null)
+    }
+  }
+
+  const generateStagingAiPlan = async () => {
+    const api = stagingApi()
+    if (
+      !stagingAiPreview ||
+      !stagingAiRequestId ||
+      typeof api.generateBatchStagingAiPlan !== 'function'
+    )
+      return
+    setBusyMode('ai-plan')
+    setStagingAiPreview(null)
+    setError(null)
+    try {
+      const draft = await runTrackedOperation(
+        stagingAiRequestId,
+        () =>
+          api.generateBatchStagingAiPlan!({
+            previewId: stagingAiPreview.filePlan.previewId,
+            requestId: stagingAiRequestId,
+          }),
+        setTaskStatus,
+      )
+      const selectable = draft.operations.filter(operation => operation.kind !== 'update-metadata')
+      setStagingAiDraft(draft)
+      setSelectedStagingAiOperationIds(
+        new Set(
+          selectable
+            .filter(operation => operation.selectedByDefault)
+            .map(operation => operation.id),
+        ),
+      )
+      setStagingAiRequestId(null)
+    } catch (caught) {
+      setStagingAiRequestId(null)
+      setStagingError(caught, t('暂存区 AI 计划生成失败，暂存内容未改变。'))
+    } finally {
+      setBusyMode(null)
+      setTaskStatus(null)
+    }
+  }
+
+  const applyStagingAiPlan = async () => {
+    const api = stagingApi()
+    if (
+      !stagingAiDraft ||
+      selectedStagingAiOperationIds.size === 0 ||
+      typeof api.applyBatchStagingAiPlan !== 'function'
+    )
+      return
+    setStagingAction('ai-plan')
+    setError(null)
+    try {
+      const result = await api.applyBatchStagingAiPlan({
+        confirmed: true,
+        draftId: stagingAiDraft.draftId,
+        operationIds: [...selectedStagingAiOperationIds],
+      })
+      hydrateStaging(result.staging)
+      setStagingAiDraft(null)
+      setSelectedStagingAiOperationIds(new Set())
+      setError(null)
+    } catch (caught) {
+      setStagingError(caught, t('暂存区 AI 整理应用失败，当前工作区未改变。'))
+    } finally {
+      setStagingAction(null)
+    }
+  }
+
+  const applyStaging = async () => {
+    const currentStaging = staging
+    const api = stagingApi()
+    if (
+      importFlow !== 'staging' ||
+      !currentStaging ||
+      currentStaging.status !== 'ready' ||
+      typeof api.applyBatchStaging !== 'function'
+    ) {
+      return
+    }
+    const flushed = await flushStagingItems()
+    if (!flushed || flushed.status !== 'ready') {
+      if (flushed && flushed.status !== 'ready') {
+        setError(t('暂存批次状态已变化，请重新检查后再应用。'))
+      }
+      return
+    }
+    setBusyMode('import')
+    setStagingAction('apply')
+    setError(null)
+    try {
+      const result = await api.applyBatchStaging({
+        confirmed: true,
+        stagingId: currentStaging.id,
+      })
+      setStaging({ ...currentStaging, status: 'applied' })
+      onStagingApplied?.(result)
+      // A consumer which has not opted into the staging callback can still
+      // close the dialog safely. No template IDs are fabricated here.
+      if (!onStagingApplied) onOpenChange(false)
+      if (!result.workspace) setStaging(null)
+    } catch (caught) {
+      setStagingError(caught, t('暂存批次应用失败，当前工作区已保持不变。'))
+    } finally {
+      setBusyMode(null)
+      setStagingAction(null)
+    }
   }
 
   const chooseSources = async (kind: 'directory' | 'files') => {
@@ -137,11 +836,16 @@ export function BatchTemplateImportDialog({
       state: 'running',
     })
     try {
-      replaceSources(
+      const nextSources =
         kind === 'files'
           ? await window.desktop.templateManagement.chooseBatchImportFiles()
-          : await window.desktop.templateManagement.chooseBatchImportDirectory(),
-      )
+          : await window.desktop.templateManagement.chooseBatchImportDirectory()
+      replaceSources(nextSources)
+      const api = stagingApi()
+      if ((importFlow === 'staging' || importFlow === null) && supportsStaging(api)) {
+        setImportFlow('staging')
+        await createStaging(nextSources)
+      }
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : t('无法读取批量 C++ 源码。'))
     } finally {
@@ -151,6 +855,7 @@ export function BatchTemplateImportDialog({
   }
 
   const previewClassification = async () => {
+    const api = stagingApi()
     setBusyMode('preview')
     setError(null)
     const startedAt = new Date().toISOString()
@@ -170,10 +875,30 @@ export function BatchTemplateImportDialog({
       state: 'running',
     })
     try {
+      if (importFlow === 'staging' && staging) {
+        if (selectedSources.some(source => source.contentAvailable === false)) {
+          throw new Error(t('恢复的暂存批次没有可供页面预览的源码；可直接继续处理。'))
+        }
+        // The staging preview is read-only. The actual network operation is
+        // still started only by processStaging after the user confirms it.
+        if (typeof api.previewBatchStagingClassification === 'function') {
+          setPreview(
+            await api.previewBatchStagingClassification({
+              outputLanguage,
+              sources: selectedSourcePayload,
+              stagingId: staging.id,
+            }),
+          )
+          return
+        }
+        // Older staging preloads did not expose a branch-aware preview. Keep
+        // their read-only legacy preview as a compatibility fallback; current
+        // desktop builds always take the branch-aware method above.
+      }
       setPreview(
         await window.desktop.templateManagement.previewBatchClassification({
           outputLanguage,
-          sources: selectedSources,
+          sources: selectedSourcePayload,
         }),
       )
     } catch (caught) {
@@ -277,6 +1002,14 @@ export function BatchTemplateImportDialog({
   }
 
   const importAll = async () => {
+    if (importFlow === 'staging' && staging) {
+      if (staging.status === 'ready') {
+        await applyStaging()
+      } else {
+        await processStaging(false, staging.status === 'failed')
+      }
+      return
+    }
     if (!readyToImport) return
     setBusyMode('import')
     setError(null)
@@ -357,7 +1090,7 @@ export function BatchTemplateImportDialog({
   return (
     <Dialog.Root
       onOpenChange={nextOpen => {
-        if (!nextOpen && busyMode !== 'import') onOpenChange(false)
+        if (!nextOpen) requestClose()
       }}
       open={open}
     >
@@ -379,8 +1112,8 @@ export function BatchTemplateImportDialog({
             <Button
               aria-label={t('关闭批量导入')}
               className="relative z-10 ml-auto"
-              disabled={busyMode === 'import'}
-              onClick={() => onOpenChange(false)}
+              disabled={Boolean(stagingAction)}
+              onClick={requestClose}
               size="close"
               type="button"
               variant="ghost"
@@ -405,10 +1138,237 @@ export function BatchTemplateImportDialog({
               </div>
             )}
 
+            {importFlow === 'staging' && stagingLoading && (
+              <div className="mb-4 rounded-xl border border-primary/20 bg-primary/6 px-3 py-2 text-xs text-muted-foreground">
+                <LoaderCircle className="mr-2 inline-block size-3.5 animate-spin text-primary" />
+                {t('正在读取可恢复的暂存批次…')}
+              </div>
+            )}
+
+            {importFlow === 'staging' && !staging && stagingSessions.length > 0 && (
+              <section
+                aria-label={t('可恢复的暂存批次')}
+                className="mb-4 rounded-2xl border border-primary/20 bg-primary/5 p-4"
+              >
+                <div className="flex items-start gap-2">
+                  <Sparkles className="mt-0.5 size-4 shrink-0 text-primary" />
+                  <div className="min-w-0">
+                    <h2 className="text-xs font-semibold">{t('发现可恢复的暂存批次')}</h2>
+                    <p className="mt-1 text-[11px] leading-4 text-muted-foreground">
+                      {t('这些批次尚未写入当前工作区；恢复后可继续处理、修改路径或放弃。')}
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-3 space-y-2">
+                  {stagingSessions.map(session => (
+                    <div
+                      className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-background/60 p-3"
+                      key={session.id}
+                    >
+                      <span className="min-w-0 flex-1 text-xs font-medium">
+                        {t('已处理 {processed} / {total}', {
+                          processed: session.processedCount,
+                          total: session.totalCount,
+                        })}
+                        <span className="ml-2 text-[10px] text-muted-foreground">
+                          {t(sessionLabels[session.status])}
+                        </span>
+                      </span>
+                      <Button
+                        disabled={Boolean(busyMode) || Boolean(stagingAction)}
+                        onClick={() => void resumeStaging(session)}
+                        size="compact"
+                        type="button"
+                        variant="outline"
+                      >
+                        {t('恢复批次')}
+                      </Button>
+                      <Button
+                        disabled={Boolean(busyMode) || Boolean(stagingAction)}
+                        onClick={() => {
+                          void discardStaging(false, session)
+                        }}
+                        size="compact"
+                        type="button"
+                        variant="ghost"
+                      >
+                        {t('放弃批次')}
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {importFlow === 'staging' && staging && (
+              <section
+                aria-label={t('暂存批次状态')}
+                className="mb-4 rounded-2xl border border-border bg-background/55 p-4"
+              >
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-semibold">{t('暂存批次')}</span>
+                  <Badge tone={staging.status === 'failed' ? 'warning' : 'accent'}>
+                    {t(sessionLabels[staging.status])}
+                  </Badge>
+                  <span className="ml-auto text-[11px] tabular-nums text-muted-foreground">
+                    {t('已处理 {processed} / {total}', {
+                      processed: staging.processedCount,
+                      total: staging.totalCount,
+                    })}
+                  </span>
+                </div>
+                {staging.currentItem && (
+                  <p className="mt-2 truncate text-[11px] text-muted-foreground">
+                    {t('当前项')}：{staging.currentItem}
+                  </p>
+                )}
+                {staging.error && (
+                  <p className="mt-2 rounded-lg border border-red-500/20 bg-red-500/6 px-2.5 py-2 text-[11px] text-red-700 dark:text-red-300">
+                    {t(staging.error)}
+                  </p>
+                )}
+                {staging.status === 'failed' && !busyMode && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button
+                      disabled={Boolean(stagingAction)}
+                      onClick={() => void processStaging(true, true)}
+                      size="compact"
+                      type="button"
+                      variant="outline"
+                    >
+                      {t('重试 AI 处理')}
+                    </Button>
+                    <Button
+                      disabled={Boolean(stagingAction)}
+                      onClick={() => void processStaging(false, true)}
+                      size="compact"
+                      type="button"
+                      variant="outline"
+                    >
+                      {t('继续手动准备')}
+                    </Button>
+                  </div>
+                )}
+                {staging.status === 'ready' && !stagingAiDraft && !busyMode && (
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <Button
+                      disabled={
+                        Boolean(stagingAction) ||
+                        typeof stagingApi().previewBatchStagingAiPlan !== 'function'
+                      }
+                      onClick={() => void previewStagingAiPlan()}
+                      size="compact"
+                      type="button"
+                      variant="outline"
+                    >
+                      <Sparkles className="size-3.5" />
+                      {t('AI 整理暂存目录')}
+                    </Button>
+                    <span className="text-[10px] text-muted-foreground">
+                      {t('只修改暂存分支，确认后才会进入当前工作区')}
+                    </span>
+                  </div>
+                )}
+              </section>
+            )}
+
+            {stagingAiDraft && (
+              <section
+                aria-label={t('暂存区 AI 整理计划')}
+                className="mb-4 rounded-2xl border border-warning/25 bg-warning/5 p-4"
+              >
+                <div className="flex flex-wrap items-center gap-2">
+                  <Sparkles className="size-4 text-warning" />
+                  <h2 className="text-xs font-semibold">{t('暂存区 AI 整理计划')}</h2>
+                  <Badge tone="warning">{stagingAiDraft.operations.length}</Badge>
+                  <span className="ml-auto text-[10px] text-muted-foreground">
+                    {t('仅对勾选的移动或删除操作生效')}
+                  </span>
+                </div>
+                <p className="mt-2 text-[11px] leading-5 text-muted-foreground">
+                  {stagingAiDraft.summary || t('请检查每项路径变化后再应用。')}
+                </p>
+                {stagingAiDraft.operations.length === 0 && (
+                  <p className="mt-2 rounded-lg border border-warning/30 bg-warning/10 px-2.5 py-2 text-[11px] text-warning-foreground">
+                    {t(
+                      'AI 未返回可执行修改；请查看上方本地审计结果。若仍有不合理分类，请先修改暂存目标路径后再生成计划。',
+                    )}
+                  </p>
+                )}
+                <div className="mt-3 max-h-64 space-y-2 overflow-y-auto">
+                  {stagingAiDraft.operations.map(operation => {
+                    const selectable = operation.kind !== 'update-metadata'
+                    return (
+                      <label
+                        className="flex gap-2 rounded-lg border border-border bg-background/60 p-2 text-[10px]"
+                        key={operation.id}
+                      >
+                        <input
+                          checked={selectedStagingAiOperationIds.has(operation.id)}
+                          className="mt-0.5 size-3.5 accent-warning"
+                          disabled={!selectable || Boolean(stagingAction)}
+                          onChange={event =>
+                            setSelectedStagingAiOperationIds(current => {
+                              const next = new Set(current)
+                              if (event.target.checked) next.add(operation.id)
+                              else next.delete(operation.id)
+                              return next
+                            })
+                          }
+                          type="checkbox"
+                        />
+                        <span className="min-w-0 flex-1">
+                          <span className="font-semibold">
+                            {operation.kind === 'move'
+                              ? t('移动')
+                              : operation.kind === 'delete'
+                                ? t('删除重复项')
+                                : t('更新元数据（进入工作区后处理）')}
+                          </span>
+                          <span className="mt-1 block break-all font-mono">
+                            {operation.sourcePath}
+                            {operation.kind === 'move' && ` → ${operation.targetPath}`}
+                          </span>
+                          <span className="mt-1 block text-muted-foreground">
+                            {operation.reason}
+                          </span>
+                        </span>
+                      </label>
+                    )
+                  })}
+                </div>
+                <div className="mt-3 flex flex-wrap justify-end gap-2">
+                  <Button
+                    disabled={Boolean(stagingAction)}
+                    onClick={() => {
+                      setStagingAiDraft(null)
+                      setSelectedStagingAiOperationIds(new Set())
+                    }}
+                    size="compact"
+                    type="button"
+                    variant="ghost"
+                  >
+                    {t('暂不应用')}
+                  </Button>
+                  <Button
+                    disabled={Boolean(stagingAction) || selectedStagingAiOperationIds.size === 0}
+                    onClick={() => void applyStagingAiPlan()}
+                    size="compact"
+                    type="button"
+                  >
+                    {stagingAction === 'ai-plan' && (
+                      <LoaderCircle className="size-3.5 animate-spin" />
+                    )}
+                    {t('应用所选整理')}
+                  </Button>
+                </div>
+              </section>
+            )}
+
             <section className="rounded-2xl border border-border bg-background/55 p-4">
               <div className="flex flex-wrap items-center gap-2">
                 <Button
-                  disabled={Boolean(busyMode)}
+                  disabled={Boolean(busyMode) || Boolean(staging) || Boolean(stagingAction)}
                   onClick={() => void chooseSources('files')}
                   size="compact"
                   type="button"
@@ -422,7 +1382,7 @@ export function BatchTemplateImportDialog({
                   {t('选择多个 C++ 文件')}
                 </Button>
                 <Button
-                  disabled={Boolean(busyMode)}
+                  disabled={Boolean(busyMode) || Boolean(staging) || Boolean(stagingAction)}
                   onClick={() => void chooseSources('directory')}
                   size="compact"
                   type="button"
@@ -457,10 +1417,18 @@ export function BatchTemplateImportDialog({
               <div className="mt-4 space-y-2">
                 <div className="flex items-center gap-2 px-1">
                   <Button
-                    disabled={Boolean(busyMode) || selectedSources.length === sources.length}
+                    disabled={
+                      Boolean(busyMode) ||
+                      Boolean(stagingAction) ||
+                      selectedSources.length === sources.length
+                    }
                     onClick={() => {
                       setSelectedSourceIds(new Set(sources.map(source => source.id)))
                       setConflicts([])
+                      setError(null)
+                      if (importFlow === 'staging' && staging) {
+                        void persistAllStagingSelections('include')
+                      }
                     }}
                     size="compact"
                     type="button"
@@ -469,10 +1437,16 @@ export function BatchTemplateImportDialog({
                     {t('全选')}
                   </Button>
                   <Button
-                    disabled={Boolean(busyMode) || selectedSources.length === 0}
+                    disabled={
+                      Boolean(busyMode) || Boolean(stagingAction) || selectedSources.length === 0
+                    }
                     onClick={() => {
                       setSelectedSourceIds(new Set())
                       setConflicts([])
+                      setError(null)
+                      if (importFlow === 'staging' && staging) {
+                        void persistAllStagingSelections('skip')
+                      }
                     }}
                     size="compact"
                     type="button"
@@ -486,8 +1460,21 @@ export function BatchTemplateImportDialog({
                 </div>
                 {sources.map(source => {
                   const classification = classifications[source.id]
+                  const stagingItem = staging?.items.find(item => item.sourceId === source.id)
                   const conflict = conflicts.find(item => item.sourceId === source.id)
                   const selected = selectedSourceIds.has(source.id)
+                  const itemBusy = Boolean(busyMode) || Boolean(stagingAction)
+                  const itemIndex = selectedSources.findIndex(item => item.id === source.id)
+                  const liveProcessedCount =
+                    taskStatus?.progress.processedCount ?? progress.completed
+                  const liveTotalCount =
+                    taskStatus?.progress.totalCount ?? progress.total ?? selectedSources.length
+                  const isLiveCurrent =
+                    busyMode === 'classify' &&
+                    (taskStatus?.progress.currentItem === source.displayPath ||
+                      (!taskStatus?.progress.currentItem && itemIndex === liveProcessedCount))
+                  const isLiveProcessed =
+                    busyMode === 'classify' && itemIndex >= 0 && itemIndex < liveProcessedCount
                   return (
                     <article
                       className={`rounded-xl border p-3 transition-colors ${
@@ -502,16 +1489,26 @@ export function BatchTemplateImportDialog({
                           aria-label={`${t('选择导入')} ${source.displayPath}`}
                           checked={selected}
                           className="size-4 rounded border-border accent-primary"
-                          disabled={Boolean(busyMode)}
+                          disabled={itemBusy}
                           onChange={event => {
+                            const nextSelected = event.target.checked
                             setSelectedSourceIds(current => {
                               const next = new Set(current)
-                              if (event.target.checked) next.add(source.id)
+                              if (nextSelected) next.add(source.id)
                               else next.delete(source.id)
                               return next
                             })
                             setConflicts([])
                             setError(null)
+                            if (importFlow === 'staging' && staging) {
+                              void persistStagingItem(
+                                source.id,
+                                nextSelected ? 'include' : 'skip',
+                                nextSelected
+                                  ? (targetPaths[source.id] ?? source.displayPath)
+                                  : null,
+                              )
+                            }
                           }}
                           type="checkbox"
                         />
@@ -528,12 +1525,50 @@ export function BatchTemplateImportDialog({
                           {source.displayPath}
                         </span>
                         <Badge>{formatTemplateSourceEncoding(source.sourceEncoding)}</Badge>
+                        {stagingItem && (
+                          <Badge
+                            tone={
+                              stagingItem.status === 'failed'
+                                ? 'warning'
+                                : stagingItem.status === 'completed' && classification
+                                  ? 'success'
+                                  : 'neutral'
+                            }
+                          >
+                            {t(
+                              stagingItem.status === 'completed' && !classification
+                                ? '暂存项：已准备（未分类）'
+                                : itemLabels[stagingItem.status],
+                            )}
+                          </Badge>
+                        )}
                         {classification && (
                           <Badge tone="accent">
                             {Math.round(classification.confidence * 100)}%
                           </Badge>
                         )}
                       </div>
+                      {busyMode === 'classify' && selected && liveTotalCount > 0 && (
+                        <p
+                          className="mt-1 pl-6 text-[10px] tabular-nums text-muted-foreground"
+                          data-testid={`batch-item-progress-${source.id}`}
+                        >
+                          {isLiveCurrent
+                            ? t('处理中 {current}/{total}', {
+                                current: Math.min(itemIndex + 1, liveTotalCount),
+                                total: liveTotalCount,
+                              })
+                            : isLiveProcessed
+                              ? t('已处理 {current}/{total}', {
+                                  current: itemIndex + 1,
+                                  total: liveTotalCount,
+                                })
+                              : t('等待处理 {current}/{total}', {
+                                  current: Math.max(itemIndex + 1, liveProcessedCount + 1),
+                                  total: liveTotalCount,
+                                })}
+                        </p>
+                      )}
                       {selected && (
                         <div className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
                           <p className="text-[10px] text-muted-foreground sm:col-span-2">
@@ -544,7 +1579,7 @@ export function BatchTemplateImportDialog({
                             <input
                               aria-label={`${t('工作区保存路径')} ${source.displayPath}`}
                               className="mt-1 h-9 w-full rounded-lg border border-border bg-background px-3 font-mono text-xs text-foreground outline-none focus:ring-2 focus:ring-ring"
-                              disabled={Boolean(busyMode)}
+                              disabled={itemBusy}
                               onChange={event => {
                                 setTargetPaths(current => ({
                                   ...current,
@@ -558,6 +1593,15 @@ export function BatchTemplateImportDialog({
                                 }
                                 setConflicts([])
                                 setError(null)
+                              }}
+                              onBlur={() => {
+                                if (importFlow === 'staging' && staging) {
+                                  void persistStagingItem(
+                                    source.id,
+                                    'include',
+                                    targetPaths[source.id] ?? source.displayPath,
+                                  )
+                                }
                               }}
                               value={targetPaths[source.id] ?? ''}
                             />
@@ -645,6 +1689,11 @@ export function BatchTemplateImportDialog({
                               </div>
                             </div>
                           )}
+                          {stagingItem?.error && (
+                            <p className="rounded-lg border border-red-500/20 bg-red-500/6 px-2.5 py-2 text-[11px] text-red-700 dark:text-red-300 sm:col-span-2">
+                              {t(stagingItem.error)}
+                            </p>
+                          )}
                         </div>
                       )}
                     </article>
@@ -660,7 +1709,7 @@ export function BatchTemplateImportDialog({
               <select
                 aria-label={t('批量补全语言')}
                 className="h-8 rounded-lg border border-border bg-background px-2 text-xs text-foreground outline-none focus:ring-2 focus:ring-ring"
-                disabled={Boolean(busyMode)}
+                disabled={Boolean(busyMode) || Boolean(staging) || Boolean(stagingAction)}
                 onChange={event => {
                   setOutputLanguage(event.target.value as TemplateMetadataLanguage)
                   setClassifications({})
@@ -682,32 +1731,50 @@ export function BatchTemplateImportDialog({
               </span>
             )}
             <div className="ml-auto flex items-center gap-2">
-              {busyMode === 'classify' ? (
+              {busyMode === 'classify' || (importFlow === 'staging' && busyMode === 'import') ? (
                 <Button
                   onClick={() => {
                     cancelRequested.current = true
-                    const requestId = activeClassificationRequestId.current
-                    if (requestId) {
+                    const requestId =
+                      importFlow === 'staging'
+                        ? activeStagingRequestId.current
+                        : activeClassificationRequestId.current
+                    if (
+                      requestId &&
+                      typeof window.desktop.templateManagement.cancelClassification === 'function'
+                    ) {
                       void window.desktop.templateManagement.cancelClassification(requestId)
                     }
                   }}
                   type="button"
                   variant="outline"
                 >
-                  {t('取消当前及后续补全')}
+                  {importFlow === 'staging' ? t('停止处理并保留暂存') : t('取消当前及后续补全')}
                 </Button>
               ) : (
                 <Button
-                  disabled={Boolean(busyMode)}
-                  onClick={() => onOpenChange(false)}
+                  disabled={Boolean(busyMode) || Boolean(stagingAction)}
+                  onClick={() => {
+                    if (importFlow === 'staging' && staging) {
+                      void discardStaging()
+                    } else {
+                      onOpenChange(false)
+                    }
+                  }}
                   type="button"
                   variant="outline"
                 >
-                  {t('取消')}
+                  {importFlow === 'staging' && staging ? t('放弃暂存') : t('取消')}
                 </Button>
               )}
               <Button
-                disabled={Boolean(busyMode) || selectedSources.length === 0}
+                disabled={
+                  Boolean(busyMode) ||
+                  Boolean(stagingAction) ||
+                  selectedSources.length === 0 ||
+                  (importFlow === 'staging' &&
+                    (!staging || staging.status === 'ready' || staging.status === 'applying'))
+                }
                 onClick={() => void previewClassification()}
                 type="button"
                 variant="outline"
@@ -720,12 +1787,28 @@ export function BatchTemplateImportDialog({
                 {completedCount > 0 ? t('重新生成所选元数据') : t('AI 补全所选模板')}
               </Button>
               <Button
-                disabled={Boolean(busyMode) || !readyToImport}
+                disabled={
+                  Boolean(busyMode) ||
+                  Boolean(stagingAction) ||
+                  (importFlow === 'staging'
+                    ? !staging ||
+                      (staging.status === 'ready' && !stagingReadyToApply) ||
+                      staging.status === 'applying'
+                    : !readyToImport)
+                }
                 onClick={() => void importAll()}
                 type="button"
               >
                 {busyMode === 'import' && <LoaderCircle className="size-4 animate-spin" />}
-                {t('确认导入 {count} 份', { count: importSources.length })}
+                {importFlow === 'staging'
+                  ? staging?.status === 'ready'
+                    ? t('确认应用 {count} 份', { count: stagingIncludedItems.length })
+                    : staging?.status === 'failed'
+                      ? t('重试并准备暂存')
+                      : t('准备暂存 {count} 份', {
+                          count: stagingIncludedItems.length || selectedSources.length,
+                        })
+                  : t('确认导入 {count} 份', { count: importSources.length })}
               </Button>
             </div>
           </footer>
@@ -736,8 +1819,27 @@ export function BatchTemplateImportDialog({
         <AiRequestPreviewDialog
           busy={false}
           onCancel={() => setPreview(null)}
-          onConfirm={() => void classifyAll()}
+          onConfirm={() =>
+            void (importFlow === 'staging'
+              ? processStaging(true, staging?.status === 'failed')
+              : classifyAll())
+          }
           preview={preview}
+        />
+      )}
+      {stagingAiPreview && (
+        <AiRequestPreviewDialog
+          busy={busyMode === 'ai-plan'}
+          onCancel={() => {
+            if (stagingAiRequestId && busyMode === 'ai-plan') {
+              void stagingApi().cancelBatchStagingAiPlan?.(stagingAiRequestId)
+            }
+            setStagingAiPreview(null)
+            setStagingAiRequestId(null)
+          }}
+          onConfirm={() => void generateStagingAiPlan()}
+          preview={stagingAiPreview}
+          taskStatus={taskStatus}
         />
       )}
     </Dialog.Root>

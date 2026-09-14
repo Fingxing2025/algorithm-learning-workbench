@@ -146,6 +146,19 @@ export class WorkspaceStorageManager {
     if (!isAbsolute(requested)) {
       throw new PublicError('INVALID_REQUEST', '工作区路径必须是绝对路径。')
     }
+    const requestedStats = await lstat(requested).catch(error => {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null
+      throw new PublicError('FILE_UNAVAILABLE', '工作区文件夹不存在或不可访问。')
+    })
+    if (!requestedStats) {
+      throw new PublicError('FILE_UNAVAILABLE', '工作区文件夹不存在或不可访问。')
+    }
+    if (requestedStats.isSymbolicLink()) {
+      throw new PublicError('PATH_NOT_AUTHORIZED', '工作区根目录不能是符号链接。')
+    }
+    if (!requestedStats.isDirectory()) {
+      throw new PublicError('INVALID_REQUEST', '工作区必须是普通文件夹。')
+    }
     const canonical = await realpath(requested).catch(() => null)
     if (!canonical) {
       throw new PublicError('FILE_UNAVAILABLE', '工作区文件夹不存在或不可访问。')

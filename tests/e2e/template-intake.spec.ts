@@ -102,10 +102,19 @@ test.beforeAll(async () => {
         typeof lastUserMessage?.content === 'string' ? lastUserMessage.content : ''
       const existingMetadataCompletion =
         userContent.includes('"existingMetadata"') && userContent.includes('"missingFields"')
-      const legacyBwtClassification = userContent.includes('bwt_legacy_shape')
-      const batchFileName = userContent.includes('batch_one')
+      // Dynamic staging adds earlier source snippets to related context.
+      // Match only the current source, not those reference templates.
+      let currentSource = userContent
+      try {
+        const payload = JSON.parse(userContent) as { source?: unknown }
+        if (typeof payload.source === 'string') currentSource = payload.source
+      } catch {
+        /* A semantic-retry message can contain plain text. */
+      }
+      const legacyBwtClassification = currentSource.includes('bwt_legacy_shape')
+      const batchFileName = currentSource.includes('batch_one')
         ? '批量一.cpp'
-        : userContent.includes('batch_two')
+        : currentSource.includes('batch_two')
           ? '批量二.cpp'
           : null
       const systemMessage = messages.find(
@@ -532,7 +541,7 @@ test('accepts a common legacy BWT classification shape from compatible models', 
   await page.getByRole('button', { name: '关闭新建模板' }).click()
 })
 
-test('selects batch sources by default, imports without AI, and resolves every conflict action', async () => {
+test('stages selected copies without AI and resolves collisions without overwriting existing files', async () => {
   const firstSource = join(manualSourceRoot, 'manual-one.cpp')
   const secondSource = join(manualSourceRoot, 'manual-two.cpp')
   const originalFirst = await readFile(firstSource, 'utf8')
@@ -541,46 +550,27 @@ test('selects batch sources by default, imports without AI, and resolves every c
   await openBatchImportDialog()
   await setNextSelection([firstSource, secondSource])
   await page.getByRole('button', { name: '选择多个 C++ 文件' }).click()
-
-  const firstSelection = page.getByLabel('选择导入 manual-one.cpp')
-  const secondSelection = page.getByLabel('选择导入 manual-two.cpp')
-  await expect(firstSelection).toBeChecked()
-  await expect(secondSelection).toBeChecked()
-  await expect(page.getByText('未生成 AI 元数据，将按空元数据导入')).toHaveCount(2)
-  await secondSelection.uncheck()
-  await expect(page.getByRole('button', { name: '确认导入 1 份' })).toBeEnabled()
-  await page.getByRole('button', { name: '确认导入 1 份' }).click()
-  await expect(page.getByText('已批量导入 1 份 C++ 模板')).toBeVisible()
-  expect(await readFile(join(workspaceRoot, 'templates', 'manual-one.cpp'), 'utf8')).toBe(
-    originalFirst,
-  )
-  await expect(
-    readFile(join(workspaceRoot, 'templates', 'manual-two.cpp'), 'utf8'),
-  ).rejects.toThrow()
-
-  await openBatchImportDialog()
-  await setNextSelection([firstSource, secondSource])
-  await page.getByRole('button', { name: '选择多个 C++ 文件' }).click()
-  await page.getByRole('button', { name: '确认导入 2 份' }).click()
-  await expect(page.getByRole('alert')).toContainText('检测到 1 项路径冲突')
-  await expect(page.getByText('目标文件已经存在，请选择覆盖、不加入或修改文件名。')).toBeVisible()
-  await page.getByRole('button', { name: '不加入' }).click()
-  await page.getByRole('button', { name: '确认导入 1 份' }).click()
+  await expect(page.getByLabel('选择导入 manual-one.cpp')).toBeChecked()
+  await expect(page.getByLabel('选择导入 manual-two.cpp')).toBeChecked()
+  await page.getByLabel('选择导入 manual-two.cpp').uncheck()
+  await page.getByRole('button', { name: '准备暂存 1 份', exact: true }).click()
+  await expect(page.getByRole('button', { name: '确认应用 1 份', exact: true })).toBeEnabled()
+  await expect(readFile(join(workspaceRoot, 'templates', 'manual-one.cpp'))).rejects.toThrow()
+  await page.getByRole('button', { name: '确认应用 1 份', exact: true }).click()
   await expect(page.getByRole('heading', { name: '批量导入 C++ 模板' })).toHaveCount(0)
   expect(await readFile(join(workspaceRoot, 'templates', 'manual-one.cpp'), 'utf8')).toBe(
     originalFirst,
   )
-  expect(await readFile(join(workspaceRoot, 'templates', 'manual-two.cpp'), 'utf8')).toBe(
-    originalSecond,
-  )
+  await expect(readFile(join(workspaceRoot, 'templates', 'manual-two.cpp'))).rejects.toThrow()
 
-  const overwrittenFirst = 'void manual_one_v2() {}\n'
-  await writeFile(firstSource, overwrittenFirst, 'utf8')
   await openBatchImportDialog()
-  await setNextSelection(firstSource)
+  await setNextSelection([firstSource, secondSource])
   await page.getByRole('button', { name: '选择多个 C++ 文件' }).click()
-  await page.getByRole('button', { name: '确认导入 1 份' }).click()
-  await expect(page.getByRole('button', { name: '覆盖已有文件' })).toBeVisible()
+  await page.getByRole('button', { name: '准备暂存 2 份', exact: true }).click()
+  await expect(page.getByText('处理失败', { exact: true })).toBeVisible()
+  expect(await readFile(join(workspaceRoot, 'templates', 'manual-one.cpp'), 'utf8')).toBe(
+    originalFirst,
+  )
   await page.screenshot({
     animations: 'disabled',
     path: resolve('output/playwright/batch-template-conflict-light.png'),
@@ -591,30 +581,35 @@ test('selects batch sources by default, imports without AI, and resolves every c
     path: resolve('output/playwright/batch-template-conflict-dark.png'),
   })
   await page.locator('html').evaluate(root => root.classList.remove('dark'))
-  await page.getByRole('button', { name: '覆盖已有文件' }).click()
-  await page.getByRole('button', { name: '确认导入 1 份' }).click()
+  await page.getByLabel('选择导入 manual-one.cpp').uncheck()
+  await page.getByRole('button', { name: '准备暂存 1 份', exact: true }).click()
+  await page.getByRole('button', { name: '确认应用 1 份', exact: true }).click()
   await expect(page.getByRole('heading', { name: '批量导入 C++ 模板' })).toHaveCount(0)
-  expect(await readFile(join(workspaceRoot, 'templates', 'manual-one.cpp'), 'utf8')).toBe(
-    overwrittenFirst,
+  expect(await readFile(join(workspaceRoot, 'templates', 'manual-two.cpp'), 'utf8')).toBe(
+    originalSecond,
   )
-  const backupEntries = await readdir(join(workspaceRoot, '.awb', 'batch-import-backups'), {
-    recursive: true,
-  })
-  expect(backupEntries.some(entry => entry.endsWith('manifest.json'))).toBe(true)
-  expect(await readFile(firstSource, 'utf8')).toBe(overwrittenFirst)
 
+  const revisedFirst = 'void manual_one_v2() {}\n'
+  await writeFile(firstSource, revisedFirst, 'utf8')
   await openBatchImportDialog()
   await setNextSelection(firstSource)
   await page.getByRole('button', { name: '选择多个 C++ 文件' }).click()
-  await page.getByRole('button', { name: '确认导入 1 份' }).click()
-  await page.getByRole('button', { name: '修改文件名' }).click()
   await page.getByLabel('工作区保存路径 manual-one.cpp').fill('manual-one-copy.cpp')
-  await page.getByRole('button', { name: '确认导入 1 份' }).click()
+  await page.getByLabel('工作区保存路径 manual-one.cpp').blur()
+  await page.getByRole('button', { name: '准备暂存 1 份', exact: true }).click()
+  await page.getByRole('button', { name: '确认应用 1 份', exact: true }).click()
   await expect(page.getByRole('heading', { name: '批量导入 C++ 模板' })).toHaveCount(0)
   expect(await readFile(join(workspaceRoot, 'templates', 'manual-one-copy.cpp'), 'utf8')).toBe(
-    overwrittenFirst,
+    revisedFirst,
   )
-  expect(await readFile(firstSource, 'utf8')).toBe(overwrittenFirst)
+  expect(await readFile(join(workspaceRoot, 'templates', 'manual-one.cpp'), 'utf8')).toBe(
+    originalFirst,
+  )
+  expect(await readFile(firstSource, 'utf8')).toBe(revisedFirst)
+  const backups = await readdir(join(workspaceRoot, '.awb', 'recovery', 'batch-staging'), {
+    recursive: true,
+  })
+  expect(backups.some(entry => entry.endsWith('journal.json'))).toBe(true)
 })
 
 test('scans a C++ folder, generates all metadata, and atomically imports copies', async () => {
@@ -622,13 +617,6 @@ test('scans a C++ folder, generates all metadata, and atomically imports copies'
   const originalTwo = await readFile(join(batchSourceRoot, 'nested', 'two.cpp'), 'utf8')
 
   await openBatchImportDialog()
-  await setNextSelection([
-    join(batchSourceRoot, 'one.cpp'),
-    join(batchSourceRoot, 'nested', 'two.cpp'),
-  ])
-  await page.getByRole('button', { name: '选择多个 C++ 文件' }).click()
-  await expect(page.getByText('one.cpp', { exact: true })).toBeVisible()
-  await expect(page.getByText('two.cpp', { exact: true })).toBeVisible()
   await setNextSelection(batchSourceRoot)
   await page.getByRole('button', { name: '扫描 C++ 文件夹' }).click()
   await expect(page.getByText('one.cpp', { exact: true })).toBeVisible()
@@ -666,15 +654,16 @@ test('scans a C++ folder, generates all metadata, and atomically imports copies'
   await page.locator('html').evaluate(root => root.classList.remove('dark'))
 
   await secondPath.fill('批量导入/测试算法/批量一.cpp')
-  await page.getByRole('button', { name: '确认导入 2 份' }).click()
-  await expect(page.getByRole('alert')).toContainText('检测到 2 项路径冲突')
+  await secondPath.blur()
+  await expect(page.getByRole('alert')).toBeVisible()
   await expect(
     readFile(join(workspaceRoot, 'templates', '批量导入', '测试算法', '批量一.cpp')),
   ).rejects.toThrow()
 
   await secondPath.fill('批量导入/测试算法/批量二.cpp')
-  await page.getByRole('button', { name: '确认导入 2 份' }).click()
-  await expect(page.getByText('已批量导入 2 份 C++ 模板')).toBeVisible()
+  await secondPath.blur()
+  await page.getByRole('button', { name: '确认应用 2 份', exact: true }).click()
+  await expect(page.getByRole('heading', { name: '批量导入 C++ 模板' })).toHaveCount(0)
   expect(
     await readFile(join(workspaceRoot, 'templates', '批量导入', '测试算法', '批量一.cpp'), 'utf8'),
   ).toBe(originalOne)

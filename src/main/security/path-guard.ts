@@ -10,7 +10,20 @@ export function isPathInsideRoot(rootPath: string, candidatePath: string): boole
 
 export async function resolveAuthorizedRoot(rootPath: string): Promise<string> {
   try {
-    const canonicalRoot = await realpath(rootPath)
+    // Do not silently widen the authorization boundary when the root itself is
+    // replaced with a symlink.  `realpath(rootPath)` alone would follow that
+    // link and make an otherwise unrelated directory look like the user's
+    // selected workspace.  Descendant links are checked separately by
+    // resolveAuthorizedFile and the callers that mutate directory trees.
+    const requestedRoot = resolve(rootPath)
+    const requestedStats = await lstat(requestedRoot)
+    if (requestedStats.isSymbolicLink()) {
+      throw new PublicError('PATH_NOT_AUTHORIZED', '授权根目录不能是符号链接。')
+    }
+    if (!requestedStats.isDirectory()) {
+      throw new PublicError('WORKSPACE_UNAVAILABLE', '所选位置不是可用的文件夹。')
+    }
+    const canonicalRoot = await realpath(requestedRoot)
     const rootStats = await stat(canonicalRoot)
     if (!rootStats.isDirectory()) {
       throw new PublicError('WORKSPACE_UNAVAILABLE', '所选位置不是可用的文件夹。')

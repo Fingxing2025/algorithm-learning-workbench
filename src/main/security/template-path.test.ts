@@ -12,6 +12,7 @@ describe('normalizeTemplateRelativePath', () => {
   it('rejects traversal, absolute paths, and unsupported extensions', () => {
     expect(() => normalizeTemplateRelativePath('../outside.cpp')).toThrow()
     expect(() => normalizeTemplateRelativePath('/tmp/outside.cpp')).toThrow()
+    expect(() => normalizeTemplateRelativePath('C:/outside.cpp')).toThrow()
     expect(() => normalizeTemplateRelativePath('notes.txt')).toThrow()
   })
 })

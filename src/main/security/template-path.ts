@@ -5,7 +5,12 @@ import { getLanguageForExtension } from '../services/template-scanner'
 
 export function normalizeTemplateRelativePath(input: string): string {
   const normalized = input.trim().replace(/\\/g, '/').normalize('NFC')
-  if (!normalized || normalized.length > 4096 || normalized.startsWith('/')) {
+  if (
+    !normalized ||
+    normalized.length > 4096 ||
+    normalized.startsWith('/') ||
+    /^[A-Za-z]:/u.test(normalized)
+  ) {
     throw new PublicError('INVALID_REQUEST', '模板保存路径必须是工作区内的相对路径。')
   }
   const segments = normalized.split('/')

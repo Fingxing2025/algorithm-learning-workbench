@@ -87,6 +87,15 @@ const RESTORABLE_USER_DATA_DIRECTORIES = [
   'file-plan-backups',
   'batch-import-backups',
 ] as const
+// Batch template staging is a resumable import workspace, not a portable
+// business-data artifact.  It is deliberately excluded from backup packages;
+// rows and files must therefore be removed together when a backup replaces the
+// active workspace (otherwise a restored DB would point at missing/old source
+// copies).  Keep the names centralized so older databases without migration
+// 0009 remain readable.
+const BATCH_STAGING_DIRECTORY = 'staging'
+const BATCH_STAGING_SESSIONS_TABLE = 'batch_template_staging_sessions'
+const BATCH_STAGING_ITEMS_TABLE = 'batch_template_staging_items'
 const RESTORE_TABLES = [
   'app_migrations',
   'app_state',
@@ -164,6 +173,12 @@ const zeroCounts: DataManagementCounts = {
 }
 
 export class DataManagementService {
+  private stagingRecoveryCheck?: () => Promise<boolean>
+
+  setStagingRecoveryCheck(check: () => Promise<boolean>): void {
+    this.stagingRecoveryCheck = check
+  }
+
   private readonly fileExecutionIntegrityService: FileExecutionIntegrityService
   private readonly lifecycleService: DataLifecycleService
 
@@ -227,6 +242,7 @@ export class DataManagementService {
     parentWindow?: BrowserWindow,
     onProgress?: (progress: BackgroundTaskProgress) => void,
   ): Promise<BackupExportResult | null> {
+    await this.assertNoPendingBatchStaging()
     const workspace = this.requireActiveWorkspace()
     const result = parentWindow
       ? await dialog.showSaveDialog(parentWindow, this.exportDialogOptions())
@@ -235,6 +251,7 @@ export class DataManagementService {
       return null
     }
 
+    await this.assertNoPendingBatchStaging()
     const finalPath = await this.normalizeBackupTarget(result.filePath)
     const finalParent = dirname(finalPath)
     const operationId = randomUUID()
@@ -311,6 +328,7 @@ export class DataManagementService {
     parentWindow?: BrowserWindow,
     onProgress?: (progress: BackgroundTaskProgress) => void,
   ): Promise<RestorePreview | null> {
+    await this.assertNoPendingBatchStaging()
     const workspace = this.requireActiveWorkspace()
     const selectedPath = await this.chooseBackupPackage(request, parentWindow)
     if (!selectedPath) return null
@@ -377,6 +395,7 @@ export class DataManagementService {
     request: RestoreBackupRequest,
     onProgress?: (progress: BackgroundTaskProgress) => void,
   ): Promise<RestoreBackupResult> {
+    await this.assertNoPendingBatchStaging()
     const targetWorkspace = this.requireActiveWorkspace()
     onProgress?.({
       currentItem: '备份包',
@@ -486,6 +505,13 @@ export class DataManagementService {
       )
       databaseCommitted = true
       this.workspaceRepository.syncWorkspaceSummaryFromDatabase(targetWorkspace.id)
+      // Staging is intentionally excluded from portable backups.  Once the
+      // replacement database is committed, remove the corresponding transient
+      // source tree as well so no resumable session can point at stale files.
+      // If this cleanup fails, the committed-restore marker keeps the state
+      // recoverable and the caller is directed to the interrupted-operation
+      // flow instead of silently claiming a clean restore.
+      await this.removeBatchStagingDirectory()
       onProgress?.({
         currentItem: '当前工作区数据库',
         phase: 'finalizing',
@@ -1063,6 +1089,12 @@ export class DataManagementService {
       this.database.client.prepare('ATTACH DATABASE ? AS restore_src').run(snapshotPath)
       attached = true
       const restoreTransaction = this.database.client.transaction(() => {
+        // The source snapshot intentionally omits transient batch staging.
+        // Remove any staging rows belonging to the target before replacing its
+        // durable tables; otherwise they would survive the restore while their
+        // `.awb/staging/<id>` source copies are discarded or belong to an older
+        // workspace version.
+        this.clearBatchStagingRows(this.database.client, scope.targetWorkspaceId)
         this.database.client
           .prepare(
             `DELETE FROM file_change_executions
@@ -1193,6 +1225,13 @@ export class DataManagementService {
       snapshot
         .prepare('DELETE FROM app_state WHERE key LIKE ?')
         .run(`${RESTORE_COMMIT_MARKER_PREFIX}%`)
+      // Staging sessions contain transient source copies under `.awb/staging`
+      // and are intentionally not part of the portable v2 package.  The
+      // SQLite backup API copies the whole database, including tables added by
+      // newer migrations, so purge both sides explicitly before VACUUM.  The
+      // table check keeps exports compatible with a database opened before the
+      // staging migration was installed.
+      this.clearBatchStagingRows(snapshot)
       // Purge deleted rows from free pages so another workspace or Provider configuration cannot
       // remain recoverable as raw strings inside the portable SQLite file.
       snapshot.exec('VACUUM')
@@ -1203,6 +1242,71 @@ export class DataManagementService {
       }
     } finally {
       snapshot.close()
+    }
+  }
+
+  private async assertNoPendingBatchStaging(): Promise<void> {
+    if (await this.stagingRecoveryCheck?.())
+      throw new PublicError('INVALID_REQUEST', '请先在备份与恢复中完成暂存导入恢复。')
+    const workspace = this.workspaceRepository.getActiveWorkspace()
+    if (!workspace) return
+    const exists = this.database.client
+      .prepare('SELECT 1 FROM sqlite_master WHERE name = ?')
+      .get(BATCH_STAGING_SESSIONS_TABLE)
+    if (
+      exists &&
+      this.database.client
+        .prepare(
+          `SELECT 1 FROM ${BATCH_STAGING_SESSIONS_TABLE} WHERE workspace_id = ? AND status NOT IN ('applied', 'discarded') LIMIT 1`,
+        )
+        .get(workspace.id)
+    )
+      throw new PublicError(
+        'INVALID_REQUEST',
+        '当前工作区有未完成的暂存导入，请先恢复、应用或明确放弃该批次，再导出或恢复备份。',
+      )
+  }
+
+  /**
+   * Remove transient batch-staging rows from a SQLite client.  This helper is
+   * intentionally table-name based (rather than importing the Drizzle schema)
+   * because backup/restore also handles databases from adjacent V2 migration
+   * versions.  Child rows are deleted first so it remains safe when foreign
+   * keys are enabled or disabled by the caller.
+   */
+  private clearBatchStagingRows(client: BetterSqlite3.Database, workspaceId?: string): void {
+    const hasSessions = Boolean(
+      client
+        .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ? LIMIT 1")
+        .get(BATCH_STAGING_SESSIONS_TABLE),
+    )
+    const hasItems = Boolean(
+      client
+        .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ? LIMIT 1")
+        .get(BATCH_STAGING_ITEMS_TABLE),
+    )
+    if (hasItems) {
+      if (workspaceId && hasSessions) {
+        client
+          .prepare(
+            `DELETE FROM ${BATCH_STAGING_ITEMS_TABLE}
+             WHERE staging_id IN (
+               SELECT id FROM ${BATCH_STAGING_SESSIONS_TABLE} WHERE workspace_id = ?
+             )`,
+          )
+          .run(workspaceId)
+      } else {
+        client.prepare(`DELETE FROM ${BATCH_STAGING_ITEMS_TABLE}`).run()
+      }
+    }
+    if (hasSessions) {
+      if (workspaceId) {
+        client
+          .prepare(`DELETE FROM ${BATCH_STAGING_SESSIONS_TABLE} WHERE workspace_id = ?`)
+          .run(workspaceId)
+      } else {
+        client.prepare(`DELETE FROM ${BATCH_STAGING_SESSIONS_TABLE}`).run()
+      }
     }
   }
 
@@ -2246,6 +2350,29 @@ export class DataManagementService {
     return directoryName === 'problem-images'
       ? this.getProblemImageRoot()
       : join(this.getManagedDataRoot(), directoryName)
+  }
+
+  /**
+   * Remove the active workspace's transient batch staging tree after a
+   * successful database replacement.  Refuse symlinks and paths outside the
+   * managed data root; a user-created link must never turn cleanup into a
+   * recursive delete of an arbitrary directory.
+   */
+  private async removeBatchStagingDirectory(): Promise<void> {
+    const dataRoot = resolve(this.getManagedDataRoot())
+    const stagingRoot = resolve(dataRoot, BATCH_STAGING_DIRECTORY)
+    if (!isPathInsideRoot(dataRoot, stagingRoot) || stagingRoot === dataRoot) {
+      throw new PublicError('PATH_NOT_AUTHORIZED', '暂存目录不在受控工作区数据目录内。')
+    }
+    const stats = await lstat(stagingRoot).catch(error => {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null
+      throw new PublicError('FILE_UNAVAILABLE', '暂存目录当前不可用。')
+    })
+    if (!stats) return
+    if (stats.isSymbolicLink() || !stats.isDirectory()) {
+      throw new PublicError('PATH_NOT_AUTHORIZED', '暂存目录不是受控的普通文件夹。')
+    }
+    await rm(stagingRoot, { force: false, recursive: true })
   }
 
   private resolveWorkspaceDataRelative(relativePath: string): string {

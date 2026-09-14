@@ -36,7 +36,7 @@ describe('resolveAppRoute', () => {
         isWorkspaceLoading: false,
         workspace: { ...workspace, available: false },
       }),
-    ).toBe('unavailable')
+    ).toBe('data')
   })
 
   it('preserves the selected domain page for an available workspace', () => {

@@ -788,6 +788,16 @@ export class TemplateManagementRepository {
     return this.getMetadata(templateId)!
   }
 
+  /** Remove metadata for a template that is no longer present in the workspace. */
+  deleteMetadata(templateId: string): boolean {
+    return (
+      this.database.orm
+        .delete(templateMetadata)
+        .where(eq(templateMetadata.templateId, templateId))
+        .run().changes > 0
+    )
+  }
+
   upsertMetadataBatch(
     updates: Array<{ fields: TemplateMetadataFields; templateId: string }>,
   ): void {

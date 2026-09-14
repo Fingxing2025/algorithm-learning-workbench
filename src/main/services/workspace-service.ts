@@ -912,8 +912,9 @@ export class WorkspaceService {
   async rescanCurrentWorkspace(
     stableIdsByRelativePath?: ReadonlyMap<string, string>,
     options: Omit<TemplateScanOptions, 'previousEntries'> = {},
+    commit?: (publish: () => void) => void,
   ): Promise<WorkspaceSnapshot> {
-    return this.scanAndSnapshot(this.requireWorkspace(), stableIdsByRelativePath, options)
+    return this.scanAndSnapshot(this.requireWorkspace(), stableIdsByRelativePath, options, commit)
   }
 
   private requireWorkspace(): WorkspaceRecord {
@@ -932,6 +933,7 @@ export class WorkspaceService {
     workspace: WorkspaceRecord,
     stableIdsByRelativePath?: ReadonlyMap<string, string>,
     options: Omit<TemplateScanOptions, 'previousEntries'> = {},
+    commit?: (publish: () => void) => void,
   ): Promise<WorkspaceSnapshot> {
     const previousEntries = this.repository.listTemplateIndexEntries(workspace.id)
     const scanResult = await scanTemplateWorkspace(workspace.rootPath, workspace.id, {
@@ -949,13 +951,16 @@ export class WorkspaceService {
         : {}),
     }))
     options.onBeforePublish?.()
-    this.repository.applyTemplateScan(
-      workspace.id,
-      templates,
-      scanResult.summary,
-      scanResult.stats,
-      scannedAt,
-    )
+    const publish = () =>
+      this.repository.applyTemplateScan(
+        workspace.id,
+        templates,
+        scanResult.summary,
+        scanResult.stats,
+        scannedAt,
+      )
+    if (commit) commit(publish)
+    else publish()
     const refreshedWorkspace = this.repository.getActiveWorkspace()
     if (!refreshedWorkspace) {
       throw new PublicError('DATABASE_ERROR', '无法读取工作区索引，请重试。')

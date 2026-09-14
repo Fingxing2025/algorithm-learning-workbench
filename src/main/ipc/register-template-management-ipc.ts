@@ -1,7 +1,11 @@
+import { randomUUID } from 'node:crypto'
+import { workspaceSnapshotSchema } from '@core/contracts/workspace'
 import { z } from 'zod'
 
 import {
   applyExistingTemplateMetadataCompletionRequestSchema,
+  batchStagingRecoveryListSchema,
+  recoverBatchStagingRequestSchema,
   applyExistingTemplateMetadataCompletionResultSchema,
   batchImportTemplateRequestSchema,
   batchImportTemplateResultSchema,
@@ -52,6 +56,25 @@ import {
   previewDeleteFilePlansRequestSchema,
   previewBatchTemplateClassificationRequestSchema,
   previewBatchTemplateClassificationResultSchema,
+  previewTemplateAiPlanRequestSchema,
+  previewBatchStagingClassificationRequestSchema,
+  previewBatchStagingClassificationResultSchema,
+  stagingAiPlanPreviewSchema,
+  stagingAiPlanDraftSchema,
+  stagingAiPlanDraftRequestSchema,
+  discardStagingAiPlanDraftRequestSchema,
+  createBatchTemplateStagingRequestSchema,
+  batchTemplateStagingSchema,
+  batchTemplateStagingListSchema,
+  batchTemplateStagingIdRequestSchema,
+  processBatchTemplateStagingRequestSchema,
+  retryBatchTemplateStagingRequestSchema,
+  updateBatchTemplateStagingItemRequestSchema,
+  applyBatchTemplateStagingRequestSchema,
+  applyBatchTemplateStagingResultSchema,
+  applyStagingAiPlanRequestSchema,
+  applyStagingAiPlanResultSchema,
+  discardBatchTemplateStagingRequestSchema,
   previewTemplateRelocationRequestSchema,
   rollbackFileChangeExecutionRequestSchema,
   templateRelocationPreviewSchema,
@@ -74,6 +97,30 @@ export function registerTemplateManagementIpc(
   backgroundTasks: BackgroundTaskRegistry,
   getParentWindow: () => Electron.BrowserWindow | undefined,
 ): void {
+  type StagingFacade = Pick<
+    TemplateManagementService,
+    | 'applyBatchStaging'
+    | 'applyBatchStagingAiPlan'
+    | 'cancelBatchStaging'
+    | 'cancelBatchStagingAiPlan'
+    | 'continueBatchStaging'
+    | 'createBatchStaging'
+    | 'discardBatchStaging'
+    | 'discardBatchStagingAiDraft'
+    | 'generateBatchStagingAiPlan'
+    | 'getBatchStaging'
+    | 'getBatchStagingAiDraft'
+    | 'listBatchStagings'
+    | 'previewBatchStagingAiPlan'
+    | 'previewBatchStagingClassification'
+    | 'retryBatchStaging'
+    | 'updateBatchStagingItem'
+  >
+  // Keep one validated IPC façade.  TemplateManagementService owns the
+  // staging dependency and enforces the active-workspace boundary; wiring a
+  // second direct service here would let future handlers accidentally bypass
+  // that policy.
+  const stagingFacade: StagingFacade = service
   const runTracked = <Result>(
     requestId: string | undefined,
     scope: string,
@@ -82,13 +129,37 @@ export function registerTemplateManagementIpc(
       updateProgress: (progress: BackgroundTaskProgress) => void
     }) => Promise<Result>,
   ): Promise<Result> => {
-    if (!requestId) {
-      const controller = new AbortController()
-      return run({ signal: controller.signal, updateProgress: () => undefined })
-    }
-    return backgroundTasks.track({ id: requestId, run, scope })
+    return backgroundTasks.track({ id: requestId ?? randomUUID(), run, scope })
   }
+  const runStagingTracked = <Result>(
+    requestId: string | undefined,
+    scope: string,
+    run: (updateProgress: (progress: BackgroundTaskProgress) => void) => Promise<Result>,
+    cancel: ((requestId: string) => void) | undefined,
+  ): Promise<Result> =>
+    runTracked(requestId, scope, ({ signal, updateProgress }) => {
+      if (!requestId || !cancel) return run(updateProgress)
+      const onAbort = () => cancel(requestId)
+      signal.addEventListener('abort', onAbort, { once: true })
+      if (signal.aborted) onAbort()
+      return run(updateProgress).finally(() => signal.removeEventListener('abort', onAbort))
+    })
 
+  registerValidatedHandler({
+    channel: IPC_CHANNELS.templateManagement.inspectBatchStagingRecoveries,
+    handler: () => service.inspectBatchStagingRecoveries(),
+    inputSchema: z.void(),
+    outputSchema: batchStagingRecoveryListSchema,
+  })
+  registerValidatedHandler({
+    channel: IPC_CHANNELS.templateManagement.recoverBatchStaging,
+    handler: request =>
+      runTracked(randomUUID(), service.getActiveWorkspaceId(), () =>
+        service.recoverBatchStaging(request),
+      ),
+    inputSchema: recoverBatchStagingRequestSchema,
+    outputSchema: workspaceSnapshotSchema.nullable(),
+  })
   registerValidatedHandler({
     channel: IPC_CHANNELS.templateManagement.previewExistingMetadataCompletion,
     handler: request => service.previewExistingMetadataCompletion(request),
@@ -133,6 +204,136 @@ export function registerTemplateManagementIpc(
     handler: () => service.chooseBatchImportDirectory(getParentWindow()),
     inputSchema: z.void(),
     outputSchema: batchTemplateImportSourceListSchema,
+  })
+  registerValidatedHandler({
+    channel: IPC_CHANNELS.templateManagement.createBatchStaging,
+    handler: request =>
+      runTracked(randomUUID(), service.getActiveWorkspaceId(), () =>
+        stagingFacade.createBatchStaging(request),
+      ),
+    inputSchema: createBatchTemplateStagingRequestSchema,
+    outputSchema: batchTemplateStagingSchema,
+  })
+  registerValidatedHandler({
+    channel: IPC_CHANNELS.templateManagement.getBatchStaging,
+    handler: request => stagingFacade.getBatchStaging(request),
+    inputSchema: batchTemplateStagingIdRequestSchema,
+    outputSchema: batchTemplateStagingSchema.nullable(),
+  })
+  registerValidatedHandler({
+    channel: IPC_CHANNELS.templateManagement.listBatchStagings,
+    handler: () => stagingFacade.listBatchStagings(),
+    inputSchema: z.void(),
+    outputSchema: batchTemplateStagingListSchema,
+  })
+  registerValidatedHandler({
+    channel: IPC_CHANNELS.templateManagement.continueBatchStaging,
+    handler: request =>
+      runStagingTracked(
+        request.requestId,
+        service.getActiveWorkspaceId(),
+        updateProgress => stagingFacade.continueBatchStaging(request, updateProgress),
+        requestId => stagingFacade.cancelBatchStaging(requestId),
+      ),
+    inputSchema: processBatchTemplateStagingRequestSchema,
+    outputSchema: batchTemplateStagingSchema,
+  })
+  registerValidatedHandler({
+    channel: IPC_CHANNELS.templateManagement.retryBatchStaging,
+    handler: request =>
+      runStagingTracked(
+        request.requestId,
+        service.getActiveWorkspaceId(),
+        updateProgress => stagingFacade.retryBatchStaging(request, updateProgress),
+        requestId => stagingFacade.cancelBatchStaging(requestId),
+      ),
+    inputSchema: retryBatchTemplateStagingRequestSchema,
+    outputSchema: batchTemplateStagingSchema,
+  })
+  registerValidatedHandler({
+    channel: IPC_CHANNELS.templateManagement.updateBatchStagingItem,
+    handler: request =>
+      runTracked(randomUUID(), service.getActiveWorkspaceId(), () =>
+        stagingFacade.updateBatchStagingItem(request),
+      ),
+    inputSchema: updateBatchTemplateStagingItemRequestSchema,
+    outputSchema: batchTemplateStagingSchema,
+  })
+  registerValidatedHandler({
+    channel: IPC_CHANNELS.templateManagement.applyBatchStaging,
+    handler: request =>
+      runTracked(randomUUID(), service.getActiveWorkspaceId(), () =>
+        stagingFacade.applyBatchStaging(request),
+      ),
+    inputSchema: applyBatchTemplateStagingRequestSchema,
+    outputSchema: applyBatchTemplateStagingResultSchema,
+  })
+  registerValidatedHandler({
+    channel: IPC_CHANNELS.templateManagement.applyBatchStagingAiPlan,
+    handler: request =>
+      runTracked(randomUUID(), service.getActiveWorkspaceId(), () =>
+        stagingFacade.applyBatchStagingAiPlan(request),
+      ),
+    inputSchema: applyStagingAiPlanRequestSchema,
+    outputSchema: applyStagingAiPlanResultSchema,
+  })
+  registerValidatedHandler({
+    channel: IPC_CHANNELS.templateManagement.discardBatchStaging,
+    handler: request => {
+      return runTracked(randomUUID(), service.getActiveWorkspaceId(), () =>
+        stagingFacade.discardBatchStaging(request),
+      ).then(() => null)
+    },
+    inputSchema: discardBatchTemplateStagingRequestSchema,
+    outputSchema: z.null(),
+  })
+  registerValidatedHandler({
+    channel: IPC_CHANNELS.templateManagement.previewBatchStagingAiPlan,
+    handler: request => stagingFacade.previewBatchStagingAiPlan(request),
+    inputSchema: previewTemplateAiPlanRequestSchema,
+    outputSchema: stagingAiPlanPreviewSchema,
+  })
+  registerValidatedHandler({
+    channel: IPC_CHANNELS.templateManagement.previewBatchStagingClassification,
+    handler: request => stagingFacade.previewBatchStagingClassification(request),
+    inputSchema: previewBatchStagingClassificationRequestSchema,
+    outputSchema: previewBatchStagingClassificationResultSchema,
+  })
+  registerValidatedHandler({
+    channel: IPC_CHANNELS.templateManagement.generateBatchStagingAiPlan,
+    handler: request =>
+      runStagingTracked(
+        request.requestId,
+        service.getActiveWorkspaceId(),
+        updateProgress => stagingFacade.generateBatchStagingAiPlan(request, updateProgress),
+        requestId => stagingFacade.cancelBatchStagingAiPlan(requestId),
+      ),
+    inputSchema: filePlanGenerationRequestSchema,
+    outputSchema: stagingAiPlanDraftSchema,
+  })
+  registerValidatedHandler({
+    channel: IPC_CHANNELS.templateManagement.cancelBatchStagingAiPlan,
+    handler: request => {
+      stagingFacade.cancelBatchStagingAiPlan(request.requestId)
+      return null
+    },
+    inputSchema: cancelAiRequestSchema,
+    outputSchema: z.null(),
+  })
+  registerValidatedHandler({
+    channel: IPC_CHANNELS.templateManagement.getBatchStagingAiDraft,
+    handler: request => stagingFacade.getBatchStagingAiDraft(request),
+    inputSchema: stagingAiPlanDraftRequestSchema,
+    outputSchema: stagingAiPlanDraftSchema.nullable(),
+  })
+  registerValidatedHandler({
+    channel: IPC_CHANNELS.templateManagement.discardBatchStagingAiDraft,
+    handler: request => {
+      stagingFacade.discardBatchStagingAiDraft(request)
+      return null
+    },
+    inputSchema: discardStagingAiPlanDraftRequestSchema,
+    outputSchema: z.null(),
   })
   registerValidatedHandler({
     channel: IPC_CHANNELS.templateManagement.chooseImportSource,
@@ -197,6 +398,11 @@ export function registerTemplateManagementIpc(
     channel: IPC_CHANNELS.templateManagement.cancelClassification,
     handler: request => {
       service.cancelClassification(request.requestId)
+      // A staging worker owns its AbortController in the staging service,
+      // while legacy single-template classification is owned by the main
+      // template service.  Cancelling both keeps the existing renderer API
+      // useful during the staging transition; TemplateManagementService
+      // forwards this call when a staging worker is configured.
       return null
     },
     inputSchema: cancelAiRequestSchema,

@@ -529,8 +529,14 @@ describe('TemplateFilePlanGenerationService preview snapshots', () => {
 
     expect(fixture.runTask).toHaveBeenCalledTimes(8)
     for (const request of fixture.capturedRequests) {
-      const payload = JSON.parse(request.text) as { templates: Array<{ id: string }> }
+      const payload = JSON.parse(request.text) as {
+        batchScope: { actionableTemplateIds: string[] }
+        templates: Array<{ id: string }>
+      }
       expect(payload.templates.length).toBeLessThanOrEqual(4)
+      expect(payload.batchScope.actionableTemplateIds).toEqual(
+        payload.templates.map(template => template.id),
+      )
       expect(request.maxOutputTokens).toBe(4_096)
       for (const template of fixture.templates) {
         expect(request.cache?.stableContext).toContain(template.id)
@@ -905,7 +911,7 @@ describe('TemplateFilePlanGenerationService preview snapshots', () => {
     expect(fixture.createPlan).not.toHaveBeenCalled()
   })
 
-  it('rejects an operation that escapes its locked batch', async () => {
+  it('ignores an operation that escapes its locked batch while preserving valid operations', async () => {
     rootPath = await mkdtemp(join(tmpdir(), 'file-plan-snapshot-'))
     const fixture = await createFixture(rootPath, {
       notes: ['a'.repeat(60_000), 'b'.repeat(60_000)],
@@ -927,13 +933,14 @@ describe('TemplateFilePlanGenerationService preview snapshots', () => {
       requestId: crypto.randomUUID(),
     })
 
-    await expect(
-      fixture.service.generateFilePlan({ previewId: preview.filePlan.previewId }),
-    ).rejects.toMatchObject({
-      code: 'AI_INVALID_RESPONSE',
-      message: expect.stringContaining('当前批次之外'),
+    const plan = await fixture.service.generateFilePlan({ previewId: preview.filePlan.previewId })
+    expect(plan.operations).toHaveLength(1)
+    expect(plan.operations[0]).toMatchObject({
+      kind: 'move',
+      sourcePath: fixture.templates[0]!.relativePath,
     })
-    expect(fixture.createPlan).not.toHaveBeenCalled()
+    expect(plan.summary).toContain('忽略 1 项越界模板操作')
+    expect(fixture.createPlan).toHaveBeenCalledTimes(1)
   })
 
   it('rejects conflicting move targets returned across batches', async () => {

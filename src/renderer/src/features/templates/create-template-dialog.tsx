@@ -12,6 +12,7 @@ import {
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 
 import type {
+  ApplyBatchTemplateStagingResult,
   BatchImportTemplateResult,
   ImportTemplateRequest,
   TemplateClassification,
@@ -46,6 +47,7 @@ interface CreateTemplateDialogProps {
   error: string | null
   isBusy: boolean
   onBatchComplete: (result: BatchImportTemplateResult) => void
+  onBatchStagingApplied?: (result: ApplyBatchTemplateStagingResult) => void
   onCreate: (request: ImportTemplateRequest) => Promise<boolean>
   onOpenChange: (open: boolean) => void
   open: boolean
@@ -194,6 +196,7 @@ export function CreateTemplateDialog({
   error,
   isBusy,
   onBatchComplete,
+  onBatchStagingApplied,
   onCreate,
   onOpenChange,
   open,
@@ -784,6 +787,11 @@ export function CreateTemplateDialog({
           setBatchOpen(false)
         }}
         onOpenChange={setBatchOpen}
+        onStagingApplied={result => {
+          onBatchStagingApplied?.(result)
+          setBatchOpen(false)
+          onOpenChange(false)
+        }}
         open={batchOpen}
       />
     </>

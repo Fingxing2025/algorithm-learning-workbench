@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 
 import type { ChooseWorkspaceRequest, TemplateActionRequest } from '@core/contracts/workspace'
-import type { ImportTemplateRequest } from '@core/contracts/template-management'
+import type {
+  ApplyBatchTemplateStagingResult,
+  ImportTemplateRequest,
+} from '@core/contracts/template-management'
 
 import { AppDialogs } from '@/app/app-dialogs'
 import { AppShell } from '@/app/app-shell'
@@ -236,6 +239,12 @@ function AppContent() {
               setSelectedTemplateId(firstTemplateId)
               if (firstTemplateId) void loadTemplate(firstTemplateId)
               setNotice(t('已批量导入 {count} 份 C++ 模板', { count: result.imported.length }))
+            },
+            onBatchStagingApplied: (result: ApplyBatchTemplateStagingResult) => {
+              replaceWorkspace(result.workspace)
+              setCurrentView('templates')
+              setSelectedTemplateId(null)
+              setNotice(t('已应用暂存批量导入'))
             },
             onCreate: handleCreateTemplate,
             onOpenChange: open => {

@@ -48,4 +48,16 @@ describe('resolveAuthorizedFile', () => {
       code: 'PATH_NOT_AUTHORIZED',
     })
   })
+
+  it('rejects a symlink used as the authorization root', async () => {
+    const outsideRoot = join(temporaryDirectory, 'outside-root')
+    const linkedRoot = join(temporaryDirectory, 'linked-root')
+    await mkdir(outsideRoot)
+    await writeFile(join(outsideRoot, 'bfs.cpp'), 'void bfs() {}', 'utf8')
+    await symlink(outsideRoot, linkedRoot)
+
+    await expect(resolveAuthorizedFile(linkedRoot, 'bfs.cpp')).rejects.toMatchObject({
+      code: 'PATH_NOT_AUTHORIZED',
+    })
+  })
 })

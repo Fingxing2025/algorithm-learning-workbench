@@ -1,3 +1,4 @@
+import type { BatchStagingRecovery, RecoverBatchStagingRequest } from './template-management'
 import type { RuntimeInfo } from './runtime'
 import type {
   BackgroundTaskRequest,
@@ -40,6 +41,10 @@ import type {
 import type {
   ApplyExistingTemplateMetadataCompletionRequest,
   ApplyExistingTemplateMetadataCompletionResult,
+  ApplyBatchTemplateStagingRequest,
+  ApplyBatchTemplateStagingResult,
+  ApplyStagingAiPlanRequest,
+  ApplyStagingAiPlanResult,
   ApplyTemplateRelocationRequest,
   DeleteFilePlansRequest,
   DeleteFilePlansResult,
@@ -49,6 +54,12 @@ import type {
   DeleteInvalidFileExecutionsResult,
   BatchImportTemplateRequest,
   BatchImportTemplateResult,
+  BatchTemplateStaging,
+  BatchTemplateStagingIdRequest,
+  CreateBatchTemplateStagingRequest,
+  ProcessBatchTemplateStagingRequest,
+  UpdateBatchTemplateStagingItemRequest,
+  DiscardBatchTemplateStagingRequest,
   BatchTemplateImportSource,
   InspectBatchTemplateImportRequest,
   InspectBatchTemplateImportResult,
@@ -56,6 +67,12 @@ import type {
   ImportTemplateRequest,
   ImportTemplateResult,
   PreviewBatchTemplateClassificationRequest,
+  PreviewBatchStagingClassificationRequest,
+  PreviewTemplateAiPlanRequest,
+  StagingAiPlanPreview,
+  StagingAiPlanDraft,
+  StagingAiPlanDraftRequest,
+  DiscardStagingAiPlanDraftRequest,
   PreviewTemplateRelocationRequest,
   TemplateClassification,
   TemplateImportSource,
@@ -189,6 +206,14 @@ export interface DesktopApi {
     cancelExport: (request: CancelTemplateExportRequest) => Promise<void>
   }
   templateManagement: {
+    inspectBatchStagingRecoveries: () => Promise<BatchStagingRecovery[]>
+    recoverBatchStaging: (request: RecoverBatchStagingRequest) => Promise<WorkspaceSnapshot | null>
+    applyBatchStaging: (
+      request: ApplyBatchTemplateStagingRequest,
+    ) => Promise<ApplyBatchTemplateStagingResult>
+    applyBatchStagingAiPlan: (
+      request: ApplyStagingAiPlanRequest,
+    ) => Promise<ApplyStagingAiPlanResult>
     applyExistingMetadataCompletion: (
       request: ApplyExistingTemplateMetadataCompletionRequest,
     ) => Promise<ApplyExistingTemplateMetadataCompletionResult>
@@ -207,6 +232,35 @@ export interface DesktopApi {
     cancelFilePlan: (planId: string) => Promise<FileChangePlan>
     chooseBatchImportDirectory: () => Promise<BatchTemplateImportSource[]>
     chooseBatchImportFiles: () => Promise<BatchTemplateImportSource[]>
+    createBatchStaging: (
+      request: CreateBatchTemplateStagingRequest,
+    ) => Promise<BatchTemplateStaging>
+    getBatchStaging: (
+      request: BatchTemplateStagingIdRequest,
+    ) => Promise<BatchTemplateStaging | null>
+    listBatchStagings: () => Promise<BatchTemplateStaging[]>
+    continueBatchStaging: (
+      request: ProcessBatchTemplateStagingRequest,
+    ) => Promise<BatchTemplateStaging>
+    retryBatchStaging: (
+      request: ProcessBatchTemplateStagingRequest,
+    ) => Promise<BatchTemplateStaging>
+    updateBatchStagingItem: (
+      request: UpdateBatchTemplateStagingItemRequest,
+    ) => Promise<BatchTemplateStaging>
+    discardBatchStaging: (request: DiscardBatchTemplateStagingRequest) => Promise<void>
+    previewBatchStagingAiPlan: (
+      request: PreviewTemplateAiPlanRequest,
+    ) => Promise<StagingAiPlanPreview>
+    previewBatchStagingClassification: (
+      request: PreviewBatchStagingClassificationRequest,
+    ) => Promise<AiRequestPreview>
+    generateBatchStagingAiPlan: (request: FilePlanGenerationRequest) => Promise<StagingAiPlanDraft>
+    cancelBatchStagingAiPlan: (requestId: string) => Promise<void>
+    getBatchStagingAiDraft: (
+      request: StagingAiPlanDraftRequest,
+    ) => Promise<StagingAiPlanDraft | null>
+    discardBatchStagingAiDraft: (request: DiscardStagingAiPlanDraftRequest) => Promise<void>
     chooseImportSource: () => Promise<TemplateImportSource | null>
     classify: (request: ClassifyTemplateRequest) => Promise<TemplateClassification>
     deleteTemplate: (templateId: string) => Promise<FileChangeMutationResult>

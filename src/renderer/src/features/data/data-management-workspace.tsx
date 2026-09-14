@@ -1,3 +1,4 @@
+import { BatchStagingRecoveryPanel } from './batch-staging-recovery-panel'
 import { useEffect, useRef, useState } from 'react'
 import { ShieldCheck } from 'lucide-react'
 
@@ -122,6 +123,7 @@ export function DataManagementWorkspace({
 
       <div className="min-h-0 flex-1 overflow-y-auto p-5">
         <div className="mx-auto grid max-w-[1120px] gap-4">
+          <BatchStagingRecoveryPanel onRecovered={onWorkspaceRestored} />
           {message && (
             <div
               aria-atomic="true"

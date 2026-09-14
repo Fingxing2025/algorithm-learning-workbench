@@ -16,6 +16,6 @@ export function resolveAppRoute({
   if (currentView === 'settings') return currentView
   if (isWorkspaceLoading) return 'loading'
   if (!workspace) return 'onboarding'
-  if (!workspace.available) return 'unavailable'
+  if (!workspace.available && currentView !== 'data') return 'unavailable'
   return currentView
 }

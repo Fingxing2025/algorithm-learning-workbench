@@ -143,11 +143,14 @@ function buildSystem(outputLanguage: PreviewFilePlanRequest['outputLanguage']): 
     '每项必须返回 reason、evidence、confidence、risk、applicability 和 alternatives。',
     '只能引用输入中的 templateId。不要建议覆盖文件、执行命令或修改源码。',
     '必须先全面检查稳定前缀中的完整 workspaceCatalog；relatedWorkspaceContext 和 templates 只是详细补充。',
+    '不要把现有目录、文件名或已有分类当成正确答案；对每个候选都要独立复核源码、元数据、文件名和算法范式，主动发现明显不合理的归类并提出改进操作。',
+    '即使本地 audit.issues 没有列出问题，只要源码语义与当前路径明显不一致，也必须输出 move，并在 evidence 中引用源码或元数据依据；只有确实没有可靠改进时才返回空 operations。',
     '完全重复文件由本地审计处理，不要为 duplicate-content 输出操作。',
     '除已由 duplicate-content 本地确定性删除的文件外，每个 invalid-name 审计项都必须输出 move；必须根据源码、元数据和目录语义恢复可读文件名，不得只描述异常或改元数据。',
     'invalid-name 的 move 必须保留扩展名、使用工作区相对路径、避开已有目标且不能修改源码。',
     '每个 path-inconsistency 审计项列出的模板都必须输出 move；目标应优先复用该组建议保留的现有目录，并根据源码与元数据选择合理的子目录，不得把重复的“算法/算法基础”“字符串/字符串算法”等分支继续保留。',
     'path-inconsistency 的 move 必须保留扩展名、使用工作区相对路径、避开已有目标且不能修改源码；如果无法可靠判断子目录，使用审计项 detail 中的保留目录并在 reason/alternatives 中说明。',
+    '目录名称只是待复核线索。具体算法与变体必须由源码证据支持，不得根据宽泛目录名推断更细子类。',
     '高度相似不是删除结论；如建议 delete，evidence 必须指出保留项和需人工确认的差异。',
     '用户笔记只能在有明确算法或事实错误时作为 update-metadata 建议；必须给出证据，不得仅做文风改写。',
     '保持输出简洁：summary 不超过 300 字，每项 evidence 和 alternatives 只保留最关键的 1–3 条，不重复输入内容。',
@@ -197,6 +200,11 @@ function serializePayload(
 ): string {
   return JSON.stringify({
     audit,
+    batchScope: {
+      actionableTemplateIds: candidates.map(candidate => candidate.id),
+      instruction:
+        '仅允许为 templates 数组中的 actionableTemplateIds 返回操作；relatedWorkspaceContext 和完整目录仅供语义参考，不得引用其中其他模板。',
+    },
     relatedWorkspaceContext: JSON.parse(context.relatedContext),
     templates: candidates,
   })
@@ -541,7 +549,7 @@ export class TemplateFilePlanGenerationService {
       model: target.model,
       maxEstimatedInputTokens: FILE_PLAN_CONTEXT_TOKEN_BUDGET,
       outputLanguage: request.outputLanguage,
-      promptSchemaVersion: 'workspace-file-plan-v4-batched',
+      promptSchemaVersion: 'workspace-file-plan-v5-semantic-review',
       providerId: target.id,
       query,
       task: 'workspace-management',
@@ -1024,6 +1032,7 @@ export class TemplateFilePlanGenerationService {
       >
       const batchResults: Array<BatchCompletion & { batchLabel: string }> = []
       const languageFallbackBatchLabels = new Set<string>()
+      const outOfBatchOperationWarnings: string[] = []
       let adaptiveSplitCount = 0
       let completedAdaptiveSubBatchCount = 0
       for (let batchIndex = 0; batchIndex < snapshot.batches.length; batchIndex += 1) {
@@ -1158,15 +1167,27 @@ export class TemplateFilePlanGenerationService {
           }
           if (languageFallbackUsed) languageFallbackBatchLabels.add(batchLabel)
           const allowedCandidateIds = new Set(batch.candidateIds)
-          if (
-            completion.data.operations.some(
-              operation => !allowedCandidateIds.has(operation.templateId),
+          const outOfBatchOperations = completion.data.operations.filter(
+            operation => !allowedCandidateIds.has(operation.templateId),
+          )
+          if (outOfBatchOperations.length > 0) {
+            // The full catalog is intentionally present as read-only semantic
+            // context. A model can still echo an ID from that catalog; ignore
+            // only those operations and preserve valid operations for this
+            // batch. Later global checks still reject duplicates, collisions,
+            // and missing mandatory audit actions.
+            outOfBatchOperationWarnings.push(
+              `${batchLabel}忽略 ${outOfBatchOperations.length} 项越界模板操作`,
             )
-          ) {
-            throw new PublicError(
-              'AI_INVALID_RESPONSE',
-              `AI 在${batchLabel}中返回了当前批次之外的模板操作，已拒绝整份计划。工作区未被修改。`,
-            )
+            completion = {
+              ...completion,
+              data: {
+                ...completion.data,
+                operations: completion.data.operations.filter(operation =>
+                  allowedCandidateIds.has(operation.templateId),
+                ),
+              },
+            }
           }
           completedAdaptiveSubBatchCount += 1
           return [{ ...completion, batchLabel }]
@@ -1339,7 +1360,11 @@ export class TemplateFilePlanGenerationService {
               throw error
             })
           if (targetExists) continue
-          operation = { ...base, kind: 'move', targetPath }
+          operation = {
+            ...base,
+            kind: 'move',
+            targetPath,
+          }
         } else if (suggestion.kind === 'delete') {
           operation = { ...base, kind: 'delete', selectedByDefault: false }
         } else {
@@ -1441,6 +1466,9 @@ export class TemplateFilePlanGenerationService {
           : ''
       const summary = [
         languageReviewNotice,
+        ...outOfBatchOperationWarnings.map(
+          message => `安全提示：${message}；仅保留当前批次内的有效操作。`,
+        ),
         ...batchResults.map(result => `${result.batchLabel}：${result.data.summary}`),
       ]
         .filter(Boolean)
