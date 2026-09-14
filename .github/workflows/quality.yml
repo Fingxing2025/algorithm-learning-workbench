@@ -25,6 +25,8 @@ jobs:
       - run: npm ci
       - run: npm audit --audit-level=moderate
       - run: npm run check
+      - name: Validate classification evaluation sources
+        run: npm run evaluation:classification:validate
       - run: npm run build
 
   electron-e2e:
